@@ -18,6 +18,42 @@ Bump version only:
 yarn monopipeline bump patch
 ```
 
+## [Unreleased]
+
+### Added
+
+**Switch (Astris)**
+- Switch library scanner that groups base games, updates, and DLC from ROM folders inferred from your library
+- Switch content visualizer screen (Settings → Import → Switch content visualizer)
+- Home hero shows game version and installed DLC count for Switch titles
+- DLC names extracted from ROM filename brackets (e.g. `Astronomers Hat`)
+- Launch always resolves to the base `.nsp` / `.xci` application ROM; updates are left for the emulator
+
+**Steam**
+- Home hero shows build ID and installed add-on count for Cyberpunk 2077 (Steam AppID `1091500`) as a proof of concept
+
+**GameHub**
+- Import verified GameHub shortcuts from `/Applications` and `~/Applications`
+- Detection via bundle id `com.gamehub.shortcut.*` and `gamehub://launch/` deep links in shortcut launchers
+- Play opens the shortcut `.app`, which forwards the deep link to GameHub
+- Setup instructions on the Import screen
+
+**Launcher & sessions**
+- Full-screen playing view with game artwork, title, and stop button while a session is active
+- Edit launch path on the game edit page when a title fails to open
+
+### Changed
+
+- Astris import skips AppleDouble `._*` sidecar files, updates, DLC, and language packs; base-only applications ≥ 100 MB
+- GameHub importer no longer scans arbitrary `.exe` folders — shortcuts only
+- macOS Applications scan excludes GameHub shortcuts (import them via GameHub instead)
+- Home content stats use compact typography and stable card height; version/DLC pills removed from game tiles
+
+### Fixed
+
+- Astris launch opens the real ROM instead of macOS metadata sidecars on exFAT volumes
+- Install size refreshes when the launch path is edited on the game edit page
+
 ## [0.1.0] - 2026-07-21
 
 First public release of **Orbit** — a controller-first game launcher for macOS.
