@@ -28,10 +28,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      - name: Enable GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "/repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "GitHub Pages is already enabled."
+          else
+            echo "Enabling GitHub Pages (workflow build)..."
+            gh api -X POST "/repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
