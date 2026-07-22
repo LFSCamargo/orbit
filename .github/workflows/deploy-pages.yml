@@ -12,7 +12,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  administration: write
 
 concurrency:
   group: pages
@@ -29,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Enable GitHub Pages
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
