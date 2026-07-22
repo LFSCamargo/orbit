@@ -20,6 +20,10 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-22
+
+Library content inventory on the home hero, smarter Switch and GameHub imports, a playing screen during sessions, and launch-path editing.
+
 ### Added
 
 **Switch (Astris)**
@@ -123,4 +127,5 @@ GitHub Releases includes:
 - GameHub importer is experimental
 - Intel Macs: build locally with `yarn release:macos -- --arch x86_64` or `--arch universal`
 
+[0.1.1]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.0
