@@ -160,6 +160,26 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
     case 'stop_game':
       activeSession = null
       return null as T
+    case 'scan_switch_library_from_library':
+      return {
+        folders: [],
+        groups: [],
+        totalFiles: 0,
+      } as T
+    case 'get_home_content_inventory':
+      return {
+        summaries: [
+          {
+            gameId: 'mock-cyberpunk',
+            versionLabel: 'Build 20383525',
+            versionDetail: 'Updated Jul 21, 2026',
+            dlcCount: 2,
+            updateCount: 0,
+            dlcNames: ['Phantom Liberty', 'Bonus content'],
+            hasBase: true,
+          },
+        ],
+      } as T
     case 'set_window_fullscreen':
     case 'hide_orbit_window':
     case 'show_orbit_window':

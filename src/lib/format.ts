@@ -61,6 +61,45 @@ export function providerLabel(provider: string): string {
   }
 }
 
+export function formatDlcCount(count: number): string {
+  if (count <= 0) return 'No DLC'
+  return count === 1 ? '1 DLC' : `${count} DLC`
+}
+
+const HOME_DLC_NAME_LIMIT = 3
+
+export function formatDlcNamesPreview(names: string[], limit = HOME_DLC_NAME_LIMIT): string {
+  if (names.length === 0) return ''
+  const shown = names.slice(0, limit)
+  const preview = shown.join(' · ')
+  const remaining = names.length - shown.length
+  if (remaining <= 0) return preview
+  return `${preview} +${remaining} more`
+}
+
+export function formatContentVersion(label?: string): string {
+  return label?.trim() || 'Unknown'
+}
+
+export function formatContentDetail(summary: {
+  versionDetail?: string
+  dlcCount: number
+  dlcNames: string[]
+  updateCount: number
+}): string {
+  if (summary.versionDetail) return summary.versionDetail
+  if (summary.dlcNames.length > 0) {
+    return formatDlcNamesPreview(summary.dlcNames)
+  }
+  if (summary.updateCount > 0) {
+    return `${summary.updateCount} update${summary.updateCount === 1 ? '' : 's'} on disk`
+  }
+  if (summary.dlcCount > 0) {
+    return `${summary.dlcCount} add-on${summary.dlcCount === 1 ? '' : 's'} installed`
+  }
+  return 'Ready to play'
+}
+
 export function placeholderGradient(seed: string): string {
   let hash = 0
   for (let i = 0; i < seed.length; i += 1) {
