@@ -59,17 +59,25 @@ See [RUNNING.md](RUNNING.md#building-a-release) for details.
 
 ### GitHub Releases
 
-Prepare a release (bump version, scaffold `CHANGELOG.md` and `.github/release-notes/`):
+The [release workflow](.github/workflows/release.yml) builds on `macos-14` (Apple Silicon) when you push a `v*` tag, or manually from the Actions tab.
+
+**Publish an existing tag** (e.g. `v0.1.0` already pushed):
+
+1. **Actions → Release → Run workflow**
+2. Branch: `main`
+3. Tag: `v0.1.0`
+4. Run workflow
+
+**New release:**
 
 ```bash
 yarn monopipeline release patch --summary "Your release summary"
 # edit CHANGELOG.md and .github/release-notes/<version>.md
 git add -A && git commit -m "chore: prepare v0.2.0"
+git push origin main
 git tag v0.2.0
-git push origin main --tags
+git push origin v0.2.0
 ```
-
-The [release workflow](.github/workflows/release.yml) builds on `macos-14` (Apple Silicon) and publishes:
 
 - `Orbit-<version>-aarch64.dmg`
 - `Orbit-<version>-aarch64.app.tar.gz`
@@ -79,6 +87,8 @@ The [release workflow](.github/workflows/release.yml) builds on `macos-14` (Appl
 Full setup, frontend-only dev, testing, and troubleshooting: **[RUNNING.md](RUNNING.md)**.
 
 Changelog: **[CHANGELOG.md](CHANGELOG.md)**
+
+## Documentation
 
 | Doc | Contents |
 | --- | -------- |

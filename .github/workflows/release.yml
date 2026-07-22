@@ -4,32 +4,46 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
   build-macos:
     runs-on: macos-14
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Parse version from tag
-        id: version
+      - name: Determine release tag
+        id: tag
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.+-]+)?$ ]]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.+-]+)?$ ]]; then
             echo "Invalid release tag: $TAG (expected vX.Y.Z)" >&2
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          VERSION="${TAG#v}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building release $TAG ($VERSION)"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,7 +60,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Sync version
-        run: node scripts/sync-version.mjs "${{ steps.version.outputs.version }}"
+        run: node scripts/sync-version.mjs "${{ steps.tag.outputs.version }}"
 
       - name: Typecheck
         run: yarn typecheck
@@ -57,13 +71,49 @@ jobs:
       - name: Build macOS release
         run: bash scripts/release-macos.sh --arch aarch64 --skip-typecheck --skip-tests
 
-      - name: Upload release assets
+      - name: Verify release artifacts
+        run: |
+          RELEASE_DIR="release/${{ steps.tag.outputs.version }}"
+          echo "Release artifacts:"
+          ls -la "$RELEASE_DIR"
+          if ! find "$RELEASE_DIR" -maxdepth 1 \( -name '*.dmg' -o -name '*.tar.gz' \) | grep -q .; then
+            echo "No .dmg or .app.tar.gz found in $RELEASE_DIR" >&2
+            exit 1
+          fi
+
+      - name: Prepare release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.tag.outputs.version }}"
+          NOTES_FILE=".github/release-notes/${VERSION}.md"
+          BODY_FILE="release-body.md"
+
+          if [ -f "$NOTES_FILE" ]; then
+            cp "$NOTES_FILE" "$BODY_FILE"
+            echo "Using release notes from $NOTES_FILE"
+          elif git show origin/main:"$NOTES_FILE" > "$BODY_FILE" 2>/dev/null; then
+            echo "Using release notes from origin/main:$NOTES_FILE"
+          else
+            cat > "$BODY_FILE" <<EOF
+          Orbit **${VERSION}** for macOS (Apple Silicon).
+
+          Download the \`.dmg\` below, open it, and drag **Orbit** to Applications.
+
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          EOF
+            echo "Using fallback release notes"
+          fi
+
+          echo "path=$BODY_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: Orbit ${{ steps.version.outputs.version }}
-          body_path: .github/release-notes/${{ steps.version.outputs.version }}.md
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Orbit ${{ steps.tag.outputs.version }}
+          body_path: ${{ steps.notes.outputs.path }}
+          make_latest: true
           files: |
-            release/${{ steps.version.outputs.version }}/*
+            release/${{ steps.tag.outputs.version }}/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
