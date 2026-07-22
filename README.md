@@ -78,10 +78,12 @@ Full setup, frontend-only dev, testing, and troubleshooting: **[RUNNING.md](RUNN
 
 The landing page is [`docs/index.html`](docs/index.html), deployed automatically by GitHub Actions.
 
-**One-time setup:**
+**One-time setup (usually automatic):**
 
 1. Push the repo to GitHub
-2. **Settings → Pages → Build and deployment → Source:** select **GitHub Actions**
+2. The [deploy workflow](.github/workflows/deploy-pages.yml) enables Pages on first run (`enablement: true`)
+
+If the deploy job still fails at **Setup Pages**, open **Settings → Pages → Build and deployment** and set **Source** to **GitHub Actions**, then re-run the workflow.
 
 **Deploy:** pushes to `main` that touch `docs/` run [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml). You can also trigger a deploy manually from the **Actions** tab (**Deploy GitHub Pages → Run workflow**).
 
