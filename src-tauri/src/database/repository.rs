@@ -28,6 +28,16 @@ impl GameRepository {
         Ok(repo)
     }
 
+    #[cfg(test)]
+    pub fn open_in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory().context("Failed to open in-memory SQLite")?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        run_migrations(&conn)?;
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
+    }
+
     pub fn list_games(&self) -> Result<Vec<Game>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -209,8 +219,15 @@ impl GameRepository {
         let sort_title = title.to_lowercase();
         let description = request.description.or(existing.description);
         let artwork = request.artwork.unwrap_or(existing.artwork);
-        let launch_config = request.launch_config.unwrap_or(existing.launch_config);
-        let install_size_bytes = request.install_size_bytes.or(existing.install_size_bytes);
+        let launch_config_changed = request.launch_config.is_some();
+        let launch_config = request
+            .launch_config
+            .unwrap_or(existing.launch_config.clone());
+        let install_size_bytes = if launch_config_changed {
+            install_size_for_launch(&launch_config).or(existing.install_size_bytes)
+        } else {
+            request.install_size_bytes.or(existing.install_size_bytes)
+        };
 
         let launch_json = serde_json::to_string(&launch_config)?;
         let artwork_json = serde_json::to_string(&artwork)?;
@@ -459,6 +476,21 @@ fn apply_overrides(conn: &Connection, game: &mut Game) -> Result<()> {
     Ok(())
 }
 
+fn install_size_for_launch(config: &LaunchConfiguration) -> Option<i64> {
+    match config {
+        LaunchConfiguration::OpenFile { file_path, .. } => {
+            crate::utils::size::path_size_bytes(Path::new(file_path))
+        }
+        LaunchConfiguration::OpenApplication {
+            application_path, ..
+        } => crate::utils::size::path_size_bytes(Path::new(application_path)),
+        LaunchConfiguration::Gamehub { shortcut_app_path, .. } => {
+            crate::utils::size::path_size_bytes(Path::new(shortcut_app_path))
+        }
+        _ => None,
+    }
+}
+
 fn map_game_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Game> {
     let launch_config_json: String = row.get(6)?;
     let artwork_json: String = row.get(7)?;
@@ -630,10 +662,11 @@ fn mock_games(now: &str) -> Vec<Game> {
             sort_title: "gamehub sample".into(),
             description: Some("Sample Windows executable mapped through GameHub.".into()),
             provider: GameProvider::Gamehub,
-            platform: GamePlatform::Windows,
-            source_id: None,
-            launch_config: LaunchConfiguration::OpenUrl {
-                url: "https://example.com/gamehub".into(),
+            platform: GamePlatform::Macos,
+            source_id: Some("/Users/me/Applications/GameHub Sample.app".into()),
+            launch_config: LaunchConfiguration::Gamehub {
+                gamehub_app_path: "/Applications/GameHub.app".into(),
+                shortcut_app_path: "/Users/me/Applications/GameHub Sample.app".into(),
             },
             artwork: GameArtwork::default(),
             favorite: false,

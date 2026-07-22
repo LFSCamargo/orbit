@@ -7,6 +7,7 @@ export function resolveNavScreen(screen: AppScreen): AppScreen {
       return 'library'
     case 'add-game':
     case 'game-edit':
+    case 'switch-library':
       return 'settings'
     default:
       return screen
@@ -15,7 +16,7 @@ export function resolveNavScreen(screen: AppScreen): AppScreen {
 
 export function backTarget(screen: AppScreen, previous: AppScreen): AppScreen {
   if (screen === 'game-edit') return 'game-details'
-  if (screen === 'add-game') return 'settings'
+  if (screen === 'add-game' || screen === 'switch-library') return 'settings'
   if (screen === 'game-details') {
     return previous === 'game-details' ? 'library' : previous
   }
@@ -57,6 +58,8 @@ export function screenEntryFocusId(layout: ThemeLayout, screen: AppScreen): stri
       return 'search-clear'
     case 'settings':
       return 'settings-fullscreen'
+    case 'switch-library':
+      return 'switch-library-scan'
     default:
       return null
   }
