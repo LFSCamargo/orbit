@@ -1,0 +1,116 @@
+---
+description: Enforce one context per file for React features and Rust Tauri modules
+alwaysApply: true
+---
+
+# Spaghetti Checker — One Context Per File
+
+Keep each file focused on a single responsibility. Too much in one file (TMI) hurts
+readability, reviewability, and testability.
+
+---
+
+## Frontend `src/`
+
+```
+src/
+  app/                   # App shell, providers, routing entry
+  features/<name>/       # route-level pages (one page per file)
+  components/<area>/     # reusable UI (one component per .tsx)
+  controllers/           # gamepad + spatial focus (one concern per file)
+  hooks/                 # one hook per file
+  stores/                # Zustand slices (one store per file)
+  themes/                # built-in theme shells + layout hooks
+  lib/                   # pure helpers, Tauri wrappers, formatters
+  types/                 # shared TypeScript types
+  e2e/                   # Playwright tests (repo root)
+```
+
+| File | Allowed contents |
+| ---- | ---------------- |
+| `features/*/*.tsx` | Single page/screen component |
+| `components/*/*.tsx` | Single reusable component |
+| `hooks/*.ts` | Single custom hook |
+| `stores/*.store.ts` | Single Zustand store |
+| `controllers/*.ts` | Single controller/focus concern |
+| `app/App.tsx` | Screen routing + layout wiring only — no heavy business logic |
+
+```tsx
+// ❌ BAD — inline importer logic inside a page
+export function LibraryPage() {
+  const scanSteam = async () => { /* 80 lines */ }
+  return (...)
+}
+
+// ✅ GOOD — page composes hooks and components
+export function LibraryPage() {
+  const { games } = useGames()
+  return <GameGrid games={games} />
+}
+```
+
+Cross-feature shared UI → `src/components/`. Feature-specific UI stays in
+`src/features/<name>/` or colocated components under `src/components/<area>/`.
+
+---
+
+## Backend `src-tauri/src/`
+
+```
+src-tauri/src/
+  commands/              # one Tauri command group per file (*.rs)
+  database/              # migrations + repository
+  importers/             # one importer per platform
+  launching/             # launcher, process monitor, session
+  models/                # shared Rust structs
+  services/              # orchestration (library sync, artwork)
+  utils/                 # path helpers, filename parsing, size
+```
+
+| File | Allowed contents |
+| ---- | ---------------- |
+| `commands/*.rs` | Tauri `#[tauri::command]` handlers for one domain |
+| `importers/*.rs` | Single platform importer |
+| `database/repository.rs` | SQLite access — no launch/process logic |
+| `launching/*.rs` | Process lifecycle only |
+
+```rust
+// ❌ BAD — command file mixes DB, import, and launch
+#[tauri::command]
+async fn do_everything() { /* ... */ }
+
+// ✅ GOOD — thin command delegates to service/importer
+#[tauri::command]
+fn scan_steam_library(state: State<'_, AppState>) -> Result<Vec<Game>, String> {
+    steam::scan(&state.repo)
+}
+```
+
+Register commands in `lib.rs` via `generate_handler!` — keep `lib.rs` as wiring only.
+
+---
+
+## When to split
+
+Split when a file has **more than one** of: page, component, hook, store, Tauri command
+group, importer, service concern, or adapter.
+
+---
+
+## Tests
+
+- **Rust:** unit tests in the same module (`#[cfg(test)]`) or `src-tauri/tests/`.
+  Run `yarn run test:rust`.
+- **E2E:** Playwright in `e2e/*.spec.ts`. Run `yarn run test:e2e` for UI/navigation changes.
+- Prefer adding E2E coverage for new screens and controller flows.
+
+---
+
+## Agent checklist (run on every create/modify)
+
+When creating or editing under `src/` or `src-tauri/src/`:
+
+1. **Match layout** — use the canonical folder tree above.
+2. **Split before merge** — new screen → `features/`; new command group → `commands/`; new importer → `importers/`.
+3. **Run gates** — `yarn run typecheck`, `yarn run test:rust` (Rust), `yarn run test:e2e` (UI).
+4. **Update docs** — README architecture section or `docs/THEMES.md` if structure or theme contract changed.

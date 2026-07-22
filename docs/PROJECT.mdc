@@ -1,0 +1,178 @@
+---
+alwaysApply: true
+---
+
+# Project & Tooling
+
+Single-repo **Tauri 2** desktop app. TypeScript frontend + Rust backend in one workspace.
+
+Related docs: [DESIGN_DOC.mdc](DESIGN_DOC.mdc), [TAURI.mdc](TAURI.mdc), [FRONTEND.mdc](FRONTEND.mdc), [UI.mdc](UI.mdc).
+
+Root guides: [README.md](../README.md), [RUNNING.md](../RUNNING.md), [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+---
+
+## Repository layout
+
+```
+orbit/
+  src/                     # React frontend (Vite)
+    app/                   # App shell, providers
+    features/              # Screen-level pages
+    components/            # Shared UI
+    controllers/           # Gamepad + spatial focus
+    hooks/                 # React hooks
+    stores/                # Zustand state
+    themes/                # Built-in theme definitions + layout hooks
+    lib/                   # Tauri wrappers, formatters, artwork helpers
+    types/                 # Shared TS types
+    styles/                # Global CSS + theme tokens
+  src-tauri/               # Rust backend
+    src/
+      commands/            # Tauri invoke handlers
+      database/            # SQLite migrations + repository
+      importers/           # Platform importers
+      launching/           # Launch + process monitor + sessions
+      models/              # Shared Rust structs
+      services/            # Library sync, artwork
+      utils/               # Paths, filenames, size
+    icons/                 # App icons
+    Cargo.toml
+  e2e/                     # Playwright specs
+  docs/                    # Design & architecture docs
+  .cursor/rules/           # Cursor agent rules
+  package.json
+  vite.config.ts
+  tailwind.config.js
+  playwright.config.ts
+```
+
+---
+
+## Prerequisites
+
+- macOS 12+
+- Node.js 22+
+- Yarn 1.x or compatible
+- Rust stable (`rustup`)
+- Xcode Command Line Tools
+
+---
+
+## Scripts
+
+| Script | Command | Description |
+| ------ | ------- | ----------- |
+| `dev` | `vite` | Frontend only (mock Tauri API) |
+| `tauri:dev` | `tauri dev` | Full desktop app in development |
+| `tauri:build` | `tauri build` | Release `.app` bundle |
+| `release:macos` | `bash scripts/release-macos.sh` | Build + package macOS artifacts to `release/<version>/` |
+| `build` | `tsc --noEmit && vite build` | Typecheck + frontend production build |
+| `typecheck` | `tsc --noEmit` | TypeScript only |
+| `format` | `prettier --write .` | Format all files |
+| `format:check` | `prettier --check .` | CI-style format gate |
+| `test:rust` | `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
+| `test:e2e` | `playwright test` | Browser E2E (mock API or Tauri webview) |
+| `test:e2e:ui` | `playwright test --ui` | Playwright UI mode |
+
+Typical dev loop:
+
+```bash
+yarn install
+yarn tauri:dev
+```
+
+---
+
+## Environment
+
+Orbit has no required `.env` for core functionality. Optional:
+
+| Variable / setting | Used by | Notes |
+| ------------------ | ------- | ----- |
+| RAWG API key | Settings UI → `search_public_artwork` | Optional artwork search; stored in SQLite settings |
+| `localStorage orbit.themeId` | Browser dev (`vite`) | Theme when not running in Tauri |
+
+Application data (macOS):
+
+```text
+~/Library/Application Support/Orbit/
+  orbit.db                 # SQLite database
+  themes/*.json            # Custom user themes
+```
+
+---
+
+## Quality gates
+
+Defined in `.cursor/rules/quality-gating.mdc`. Run before declaring work done:
+
+```bash
+yarn run format:check
+yarn run typecheck
+yarn run test:rust      # when src-tauri/ changed
+yarn run build
+yarn run test:e2e       # when UI/navigation/themes changed
+```
+
+Cursor hooks (`.cursor/hooks.json`) run `typecheck` and `test:rust` after file edits.
+
+---
+
+## Linters & formatters
+
+| Tool | Scope | Config |
+| ---- | ----- | ------ |
+| **Prettier** | All formatted files | Root Prettier config |
+| **prettier-plugin-tailwindcss** | Tailwind class sorting | Enabled in Prettier |
+| **TypeScript** | `src/` | Strict mode via `tsconfig.json` |
+| **Rustfmt / Clippy** | `src-tauri/` | Standard Rust tooling (run manually) |
+
+Rules:
+
+- No `@ts-ignore` or `any` to bypass type errors without justification.
+- Match existing import style (`@/` path alias for `src/`).
+
+---
+
+## E2E testing
+
+Playwright config: `playwright.config.ts`. Primary spec: `e2e/orbit-ui-flow.spec.ts`.
+
+- Boots with `localStorage orbit.themeId = orbit` for deterministic home layout.
+- Tests hero scrim, glass dashboard, controller focus, theme shells, library navigation.
+- Run against Vite dev server (`yarn dev`) with mock API, or full Tauri build for integration smoke.
+
+---
+
+## CI (planned)
+
+GitHub Actions workflows:
+
+| Workflow | Trigger | Purpose |
+| -------- | ------- | ------- |
+| [deploy-pages.yml](../.github/workflows/deploy-pages.yml) | Push to `main` (`docs/**`) or manual | Publish landing page to GitHub Pages |
+| [release.yml](../.github/workflows/release.yml) | Push tag `v*` | Build macOS `.dmg` and publish GitHub Release |
+
+Future CI should mirror local gates:
+
+1. `yarn run format:check`
+2. `yarn run typecheck`
+3. `yarn run test:rust`
+4. `yarn run build`
+5. `yarn run test:e2e` (optional job with Playwright)
+
+---
+
+## Common commands
+
+```bash
+yarn install
+yarn tauri:dev                    # desktop dev
+yarn dev                          # frontend-only with mocks
+yarn run typecheck
+yarn run test:rust
+yarn run test:e2e
+yarn run tauri:build              # release bundle
+yarn run format                   # fix formatting
+```

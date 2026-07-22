@@ -1,0 +1,59 @@
+---
+description: Tauri desktop security, secrets, and safe I/O handling
+alwaysApply: true
+---
+
+# Security First Rule
+
+Orbit is a local desktop launcher — security focuses on safe filesystem access, process
+launch, secret handling, and SQLite integrity. Fix violations before declaring work done.
+
+---
+
+## Threat model (non-negotiable)
+
+| Layer | Must | Must not |
+| ----- | ---- | -------- |
+| Tauri commands | Validate paths; scope file reads to user-selected or known library dirs | Execute arbitrary shell commands from frontend input |
+| Frontend | Invoke typed Tauri commands via `src/lib/tauri.ts` | Use `eval`, dynamic script injection, or `innerHTML` with untrusted content |
+| Secrets | Load RAWG/API keys from env or settings; never commit real keys | Hardcode production API keys in source |
+| SQLite | Parameterized queries in `database/repository.rs` | String-concatenated SQL |
+| Launch | Launch only resolved game executables from known importers | Follow symlinks outside library roots without validation |
+
+---
+
+## Filesystem & process safety
+
+- Validate and canonicalize paths before read/write/launch in Rust.
+- Reject `..` traversal and unexpected file types in importers.
+- Do not expose raw `Command::new(user_input)` — whitelist launch targets.
+- Process monitor should only track Orbit-launched sessions.
+
+---
+
+## Secrets & logging
+
+Never hardcode production secrets in source. Use `.env` (gitignored) for local dev keys.
+
+Logs must never contain: API keys, RAWG tokens, full filesystem paths with usernames when
+avoidable, or session tokens. Remove debug `console.log` / `println!` before merge.
+
+---
+
+## Frontend hygiene
+
+- Avoid `dangerouslySetInnerHTML` for game descriptions — render as plain text or sanitize.
+- Do not persist secrets in `localStorage` beyond non-sensitive UI prefs (theme id, etc.).
+- Theme JSON from user folders is untrusted — validate shape before applying layout tokens.
+
+---
+
+## Agent checklist (run on security-sensitive changes)
+
+When editing `src-tauri/src/commands/`, `importers/`, `launching/`, or `database/`:
+
+1. **Validate inputs** — paths, IDs, and importer payloads at the Rust boundary.
+2. **Parameterized SQL** — no string-built queries.
+3. **Run gates** — `yarn run test:rust` and `yarn run typecheck`.
+4. **No secrets in diff** — scan for API keys and tokens before commit.
+5. **Update docs** — README or importer docs if launch/import contract changes.

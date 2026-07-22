@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/check-typecheck.sh",
+        "matcher": "Write|StrReplace|EditNotebook",
+        "failClosed": false
+      },
+      {
+        "command": ".cursor/hooks/check-rust.sh",
+        "matcher": "Write|StrReplace|EditNotebook",
+        "failClosed": false
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/check-typecheck.sh",
+        "failClosed": false
+      },
+      {
+        "command": ".cursor/hooks/check-rust.sh",
+        "failClosed": false
+      }
+    ]
+  }
+}

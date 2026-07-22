@@ -1,0 +1,43 @@
+---
+description: Production performance and complexity guardrails for generated code
+alwaysApply: true
+---
+
+# O1 Check — Performance & Complexity Rule
+
+Before returning non-trivial TypeScript or Rust code, evaluate **production performance risk**
+as if running an o1-check against the change.
+
+## Evaluate before returning code
+
+- Cyclomatic complexity, nesting depth, and function length
+- Nested loops over library lists or filesystem entries
+- SQLite / Tauri invoke calls inside loops
+- Unbounded queries (missing `LIMIT` / pagination on large libraries)
+- Sequential awaits that could be batched with `Promise.all`
+- O(n²) lookups where a `Map` / `Set` would be O(n)
+- Reading entire artwork blobs when only metadata is needed
+
+## Avoid in production paths
+
+- Tauri `invoke` inside tight loops (batch on the Rust side instead)
+- Loading all games + decoding Base64 artwork when rendering a list thumbnail grid
+- Full directory walks without early exit or depth limits
+- Offset pagination for large libraries when cursor/keyset pagination is viable
+- Deeply nested loops with `.includes()` / `.find()` on arrays
+- Blocking the UI thread with synchronous heavy work in React render paths
+
+## Prefer
+
+- Batch Rust commands (single round-trip for list + metadata)
+- Pagination with enforced max page size on library endpoints
+- `Map` / `Set` pre-indexing before iteration
+- `Promise.all` (with concurrency limits when needed) for independent async work
+- Early returns to flatten nesting
+- SQLite indexes and parameterized queries in `database/repository.rs`
+
+## When returning non-trivial code
+
+Include a **short complexity note** (e.g. "O(n) single query + O(n) in-memory map build").
+
+If estimated risk is **high** or **critical**, refactor before returning the code.

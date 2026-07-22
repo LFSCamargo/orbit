@@ -1,0 +1,643 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --orbit-canvas: 5 7 12;
+  --orbit-surface: 12 16 24;
+  --orbit-panel: 18 24 34;
+  --orbit-foreground: 244 246 250;
+  --orbit-muted: 148 160 178;
+  --orbit-accent: 120 196 255;
+  --orbit-focus: 180 220 255;
+  --orbit-border: 42 52 68;
+  --orbit-radius: 1.25rem;
+  --orbit-card-radius: 1rem;
+  --orbit-blur: 24px;
+  --orbit-motion-duration: 0.35s;
+  --orbit-motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  --orbit-font-display: 'DM Sans', system-ui, sans-serif;
+  --orbit-font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+@layer base {
+  /* Controller-first UI — keep scrolling, hide scrollbar chrome everywhere. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--orbit-font-body);
+    background: rgb(var(--orbit-canvas));
+    color: rgb(var(--orbit-foreground));
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color var(--orbit-motion-duration) var(--orbit-motion-easing),
+      color var(--orbit-motion-duration) var(--orbit-motion-easing);
+  }
+
+  ::selection {
+    background: rgb(var(--orbit-accent) / 0.35);
+  }
+}
+
+@layer components {
+  .orbit-panel {
+    border-radius: var(--orbit-radius);
+    background: rgb(var(--orbit-panel) / 0.72);
+    backdrop-filter: blur(var(--orbit-blur));
+    box-shadow: inset 0 0 0 1px rgb(var(--orbit-border) / 0.55);
+  }
+
+  .orbit-card {
+    border-radius: var(--orbit-card-radius);
+  }
+
+  /* Frosted glass — shared Switch + PS5 recipe (no backdrop-filter). */
+  .native-glass-panel {
+    isolation: isolate;
+  }
+
+  .native-glass-blur {
+    filter: blur(18px) saturate(58%) brightness(0.66) contrast(1.03);
+  }
+
+  .native-glass-tint {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 0.11) 0%,
+        rgb(255 255 255 / 0.03) 24%,
+        transparent 36%
+      ),
+      linear-gradient(180deg, rgb(14 18 28 / 0.38) 0%, rgb(8 10 16 / 0.52) 100%);
+  }
+
+  .native-glass-sheen {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.11);
+  }
+
+  .theme-bg {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .theme-bg::before,
+  .theme-bg::after {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    transition: opacity var(--orbit-motion-duration) var(--orbit-motion-easing);
+  }
+
+  html[data-bg='radial'] .theme-bg::before {
+    background: radial-gradient(
+      ellipse at top,
+      rgb(var(--orbit-accent) / 0.14),
+      transparent 55%
+    );
+  }
+
+  /* Orbit routes share a flat canvas — no ambient wash behind Settings/Library/etc. */
+  html[data-layout='orbit'] .theme-bg,
+  html[data-layout='orbit'] .theme-bg::before,
+  html[data-layout='orbit'] .theme-bg::after {
+    display: none;
+  }
+
+  html[data-bg='ps5'] .theme-bg::before {
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 0%, rgb(70 140 255 / 0.28), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 20%, rgb(40 80 180 / 0.2), transparent 55%);
+  }
+
+  html[data-bg='ps5'] .theme-bg::after {
+    background: linear-gradient(180deg, transparent 40%, rgb(var(--orbit-canvas) / 0.85));
+  }
+
+  html[data-bg='switch'] .theme-bg::before {
+    background:
+      radial-gradient(circle at 12% 18%, rgb(255 0 60 / 0.12), transparent 32%),
+      radial-gradient(circle at 88% 12%, rgb(0 212 255 / 0.1), transparent 34%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent 55%);
+    }
+
+  /* PS5: unified shell, flat panels, white focus rings. */
+  html[data-layout='ps5'] {
+    --ps5-bg: #0a1628;
+    --ps5-panel: #0c1829;
+    --ps5-surface: #122038;
+    --ps5-ink: #ecf2ff;
+    --ps5-muted: #96aac8;
+    --ps5-border: rgb(255 255 255 / 0.1);
+  }
+
+  html[data-layout='ps5'],
+  html[data-layout='ps5'] body,
+  html[data-layout='ps5'] #root {
+    height: 100%;
+    overflow: hidden;
+    background: var(--ps5-bg);
+    color: var(--ps5-ink);
+  }
+
+  html[data-layout='ps5'] .ps5-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    background: var(--ps5-bg);
+    color: var(--ps5-ink);
+  }
+
+  html[data-layout='ps5'] .ps5-main {
+    -webkit-overflow-scrolling: touch;
+    background: var(--ps5-bg);
+  }
+
+  html[data-layout='ps5'] .orbit-panel {
+    background: var(--ps5-panel);
+    box-shadow: inset 0 0 0 1px var(--ps5-border);
+  }
+
+  html[data-layout='ps5'] .orbit-focusable[data-focused='true'] {
+    --tw-ring-color: transparent;
+    --tw-ring-shadow: none;
+  }
+
+  html[data-layout='ps5'] .ps5-nav[data-focused='true'] {
+    box-shadow: 0 0 0 2px white;
+  }
+
+  html[data-layout='ps5'] .ps5-main .orbit-focusable[data-focused='true']:not(.ps5-card):not(.ps5-tile),
+  html[data-layout='ps5'] .ps5-topbar .orbit-focusable[data-focused='true']:not(.ps5-nav),
+  html[data-layout='ps5'] .ps5-home-actions .orbit-focusable[data-focused='true'],
+  html[data-layout='ps5'] .ps5-footer .orbit-focusable[data-focused='true'] {
+    box-shadow: 0 0 0 2px white;
+  }
+
+  html[data-layout='ps5'] .ps5-tile[data-focused='true'] > div,
+  html[data-layout='ps5'] .ps5-card[data-focused='true'] > .square-game-art {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      0 0 0 3px white;
+    transform: scale(1.04);
+  }
+
+  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected > .square-game-art {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      0 0 0 2px rgb(255 255 255 / 0.55);
+  }
+
+  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected[data-focused='true'] > .square-game-art {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      0 0 0 3px white;
+  }
+
+  html[data-layout='ps5'] .ps5-card[data-focused='true'] > p {
+    color: var(--ps5-ink);
+  }
+
+  html[data-layout='ps5'] .ps5-card,
+  html[data-layout='ps5'] .ps5-tile {
+    background: transparent;
+  }
+
+  html[data-layout='ps5'] .square-game-art {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  html[data-layout='ps5'] .ps5-dashboard-glass {
+    border: 1px solid rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+    transition: none;
+  }
+
+  html[data-layout='ps5'] .native-glass-panel[data-glass-variant='ps5'] .native-glass-tint {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 0.11) 0%,
+        rgb(255 255 255 / 0.03) 26%,
+        transparent 38%
+      ),
+      linear-gradient(180deg, rgb(18 32 56 / 0.4) 0%, rgb(10 22 40 / 0.56) 100%);
+  }
+
+  html[data-layout='ps5'] .native-glass-blur,
+  html[data-layout='ps5'] .native-glass-tint,
+  html[data-layout='ps5'] .native-glass-sheen {
+    transition: none;
+  }
+
+  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-title {
+    color: #ffffff;
+  }
+
+  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-description {
+    color: rgb(255 255 255 / 0.7);
+  }
+
+  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-eyebrow {
+    background: rgb(255 255 255 / 0.15);
+    color: rgb(255 255 255 / 0.8);
+  }
+
+  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-more {
+    background: rgb(255 255 255 / 0.15);
+    color: #ffffff;
+  }
+
+  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-pill {
+    background: rgb(0 0 0 / 0.35);
+    color: #ffffff;
+  }
+
+  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-title {
+    color: var(--ps5-bg);
+  }
+
+  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-description {
+    color: rgb(10 22 40 / 0.72);
+  }
+
+  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-eyebrow {
+    background: rgb(10 22 40 / 0.12);
+    color: rgb(10 22 40 / 0.78);
+  }
+
+  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-more {
+    background: rgb(10 22 40 / 0.12);
+    color: var(--ps5-bg);
+  }
+
+  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-pill {
+    background: rgb(10 22 40 / 0.12);
+    color: var(--ps5-bg);
+  }
+
+  /* White rings disappear on light heroes — flip to dark in the hero zone only. */
+  html[data-layout='ps5']
+    .ps5-home[data-hero-tone='light']
+    .ps5-hero-zone
+    .orbit-focusable[data-focused='true'] {
+    box-shadow: 0 0 0 2px var(--ps5-bg);
+  }
+
+  html[data-layout='ps5'] .ps5-dashboard-glass .ps5-hero-card-value {
+    color: #ffffff;
+  }
+
+  html[data-layout='ps5'] .ps5-dashboard-glass .ps5-hero-card-label,
+  html[data-layout='ps5'] .ps5-dashboard-glass .ps5-hero-card-muted {
+    color: rgb(255 255 255 / 0.55);
+  }
+
+  html[data-layout='ps5'] .details-hero-scrim {
+    background: rgb(0 0 0 / 0.55);
+  }
+
+  /* Switch: dark OLED-style shell with cyan focus rings. */
+  html[data-layout='switch'] {
+    --switch-bg: #000000;
+    --switch-bg-elevated: #000000;
+    --switch-surface: #141414;
+    --switch-surface-hover: #1c1c1c;
+    --switch-panel: #141414;
+    --switch-ink: #f2f2f7;
+    --switch-muted: #98989f;
+    --switch-border: #2a2a2a;
+    --switch-cyan: #00d4ff;
+    --switch-cyan-deep: #00b8d9;
+    --switch-red: #ff003c;
+  }
+
+  html[data-layout='switch'],
+  html[data-layout='switch'] body,
+  html[data-layout='switch'] #root {
+    height: 100%;
+    overflow: hidden;
+    background: var(--switch-bg);
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .switch-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    background: var(--switch-bg);
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .switch-main {
+    -webkit-overflow-scrolling: touch;
+    background: var(--switch-bg);
+  }
+
+  html[data-layout='switch'] .app-navbar {
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .nav-surface {
+    border-color: rgb(255 255 255 / 0.08);
+    background: rgb(var(--orbit-surface) / 0.92);
+    box-shadow: none;
+  }
+
+  html[data-layout='switch'] .nav-brand,
+  html[data-layout='switch'] .nav-surface button {
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .orbit-panel {
+    background: rgb(var(--orbit-panel) / 0.94);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+
+  html[data-layout='switch'] .orbit-focusable[data-focused='true'] {
+    --tw-ring-color: transparent;
+    --tw-ring-shadow: none;
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-shadow: 0 0 #0000;
+  }
+
+  html[data-layout='switch'] .switch-home {
+    overflow-x: clip;
+  }
+
+  html[data-layout='switch'] .switch-main .orbit-focusable[data-focused='true'],
+  html[data-layout='switch'] .switch-topbar .orbit-focusable[data-focused='true'],
+  html[data-layout='switch'] .switch-home-actions .orbit-focusable[data-focused='true'],
+  html[data-layout='switch'] .switch-nav .orbit-focusable[data-focused='true'] {
+    box-shadow: 0 0 0 3px var(--switch-cyan);
+  }
+
+  html[data-layout='switch'] .switch-tile[data-focused='true'] > div,
+  html[data-layout='switch'] .switch-card[data-focused='true'] > div:first-child {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+
+  html[data-layout='switch'] .switch-tile.orbit-focusable {
+    box-shadow: none;
+    transition: box-shadow 0.15s ease;
+  }
+
+  html[data-layout='switch'] .switch-tile.orbit-focusable[data-focused='true'] {
+    box-shadow: 0 0 0 4px var(--switch-cyan);
+  }
+
+  html[data-layout='switch'] .square-game-art {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+
+  html[data-layout='switch'] .switch-tile-selected.orbit-focusable:not([data-focused='true']) {
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 0.28);
+  }
+
+  html[data-layout='switch'] .switch-carousel {
+    overflow-y: visible;
+  }
+
+  html[data-layout='switch'] .switch-nav[data-focused='true'] {
+    box-shadow: 0 0 0 3px var(--switch-cyan);
+  }
+
+  html[data-layout='switch'] .switch-glass-panel,
+  html[data-layout='switch'] .switch-glass-card {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    transition: none;
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-home-actions {
+    padding: 3px;
+    margin: -3px;
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-glass-card {
+    background: rgb(255 255 255 / 0.05);
+    border-color: rgb(255 255 255 / 0.06);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  }
+
+  html[data-layout='switch'] .native-glass-blur,
+  html[data-layout='switch'] .native-glass-tint,
+  html[data-layout='switch'] .native-glass-sheen {
+    transition: none;
+  }
+
+  html[data-layout='switch'] .native-glass-blur {
+    user-select: none;
+  }
+
+  html[data-layout='switch'] .switch-hero-title {
+    color: var(--switch-cyan);
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-hero-copy {
+    color: rgb(242 242 247 / 0.88);
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-hero-muted,
+  html[data-layout='switch'] .switch-glass-panel .switch-hero-stat-value {
+    color: var(--switch-muted);
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-hero-stat-value {
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-hero-eyebrow {
+    background: rgb(0 212 255 / 0.14);
+    color: var(--switch-cyan);
+  }
+
+  html[data-layout='switch'] .switch-glass-panel .switch-hero-options {
+    background: rgb(255 255 255 / 0.1);
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .details-hero-scrim {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  html[data-layout='switch'] [class*='backdrop-blur'] {
+    transition: none;
+  }
+
+  /* Orbit: richer depth, cleaner panels and a restrained cyan glow. */
+  html[data-layout='orbit'] .orbit-focusable[data-focused='true'] {
+    --tw-ring-color: transparent;
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-shadow: 0 0 #0000;
+    --tw-ring-shadow: none;
+  }
+
+  html[data-layout='orbit'] .orbit-game-card {
+    transition:
+      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Hairline on the art layer so focus/selected rings on the card are not clipped. */
+  html[data-layout='orbit'] .orbit-game-card > div {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  }
+
+  html[data-layout='orbit'] .orbit-game-card-selected {
+    transform: scale(1.06);
+    transform-origin: center bottom;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.24);
+  }
+
+  html[data-layout='orbit'] .orbit-game-card-selected > div {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+  }
+
+  html[data-layout='orbit'] .orbit-game-card-selected[data-focused='true'] {
+    transform: scale(1.06);
+  }
+
+  html[data-layout='orbit'] .orbit-hero-scrim {
+    background-image: linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.22) 0%,
+      rgb(0 0 0 / 0.08) 42%,
+      transparent 72%
+    );
+  }
+
+  /* background-image transitions are not interpolatable — they smear when cycling games. */
+  html[data-layout='orbit'] .orbit-hero-art {
+    transition: none;
+  }
+
+  /* Match navbar hairline + depth — avoid blue/cyan ring tint on the hero frame. */
+  html[data-layout='orbit'] .orbit-hero-frame {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.14),
+      0 12px 40px rgb(0 0 0 / 0.3);
+  }
+
+  html[data-layout='orbit'] .orbit-recent-row {
+    min-height: 17.5rem;
+  }
+
+  html[data-layout='orbit'] .orbit-dashboard-glass {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.45),
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      0 12px 40px rgb(0 0 0 / 0.22);
+  }
+
+  html[data-layout='orbit'] .native-glass-panel.native-glass-backdrop {
+    isolation: auto;
+    -webkit-backdrop-filter: blur(20px) saturate(125%);
+    backdrop-filter: blur(20px) saturate(125%);
+  }
+
+  html[data-layout='orbit'] .native-glass-panel[data-glass-variant='orbit'] .native-glass-tint {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 0.14) 0%,
+        rgb(255 255 255 / 0.04) 28%,
+        transparent 42%
+      ),
+      linear-gradient(180deg, rgb(14 18 28 / 0.26) 0%, rgb(8 10 16 / 0.36) 100%);
+  }
+
+  html[data-layout='orbit'] .native-glass-blur,
+  html[data-layout='orbit'] .native-glass-tint,
+  html[data-layout='orbit'] .native-glass-sheen {
+    transition: none;
+  }
+
+  html[data-theme='orbit'] .orbit-panel {
+    background: rgb(var(--orbit-panel) / 0.55);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+
+  /* Compose drop shadow + hairline so Tailwind `ring-*` is not wiped out. */
+  html[data-theme='orbit'] .nav-surface {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.14),
+      0 12px 40px rgb(0 0 0 / 0.3);
+  }
+
+  html[data-theme='orbit'] .nav-hints {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.14),
+      0 10px 30px rgb(0 0 0 / 0.25);
+  }
+}
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .orbit-transition {
+    transition-property: transform, opacity, background-color, box-shadow, color, border-color;
+    transition-duration: var(--orbit-motion-duration);
+    transition-timing-function: var(--orbit-motion-easing);
+  }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Unlayered focus rings — must override Tailwind utility shadows on focused controls. */
+html[data-layout='orbit'] .nav-surface .orbit-focusable[data-focused='true'] {
+  box-shadow: 0 0 0 2px rgb(var(--orbit-focus) / 0.9);
+  border-radius: 0.75rem;
+}
+
+html[data-layout='orbit'] .orbit-home .orbit-focusable[data-focused='true']:not(.orbit-game-card),
+html[data-layout='orbit'] .orbit-route .orbit-focusable[data-focused='true']:not(.orbit-library-card):not(.orbit-game-card) {
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.92);
+}
+
+html[data-layout='orbit'] .orbit-library-card[data-focused='true'] > div {
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.92);
+}
+
+html[data-layout='orbit'] .orbit-game-card[data-focused='true'],
+html[data-layout='orbit'] .orbit-game-card-selected[data-focused='true'] {
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.95);
+}

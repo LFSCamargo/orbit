@@ -1,0 +1,36 @@
+---
+description: Quality gates that must pass before any change is considered done
+alwaysApply: true
+---
+
+# Quality Gating Rule
+
+No change is "done" until all quality gates are green. Run them before declaring a
+task complete and before committing.
+
+## Gates (all must pass)
+
+1. **Layout** Follow `.cursor/rules/spaghetti-checker.mdc` — one context per file in
+   `src/features/`, `src/components/`, `src-tauri/src/commands/`, etc.
+2. **Complexity (o1-check)** Per `.cursor/rules/o1-check.mdc` — avoid nested loops,
+   unbounded queries, and oversized functions in production paths.
+3. **Format** `yarn run format:check` (Prettier + `prettier-plugin-tailwindcss`). No drift.
+4. **Typecheck** `yarn run typecheck` (`tsc --noEmit`). Zero type errors.
+5. **Rust tests** `yarn run test:rust` when touching `src-tauri/`. All unit tests pass.
+6. **E2E** `yarn run test:e2e` when changing navigation, themes, imports, or critical UI flows.
+7. **Build** `yarn run build`. Frontend typecheck + Vite build succeed.
+8. **Tauri build** `yarn run tauri:build` before release changes (Rust compile + bundle).
+9. **Docs sync** `docs/` updated per `.cursor/rules/docs-sync.mdc`.
+
+## Rules
+
+- Never use `// @ts-ignore` or `any` to bypass a gate; fix the root cause.
+- Never skip or delete a failing test to make the suite pass; fix the code or the test.
+- Do not commit commented-out code, debug logs, or secrets (API keys, RAWG tokens).
+- Keep changes scoped; unrelated refactors go in separate changes.
+- Run E2E after UI/theme/controller changes — Orbit is controller-first; regressions are easy to miss visually.
+
+## Definition of done
+
+Code + tests + docs updated, all gates above pass locally, and the change
+follows the modular structure described in the README and `.cursor/rules/spaghetti-checker.mdc`.

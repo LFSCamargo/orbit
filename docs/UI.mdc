@@ -1,0 +1,242 @@
+---
+alwaysApply: true
+---
+
+# Design System & Themes
+
+Visual language for **Orbit** — cinematic, dark, controller-first, optimized for TV/couch distance.
+Inspired by PS5, Nintendo Switch, and Apple TV launchers.
+
+User-facing theme authoring guide: [docs/THEMES.md](THEMES.md).
+Example theme: [docs/examples/arcade-neon.json](examples/arcade-neon.json).
+
+---
+
+## Brand
+
+- **Product name:** Orbit
+- **Typography:** DM Sans (display + body) — loaded globally via CSS
+- **Tone:** cinematic dark, glass panels, bold focus rings, minimal chrome
+- **Target:** fullscreen macOS desktop, viewed from couch distance
+
+---
+
+## Theme system
+
+Themes are JSON definitions that drive **colors, radii, motion, background style, and entire layout**.
+
+### Built-in themes
+
+Defined in `src/themes/types.ts` (`BUILT_IN_THEMES`):
+
+| ID | Name | Layout | Character |
+| -- | ---- | ------ | --------- |
+| `orbit` | Orbit Default | `orbit` | Hero rows + cinematic scrim |
+| `ps5` | PlayStation 5 | `ps5` | Immersive artwork, circular tiles, glass |
+| `switch-2` | Switch 2 | `switch` | Square tiles, bottom dock |
+
+### Custom themes
+
+Drop `.json` files into:
+
+```text
+~/Library/Application Support/Orbit/themes/
+```
+
+Loaded via Tauri `list_custom_themes`. Reload from **Settings → Reload custom themes**.
+
+Custom themes with the same `id` as a built-in theme override the built-in entry.
+
+---
+
+## Color tokens
+
+Colors are **space-separated RGB channels** (no commas) — applied as CSS variables:
+
+```css
+--orbit-canvas: 5 7 12;
+background: rgb(var(--orbit-canvas));
+```
+
+| Token | CSS variable | Usage |
+| ----- | ------------ | ----- |
+| `canvas` | `--orbit-canvas` | App background |
+| `surface` | `--orbit-surface` | Inputs / nested surfaces |
+| `panel` | `--orbit-panel` | Cards and glass panels |
+| `foreground` | `--orbit-foreground` | Primary text |
+| `muted` | `--orbit-muted` | Secondary text |
+| `accent` | `--orbit-accent` | CTA / highlights |
+| `focus` | `--orbit-focus` | Controller focus ring |
+| `border` | `--orbit-border` | Subtle borders |
+
+Applied at runtime by `theme.store.ts` when user selects a theme.
+
+### Theme JSON shape
+
+```typescript
+interface ThemeDefinition {
+  id: string
+  name: string
+  description?: string
+  author?: string
+  fonts?: { display?: string; body?: string }
+  colors: ThemeColors
+  radius?: string
+  cardRadius?: string
+  blur?: string
+  backgroundStyle?: string   // radial | ps5 | switch
+  layout?: 'orbit' | 'ps5' | 'switch'
+  motion?: { duration?: string; easing?: string }
+}
+```
+
+See [docs/THEMES.md](THEMES.md) for authoring walkthrough.
+
+---
+
+## Typography
+
+| Usage | Font | Notes |
+| ----- | ---- | ----- |
+| Display / titles | DM Sans | Large, bold — hero titles, section headers |
+| Body / metadata | DM Sans | Playtime, provider badges, settings labels |
+
+CSS variables: `--orbit-font-display`, `--orbit-font-body`.
+
+---
+
+## Spacing & shape
+
+| Token | CSS variable | Default | Usage |
+| ----- | ------------ | ------- | ----- |
+| Panel radius | `--orbit-radius` | `1.25rem` | Large panels |
+| Card radius | `--orbit-card-radius` | `1rem` | Game cards |
+| Blur | `--orbit-blur` | `24px` | Glass backdrop |
+| Motion duration | `--orbit-motion-duration` | `0.35s` | Transitions |
+| Motion easing | `--orbit-motion-easing` | cubic-bezier | Screen + theme transitions |
+
+---
+
+## Layout patterns
+
+### Orbit default (`layout: 'orbit'`)
+
+```
+┌─────────────────────────────────────────────┐
+│  Hero (landscape art + scrim + glass dash)  │
+├─────────────────────────────────────────────┤
+│  Recent row ──► GameCard GameCard GameCard  │
+│  Library row ─► GameCard GameCard ...       │
+└─────────────────────────────────────────────┘
+```
+
+- `ThemeHome.tsx` — hero + horizontal rows
+- `NativeGlassPanel` — frosted activity dashboard in hero
+- `.orbit-hero-scrim` — dark gradient over landscape artwork
+
+### PS5 (`layout: 'ps5'`)
+
+- `Ps5Shell.tsx` — circular game tiles, immersive background art
+- Larger radii, blue accent palette
+
+### Switch (`layout: 'switch'`)
+
+- `SwitchShell.tsx` — square tiles, bottom dock navigation
+- Pure black canvas, cyan accent
+
+---
+
+## Core components
+
+Shared components in `src/components/`:
+
+### Layout
+
+| Component | Path | Notes |
+| --------- | ---- | ----- |
+| `AppShell` | `layout/AppShell.tsx` | Fullscreen shell, nav chrome, controller glyph hints |
+| `NavBar` | `layout/NavBar.tsx` | Section tabs (home / library / search) |
+
+### Home
+
+| Component | Path | Notes |
+| --------- | ---- | ----- |
+| `NativeGlassPanel` | `home/NativeGlassPanel.tsx` | Frosted glass with `backdrop-filter`; `.native-glass-tint` overlay |
+| `GameHero` | `game/GameHero.tsx` | Landscape hero with title + metadata |
+
+### Game library
+
+| Component | Path | Notes |
+| --------- | ---- | ----- |
+| `GameCard` | `game/GameCard.tsx` | Focusable tile; `data-focus-id` for spatial nav |
+| `GameCarousel` | `game/GameCarousel.tsx` | Horizontal scrolling row |
+| `ProviderBadge` | `game/ProviderBadge.tsx` | Steam / Astris / native icon |
+
+### Artwork
+
+| Component | Path | Notes |
+| --------- | ---- | ----- |
+| `ArtworkSlotPicker` | `artwork/ArtworkSlotPicker.tsx` | Portrait / landscape / icon slots |
+| `ImageSearchModal` | `artwork/ImageSearchModal.tsx` | RAWG search modal |
+
+### Focus & feedback
+
+| Component | Path | Notes |
+| --------- | ---- | ----- |
+| `Focusable` | `focus/Focusable.tsx` | Registers node in focus graph |
+| `ConfirmDialog` | `feedback/ConfirmDialog.tsx` | Delete/clear confirmations |
+
+---
+
+## Focus & controller styling
+
+Global focus styling in `src/styles/index.css`:
+
+- Focused elements: `[data-focused="true"]` — scale + `--orbit-focus` ring
+- Scrollbars hidden globally (controller scroll via focus navigation)
+- `color-scheme: dark` on `:root`
+
+Controller glyph hints rendered by `ControllerGlyphs.ts` based on detected family (Xbox / PlayStation / Nintendo).
+
+---
+
+## Motion
+
+Screen transitions in `App.tsx` (Framer Motion):
+
+```typescript
+const pageTransition = {
+  initial: { opacity: 0, y: 18, filter: 'blur(6px)' },
+  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+  exit: { opacity: 0, y: -12, filter: 'blur(4px)' },
+  transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] },
+}
+```
+
+Theme `motion.duration` / `motion.easing` override global CSS transition tokens.
+
+---
+
+## Artwork conventions
+
+Game artwork stored as Base64 in SQLite (`artwork_json`):
+
+| Slot | Key | Typical use |
+| ---- | --- | ----------- |
+| Cover | `cover` | Square / portrait box art |
+| Hero | `hero` | Landscape background |
+| Logo | `logo` | Title treatment overlay |
+| Icon | `icon` | Small grid thumbnail |
+
+Hero blur/tone derived from artwork via `useHeroBlur` / `useHeroTone` for adaptive scrims.
+
+---
+
+## Rules
+
+1. **Tokens first** — use CSS variables (`rgb(var(--orbit-accent))`) not hardcoded hex in components.
+2. **Theme-aware** — new UI must work across all three layouts (orbit, ps5, switch).
+3. **Focusable everything** — interactive elements must register with `Focusable` or equivalent.
+4. **Couch contrast** — keep text readable at a distance; test with `--orbit-muted` for secondary copy.
+5. **Glass panels** — use `NativeGlassPanel` or `.native-glass-*` classes; prefer `backdrop-filter` over opaque overlays.
+6. **Document theme fields** — adding JSON theme properties requires updating [docs/THEMES.md](THEMES.md) and `ThemeDefinition` in `src/themes/types.ts`.

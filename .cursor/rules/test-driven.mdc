@@ -1,0 +1,41 @@
+---
+description: Test-driven development workflow and coverage expectations
+alwaysApply: true
+---
+
+# Test-Driven Development Rule
+
+Every feature and bug fix should be developed test-first where practical. Tests are
+part of the definition of done (see `.cursor/rules/quality-gating.mdc`).
+
+## Workflow (red → green → refactor)
+
+1. **Red** — write a failing test that describes the desired behavior (or reproduces the bug)
+   before writing implementation code.
+2. **Green** — write the minimum code to make the test pass.
+3. **Refactor** — clean up while keeping tests green.
+
+## What to test (by layer)
+
+- **Rust (`src-tauri/`)** `#[cfg(test)]` modules and `cargo test`. Cover filename parsing,
+  path utilities, importer detection, repository queries, and migration logic.
+  Run: `yarn run test:rust`.
+- **Frontend (React)** Playwright E2E in `e2e/` for screens, controller navigation, themes,
+  imports, and critical user flows. Run: `yarn run test:e2e`.
+- **Pure TS helpers (`src/lib/`)** prefer unit tests when Vitest is added; until then,
+  cover via E2E or Rust-side tests for shared logic.
+
+## Coverage expectations
+
+- New/changed business logic must be covered by tests (Rust unit or Playwright E2E).
+- Bug fixes must include a regression test.
+- Critical paths (launch session, library import, theme switching, controller focus)
+  require E2E or Rust tests.
+- UI-only polish may skip new tests if E2E already covers the flow — do not delete coverage.
+
+## Rules
+
+- A feature without tests is incomplete when the behavior is non-trivial.
+- Do not weaken assertions or mock away the behavior under test just to pass.
+- Prefer deterministic tests; use fixtures and mocked Tauri responses in E2E when needed.
+- After theme or layout changes, run the relevant Playwright specs before declaring done.

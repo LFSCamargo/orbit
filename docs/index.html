@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Orbit — a controller-first desktop game launcher for macOS. Built with Tauri, React, and SQLite."
+    />
+    <title>Orbit — Game Launcher for macOS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        color-scheme: dark;
+        --canvas: rgb(5, 7, 12);
+        --surface: rgb(12, 16, 24);
+        --panel: rgb(18, 24, 34);
+        --foreground: rgb(244, 246, 250);
+        --muted: rgb(148, 160, 178);
+        --accent: rgb(120, 196, 255);
+        --focus: rgb(180, 220, 255);
+        --border: rgb(42, 52, 68);
+        --radius: 1.25rem;
+        --card-radius: 1rem;
+        --max-width: 960px;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'DM Sans', system-ui, sans-serif;
+        background: var(--canvas);
+        color: var(--foreground);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      a:hover {
+        color: var(--focus);
+        text-decoration: underline;
+      }
+
+      .wrap {
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      header {
+        padding: 3rem 0 2rem;
+        border-bottom: 1px solid var(--border);
+        background: radial-gradient(
+          ellipse 80% 60% at 50% -20%,
+          rgb(120 196 255 / 0.12),
+          transparent
+        );
+      }
+
+      .logo {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.75rem;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 2.75rem);
+        font-weight: 700;
+        line-height: 1.15;
+        margin: 0 0 1rem;
+        letter-spacing: -0.02em;
+      }
+
+      .tagline {
+        font-size: 1.125rem;
+        color: var(--muted);
+        max-width: 36rem;
+        margin: 0 0 1.5rem;
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .btn {
+        display: inline-block;
+        padding: 0.65rem 1.25rem;
+        border-radius: 999px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: background 0.2s, border-color 0.2s;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: var(--canvas);
+      }
+
+      .btn-primary:hover {
+        background: var(--focus);
+        color: var(--canvas);
+        text-decoration: none;
+      }
+
+      .btn-secondary {
+        background: var(--panel);
+        color: var(--foreground);
+        border-color: var(--border);
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--accent);
+        color: var(--foreground);
+        text-decoration: none;
+      }
+
+      main {
+        padding: 2.5rem 0 4rem;
+      }
+
+      section {
+        margin-bottom: 3rem;
+      }
+
+      h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0 0 1rem;
+        color: var(--foreground);
+      }
+
+      p {
+        margin: 0 0 1rem;
+        color: var(--muted);
+      }
+
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .features li {
+        padding: 0.65rem 0;
+        border-bottom: 1px solid var(--border);
+        color: var(--muted);
+      }
+
+      .features li strong {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+
+      .features li:last-child {
+        border-bottom: none;
+      }
+
+      .screenshots {
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      figure {
+        margin: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--card-radius);
+        overflow: hidden;
+      }
+
+      figure img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      figcaption {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+      }
+
+      .stack {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.8125rem;
+        color: var(--muted);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.5rem;
+      }
+
+      .panel p:last-child {
+        margin-bottom: 0;
+      }
+
+      footer {
+        padding: 2rem 0;
+        border-top: 1px solid var(--border);
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+
+      footer p {
+        margin: 0;
+      }
+
+      @media (min-width: 640px) {
+        .screenshots {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <p class="logo">Orbit</p>
+        <h1>Controller-first game launcher for macOS</h1>
+        <p class="tagline">
+          A modern alternative to Pegasus Frontend — cinematic home screen, multi-source
+          imports, and couch-friendly navigation. Inspired by PS5, Nintendo Switch, and Apple TV.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/lfscamargo/orbit">View on GitHub</a>
+          <a class="btn btn-secondary" href="https://github.com/lfscamargo/orbit#quick-start">Get started</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <section>
+          <h2>What is Orbit?</h2>
+          <p>
+            Orbit is a desktop game library and launcher built with
+            <strong style="color: var(--foreground)">Tauri 2</strong>,
+            <strong style="color: var(--foreground)">React</strong>, and
+            <strong style="color: var(--foreground)">SQLite</strong>. It keeps your games in one
+            place, tracks playtime and achievements locally, and launches them safely from Rust —
+            the frontend never spawns processes directly.
+          </p>
+          <p>
+            Designed for Apple Silicon Macs first, with a fullscreen UI made for controllers and
+            keyboards alike.
+          </p>
+        </section>
+
+        <section>
+          <h2>Features</h2>
+          <ul class="features">
+            <li><strong>Home &amp; library</strong> — cinematic hero, filterable grid, search</li>
+            <li><strong>Imports</strong> — Steam, Astris (.nsp/.xci), GameHub, macOS apps, manual paths</li>
+            <li><strong>Launch sessions</strong> — playtime tracking, hide window while playing</li>
+            <li><strong>Edit artwork</strong> — title, description, portrait, landscape, and icon</li>
+            <li><strong>Themes</strong> — Orbit, PS5, and Switch 2 layouts + custom JSON themes</li>
+            <li><strong>Controller navigation</strong> — spatial focus with gamepad and keyboard</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Screenshots</h2>
+          <div class="screenshots">
+            <figure>
+              <img src="assets/orbit-theme.png" alt="Orbit default theme with hero and recent games row" width="1440" height="900" loading="lazy" />
+              <figcaption>Orbit default — hero rows and glass dashboard</figcaption>
+            </figure>
+            <figure>
+              <img src="assets/ps5-theme.png" alt="PlayStation 5 inspired theme with immersive artwork" width="1440" height="900" loading="lazy" />
+              <figcaption>PlayStation 5 theme — immersive artwork and stats panel</figcaption>
+            </figure>
+            <figure>
+              <img src="assets/switch-theme.png" alt="Nintendo Switch inspired theme with square tiles" width="1440" height="900" loading="lazy" />
+              <figcaption>Switch 2 theme — square tiles and bottom navigation</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section>
+          <h2>Built with</h2>
+          <div class="stack">
+            <span class="pill">Tauri 2</span>
+            <span class="pill">Rust</span>
+            <span class="pill">React</span>
+            <span class="pill">TypeScript</span>
+            <span class="pill">SQLite</span>
+            <span class="pill">Tailwind CSS</span>
+            <span class="pill">Zustand</span>
+            <span class="pill">Framer Motion</span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Custom themes</h2>
+          <div class="panel">
+            <p>
+              Drop plain JSON files into
+              <code style="color: var(--accent)">~/Library/Application Support/Orbit/themes/</code>
+              and reload from Settings. Themes can change colors, motion, and the entire app layout.
+            </p>
+            <p>
+              <a href="https://github.com/lfscamargo/orbit/blob/main/docs/THEMES.md">Theme authoring guide</a>
+              ·
+              <a href="https://github.com/lfscamargo/orbit/blob/main/docs/examples/arcade-neon.json">Example theme</a>
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <h2>Controller mapping</h2>
+          <div class="panel">
+            <p style="margin-bottom: 0.5rem; color: var(--foreground)">D-pad / stick · Navigate · A · Select · B · Back</p>
+            <p style="margin-bottom: 0.5rem; color: var(--foreground)">X · Edit · Y · Add game · L1/R1 · Sections · Menu · Settings</p>
+            <p style="margin: 0">Keyboard: arrows, Enter, Escape, F, C, [ ] , M</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          Orbit is open source.
+          <a href="https://github.com/lfscamargo/orbit">Source code</a>
+          ·
+          <a href="https://github.com/lfscamargo/orbit/blob/main/README.md">Documentation</a>
+          ·
+          <a href="https://github.com/lfscamargo/orbit/blob/main/CONTRIBUTING.md">Contributing</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

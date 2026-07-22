@@ -1,0 +1,29 @@
+{
+  "id": "arcade-neon",
+  "name": "Arcade Neon",
+  "description": "Example community theme — copy into your Orbit themes folder.",
+  "author": "Orbit",
+  "fonts": {
+    "display": "DM Sans",
+    "body": "DM Sans"
+  },
+  "colors": {
+    "canvas": "6 4 18",
+    "surface": "16 10 34",
+    "panel": "28 16 52",
+    "foreground": "250 246 255",
+    "muted": "170 150 200",
+    "accent": "0 255 200",
+    "focus": "255 80 200",
+    "border": "70 40 110"
+  },
+  "radius": "0.85rem",
+  "cardRadius": "0.65rem",
+  "blur": "20px",
+  "backgroundStyle": "radial",
+  "layout": "orbit",
+  "motion": {
+    "duration": "0.26s",
+    "easing": "cubic-bezier(0.2, 0.9, 0.2, 1)"
+  }
+}

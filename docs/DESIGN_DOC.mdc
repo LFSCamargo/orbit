@@ -1,0 +1,187 @@
+---
+alwaysApply: true
+---
+
+# Design Document
+
+Controller-first desktop game launcher for macOS (Apple Silicon first). Orbit is a modern
+alternative to Pegasus Frontend, inspired by PS5, Nintendo Switch, and Apple TV.
+
+Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesystem and
+process logic lives in Rust; the frontend never launches games directly.
+
+## Purpose
+
+- Fullscreen, couch-friendly game library with cinematic screen transitions.
+- Import games from Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, and manual paths.
+- Track playtime, install size, and achievements locally.
+- Customize the entire app layout with built-in themes (PS5, Switch 2, Orbit) or user JSON themes.
+
+## Functional requirements
+
+- User can browse a **home** screen with hero artwork and recent-game rows.
+- User can browse, filter, and sort the **library** grid.
+- User can open **game details** with playtime, size, achievements, and launch action.
+- User can **add games** via importer scans or manual file pick (Add game journey).
+- User can **edit properties** — title, description, portrait/landscape/square artwork (Base64 in SQLite).
+- User can **launch** a game; Orbit tracks the session and playtime.
+- User can **stop** an active game session from the UI.
+- User can sync **Steam** library metadata (playtime, SizeOnDisk, achievements) locally.
+- User can switch **themes** including custom JSON themes from Application Support.
+- User can navigate entirely with a **gamepad** or keyboard fallback.
+
+## Non-functional requirements
+
+- **Local-first:** SQLite is the source of truth; no cloud sync in v1.
+- **Controller-first:** spatial focus system; all primary flows reachable without a mouse.
+- **macOS-first:** Apple Silicon target; fullscreen window management via Tauri.
+- **Safe launch:** Rust validates paths and only launches resolved executables from known importers.
+- **Performance:** avoid unbounded library loads; batch Tauri invokes where possible.
+
+## Out of scope
+
+ROM downloads/decryption, keys management, emulator distribution, automatic online artwork
+scraping (manual search + optional RAWG key only), Steam account auth, cloud sync, social features.
+
+---
+
+## Screens (frontend routing)
+
+Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts`), not URL routes.
+
+| Screen | `AppScreen` | Purpose |
+| ------ | ----------- | ------- |
+| Home | `home` | Hero + recent rows; theme-specific layout (Orbit / PS5 / Switch) |
+| Library | `library` | Filterable/sortable game grid |
+| Search | `search` | Text search across library |
+| Game details | `game-details` | Metadata, achievements, play/launch |
+| Edit properties | `game-edit` | Title, description, artwork slots |
+| Add game | `add-game` | Importer detection, scans, manual import |
+| Settings | `settings` | Theme, RAWG key, library maintenance |
+
+### Screen transitions
+
+`App.tsx` wraps screens in Framer Motion `AnimatePresence` with blur/fade transitions.
+`previousScreen` is preserved for back navigation.
+
+---
+
+## Controller mapping
+
+| Input | Action |
+| ----- | ------ |
+| D-pad / left stick | Navigate (spatial focus) |
+| A / Cross | Select / Confirm |
+| B / Circle | Back |
+| X / Square | Edit properties |
+| Y / Triangle | Add game journey |
+| L1 / R1 | Switch sections (home ↔ library ↔ search) |
+| Menu / Options | Settings |
+
+Keyboard fallback: arrows, Enter, Escape, `F` (edit), `C` (add), `[` `]`, `M`.
+
+Controller family detection (Xbox / PlayStation / Nintendo) swaps confirm/back on Nintendo.
+See `src/controllers/ControllerMapping.ts`.
+
+---
+
+## Tauri command surface
+
+All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev (no Tauri),
+`src/lib/devMockApi.ts` provides mock data.
+
+### Games & settings
+
+| Command | Args | Returns | Notes |
+| ------- | ---- | ------- | ----- |
+| `list_games` | — | `Game[]` | Full library |
+| `get_game` | `gameId` | `Game \| null` | Single record |
+| `create_game` | `request: CreateGameRequest` | `Game` | Manual add |
+| `update_game` | `gameId`, `request: UpdateGameRequest` | `Game` | Edit properties |
+| `toggle_favorite` | `gameId` | `Game` | |
+| `set_game_hidden` | `gameId`, `hidden` | `Game` | |
+| `delete_game` | `gameId` | `void` | Blocked if game is actively running |
+| `clear_library` | — | `number` | Count removed; blocked if session active |
+| `get_setting` | `key` | `T \| null` | e.g. `themeId`, `rawgApiKey` |
+| `set_setting` | `key`, `value` | `void` | JSON-serialized in SQLite |
+
+### Sessions & window
+
+| Command | Args | Returns | Notes |
+| ------- | ---- | ------- | ----- |
+| `launch_game` | `gameId` | `GameSession` | Spawns process via `launching/` |
+| `stop_game` | `sessionId` | `GameSession` | User-initiated stop |
+| `get_active_session` | — | `GameSession \| null` | |
+| `set_window_fullscreen` | `fullscreen` | `void` | |
+| `hide_orbit_window` | — | `void` | During gameplay |
+| `show_orbit_window` | — | `void` | After session ends |
+
+### Importers
+
+| Command | Args | Returns | Notes |
+| ------- | ---- | ------- | ----- |
+| `detect_importers` | — | `ImporterStatus[]` | Steam, Astris, native, GameHub |
+| `scan_steam_library` | — | `ScanResult` | Upserts via `LibrarySyncService` |
+| `scan_astris_folder` | `folder` | `ScanResult` | User-selected folder |
+| `scan_native_apps` | — | `ScanResult` | macOS `/Applications` |
+| `scan_gamehub_folder` | `folder?` | `ScanResult` | Experimental |
+| `import_game_path` | `path` | `ScanResult` | Manual file/folder pick |
+
+### Themes & artwork
+
+| Command | Args | Returns | Notes |
+| ------- | ---- | ------- | ----- |
+| `list_custom_themes` | — | `ThemeDefinition[]` | From Application Support |
+| `themes_directory` | — | `string` | Path to custom themes folder |
+| `read_artwork_from_path` | `path` | `string` | Base64 image |
+| `fetch_artwork_from_url` | `url` | `string` | Base64 image |
+| `search_public_artwork` | `query`, `rawgApiKey?` | `ArtworkResult[]` | Optional RAWG integration |
+
+TypeScript shapes: `src/types/game.ts`, `src/themes/types.ts`.
+Rust models: `src-tauri/src/models/`.
+
+---
+
+## Data model (SQLite)
+
+| Table | Purpose |
+| ----- | ------- |
+| `games` | Library entries — title, provider, platform, launch JSON, artwork JSON, playtime, achievements |
+| `import_sources` | Registered importer paths per provider |
+| `play_sessions` | Launch/stop history with PID, duration, exit code |
+| `settings` | Key/value JSON (theme id, API keys) |
+| `collections` / `collection_games` | Future grouping (schema present) |
+| `user_overrides` | Per-game override JSON |
+| `schema_migrations` | Migration versioning |
+
+Database path: `~/Library/Application Support/Orbit/orbit.db` (see `src-tauri/src/utils/paths.rs`).
+
+Artwork is stored as Base64 inside `artwork_json` on each game row.
+
+---
+
+## Architecture
+
+```mermaid
+graph TD
+  User((User + Controller))
+  React["React Frontend<br/>(Vite + TypeScript)"]
+  Tauri["Tauri 2 Shell<br/>(Rust)"]
+  SQLite[(SQLite)]
+  FS["Filesystem / Processes"]
+  Importers["Importers<br/>(Steam, Astris, GameHub, Native)"]
+
+  User --> React
+  React -->|"invoke()"| Tauri
+  Tauri --> SQLite
+  Tauri --> FS
+  Tauri --> Importers
+  Importers --> FS
+```
+
+## Related docs
+
+- Repo & tooling: [docs/PROJECT.mdc](PROJECT.mdc)
+- Rust / Tauri: [docs/TAURI.mdc](TAURI.mdc)
+- React frontend: [docs/FRONTEND.mdc](FRONTEND.mdc)
+- Themes & UI: [docs/UI.mdc](UI.mdc)

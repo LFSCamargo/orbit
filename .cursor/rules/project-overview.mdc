@@ -1,0 +1,44 @@
+---
+description: Orbit product overview, purpose, and architecture
+alwaysApply: true
+---
+
+# Orbit Project Overview
+
+Controller-first desktop game launcher for macOS (Apple Silicon first), built with
+**Tauri 2**, **React**, **TypeScript**, and **SQLite**. Inspired by PS5, Nintendo Switch,
+and Apple TV — a modern alternative to Pegasus Frontend.
+
+Source of truth: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc).
+
+## Purpose
+
+- Fullscreen, couch-friendly game library UI with cinematic transitions.
+- Import and launch games from Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, and manual paths.
+- Track playtime, install size, and achievements locally.
+- Customizable themes (PS5, Switch 2, Orbit, user JSON themes).
+
+## Core mechanics
+
+- **Rust owns I/O.** Filesystem, process launch, SQLite, and importers live in `src-tauri/`.
+  The frontend never launches games directly — it invokes Tauri commands.
+- **SQLite persistence.** Game metadata and Base64 artwork stored locally with migrations.
+- **Controller-first navigation.** Spatial focus + Gamepad API with keyboard fallback.
+- **Theme system.** Built-in shells plus user JSON themes in Application Support.
+
+## User flows
+
+`Home → Library / Search → Game details → Launch | Edit properties | Add game journey → Settings`
+
+## Where to look next
+
+- Design & command contract: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc)
+- Repo & tooling: [docs/PROJECT.mdc](../../docs/PROJECT.mdc)
+- Rust / Tauri: [docs/TAURI.mdc](../../docs/TAURI.mdc)
+- React frontend: [docs/FRONTEND.mdc](../../docs/FRONTEND.mdc)
+- Themes & UI: [docs/UI.mdc](../../docs/UI.mdc), [docs/THEMES.md](../../docs/THEMES.md)
+
+## Out of scope
+
+ROM downloads/decryption, keys management, emulator distribution, automatic online artwork
+scraping (manual search + optional RAWG key only), Steam account auth, cloud sync, social features.

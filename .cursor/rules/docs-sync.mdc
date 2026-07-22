@@ -1,0 +1,44 @@
+---
+description: Keep docs/ and README in sync when implementation changes
+alwaysApply: true
+---
+
+# Documentation Sync Rule
+
+Project docs describe Orbit's design and user-facing behavior:
+
+- [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc) — product scope, screens, Tauri commands, data model.
+- [docs/PROJECT.mdc](../../docs/PROJECT.mdc) — repo layout, scripts, quality gates, E2E.
+- [docs/TAURI.mdc](../../docs/TAURI.mdc) — Rust backend, importers, launch, SQLite.
+- [docs/FRONTEND.mdc](../../docs/FRONTEND.mdc) — React screens, state, controller system.
+- [docs/UI.mdc](../../docs/UI.mdc) — design tokens, components, theme system.
+- [docs/THEMES.md](../../docs/THEMES.md) — user-facing theme authoring guide.
+- [docs/examples/](../../docs/examples/) — sample theme files.
+- [README.md](../../README.md) — project overview and quick start.
+- [RUNNING.md](../../RUNNING.md) — local setup, dev modes, tests, troubleshooting.
+- [CONTRIBUTING.md](../../CONTRIBUTING.md) — contribution workflow and PR expectations.
+
+## When to apply
+
+Whenever you make an implementation change (add/remove/rename a feature, screen, Tauri command,
+importer, theme field, or behavior) that is **not already described** in docs, update the
+relevant doc(s) in the same change.
+
+## Rules
+
+1. **Docs-first for scope changes.** If the change alters product scope or Tauri command
+   contracts, update [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc) first, then the
+   dependent doc (`TAURI`, `FRONTEND`, or `UI`).
+2. **Keep folder structures accurate.** When you add/rename/remove a module or folder,
+   update the folder tree in the matching doc so it reflects reality.
+3. **Theme contract changes** update [docs/UI.mdc](../../docs/UI.mdc) and [docs/THEMES.md](../../docs/THEMES.md)
+   when adding tokens, layout keys, or JSON fields; add or update an example in `docs/examples/` when helpful.
+4. **Out-of-scope stays out.** Do not document ROM decryption, key management, or cloud sync —
+   these are explicitly excluded in README.
+5. **No silent drift.** If you cannot fully document a change, leave a clearly marked
+   `TODO(docs):` note in the relevant doc rather than skipping it.
+
+## Definition of done
+
+A change is not complete until the code change and the matching doc update are both made,
+and the folder-structure trees match the actual implementation.

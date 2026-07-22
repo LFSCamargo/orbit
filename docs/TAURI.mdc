@@ -1,0 +1,182 @@
+---
+alwaysApply: true
+---
+
+# Tauri / Rust Backend
+
+Rust layer owns **all I/O**: SQLite, filesystem scans, process launch, and session tracking.
+The React frontend calls Tauri commands via `src/lib/tauri.ts` — it never spawns games directly.
+
+Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
+
+## Responsibilities
+
+- **Database:** SQLite persistence with versioned migrations (`database/migrations.rs`).
+- **Library:** CRUD for games, favorites, hidden flag, settings key/value store.
+- **Importers:** Discover and import from Steam, Astris, GameHub, macOS apps, manual paths.
+- **Launching:** Resolve `LaunchConfiguration`, spawn process, monitor exit, record playtime.
+- **Sessions:** Track active game PID; block delete/clear while running.
+- **Themes:** Read custom JSON themes from Application Support.
+- **Artwork:** Read local image files, fetch URLs, optional RAWG search.
+- **Window:** Fullscreen toggle, hide/show Orbit during gameplay.
+
+## Security model
+
+- **Path validation:** Canonicalize and reject traversal before read/launch.
+- **Launch whitelist:** Only launch resolved executables from importer output or validated manual paths — no arbitrary shell from frontend strings.
+- **Parameterized SQL:** All queries in `database/repository.rs` use bound parameters.
+- **No secrets in logs:** Avoid logging full paths with usernames, API keys, or tokens.
+- **Untrusted theme JSON:** Validate shape in Rust before returning to frontend.
+
+## Tech stack
+
+- Tauri 2
+- Rust (stable)
+- rusqlite (SQLite)
+- serde / serde_json
+- chrono (timestamps)
+- anyhow (error context)
+
+Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog`, `tauri-plugin-process`.
+
+## Module pattern
+
+Each domain gets its own folder. Commands stay thin — delegate to services, importers, or repository.
+
+```
+src-tauri/src/
+  lib.rs                   # App bootstrap, AppState, generate_handler!
+  main.rs                  # Entry point
+  commands/
+    mod.rs
+    games.rs               # Library CRUD + settings
+    session.rs             # launch_game, stop_game, get_active_session
+    window.rs              # Fullscreen + hide/show
+    importers.rs           # detect + scan commands
+    themes.rs              # Custom theme discovery
+    artwork.rs             # Image read/fetch/search
+  database/
+    mod.rs
+    migrations.rs          # Versioned schema migrations
+    repository.rs          # All SQL access
+  importers/
+    mod.rs
+    steam.rs
+    astris.rs
+    gamehub.rs
+    native_apps.rs
+  launching/
+    mod.rs
+    launcher.rs            # Resolve LaunchConfiguration → Command
+    process_monitor.rs     # Watch child process exit
+    session.rs             # SessionManager — active session state
+  models/
+    mod.rs
+    game.rs                # Game, LaunchConfiguration, requests
+    session.rs             # GameSession
+  services/
+    mod.rs
+    library_sync.rs        # Upsert imported games (stable_key dedup)
+    artwork.rs             # RAWG / fetch helpers
+  utils/
+    mod.rs
+    paths.rs               # database_path, app support dirs
+    filenames.rs           # Parse title from ROM/exe names
+    size.rs                # Directory size calculation
+```
+
+| Layer | Allowed contents |
+| ----- | ---------------- |
+| `commands/*.rs` | `#[tauri::command]` handlers; parse args, call repo/service, map errors |
+| `database/repository.rs` | SQL only — no process launch |
+| `importers/*.rs` | One platform per file; returns `Vec<Game>` candidates |
+| `launching/*.rs` | Process lifecycle only |
+| `lib.rs` | Wiring + `AppState` — no business logic |
+
+```rust
+// ❌ BAD — command mixes import + launch + SQL inline
+#[tauri::command]
+async fn magic(path: String) -> Result<(), String> { /* ... */ }
+
+// ✅ GOOD — command delegates
+#[tauri::command]
+pub async fn scan_steam_library(state: State<'_, AppState>) -> Result<ScanResult, String> {
+    let games = SteamImporter::new(None).discover_games().await.map_err(|e| e.to_string())?;
+    let imported = LibrarySyncService::upsert_imported(&state.repo, &games).map_err(|e| e.to_string())?;
+    Ok(ScanResult { imported, provider: "steam".into() })
+}
+```
+
+## AppState
+
+Shared state injected into commands:
+
+```rust
+pub struct AppState {
+    pub repo: Arc<GameRepository>,
+    pub sessions: Arc<SessionManager>,
+}
+```
+
+Created in `lib.rs` at startup; database opened from `utils::paths::database_path()`.
+
+## Database
+
+Migrations in `database/migrations.rs` — applied sequentially via `schema_migrations` table.
+
+### Core tables
+
+- **games** — `id`, `stable_key` (unique dedup), `title`, `sort_title`, `provider`, `platform`,
+  `source_id`, `launch_config_json`, `artwork_json`, `favorite`, `hidden`, `date_added`,
+  `last_played_at`, `total_playtime_seconds`, `description`, `install_size_bytes`, `achievements_json`
+- **play_sessions** — session history linked to `game_id`
+- **settings** — key/value JSON blobs
+- **import_sources** — provider + path registry
+
+`stable_key` prevents duplicate imports across rescans.
+
+## Importers
+
+| Importer | ID | Detect | Notes |
+| -------- | -- | ------ | ----- |
+| `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, playtime |
+| `AstrisImporter` | `astris` | User folder | `.nsp` / `.xci` Nintendo Switch ROMs |
+| `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles |
+| `GameHubImporter` | `gamehub` | Experimental | `.exe` / `.app` in GameHub folders |
+| Manual | `manual` | `import_game_path` | User file picker |
+
+Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
+
+## Launch flow
+
+1. Frontend calls `launch_game(gameId)`.
+2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`.
+3. `launcher.rs` spawns the appropriate process (Steam URL, open file, open app, custom command).
+4. PID stored; `hide_orbit_window` optional during play.
+5. `process_monitor.rs` watches exit → updates playtime, ends session, `show_orbit_window`.
+
+`delete_game` and `clear_library` reject when `sessions.get_active()` matches.
+
+## Testing
+
+```bash
+yarn run test:rust
+# or
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Unit tests cover filename parsing, path utilities, and importer edge cases.
+Add regression tests for any bug fix in `utils/` or `importers/`.
+
+## Command registration
+
+All commands registered in `lib.rs`:
+
+```rust
+.invoke_handler(tauri::generate_handler![
+    commands::games::list_games,
+    // ... full list in lib.rs
+])
+```
+
+New commands require: handler in `commands/`, registration in `lib.rs`, wrapper in `src/lib/tauri.ts`, types in `src/types/`.

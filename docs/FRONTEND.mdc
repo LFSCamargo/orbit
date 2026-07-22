@@ -1,0 +1,220 @@
+---
+alwaysApply: true
+---
+
+# Frontend (React)
+
+React + TypeScript UI for the Orbit desktop launcher. Runs inside Tauri webview (production)
+or Vite dev server with mock Tauri API (browser dev).
+
+Product scope, screens, and Tauri commands: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
+Themes and visual language: [docs/UI.mdc](UI.mdc).
+
+## Responsibilities
+
+- Render controller-first, fullscreen game launcher UI with theme-specific layouts.
+- Manage screen navigation via Zustand (`ui.store.ts`) — no React Router.
+- Invoke all backend operations through `src/lib/tauri.ts`.
+- Implement spatial focus + gamepad navigation (`controllers/`).
+- Cache library data with TanStack Query (`hooks/useGames.ts`).
+- Apply user themes (built-in + custom JSON) via CSS variables.
+
+## Tech stack
+
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS 3
+- Zustand (UI + theme + session state)
+- TanStack Query (game list/detail fetching)
+- Framer Motion (screen transitions)
+- Lucide React (icons)
+- Playwright (E2E)
+
+## Platforms
+
+| Surface | Notes |
+| ------- | ----- |
+| **Tauri desktop** | Primary target — full command surface, native dialogs, window hide/show |
+| **Vite dev (browser)** | Mock API via `devMockApi.ts` for UI iteration and Playwright |
+
+## UI guidelines
+
+- **Controller-first:** every screen must be fully navigable with gamepad; mouse is secondary.
+- **Couch distance:** large type, high contrast, minimal chrome; scrollbars hidden globally.
+- **Fullscreen default:** `useFullscreen` requests fullscreen on launch.
+- **Cursor auto-hide:** hides after controller activity (`useCursorAutoHide`).
+- **Focus rings:** `[data-focused="true"]` styling driven by `FocusManager` + `Focusable`.
+- **No direct launch:** never spawn processes from TS — always `launchGame()` via Tauri.
+
+## Screen map
+
+Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
+
+| Screen | Component | Feature folder |
+| ------ | --------- | -------------- |
+| Home | `HomePage` / theme shells | `features/home/`, `themes/` |
+| Library | `LibraryPage` | `features/library/` |
+| Search | `SearchPage` | `features/search/` |
+| Game details | `GameDetailsPage` | `features/game-details/` |
+| Edit | `GameEditPage` | `features/game-details/` |
+| Add game | `AddGamePage` | `features/imports/` |
+| Settings | `SettingsPage` | `features/settings/` |
+
+Theme layouts swap the home experience:
+
+- `layout: 'orbit'` → `ThemeHome` (default rows + hero)
+- `layout: 'ps5'` → `Ps5Shell`
+- `layout: 'switch'` → `SwitchShell`
+
+`useThemeLayout()` in `themes/useThemeLayout.ts` resolves active layout from theme store.
+
+## Module pattern
+
+Each feature is self-contained under `src/features/<name>/`. Shared UI lives in `src/components/`.
+
+```
+src/
+  app/
+    App.tsx                # Screen router + motion wrapper
+    providers.tsx          # QueryClient + theme init
+  features/
+    home/
+      HomePage.tsx
+      ThemeHome.tsx        # Orbit layout home
+    library/
+      LibraryPage.tsx
+    search/
+      SearchPage.tsx
+    game-details/
+      GameDetailsPage.tsx
+      GameEditPage.tsx
+    imports/
+      AddGamePage.tsx
+      ImportsPage.tsx
+    settings/
+      SettingsPage.tsx
+  components/
+    layout/
+      AppShell.tsx         # Shell chrome + nav
+      NavBar.tsx
+    home/
+      NativeGlassPanel.tsx # Frosted glass hero panel
+    game/
+      GameCard.tsx
+      GameCarousel.tsx
+      GameHero.tsx
+      ProviderBadge.tsx
+    focus/
+      Focusable.tsx        # Focusable wrapper
+    artwork/
+      ArtworkSlotPicker.tsx
+      ImageSearchModal.tsx
+    feedback/
+      ConfirmDialog.tsx
+  controllers/
+    ControllerMapping.ts   # Button → action mapping
+    GamepadManager.ts      # Poll gamepad state
+    FocusManager.ts        # Spatial focus graph
+    ControllerGlyphs.ts    # Platform-specific button icons
+    useController.ts       # Hook wiring actions → UI store
+  hooks/
+    useGames.ts            # TanStack Query wrappers
+    useHeroBlur.ts
+    useHeroTone.ts
+    useModalFocus.ts
+    useCursorAutoHide.ts
+    useFullscreen.ts
+    useSessionEvents.ts    # Listen for session start/stop
+  stores/
+    ui.store.ts            # Screen stack, filters, hero selection
+    theme.store.ts         # Active theme id + custom themes
+    session.store.ts       # Active game session
+  themes/
+    types.ts               # ThemeDefinition, BUILT_IN_THEMES
+    useThemeLayout.ts
+    Ps5Shell.tsx
+    SwitchShell.tsx
+    ThemePage.tsx
+  lib/
+    tauri.ts               # Typed invoke wrappers
+    devMockApi.ts          # Browser dev mocks
+    navigation.ts          # Screen helpers
+    artwork.ts / artworkApi.ts
+    format.ts / media.ts / heroBlur.ts / heroTone.ts
+  types/
+    game.ts                # Game, Session, filters, AppScreen
+  styles/
+    index.css              # CSS variables + theme classes
+  main.tsx
+```
+
+| File | Allowed contents |
+| ---- | ---------------- |
+| `features/*/*.tsx` | Single page/screen |
+| `components/*/*.tsx` | Single reusable component |
+| `hooks/*.ts` | Single hook |
+| `stores/*.store.ts` | Single Zustand store |
+| `app/App.tsx` | Screen switch + providers only |
+
+## State management
+
+| Store | Purpose |
+| ----- | ------- |
+| `ui.store` | Current screen, selected game, library filters, import toast |
+| `theme.store` | Active theme, custom theme list, CSS variable application |
+| `session.store` | Active `GameSession` mirror from Tauri |
+
+Server state (games list) uses TanStack Query in `useGames.ts` with invalidation after mutations.
+
+## Tauri integration
+
+All commands wrapped in `src/lib/tauri.ts`:
+
+```typescript
+export async function listGames(): Promise<Game[]> {
+  return run<Game[]>('list_games')
+}
+```
+
+`run()` checks `isTauriRuntime()` — falls back to `mockInvoke` in browser dev.
+
+When adding a command: update Rust handler → register in `lib.rs` → add wrapper + types in frontend.
+
+## Controller system
+
+1. `GamepadManager` polls `navigator.getGamepads()`.
+2. `ControllerMapping` maps button indices → `ControllerAction` (family-aware).
+3. `useControllerNavigation` dispatches actions to `ui.store` (navigate, confirm, back, edit, add, section switch).
+4. `FocusManager` maintains spatial focus graph; `Focusable` registers focusable elements.
+
+Keyboard equivalents handled in the same hook.
+
+## Testing
+
+### E2E (Playwright)
+
+```bash
+yarn dev          # or yarn tauri:dev
+yarn test:e2e
+```
+
+Primary spec: `e2e/orbit-ui-flow.spec.ts` — home hero, glass panel, focus order, theme shells.
+
+### Typecheck
+
+```bash
+yarn run typecheck
+```
+
+Add Playwright coverage for new screens and controller flows. Bug fixes should include a regression spec when feasible.
+
+## Dev workflow
+
+| Command | Purpose |
+| ------- | ------- |
+| `yarn tauri:dev` | Full desktop app |
+| `yarn dev` | Frontend only + mock API (faster UI iteration) |
+| `yarn test:e2e:ui` | Debug Playwright interactively |
+
+Browser dev sets theme via `localStorage.setItem('orbit.themeId', 'orbit')` in E2E boot helper.
