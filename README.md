@@ -59,44 +59,32 @@ See [RUNNING.md](RUNNING.md#building-a-release) for details.
 
 ### GitHub Releases
 
-Push a version tag to build a macOS `.dmg` and upload it to the [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github) tab:
+Prepare a release (bump version, scaffold `CHANGELOG.md` and `.github/release-notes/`):
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+yarn monopipeline release patch --summary "Your release summary"
+# edit CHANGELOG.md and .github/release-notes/<version>.md
+git add -A && git commit -m "chore: prepare v0.2.0"
+git tag v0.2.0
+git push origin main --tags
 ```
 
-The [release workflow](.github/workflows/release.yml) runs on `v*` tags, syncs the version from the tag, builds on `macos-14` (Apple Silicon), and publishes:
+The [release workflow](.github/workflows/release.yml) builds on `macos-14` (Apple Silicon) and publishes:
 
 - `Orbit-<version>-aarch64.dmg`
 - `Orbit-<version>-aarch64.app.tar.gz`
 - `SHA256SUMS.txt`
+- Release notes from `.github/release-notes/<version>.md`
 
 Full setup, frontend-only dev, testing, and troubleshooting: **[RUNNING.md](RUNNING.md)**.
 
-### GitHub Pages
-
-The landing page is [`docs/index.html`](docs/index.html), deployed automatically by GitHub Actions.
-
-**One-time setup (usually automatic):**
-
-1. Push the repo to GitHub
-2. The [deploy workflow](.github/workflows/deploy-pages.yml) enables Pages on first run (`enablement: true`)
-
-If the deploy job still fails, open **Settings → Pages → Build and deployment** and set **Source** to **GitHub Actions**, then re-run the workflow from the **Actions** tab.
-
-**Deploy:** pushes to `main` that touch `docs/` run [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml). You can also trigger a deploy manually from the **Actions** tab (**Deploy GitHub Pages → Run workflow**).
-
-Site URL: `https://<username>.github.io/orbit/`
-
-Update GitHub links in `docs/index.html` if your repo URL differs from `github.com/lfscamargo/orbit`.
-
-## Documentation
+Changelog: **[CHANGELOG.md](CHANGELOG.md)**
 
 | Doc | Contents |
 | --- | -------- |
 | [RUNNING.md](RUNNING.md) | Local setup, dev modes, tests, app data paths, troubleshooting |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute, quality gates, PR expectations |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) | Product scope, screens, Tauri commands, data model |
 | [docs/PROJECT.mdc](docs/PROJECT.mdc) | Repo layout, scripts, tooling |
 | [docs/TAURI.mdc](docs/TAURI.mdc) | Rust backend, importers, launch flow |

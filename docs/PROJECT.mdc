@@ -67,6 +67,7 @@ orbit/
 | `tauri:dev` | `tauri dev` | Full desktop app in development |
 | `tauri:build` | `tauri build` | Release `.app` bundle |
 | `release:macos` | `bash scripts/release-macos.sh` | Build + package macOS artifacts to `release/<version>/` |
+| `monopipeline` | `node scripts/monopipeline.mjs` | Bump version and scaffold CHANGELOG + GitHub release notes |
 | `build` | `tsc --noEmit && vite build` | Typecheck + frontend production build |
 | `typecheck` | `tsc --noEmit` | TypeScript only |
 | `format` | `prettier --write .` | Format all files |
@@ -151,7 +152,6 @@ GitHub Actions workflows:
 
 | Workflow | Trigger | Purpose |
 | -------- | ------- | ------- |
-| [deploy-pages.yml](../.github/workflows/deploy-pages.yml) | Push to `main` (`docs/**`) or manual | Publish landing page to GitHub Pages |
 | [release.yml](../.github/workflows/release.yml) | Push tag `v*` | Build macOS `.dmg` and publish GitHub Release |
 
 Future CI should mirror local gates:
