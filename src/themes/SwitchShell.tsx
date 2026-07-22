@@ -17,7 +17,6 @@ import { Focusable } from '@/components/focus/Focusable'
 import { glyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { resolveNavScreen } from '@/lib/navigation'
-import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 
 const NAV_ITEMS: Array<{
@@ -41,7 +40,6 @@ export function SwitchShell({
 }) {
   const screen = useUiStore((s) => s.screen)
   const setScreen = useUiStore((s) => s.setScreen)
-  const activeSession = useSessionStore((s) => s.activeSession)
   const navScreen = resolveNavScreen(screen)
   const isHome = screen === 'home'
 
@@ -77,11 +75,6 @@ export function SwitchShell({
           </Focusable>
 
           <div className="flex items-center gap-3 text-sm font-medium text-[var(--switch-ink)]">
-            {activeSession && (
-              <span className="rounded-full bg-[var(--switch-cyan)]/15 px-2.5 py-1 text-xs font-semibold text-[var(--switch-cyan)]">
-                Playing
-              </span>
-            )}
             <span>{now}</span>
             <Wifi className="h-4 w-4 stroke-[var(--switch-muted)]" strokeWidth={2.2} aria-hidden />
             <BatteryMedium className="h-4 w-4 stroke-[var(--switch-muted)]" strokeWidth={2.2} aria-hidden />

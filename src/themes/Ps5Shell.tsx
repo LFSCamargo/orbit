@@ -5,7 +5,6 @@ import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
 import { glyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
-import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 
 import { resolveNavScreen } from '@/lib/navigation'
@@ -25,7 +24,6 @@ export function Ps5Shell({
 }) {
   const screen = useUiStore((s) => s.screen)
   const setScreen = useUiStore((s) => s.setScreen)
-  const activeSession = useSessionStore((s) => s.activeSession)
   const navScreen = resolveNavScreen(screen)
 
   const now = useMemo(
@@ -70,11 +68,6 @@ export function Ps5Shell({
           </nav>
 
           <div className="flex shrink-0 items-center gap-3 text-sm text-[var(--ps5-muted)]">
-            {activeSession && (
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-[var(--ps5-ink)]">
-                Playing
-              </span>
-            )}
             <Focusable
               focusId="ps5-search"
               group="ps5-top"
