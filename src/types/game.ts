@@ -31,6 +31,11 @@ export type LaunchConfiguration =
       executable: string
       arguments: string[]
     }
+  | {
+      type: 'gamehub'
+      gamehubAppPath: string
+      shortcutAppPath: string
+    }
 
 export interface GameArtwork {
   cover?: string
@@ -139,3 +144,4 @@ export type AppScreen =
   | 'game-edit'
   | 'add-game'
   | 'settings'
+  | 'switch-library'

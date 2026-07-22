@@ -142,7 +142,7 @@ Migrations in `database/migrations.rs` — applied sequentially via `schema_migr
 | `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, playtime |
 | `AstrisImporter` | `astris` | User folder | `.nsp` / `.xci` Nintendo Switch ROMs |
 | `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles |
-| `GameHubImporter` | `gamehub` | Experimental | `.exe` / `.app` in GameHub folders |
+| `GameHubImporter` | `gamehub` | `/Applications` + `~/Applications` | Verified shortcuts only (`com.gamehub.shortcut.*` bundle id) |
 | Manual | `manual` | `import_game_path` | User file picker |
 
 Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
@@ -152,6 +152,8 @@ Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 1. Frontend calls `launch_game(gameId)`.
 2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`.
 3. `launcher.rs` spawns the appropriate process (Steam URL, open file, open app, custom command).
+   Switch `.nsp` / `.xci` launches always resolve to the **base application ROM** in the same folder; updates and DLC are left for the emulator to pick up.
+   **GameHub** titles use launch type `gamehub`: open `GameHub.app`, wait briefly, then open the game's shortcut `.app` in Applications.
 4. PID stored; `hide_orbit_window` optional during play.
 5. `process_monitor.rs` watches exit → updates playtime, ends session, `show_orbit_window`.
 

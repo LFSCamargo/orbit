@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGameActions, useImporters } from '@/hooks/useGames'
+import { GAMEHUB_SETUP_STEPS } from '@/lib/launchConfig'
 import { useUiStore } from '@/stores/ui.store'
 
 const IMPORTERS = [
@@ -24,7 +25,7 @@ const IMPORTERS = [
   {
     id: 'gamehub',
     title: 'GameHub',
-    body: 'Scan folders for .exe / .app titles (Wine / Game Porting Toolkit style installs).',
+    body: 'Import GameHub shortcuts from /Applications and ~/Applications. Only .app bundles with bundle id com.gamehub.shortcut.* are added.',
   },
   {
     id: 'manual',
@@ -35,6 +36,7 @@ const IMPORTERS = [
 
 export function ImportsSection() {
   const openAddGame = useUiStore((s) => s.openAddGame)
+  const setScreen = useUiStore((s) => s.setScreen)
   const setImportToast = useUiStore((s) => s.setImportToast)
   const importToast = useUiStore((s) => s.importToast)
   const { data: statuses = [] } = useImporters()
@@ -63,10 +65,8 @@ export function ImportsSection() {
         const result = await scanAstris.mutateAsync(folder)
         setImportToast(`Astris sync complete · ${result.imported} titles`)
       } else if (id === 'gamehub') {
-        const folder = await open({ directory: true, multiple: false })
-        if (!folder || Array.isArray(folder)) return
-        const result = await scanGamehub.mutateAsync(folder)
-        setImportToast(`GameHub sync complete · ${result.imported} titles`)
+        const result = await scanGamehub.mutateAsync(undefined)
+        setImportToast(`GameHub sync complete · ${result.imported} shortcuts`)
       }
     } catch (error) {
       setImportToast(error instanceof Error ? error.message : String(error))
@@ -110,6 +110,22 @@ export function ImportsSection() {
         )}
       </AnimatePresence>
 
+      <Focusable
+        focusId="imports-switch-library"
+        group="imports-top"
+        order={1}
+        noScale
+        noRing
+        onClick={() => setScreen('switch-library')}
+        className="mt-5 block rounded-card bg-white/5 p-5 text-left ring-1 ring-white/10"
+      >
+        <h3 className="font-display text-lg font-semibold">Switch content visualizer</h3>
+        <p className="mt-2 text-sm text-orbit-muted">
+          See base games, updates, and DLC for titles already in your library. Orbit scans the ROM
+          folders from your imported Astris paths automatically.
+        </p>
+      </Focusable>
+
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         {IMPORTERS.map((item, index) => {
           const status = statusFor(item.id)
@@ -140,6 +156,13 @@ export function ImportsSection() {
                 </span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-orbit-muted">{item.body}</p>
+              {item.id === 'gamehub' && (
+                <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-orbit-muted">
+                  {GAMEHUB_SETUP_STEPS.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              )}
             </Focusable>
           )
         })}

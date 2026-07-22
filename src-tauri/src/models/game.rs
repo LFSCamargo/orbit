@@ -89,6 +89,13 @@ pub enum LaunchConfiguration {
         executable: String,
         arguments: Vec<String>,
     },
+    /// GameHub shortcut in Applications — Orbit opens GameHub, then the game's .app.
+    Gamehub {
+        #[serde(rename = "gamehubAppPath")]
+        gamehub_app_path: String,
+        #[serde(rename = "shortcutAppPath")]
+        shortcut_app_path: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

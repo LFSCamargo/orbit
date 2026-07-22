@@ -68,6 +68,10 @@ impl GameImporter for NativeAppImporter {
 }
 
 fn inspect_app(path: &Path, include_all: bool) -> Option<ImportedGame> {
+    if crate::utils::gamehub_shortcut::is_gamehub_shortcut(path) {
+        return None;
+    }
+
     let name = path.file_stem()?.to_string_lossy().to_string();
     let bundle_id = read_plist_value(path, "CFBundleIdentifier").unwrap_or_default();
     let category = read_plist_value(path, "LSApplicationCategoryType").unwrap_or_default();
