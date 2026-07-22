@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AppShell } from '@/components/layout/AppShell'
 import { useControllerNavigation } from '@/controllers/useController'
@@ -8,9 +9,12 @@ import { HomePage } from '@/features/home/HomePage'
 import { LibraryPage } from '@/features/library/LibraryPage'
 import { SearchPage } from '@/features/search/SearchPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
+import { SwitchLibraryPage } from '@/features/switch-library/SwitchLibraryPage'
 import { useCursorAutoHide } from '@/hooks/useCursorAutoHide'
 import { useFullscreen } from '@/hooks/useFullscreen'
+import { useActiveSessionQuery } from '@/hooks/useGames'
 import { useSessionEvents } from '@/hooks/useSessionEvents'
+import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 
@@ -25,9 +29,15 @@ export function App() {
   const screen = useUiStore((s) => s.screen)
   const layout = useThemeLayout()
   const { family } = useControllerNavigation()
+  const setActiveSession = useSessionStore((s) => s.setActiveSession)
+  const { data: activeSession } = useActiveSessionQuery()
   useFullscreen()
   useCursorAutoHide()
   useSessionEvents()
+
+  useEffect(() => {
+    setActiveSession(activeSession ?? null)
+  }, [activeSession, setActiveSession])
 
   return (
     <AppShell family={family}>
@@ -52,6 +62,7 @@ export function App() {
           {screen === 'game-edit' && <GameEditPage />}
           {screen === 'add-game' && <AddGamePage />}
           {screen === 'settings' && <SettingsPage />}
+          {screen === 'switch-library' && <SwitchLibraryPage />}
         </motion.div>
       </AnimatePresence>
     </AppShell>

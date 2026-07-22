@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::database::GameRepository;
 use crate::launching::{
-    is_process_running, launch_configuration, list_process_pids_by_name, terminate_pid,
+    is_process_running, launch_game, list_process_pids_by_name, terminate_pid,
 };
 use crate::models::{Game, GameProvider, GameSession, SessionStopReason};
 use crate::AppState;
@@ -48,7 +48,7 @@ impl SessionManager {
             Vec::new()
         };
 
-        if let Err(error) = launch_configuration(&game.launch_config) {
+        if let Err(error) = launch_game(game) {
             let _ = app.emit(
                 "game-session-error",
                 serde_json::json!({ "message": error.to_string() }),
@@ -78,7 +78,7 @@ impl SessionManager {
         });
 
         let _ = app.emit("game-session-started", &session);
-        hide_orbit(app);
+        defer_minimize_orbit(app.clone());
 
         spawn_monitor(app.clone(), session.id.clone());
 
@@ -163,10 +163,13 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
         .or_else(|| preexisting.first().copied())
 }
 
-fn hide_orbit(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
-    }
+fn defer_minimize_orbit(app: AppHandle) {
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1600));
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.minimize();
+        }
+    });
 }
 
 fn show_orbit(app: &AppHandle) {

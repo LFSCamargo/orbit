@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
+import { open } from '@tauri-apps/plugin-dialog'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Save, Sparkles } from 'lucide-react'
+import { ArrowLeft, FolderOpen, Save, Sparkles } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { ArtworkSlotPicker } from '@/components/artwork/ArtworkSlotPicker'
 import { ImageSearchModal } from '@/components/artwork/ImageSearchModal'
 import { useGame, useGameActions } from '@/hooks/useGames'
 import type { ArtworkSlot } from '@/lib/artwork'
 import { normalizeArtwork } from '@/lib/artworkApi'
+import {
+  getEditableLaunchPath,
+  hasEditableLaunchPath,
+  launchPathFieldLabel,
+  launchPathHint,
+  setEditableLaunchPath,
+} from '@/lib/launchConfig'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 
@@ -18,6 +26,7 @@ export function GameEditPage() {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [launchPath, setLaunchPath] = useState('')
   const [cover, setCover] = useState<string | undefined>()
   const [hero, setHero] = useState<string | undefined>()
   const [icon, setIcon] = useState<string | undefined>()
@@ -29,6 +38,7 @@ export function GameEditPage() {
     if (!game) return
     setTitle(game.title)
     setDescription(game.description ?? '')
+    setLaunchPath(getEditableLaunchPath(game.launchConfig) ?? '')
     setCover(game.artwork.cover)
     setHero(game.artwork.hero)
     setIcon(game.artwork.icon)
@@ -50,10 +60,24 @@ export function GameEditPage() {
     )
   }
 
+  const editableLaunch = hasEditableLaunchPath(game.launchConfig)
+
   const setSlot = (slot: ArtworkSlot, value: string | undefined) => {
     if (slot === 'cover') setCover(value)
     if (slot === 'hero') setHero(value)
     if (slot === 'icon') setIcon(value)
+  }
+
+  const browseLaunchPath = async () => {
+    const selected = await open({
+      multiple: false,
+      directory:
+        game.launchConfig.type === 'open-application' ||
+        game.launchConfig.type === 'gamehub',
+    })
+    if (typeof selected === 'string') {
+      setLaunchPath(selected)
+    }
   }
 
   const save = async () => {
@@ -66,12 +90,20 @@ export function GameEditPage() {
         icon,
         logo: game.artwork.logo,
       })
+
+      const trimmedPath = launchPath.trim()
+      const launchConfig =
+        editableLaunch && trimmedPath
+          ? setEditableLaunchPath(game.launchConfig, trimmedPath)
+          : undefined
+
       await update.mutateAsync({
         gameId: game.id,
         request: {
           title: title.trim() || game.title,
           description: description.trim() || undefined,
           artwork,
+          launchConfig,
         },
       })
       setMessage('Saved — artwork stored as Base64 in your local library.')
@@ -86,7 +118,7 @@ export function GameEditPage() {
   return (
     <ThemePage
       title="Edit properties"
-      subtitle="Customize metadata and artwork. Images are embedded in your local database."
+      subtitle="Customize metadata, launch path, and artwork. Images are embedded in your local database."
     >
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -117,6 +149,39 @@ export function GameEditPage() {
               />
             </label>
           </div>
+
+          {editableLaunch && (
+            <div className="orbit-panel rounded-theme p-6">
+              <div className="mb-2 text-sm font-semibold uppercase tracking-wider text-orbit-accent">
+                Launch
+              </div>
+              <p className="mb-4 text-sm text-orbit-muted">
+                {launchPathHint(game.launchConfig)}
+              </p>
+              <label className="block text-sm text-orbit-muted">
+                {launchPathFieldLabel(game.launchConfig)}
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={launchPath}
+                    onChange={(event) => setLaunchPath(event.target.value)}
+                    spellCheck={false}
+                    className="min-w-0 flex-1 rounded-card border border-orbit-border bg-orbit-surface px-4 py-3 font-mono text-sm text-orbit-foreground outline-none ring-orbit-focus focus:ring-2"
+                  />
+                  <Focusable
+                    focusId="edit-browse-path"
+                    group="edit-launch"
+                    order={0}
+                    noScale
+                    onClick={() => void browseLaunchPath()}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-card bg-white/10 px-4 py-3"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    Browse
+                  </Focusable>
+                </div>
+              </label>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3">
             <Focusable

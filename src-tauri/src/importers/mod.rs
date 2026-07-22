@@ -23,6 +23,6 @@ pub trait GameImporter: Send + Sync {
 }
 
 pub use astris::AstrisImporter;
-pub use gamehub::{import_manual_path, GameHubImporter};
+pub use gamehub::{detect_gamehub, import_manual_path, GameHubImporter};
 pub use native_apps::NativeAppImporter;
 pub use steam::SteamImporter;

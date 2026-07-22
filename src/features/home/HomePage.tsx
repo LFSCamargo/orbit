@@ -4,6 +4,7 @@ import type { Game } from '@/types/game'
 import { ThemeHome } from './ThemeHome'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGameActions, useGames } from '@/hooks/useGames'
+import { useGameContentMap } from '@/hooks/useGameContent'
 import { useUiStore } from '@/stores/ui.store'
 import { useSessionStore } from '@/stores/session.store'
 import { useThemeLayout } from '@/themes/useThemeLayout'
@@ -18,6 +19,7 @@ function byDateAdded(a: Game, b: Game) {
 
 export function HomePage() {
   const { data: games = [], isLoading } = useGames()
+  const { contentByGameId } = useGameContentMap()
   const { launch, stop, favorite } = useGameActions()
   const heroGameId = useUiStore((s) => s.heroGameId)
   const openAddGame = useUiStore((s) => s.openAddGame)
@@ -131,6 +133,7 @@ export function HomePage() {
       games={visible}
       heroGame={heroGame}
       activeSession={activeSession}
+      contentByGameId={contentByGameId}
       onPlay={(game) => launch.mutate(game.id)}
       onStop={() => activeSession && stop.mutate(activeSession.id)}
       onFavorite={(game) => favorite.mutate(game.id)}

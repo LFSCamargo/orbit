@@ -26,6 +26,7 @@ const SOURCES: Array<{
   extensions: string[]
   folder?: boolean
   autoSteam?: boolean
+  autoGamehub?: boolean
 }> = [
   {
     id: 'steam',
@@ -45,10 +46,11 @@ const SOURCES: Array<{
   },
   {
     id: 'gamehub',
-    title: 'GameHub (.exe / .app)',
-    body: 'Scan a GameHub / Wine folder for Windows executables and apps.',
+    title: 'GameHub shortcuts',
+    body: 'Scan /Applications and ~/Applications for GameHub shortcuts (bundle id com.gamehub.shortcut.*). Create each shortcut in GameHub first.',
     provider: 'gamehub',
-    extensions: ['exe', 'app'],
+    extensions: ['app'],
+    autoGamehub: true,
     folder: true,
   },
   {
@@ -103,6 +105,9 @@ export function AddGamePage() {
       } else if (id === 'native') {
         const result = await scanNative.mutateAsync()
         finish(`Imported ${result.imported} macOS apps`)
+      } else if (id === 'gamehub') {
+        const result = await scanGamehub.mutateAsync(undefined)
+        finish(`Imported ${result.imported} GameHub shortcuts`)
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
@@ -213,7 +218,7 @@ export function AddGamePage() {
                   disabled={busy}
                   onClick={() => {
                     setSourceId(item.id)
-                    if (item.autoSteam || item.id === 'native') {
+                    if (item.autoSteam || item.id === 'native' || item.autoGamehub) {
                       void runAutoImport(item.id)
                     } else {
                       setStep('path')

@@ -4,12 +4,15 @@ import {
   Clock3,
   Gamepad2,
   HardDrive,
+  Layers,
+  Package,
   Play,
   Square,
   Trophy,
   Users,
 } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { resolveHeroContentDisplay } from '@/components/home/GameContentBadge'
 import { NativeGlassPanel } from '@/components/home/NativeGlassPanel'
 import { useHeroTone } from '@/hooks/useHeroTone'
 import { gameHeroImage, gameTileImage } from '@/lib/artwork'
@@ -25,11 +28,13 @@ import { mediaSrc } from '@/lib/media'
 import { useUiStore } from '@/stores/ui.store'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 import type { Game, GameSession } from '@/types/game'
+import type { GameContentMap } from '@/types/gameContent'
 
 interface ThemeHomeProps {
   games: Game[]
   heroGame: Game
   activeSession: GameSession | null
+  contentByGameId: GameContentMap
   onPlay: (game: Game) => void
   onStop: () => void
   onFavorite: (game: Game) => void
@@ -68,7 +73,14 @@ function createHomeGameHandlers(
   return { selectGame, launchGame }
 }
 
-function SwitchHome({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomeProps) {
+function SwitchHome({
+  games,
+  heroGame,
+  activeSession,
+  contentByGameId,
+  onPlay,
+  onStop,
+}: ThemeHomeProps) {
   const setHero = useUiStore((s) => s.setHeroGameId)
   const openGameDetails = useUiStore((s) => s.openGameDetails)
   const heroLandscape =
@@ -76,6 +88,7 @@ function SwitchHome({ games, heroGame, activeSession, onPlay, onStop }: ThemeHom
   const heroThumb = gameTileImage(heroGame.artwork, 'square')
   const heroTone = useHeroTone(heroLandscape ?? null)
   const { achievements, unlocked } = gameStats(heroGame)
+  const heroContent = resolveHeroContentDisplay(contentByGameId, heroGame.id)
   const isRunning = activeSession?.gameId === heroGame.id
 
   const carouselGames = useMemo(() => {
@@ -222,21 +235,46 @@ function SwitchHome({ games, heroGame, activeSession, onPlay, onStop }: ThemeHom
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div
+            className={clsx(
+              'mt-5 grid gap-3',
+              heroContent ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3',
+            )}
+          >
             <SwitchStatCard
               icon={<Clock3 className="h-4 w-4 text-[var(--switch-cyan)]" />}
               label="Playtime"
               value={formatPlaytime(heroGame.totalPlaytimeSeconds)}
+              detail={formatRelativeDate(heroGame.lastPlayedAt)}
             />
-            <SwitchStatCard
-              icon={<Trophy className="h-4 w-4 text-[#ffb340]" />}
-              label="Achievements"
-              value={formatAchievementProgress(unlocked, achievements.length)}
-            />
+            {heroContent ? (
+              <>
+                <SwitchStatCard
+                  icon={<Package className="h-4 w-4 text-[var(--switch-cyan)]" />}
+                  label="Game version"
+                  value={heroContent.versionValue}
+                  detail={heroContent.versionDetail}
+                />
+                <SwitchStatCard
+                  icon={<Layers className="h-4 w-4 text-[#ffb340]" />}
+                  label="DLC installed"
+                  value={heroContent.dlcValue}
+                  detail={heroContent.dlcDetail}
+                />
+              </>
+            ) : (
+              <SwitchStatCard
+                icon={<Trophy className="h-4 w-4 text-[#ffb340]" />}
+                label="Achievements"
+                value={formatAchievementProgress(unlocked, achievements.length)}
+                detail={`${unlocked} unlocked`}
+              />
+            )}
             <SwitchStatCard
               icon={<HardDrive className="h-4 w-4 text-[var(--switch-muted)]" />}
               label="Install size"
               value={formatBytes(heroGame.installSizeBytes)}
+              detail="On disk"
             />
           </div>
         </NativeGlassPanel>
@@ -249,23 +287,40 @@ function SwitchStatCard({
   icon,
   label,
   value,
+  detail,
 }: {
   icon: ReactNode
   label: string
   value: string
+  detail?: string
 }) {
   return (
-    <div className="switch-glass-card rounded-2xl px-4 py-3 ring-1 ring-white/[0.06]">
-      <div className="switch-hero-muted flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+    <div className="switch-glass-card rounded-2xl px-3.5 py-2.5 ring-1 ring-white/[0.06]">
+      <div className="switch-hero-muted flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
         {icon}
         {label}
       </div>
-      <p className="switch-hero-stat-value mt-2 text-lg font-semibold">{value}</p>
+      <p className="switch-hero-stat-value mt-1.5 truncate text-sm font-semibold">{value}</p>
+      <p
+        className={clsx(
+          'switch-hero-muted mt-1 min-h-[1.75rem] line-clamp-2 text-[10px] leading-snug',
+          !detail && 'invisible',
+        )}
+      >
+        {detail || '\u00A0'}
+      </p>
     </div>
   )
 }
 
-function Ps5Home({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomeProps) {
+function Ps5Home({
+  games,
+  heroGame,
+  activeSession,
+  contentByGameId,
+  onPlay,
+  onStop,
+}: ThemeHomeProps) {
   const setHero = useUiStore((s) => s.setHeroGameId)
   const openGameDetails = useUiStore((s) => s.openGameDetails)
   const heroBg =
@@ -273,6 +328,7 @@ function Ps5Home({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomePr
     mediaSrc(heroGame.artwork.cover) ||
     gameTileImage(heroGame.artwork, 'square')
   const { achievements, unlocked } = gameStats(heroGame)
+  const heroContent = resolveHeroContentDisplay(contentByGameId, heroGame.id)
   const isRunning = activeSession?.gameId === heroGame.id
   const heroTone = useHeroTone(heroBg ?? null)
 
@@ -367,10 +423,17 @@ function Ps5Home({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomePr
               >
                 •••
               </Focusable>
-              <StatPill
-                icon={<Trophy className="h-4 w-4" />}
-                label={formatAchievementProgress(unlocked, achievements.length)}
-              />
+              {heroContent ? (
+                <>
+                  <StatPill icon={<Package className="h-4 w-4" />} label={heroContent.versionValue} />
+                  <StatPill icon={<Layers className="h-4 w-4" />} label={heroContent.dlcValue} />
+                </>
+              ) : (
+                <StatPill
+                  icon={<Trophy className="h-4 w-4" />}
+                  label={formatAchievementProgress(unlocked, achievements.length)}
+                />
+              )}
               <StatPill icon={<Clock3 className="h-4 w-4" />} label={formatPlaytime(heroGame.totalPlaytimeSeconds)} />
             </div>
 
@@ -379,19 +442,35 @@ function Ps5Home({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomePr
                 imageSrc={heroBg ?? null}
                 variant="ps5"
                 className="ps5-dashboard-glass rounded-2xl"
-                contentClassName="grid gap-4 md:grid-cols-3 md:gap-0"
+                contentClassName={clsx(
+                  'grid gap-4 md:gap-0',
+                  heroContent ? 'md:grid-cols-4' : 'md:grid-cols-3',
+                )}
               >
-              <Ps5DashboardCard title="Trophies" icon={<Trophy className="h-4 w-4" />}>
-                <div className="flex gap-4">
-                  <TrophyStat count={Math.floor(unlocked * 0.05)} label="P" color="text-gray-300" />
-                  <TrophyStat count={Math.floor(unlocked * 0.15)} label="G" color="text-yellow-500" />
-                  <TrophyStat count={Math.floor(unlocked * 0.35)} label="S" color="text-gray-400" />
-                  <TrophyStat count={unlocked} label="B" color="text-amber-700" />
-                </div>
-                <p className="ps5-hero-card-muted mt-3 text-xs">
-                  {formatAchievementProgress(unlocked, achievements.length)} unlocked
-                </p>
-              </Ps5DashboardCard>
+              {heroContent ? (
+                <>
+                  <Ps5DashboardCard title="Game version" icon={<Package className="h-4 w-4" />}>
+                    <p className="ps5-hero-card-value truncate text-lg font-semibold">{heroContent.versionValue}</p>
+                    <p className="ps5-hero-card-muted mt-1 min-h-[1.75rem] line-clamp-2 text-[11px] leading-snug">{heroContent.versionDetail}</p>
+                  </Ps5DashboardCard>
+                  <Ps5DashboardCard title="DLC installed" icon={<Layers className="h-4 w-4" />}>
+                    <p className="ps5-hero-card-value truncate text-lg font-semibold">{heroContent.dlcValue}</p>
+                    <p className="ps5-hero-card-muted mt-1 min-h-[1.75rem] line-clamp-2 text-[11px] leading-snug">{heroContent.dlcDetail}</p>
+                  </Ps5DashboardCard>
+                </>
+              ) : (
+                <Ps5DashboardCard title="Trophies" icon={<Trophy className="h-4 w-4" />}>
+                  <div className="flex gap-4">
+                    <TrophyStat count={Math.floor(unlocked * 0.05)} label="P" color="text-gray-300" />
+                    <TrophyStat count={Math.floor(unlocked * 0.15)} label="G" color="text-yellow-500" />
+                    <TrophyStat count={Math.floor(unlocked * 0.35)} label="S" color="text-gray-400" />
+                    <TrophyStat count={unlocked} label="B" color="text-amber-700" />
+                  </div>
+                  <p className="ps5-hero-card-muted mt-3 text-xs">
+                    {formatAchievementProgress(unlocked, achievements.length)} unlocked
+                  </p>
+                </Ps5DashboardCard>
+              )}
               <Ps5DashboardCard title="Activity" icon={<Users className="h-4 w-4" />}>
                 <p className="ps5-hero-card-value text-2xl font-semibold">
                   {formatPlaytime(heroGame.totalPlaytimeSeconds)}
@@ -414,11 +493,19 @@ function Ps5Home({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomePr
   )
 }
 
-function OrbitHome({ games, heroGame, activeSession, onPlay, onStop }: ThemeHomeProps) {
+function OrbitHome({
+  games,
+  heroGame,
+  activeSession,
+  contentByGameId,
+  onPlay,
+  onStop,
+}: ThemeHomeProps) {
   const setHero = useUiStore((s) => s.setHeroGameId)
   const openGameDetails = useUiStore((s) => s.openGameDetails)
   const heroImage = mediaSrc(heroGame.artwork.hero) || mediaSrc(heroGame.artwork.cover)
   const { achievements, unlocked } = gameStats(heroGame)
+  const heroContent = resolveHeroContentDisplay(contentByGameId, heroGame.id)
   const isRunning = activeSession?.gameId === heroGame.id
 
   // Stable order — never reshuffle on hero change (that breaks focus/clicks).
@@ -507,7 +594,10 @@ function OrbitHome({ games, heroGame, activeSession, onPlay, onStop }: ThemeHome
                   imageSrc={heroImage ?? null}
                   variant="orbit"
                   className="orbit-dashboard-glass mt-8 rounded-xl"
-                  contentClassName="grid gap-0 md:grid-cols-3"
+                  contentClassName={clsx(
+                    'grid gap-0',
+                    heroContent ? 'md:grid-cols-4' : 'md:grid-cols-3',
+                  )}
                 >
                   <OrbitDashboardCell
                     title="Activity"
@@ -515,12 +605,29 @@ function OrbitHome({ games, heroGame, activeSession, onPlay, onStop }: ThemeHome
                     value={formatPlaytime(heroGame.totalPlaytimeSeconds)}
                     detail={`Last played ${formatRelativeDate(heroGame.lastPlayedAt)}`}
                   />
-                  <OrbitDashboardCell
-                    title="Achievements"
-                    icon={<Trophy className="h-4 w-4" />}
-                    value={formatAchievementProgress(unlocked, achievements.length)}
-                    detail={`${unlocked} of ${achievements.length || 0} unlocked`}
-                  />
+                  {heroContent ? (
+                    <>
+                      <OrbitDashboardCell
+                        title="Game version"
+                        icon={<Package className="h-4 w-4" />}
+                        value={heroContent.versionValue}
+                        detail={heroContent.versionDetail}
+                      />
+                      <OrbitDashboardCell
+                        title="DLC installed"
+                        icon={<Layers className="h-4 w-4" />}
+                        value={heroContent.dlcValue}
+                        detail={heroContent.dlcDetail}
+                      />
+                    </>
+                  ) : (
+                    <OrbitDashboardCell
+                      title="Achievements"
+                      icon={<Trophy className="h-4 w-4" />}
+                      value={formatAchievementProgress(unlocked, achievements.length)}
+                      detail={`${unlocked} of ${achievements.length || 0} unlocked`}
+                    />
+                  )}
                   <OrbitDashboardCell
                     title="Storage"
                     icon={<HardDrive className="h-4 w-4" />}
@@ -590,13 +697,13 @@ function OrbitDashboardCell({
   detail: string
 }) {
   return (
-    <div className="orbit-dashboard-cell border-white/[0.08] p-5 md:border-r md:last:border-r-0">
-      <div className="mb-3 flex items-center gap-2 text-sm text-white/55">
+    <div className="orbit-dashboard-cell border-white/[0.08] p-4 md:border-r md:last:border-r-0">
+      <div className="mb-2 flex items-center gap-1.5 text-xs text-white/55">
         {icon}
         {title}
       </div>
-      <p className="text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-sm text-white/45">{detail}</p>
+      <p className="truncate text-lg font-semibold text-white">{value}</p>
+      <p className="mt-1 min-h-[1.75rem] line-clamp-2 text-[11px] leading-snug text-white/45">{detail}</p>
     </div>
   )
 }
