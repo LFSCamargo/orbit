@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { clsx } from 'clsx'
 import type { Game, GameProvider, LibrarySort } from '@/types/game'
 import { GameCard } from '@/components/game/GameCard'
+import { LIBRARY_SQUARE_GRID_CLASS } from '@/components/game/SquareGameArt'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGames } from '@/hooks/useGames'
 import { useUiStore } from '@/stores/ui.store'
@@ -113,12 +114,9 @@ export function LibraryPage() {
       ) : (
         <div
           className={clsx(
-            'gap-4',
-            layout === 'ps5'
-              ? 'grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))]'
-              : layout === 'switch'
-                ? 'grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]'
-                : 'grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]',
+            layout === 'ps5' || layout === 'switch'
+              ? LIBRARY_SQUARE_GRID_CLASS[layout]
+              : 'grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-4',
           )}
         >
           {filtered.map((game, index) => (

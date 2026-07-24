@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Search } from 'lucide-react'
 import { GameCard } from '@/components/game/GameCard'
+import { LIBRARY_SQUARE_GRID_CLASS } from '@/components/game/SquareGameArt'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGames } from '@/hooks/useGames'
 import { useUiStore } from '@/stores/ui.store'
@@ -36,8 +37,8 @@ export function SearchPage() {
     : 'w-full rounded-card border border-orbit-border bg-orbit-surface py-4 pl-12 pr-4 text-lg text-orbit-foreground outline-none ring-orbit-focus focus:ring-2'
 
   const gridClass = isThemedShell
-    ? 'mt-10 grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4'
-    : 'mt-10 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-4'
+    ? LIBRARY_SQUARE_GRID_CLASS[layout]
+    : 'grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-4'
 
   return (
     <ThemePage title="Search" subtitle="Find games in your library" eyebrow="Library">
@@ -72,7 +73,7 @@ export function SearchPage() {
         </Focusable>
       </div>
 
-      <div className={gridClass}>
+      <div className={`mt-10 ${gridClass}`}>
         {results.map((game, index) => (
           <GameCard
             key={game.id}
