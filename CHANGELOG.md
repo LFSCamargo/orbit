@@ -22,7 +22,7 @@ yarn monopipeline bump patch
 
 ## [0.2.0] - TBD
 
-TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch shell polish, and library square tile normalization.
+TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch shell polish, library square tile normalization, and a modules/performance refactor.
 
 ### Added
 
@@ -36,11 +36,24 @@ TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch
 - Same-monitor launch placement — Steam, GameHub, Astris, and native apps open on the monitor where Orbit is running
 - Native path picker on the AppKit main thread (`pick_open_path`) for imports and artwork selection
 - PS5/Switch home shell polish: carousel tile titles, home menu modal, controller Home/Guide handling, and stick scrolling
-- Shared `SquareGameArt` component with fixed-size library grids on PS5 and Switch themes
+- Shared `SquareGameArt` and `StatCard` components with fixed-size library grids on PS5 and Switch themes
+- Shared `themeTokens()` lookup for themed shell, panel, ink, and muted classes
 - Dev storage cleanup scripts: `yarn clean:report`, `yarn clean`, and `yarn clean:deep`
+- Vitest unit test suite (`yarn test:unit` / `yarn test:unit:watch`) for pure TypeScript helpers and shared components
+- Expanded Rust unit coverage for repository CRUD, metadata cache, launch strategy dispatch, and Steam VDF fixtures
 
 ### Changed
 
+- Frontend route screens live under `src/modules/` (replacing `src/features/`) with colocated module components and hooks
+- Home, Settings, and Game Details pages split into focused colocated components
+- Import scan flow shared via `useImportScan` across Add Game and Settings → Import
+- Rust HTTP client, Switch ROM walk, and Steam root detection deduplicated into shared helpers
+- Artwork search/fetch HTTP logic moved out of Tauri commands into a dedicated service
+- Library `list_games` strips heavy Base64 artwork blobs; full artwork remains on game details
+- Override and import upsert lookups batched (no per-row N+1 queries)
+- Metadata cache repository shared via `AppState` instead of reopening per call
+- Artwork slot downloads run in parallel; session polling only runs while a game is active
+- `GameCard` memoized with stable handlers for library and search grids
 - Import re-scans merge artwork and descriptions without wiping enriched or user-filled slots
 - Import toasts report how many games were enriched
 - `ScanResult` includes `enriched` count
@@ -53,6 +66,10 @@ TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch
 - Artwork cache write failures when a path pointed at a directory (`EISDIR`)
 - Steam importer skips directory paths masquerading as artwork files
 
+### Removed
+
+- Unused `GameHero`, `GameCarousel`, and `useHeroBlur` frontend code
+- Dead `seed_mock_games_if_empty` / `mock_games` repository helpers
 ## [0.1.1] - 2026-07-22
 
 Library content inventory on the home hero, smarter Switch and GameHub imports, a playing screen during sessions, and launch-path editing.
