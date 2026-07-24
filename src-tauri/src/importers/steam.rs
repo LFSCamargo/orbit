@@ -156,7 +156,7 @@ fn local_steam_artwork(steamapps: &Path, app_id: &str) -> GameArtwork {
         library_cache.join(format!("{app_id}_library_capsule.jpg")),
     ]
     .into_iter()
-    .find(|path| path.exists())
+    .find(|path| path.is_file())
     .map(|path| path.to_string_lossy().to_string());
 
     let hero = [
@@ -164,7 +164,7 @@ fn local_steam_artwork(steamapps: &Path, app_id: &str) -> GameArtwork {
         library_cache.join(format!("{app_id}_hero.jpg")),
     ]
     .into_iter()
-    .find(|path| path.exists())
+    .find(|path| path.is_file())
     .map(|path| path.to_string_lossy().to_string());
 
     let logo = library_cache

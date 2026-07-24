@@ -16,7 +16,16 @@ pub struct ArtworkSearchHit {
 
 #[tauri::command]
 pub async fn read_artwork_from_path(path: String) -> Result<String, String> {
-    let bytes = std::fs::read(&path).map_err(|err| err.to_string())?;
+    let path_buf = std::path::PathBuf::from(&path);
+    if path_buf.is_dir() {
+        return Err(format!(
+            "Expected an image file, but this path is a directory: {path}"
+        ));
+    }
+    if !path_buf.is_file() {
+        return Err(format!("Image file not found: {path}"));
+    }
+    let bytes = std::fs::read(&path_buf).map_err(|err| err.to_string())?;
     let mime = mime_from_path(&path);
     Ok(to_data_url(&bytes, &mime))
 }
