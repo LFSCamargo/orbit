@@ -158,6 +158,10 @@ pub fn artwork_cache_dir() -> PathBuf {
     app_data_dir().join("artwork-cache")
 }
 
+pub fn metadata_cache_path() -> PathBuf {
+    app_data_dir().join("metadata.sqlite")
+}
+
 pub fn themes_dir() -> PathBuf {
     app_data_dir().join("themes")
 }

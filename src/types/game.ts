@@ -1,11 +1,6 @@
 export type GameProvider = 'astris' | 'steam' | 'gamehub' | 'native' | 'manual'
 
-export type GamePlatform =
-  | 'nintendo-switch'
-  | 'macos'
-  | 'windows'
-  | 'linux'
-  | 'unknown'
+export type GamePlatform = 'nintendo-switch' | 'macos' | 'windows' | 'linux' | 'unknown'
 
 export type LaunchConfiguration =
   | {
@@ -92,6 +87,7 @@ export interface UpdateGameRequest {
 
 export interface ScanResult {
   imported: number
+  enriched: number
   provider: string
 }
 
@@ -103,10 +99,7 @@ export interface ImporterStatus {
 }
 
 export type SessionStopReason =
-  | 'process-exited'
-  | 'user-stopped'
-  | 'launch-failed'
-  | 'unknown'
+  'process-exited' | 'user-stopped' | 'launch-failed' | 'unknown'
 
 export interface GameSession {
   id: string
@@ -121,11 +114,7 @@ export interface GameSession {
 }
 
 export type LibrarySort =
-  | 'recently-played'
-  | 'recently-added'
-  | 'alphabetical'
-  | 'playtime'
-  | 'provider'
+  'recently-played' | 'recently-added' | 'alphabetical' | 'playtime' | 'provider'
 
 export interface LibraryFilters {
   query: string

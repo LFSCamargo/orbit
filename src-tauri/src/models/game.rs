@@ -169,6 +169,13 @@ pub struct GameOverrides {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct UpsertResult {
+    pub imported: usize,
+    pub new_game_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateGameRequest {
     pub title: String,
     pub description: Option<String>,

@@ -8,7 +8,9 @@ use crate::database::migrations::run_migrations;
 use crate::models::{
     Achievement, CreateGameRequest, Game, GameArtwork, GameOverrides, GamePlatform, GameProvider,
     GameSession, ImportedGame, LaunchConfiguration, SessionStopReason, UpdateGameRequest,
+    UpsertResult,
 };
+use crate::services::metadata_merge::{is_placeholder_description, merge_artwork};
 
 pub struct GameRepository {
     conn: Mutex<Connection>,
@@ -71,30 +73,40 @@ impl GameRepository {
         Ok(game)
     }
 
-    pub fn upsert_imported(&self, imported: &[ImportedGame]) -> Result<usize> {
+    pub fn upsert_imported(&self, imported: &[ImportedGame]) -> Result<UpsertResult> {
         let conn = self.conn.lock().unwrap();
         let mut upserted = 0usize;
+        let mut new_game_ids = Vec::new();
         let now = chrono::Utc::now().to_rfc3339();
 
         for game in imported {
-            let existing: Option<(String, Option<String>)> = conn
+            let existing: Option<(String, Option<String>, String, String)> = conn
                 .query_row(
-                    "SELECT id, description FROM games WHERE stable_key = ?1",
+                    "SELECT id, description, artwork_json, title FROM games WHERE stable_key = ?1",
                     params![game.stable_key],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                 )
                 .ok();
 
             let launch_json = serde_json::to_string(&game.launch_config)?;
-            let artwork_json = serde_json::to_string(&game.artwork)?;
             let achievements_json = serde_json::to_string(&game.achievements)?;
 
-            if let Some((id, existing_description)) = existing {
-                // Preserve user description overrides when already set via overrides table;
-                // still refresh importer metadata / playtime / size / achievements.
-                let description = existing_description
-                    .filter(|d| !d.is_empty())
-                    .or_else(|| game.description.clone());
+            if let Some((id, existing_description, existing_artwork_json, _existing_title)) =
+                existing
+            {
+                let existing_artwork: GameArtwork =
+                    serde_json::from_str(&existing_artwork_json).unwrap_or_default();
+                let artwork = merge_artwork(&existing_artwork, &game.artwork);
+                let artwork_json = serde_json::to_string(&artwork)?;
+
+                // Keep enriched / user descriptions; only replace empty or placeholder text.
+                let description = if is_placeholder_description(existing_description.as_deref()) {
+                    game.description
+                        .clone()
+                        .or(existing_description)
+                } else {
+                    existing_description
+                };
 
                 conn.execute(
                     "UPDATE games
@@ -130,6 +142,7 @@ impl GameRepository {
                 )?;
             } else {
                 let id = Uuid::new_v4().to_string();
+                let artwork_json = serde_json::to_string(&game.artwork)?;
                 conn.execute(
                     "INSERT INTO games (
                         id, stable_key, title, sort_title, provider, platform, source_id,
@@ -154,11 +167,15 @@ impl GameRepository {
                         achievements_json,
                     ],
                 )?;
+                new_game_ids.push(id);
             }
             upserted += 1;
         }
 
-        Ok(upserted)
+        Ok(UpsertResult {
+            imported: upserted,
+            new_game_ids,
+        })
     }
 
     pub fn create_game(&self, request: CreateGameRequest) -> Result<Game> {

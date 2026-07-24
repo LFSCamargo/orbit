@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/lib/dialog'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FolderOpen, Save, Sparkles } from 'lucide-react'
+import { ArrowLeft, Download, FolderOpen, Save, Sparkles } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Focusable } from '@/components/focus/Focusable'
 import { ArtworkSlotPicker } from '@/components/artwork/ArtworkSlotPicker'
 import { ImageSearchModal } from '@/components/artwork/ImageSearchModal'
@@ -15,6 +16,7 @@ import {
   launchPathHint,
   setEditableLaunchPath,
 } from '@/lib/launchConfig'
+import { enrichGameMetadata } from '@/lib/tauri'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 
@@ -23,6 +25,7 @@ export function GameEditPage() {
   const openGameDetails = useUiStore((s) => s.openGameDetails)
   const { data: game, isLoading } = useGame(selectedGameId)
   const { update } = useGameActions()
+  const queryClient = useQueryClient()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -31,6 +34,7 @@ export function GameEditPage() {
   const [hero, setHero] = useState<string | undefined>()
   const [icon, setIcon] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
+  const [enriching, setEnriching] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [searchSlot, setSearchSlot] = useState<ArtworkSlot | null>(null)
 
@@ -77,6 +81,21 @@ export function GameEditPage() {
     })
     if (typeof selected === 'string') {
       setLaunchPath(selected)
+    }
+  }
+
+  const fetchMetadata = async () => {
+    setEnriching(true)
+    setMessage(null)
+    try {
+      const result = await enrichGameMetadata(game.id)
+      await queryClient.invalidateQueries({ queryKey: ['games'] })
+      await queryClient.invalidateQueries({ queryKey: ['game', game.id] })
+      setMessage(result.message)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setEnriching(false)
     }
   }
 
@@ -129,7 +148,9 @@ export function GameEditPage() {
           <div className="orbit-panel rounded-theme p-6">
             <div className="mb-5 flex items-center gap-2 text-orbit-accent">
               <Sparkles className="h-4 w-4" />
-              <span className="text-sm font-semibold uppercase tracking-wider">Details</span>
+              <span className="text-sm font-semibold uppercase tracking-wider">
+                Details
+              </span>
             </div>
             <label className="block text-sm text-orbit-muted">
               Game title
@@ -196,11 +217,23 @@ export function GameEditPage() {
               Back
             </Focusable>
             <Focusable
+              focusId="edit-enrich"
+              group="edit-actions"
+              order={0}
+              noScale
+              disabled={enriching || saving}
+              onClick={() => void fetchMetadata()}
+              className="inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-3"
+            >
+              <Download className="h-4 w-4" />
+              {enriching ? 'Fetching…' : 'Fetch metadata & artwork'}
+            </Focusable>
+            <Focusable
               focusId="edit-save"
               group="edit-actions"
               order={1}
               noScale
-              disabled={saving}
+              disabled={saving || enriching}
               onClick={() => void save()}
               className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-6 py-3 font-semibold text-orbit-canvas"
             >
