@@ -219,10 +219,7 @@ fn resolve_image_url(kind: &str, value: &str) -> String {
 }
 
 async fn tgdb_get(url: &str) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("Orbit/0.2 (+https://github.com/orbit-launcher)")
-        .build()
-        .map_err(|err| err.to_string())?;
+    let client = crate::services::http::orbit_client()?;
     let response = client
         .get(url)
         .send()

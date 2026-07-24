@@ -6,6 +6,7 @@ import { kindLabel } from '@/hooks/useSwitchLibrary'
 import { formatBytes } from '@/lib/format'
 import type { SwitchContentKind, SwitchRomEntry, SwitchTitleGroup } from '@/types/switch'
 import { useThemeLayout } from '@/themes/useThemeLayout'
+import { themeTokens } from '@/themes/tokens'
 
 function kindBadgeClass(
   kind: SwitchContentKind,
@@ -31,18 +32,12 @@ function kindBadgeClass(
 
 function RomRow({
   entry,
-  layout,
+  muted,
 }: {
   entry: SwitchRomEntry
-  layout: ReturnType<typeof useThemeLayout>
+  muted: string
 }) {
-  const muted =
-    layout === 'switch'
-      ? 'text-[var(--switch-muted)]'
-      : layout === 'ps5'
-        ? 'text-[var(--ps5-muted)]'
-        : 'text-orbit-muted'
-
+  const layout = useThemeLayout()
   return (
     <div className="rounded-xl bg-black/20 px-4 py-3 ring-1 ring-white/5">
       <div className="flex flex-wrap items-center gap-2">
@@ -87,6 +82,7 @@ export function SwitchTitleGroupCard({
   onOpenGame?: (gameId: string) => void
 }) {
   const layout = useThemeLayout()
+  const tokens = themeTokens(layout)
   const [expanded, setExpanded] = useState(true)
   const total =
     (group.base ? 1 : 0) + group.updates.length + group.dlcs.length + group.extras.length
@@ -96,21 +92,7 @@ export function SwitchTitleGroupCard({
       ? 'rounded-[1.5rem] border border-[var(--switch-border)] bg-[var(--switch-surface)]'
       : layout === 'ps5'
         ? 'rounded-2xl border border-[var(--ps5-border)] bg-[var(--ps5-panel)]'
-        : 'orbit-panel rounded-theme'
-
-  const titleClass =
-    layout === 'switch'
-      ? 'text-[var(--switch-ink)]'
-      : layout === 'ps5'
-        ? 'text-[var(--ps5-ink)]'
-        : 'text-orbit-foreground'
-
-  const mutedClass =
-    layout === 'switch'
-      ? 'text-[var(--switch-muted)]'
-      : layout === 'ps5'
-        ? 'text-[var(--ps5-muted)]'
-        : 'text-orbit-muted'
+        : tokens.panel
 
   return (
     <article className={panelClass}>
@@ -123,22 +105,22 @@ export function SwitchTitleGroupCard({
         className="flex w-full items-start gap-3 px-5 py-4 text-left"
       >
         {expanded ? (
-          <ChevronDown className={clsx('mt-1 h-4 w-4 shrink-0', mutedClass)} />
+          <ChevronDown className={clsx('mt-1 h-4 w-4 shrink-0', tokens.muted)} />
         ) : (
-          <ChevronRight className={clsx('mt-1 h-4 w-4 shrink-0', mutedClass)} />
+          <ChevronRight className={clsx('mt-1 h-4 w-4 shrink-0', tokens.muted)} />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className={clsx('text-lg font-semibold', titleClass)}>
+            <h3 className={clsx('text-lg font-semibold', tokens.ink)}>
               {group.displayTitle}
             </h3>
             {group.baseTitleId && (
-              <span className={clsx('font-mono text-xs', mutedClass)}>
+              <span className={clsx('font-mono text-xs', tokens.muted)}>
                 {group.baseTitleId}
               </span>
             )}
           </div>
-          <p className={clsx('mt-1 text-sm', mutedClass)}>
+          <p className={clsx('mt-1 text-sm', tokens.muted)}>
             {group.base ? 'Base installed' : 'Base missing'} · {group.updates.length}{' '}
             update
             {group.updates.length === 1 ? '' : 's'} · {group.dlcs.length} DLC
@@ -146,7 +128,7 @@ export function SwitchTitleGroupCard({
             {group.extras.length > 0 ? ` · ${group.extras.length} extra` : ''}
           </p>
         </div>
-        <span className={clsx('text-xs uppercase tracking-wider', mutedClass)}>
+        <span className={clsx('text-xs uppercase tracking-wider', tokens.muted)}>
           {total} file{total === 1 ? '' : 's'}
         </span>
       </Focusable>
@@ -167,19 +149,19 @@ export function SwitchTitleGroupCard({
             </Focusable>
           )}
 
-          {group.base && <RomRow entry={group.base} layout={layout} />}
+          {group.base && <RomRow entry={group.base} muted={tokens.muted} />}
           {group.updates.map((entry) => (
-            <RomRow key={entry.path} entry={entry} layout={layout} />
+            <RomRow key={entry.path} entry={entry} muted={tokens.muted} />
           ))}
           {group.dlcs.map((entry) => (
-            <RomRow key={entry.path} entry={entry} layout={layout} />
+            <RomRow key={entry.path} entry={entry} muted={tokens.muted} />
           ))}
           {group.extras.map((entry) => (
-            <RomRow key={entry.path} entry={entry} layout={layout} />
+            <RomRow key={entry.path} entry={entry} muted={tokens.muted} />
           ))}
 
           {!group.base && group.updates.length === 0 && group.dlcs.length === 0 && (
-            <p className={clsx('text-sm', mutedClass)}>
+            <p className={clsx('text-sm', tokens.muted)}>
               No recognized content in this group.
             </p>
           )}

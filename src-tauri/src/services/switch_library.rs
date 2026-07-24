@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 use crate::database::GameRepository;
 use crate::models::{
@@ -10,10 +9,10 @@ use crate::models::{
 use crate::utils::filenames::{
     classify_switch_content, extract_switch_dlc_name, has_switch_dlc_keywords,
     is_switch_application_title_id, is_switch_patch_title_id, normalize_switch_group_title,
-    parse_switch_filename, switch_application_id_from_title_id, switch_rom_stem,
+    switch_application_id_from_title_id,
 };
-use crate::utils::paths::{canonical_import_path, is_macos_metadata_file, resolve_launch_file_path};
-use crate::utils::size::path_size_bytes;
+use crate::utils::paths::{canonical_import_path, resolve_launch_file_path};
+use crate::utils::switch_scan::walk_switch_roms;
 
 /// Scan ROM folders inferred from Astris games already stored in SQLite.
 pub fn scan_switch_library_from_library(repo: &GameRepository) -> Result<SwitchLibraryScan, String> {
@@ -110,32 +109,12 @@ fn ingest_folder(
 ) -> Result<usize, String> {
     let mut total_files = 0usize;
 
-    for entry in WalkDir::new(folder).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if !path.is_file() || is_macos_metadata_file(path) {
-            continue;
-        }
-
-        let ext = path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if ext != "nsp" && ext != "xci" {
-            continue;
-        }
-
+    // O(n) walk bounded by max_depth + entry cap in walk_switch_roms.
+    for rom in walk_switch_roms(folder, None) {
         total_files += 1;
-        let file_name = path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_string();
-        let original_stem = switch_rom_stem(path).unwrap_or_default();
-        let parsed = parse_switch_filename(&file_name);
-        let kind = inventory_kind(&parsed, &original_stem);
-        let path_string = canonical_import_path(path).to_string_lossy().to_string();
-        let title_id = parsed.title_id.clone();
+        let kind = inventory_kind(&rom.parsed, &rom.original_stem);
+        let path_string = canonical_import_path(&rom.path).to_string_lossy().to_string();
+        let title_id = rom.parsed.title_id.clone();
         let in_library = title_id
             .as_ref()
             .and_then(|id| library_ids.get(id))
@@ -146,28 +125,28 @@ fn ingest_folder(
                 .and_then(|app_id| library_ids.get(&app_id).cloned())
                 .is_some();
 
-        let rom = SwitchRomEntry {
+        let entry = SwitchRomEntry {
             path: path_string,
-            file_name: file_name.clone(),
-            label: switch_rom_label(&original_stem, &parsed, &kind),
+            file_name: rom.file_name.clone(),
+            label: switch_rom_label(&rom.original_stem, &rom.parsed, &kind),
             title_id: title_id.clone(),
-            version: parsed.version.clone(),
+            version: rom.parsed.version.clone(),
             kind: kind.clone(),
-            size_bytes: path_size_bytes(path),
+            size_bytes: rom.size_bytes,
             in_library,
         };
 
-        let group_key = resolve_group_key(&kind, &parsed, title_aliases);
+        let group_key = resolve_group_key(&kind, &rom.parsed, title_aliases);
         if kind == SwitchContentKind::Base {
             if let Some(id) = &title_id {
-                let normalized = normalize_switch_group_title(&parsed.title).to_ascii_lowercase();
+                let normalized = normalize_switch_group_title(&rom.parsed.title).to_ascii_lowercase();
                 title_aliases.insert(normalized, id.clone());
             }
         }
 
         let group = groups.entry(group_key.clone()).or_insert_with(|| SwitchTitleGroup {
             group_key: group_key.clone(),
-            display_title: normalize_switch_group_title(&parsed.title),
+            display_title: normalize_switch_group_title(&rom.parsed.title),
             base_title_id: None,
             linked_game_id: title_id
                 .as_ref()
@@ -190,7 +169,7 @@ fn ingest_folder(
                 });
         }
 
-        merge_rom_into_group(group, rom, kind);
+        merge_rom_into_group(group, entry, kind);
     }
 
     Ok(total_files)

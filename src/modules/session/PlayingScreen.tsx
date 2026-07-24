@@ -12,6 +12,7 @@ import { formatPlaytime } from '@/lib/format'
 import { mediaSrc } from '@/lib/media'
 import type { GameSession } from '@/types/game'
 import { useThemeLayout } from '@/themes/useThemeLayout'
+import { themeTokens } from '@/themes/tokens'
 
 function sessionElapsedSeconds(startedAt: string): number {
   const start = Date.parse(startedAt)
@@ -27,6 +28,7 @@ export function PlayingScreen({
   family: ControllerFamily
 }) {
   const layout = useThemeLayout()
+  const tokens = themeTokens(layout)
   const { data: game } = useGame(session.gameId)
   const { stop } = useGameActions()
   const [elapsed, setElapsed] = useState(() => sessionElapsedSeconds(session.startedAt))
@@ -49,34 +51,6 @@ export function PlayingScreen({
   const iconSrc = game ? mediaSrc(gameTileImage(game.artwork, 'square')) : undefined
   const confirmGlyph = glyphFor(family, 'confirm')
 
-  const shellClass =
-    layout === 'switch'
-      ? 'switch-shell bg-[var(--switch-bg)] text-[var(--switch-ink)]'
-      : layout === 'ps5'
-        ? 'ps5-shell bg-[var(--ps5-bg)] text-[var(--ps5-ink)]'
-        : 'bg-orbit-canvas text-orbit-foreground'
-
-  const panelClass =
-    layout === 'switch'
-      ? 'rounded-[2rem] border border-[var(--switch-border)] bg-[var(--switch-surface)]'
-      : layout === 'ps5'
-        ? 'rounded-[1.75rem] border border-[var(--ps5-border)] bg-[var(--ps5-panel)]'
-        : 'orbit-panel rounded-theme'
-
-  const mutedClass =
-    layout === 'switch'
-      ? 'text-[var(--switch-muted)]'
-      : layout === 'ps5'
-        ? 'text-[var(--ps5-muted)]'
-        : 'text-orbit-muted'
-
-  const stopClass =
-    layout === 'switch'
-      ? 'bg-[#ff4d6d] text-white'
-      : layout === 'ps5'
-        ? 'bg-[var(--ps5-accent)] text-[var(--ps5-bg)]'
-        : 'bg-rose-500/90 text-white'
-
   const subtitle = useMemo(() => {
     if (!game) return 'Launching…'
     return `${formatPlaytime(elapsed)} this session`
@@ -84,7 +58,7 @@ export function PlayingScreen({
 
   return (
     <div
-      className={`flex h-dvh max-h-dvh flex-col items-center justify-center px-8 ${shellClass}`}
+      className={`flex h-dvh max-h-dvh flex-col items-center justify-center px-8 ${tokens.shell}`}
     >
       {layout === 'orbit' && <div className="theme-bg" aria-hidden />}
 
@@ -92,9 +66,9 @@ export function PlayingScreen({
         initial={{ opacity: 0, scale: 0.96, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className={`relative z-10 flex w-full max-w-lg flex-col items-center px-8 py-10 text-center ${panelClass}`}
+        className={`relative z-10 flex w-full max-w-lg flex-col items-center px-8 py-10 text-center ${tokens.panel}`}
       >
-        <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${mutedClass}`}>
+        <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${tokens.muted}`}>
           Now playing
         </p>
 
@@ -126,7 +100,7 @@ export function PlayingScreen({
         <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight">
           {title}
         </h1>
-        <p className={`mt-2 text-sm ${mutedClass}`}>{subtitle}</p>
+        <p className={`mt-2 text-sm ${tokens.muted}`}>{subtitle}</p>
 
         <Focusable
           focusId="playing-stop"
@@ -135,13 +109,13 @@ export function PlayingScreen({
           noScale
           disabled={stop.isPending}
           onClick={() => stop.mutate(session.id)}
-          className={`mt-8 inline-flex items-center gap-3 rounded-card px-8 py-4 text-lg font-semibold ${stopClass}`}
+          className={`mt-8 inline-flex items-center gap-3 rounded-card px-8 py-4 text-lg font-semibold ${tokens.danger}`}
         >
           <Square className="h-5 w-5 fill-current" />
           {stop.isPending ? 'Stopping…' : 'Stop game'}
         </Focusable>
 
-        <p className={`mt-6 text-xs ${mutedClass}`}>
+        <p className={`mt-6 text-xs ${tokens.muted}`}>
           Orbit will return when the game closes. Press {confirmGlyph} to stop.
         </p>
       </motion.div>

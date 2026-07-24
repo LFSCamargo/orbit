@@ -112,6 +112,8 @@ src/
       NavBar.tsx
     home/
       NativeGlassPanel.tsx # Frosted glass hero panel
+    data/
+      StatCard.tsx         # Reusable label / value / detail card
     game/
       GameCard.tsx
       SquareGameArt.tsx

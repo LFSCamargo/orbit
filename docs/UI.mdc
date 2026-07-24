@@ -162,14 +162,19 @@ Shared components in `src/components/`:
 | Component | Path | Notes |
 | --------- | ---- | ----- |
 | `NativeGlassPanel` | `home/NativeGlassPanel.tsx` | Frosted glass with `backdrop-filter`; `.native-glass-tint` overlay |
-| `GameHero` | `game/GameHero.tsx` | Landscape hero with title + metadata |
+
+### Data
+
+| Component | Path | Notes |
+| --------- | ---- | ----- |
+| `StatCard` | `data/StatCard.tsx` | Reusable label / value / detail dashboard card |
 
 ### Game library
 
 | Component | Path | Notes |
 | --------- | ---- | ----- |
 | `GameCard` | `game/GameCard.tsx` | Focusable tile; `data-focus-id` for spatial nav |
-| `GameCarousel` | `game/GameCarousel.tsx` | Horizontal scrolling row |
+| `SquareGameArt` | `game/SquareGameArt.tsx` | Normalized 1:1 tile art (cover or contain) |
 | `ProviderBadge` | `game/ProviderBadge.tsx` | Steam / Astris / native icon |
 
 ### Artwork
@@ -228,7 +233,7 @@ Game artwork stored as Base64 in SQLite (`artwork_json`):
 | Logo | `logo` | Title treatment overlay |
 | Icon | `icon` | Small grid thumbnail |
 
-Hero blur/tone derived from artwork via `useHeroBlur` / `useHeroTone` for adaptive scrims.
+Hero tone derived from artwork via `useHeroTone` for adaptive scrims.
 
 ---
 

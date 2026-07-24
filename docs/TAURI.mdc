@@ -87,10 +87,17 @@ src-tauri/src/
     thegamesdb.rs          # TheGamesDB API client
     steamgrid.rs           # SteamGridDB API client
     artwork.rs             # Disk artwork-cache helpers
+    http.rs                # Shared reqwest client + fetch_bytes
+    public_artwork.rs      # RAWG / Wikimedia search + URL fetch encode
+    steam_content.rs       # Steam depot / DLC inventory helpers
+    switch_library.rs      # Switch ROM library grouping
+    game_content.rs        # Home content inventory aggregation
   utils/
     mod.rs
     paths.rs               # database_path, artwork_cache_dir, app support dirs
     steam_app_id.rs        # Parse Steam app IDs from launch config / deep links
+    steam_paths.rs         # Shared Steam root detection
+    switch_scan.rs         # Bounded Switch ROM walk + parse
     filenames.rs           # Parse title from ROM/exe names
     size.rs                # Directory size calculation
 ```

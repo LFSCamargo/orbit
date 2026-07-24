@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Clock3, HardDrive, Trophy } from 'lucide-react'
+import { StatCard } from '@/components/data/StatCard'
 import {
   formatAchievementProgress,
   formatBytes,
@@ -25,23 +26,20 @@ function MetaCard({
   themed?: boolean
 }) {
   return (
-    <div
+    <StatCard
+      icon={icon}
+      label={label}
+      value={value}
       className={
         themed
           ? 'rounded-2xl bg-white/5 p-5 ring-1 ring-white/10'
           : 'orbit-panel rounded-card p-5'
       }
-    >
-      <div
-        className={`flex items-center gap-2 text-xs uppercase tracking-wider ${
-          themed ? 'text-white/55' : 'text-orbit-muted'
-        }`}
-      >
-        {icon}
-        {label}
-      </div>
-      <p className="mt-2 font-display text-2xl font-medium">{value}</p>
-    </div>
+      labelClassName={`gap-2 text-xs uppercase tracking-wider ${
+        themed ? 'text-white/55' : 'text-orbit-muted'
+      }`}
+      valueClassName="mt-2 font-display text-2xl font-medium"
+    />
   )
 }
 

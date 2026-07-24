@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import { Focusable } from '@/components/focus/Focusable'
+import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { gameTileImage } from '@/lib/artwork'
 import { placeholderGradient } from '@/lib/format'
 import type { Game } from '@/types/game'
@@ -118,13 +119,11 @@ export function Ps5TileRow({
               className={clsx('ps5-tile shrink-0', selected && 'ps5-tile-selected')}
               data-ps5-tile={selected ? 'selected' : 'idle'}
             >
-              <div
-                className="ps5-tile-art square-game-art overflow-hidden rounded-[10px] bg-cover bg-center"
-                style={{
-                  backgroundImage: icon
-                    ? `url(${icon})`
-                    : placeholderGradient(game.id),
-                }}
+              <SquareGameArt
+                image={icon}
+                placeholder={placeholderGradient(game.id)}
+                roundedClassName="rounded-[10px]"
+                className="ps5-tile-art"
               />
             </Focusable>
           )

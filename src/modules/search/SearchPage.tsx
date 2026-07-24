@@ -7,6 +7,7 @@ import { useGames } from '@/hooks/useGames'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import { useThemeLayout } from '@/themes/useThemeLayout'
+import { themeTokens } from '@/themes/tokens'
 
 export function SearchPage() {
   const { data: games = [] } = useGames()
@@ -15,8 +16,9 @@ export function SearchPage() {
   const openGameDetails = useUiStore((s) => s.openGameDetails)
   const setHeroGameId = useUiStore((s) => s.setHeroGameId)
   const layout = useThemeLayout()
-  const isThemedShell = layout === 'switch' || layout === 'ps5'
-  const cardVariant = isThemedShell ? 'square' : 'portrait'
+  const tokens = themeTokens(layout)
+  const isThemedShell = tokens.isThemed
+  const cardVariant = tokens.cardVariant
 
   const results = useMemo(() => {
     const q = filters.query.trim().toLowerCase()

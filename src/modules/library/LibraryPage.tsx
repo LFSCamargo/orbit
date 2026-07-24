@@ -1,13 +1,15 @@
 import { useMemo } from 'react'
 import { clsx } from 'clsx'
-import type { Game, GameProvider, LibrarySort } from '@/types/game'
+import type { GameProvider, LibrarySort } from '@/types/game'
 import { GameCard } from '@/components/game/GameCard'
 import { LIBRARY_SQUARE_GRID_CLASS } from '@/components/game/SquareGameArt'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGames } from '@/hooks/useGames'
+import { filterLibraryGames } from '@/modules/library/lib/libraryFilters'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import { useThemeLayout } from '@/themes/useThemeLayout'
+import { themeTokens } from '@/themes/tokens'
 
 const PROVIDERS: GameProvider[] = ['astris', 'steam', 'gamehub', 'native', 'manual']
 const SORTS: Array<{ id: LibrarySort; label: string }> = [
@@ -25,23 +27,13 @@ export function LibraryPage() {
   const openGameDetails = useUiStore((s) => s.openGameDetails)
   const setHeroGameId = useUiStore((s) => s.setHeroGameId)
   const layout = useThemeLayout()
-  const cardVariant = layout === 'switch' || layout === 'ps5' ? 'square' : 'portrait'
+  const tokens = themeTokens(layout)
+  const cardVariant = tokens.cardVariant
 
-  const filtered = useMemo(() => {
-    let list = [...games]
-    if (!filters.showHidden) list = list.filter((game) => !game.hidden)
-    if (filters.favoritesOnly) list = list.filter((game) => game.favorite)
-    if (filters.providers.length > 0) {
-      list = list.filter((game) => filters.providers.includes(game.provider))
-    }
-    if (filters.query.trim()) {
-      const q = filters.query.trim().toLowerCase()
-      list = list.filter((game) => game.title.toLowerCase().includes(q))
-    }
-
-    list.sort((a, b) => sortGames(a, b, filters.sort))
-    return list
-  }, [games, filters])
+  const filtered = useMemo(
+    () => filterLibraryGames(games, filters),
+    [games, filters],
+  )
 
   return (
     <ThemePage title="Library" subtitle={`${filtered.length} games`}>
@@ -140,22 +132,4 @@ export function LibraryPage() {
       )}
     </ThemePage>
   )
-}
-
-function sortGames(a: Game, b: Game, sort: LibrarySort) {
-  switch (sort) {
-    case 'recently-played':
-      return (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '')
-    case 'recently-added':
-      return b.dateAdded.localeCompare(a.dateAdded)
-    case 'playtime':
-      return b.totalPlaytimeSeconds - a.totalPlaytimeSeconds
-    case 'provider':
-      return (
-        a.provider.localeCompare(b.provider) || a.sortTitle.localeCompare(b.sortTitle)
-      )
-    case 'alphabetical':
-    default:
-      return a.sortTitle.localeCompare(b.sortTitle)
-  }
 }

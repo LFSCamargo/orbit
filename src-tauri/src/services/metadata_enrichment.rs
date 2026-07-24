@@ -6,6 +6,7 @@ use chrono::Utc;
 use crate::database::{CachedMetadataRow, GameRepository, MetadataCacheRepository};
 use crate::models::{Game, GameArtwork, GameProvider, LaunchConfiguration, UpdateGameRequest};
 use crate::services::artwork::{cache_artwork_bytes, mime_from_bytes, path_to_string};
+use crate::services::http::fetch_bytes;
 use crate::services::metadata_merge::is_placeholder_description;
 use crate::services::steamgrid::fetch_steamgrid_assets;
 use crate::services::thegamesdb::{self, TgdbGameDetails};
@@ -316,32 +317,6 @@ async fn download_slot(
     let mime = mime_from_bytes(&bytes, url);
     let path = cache_artwork_bytes(game_id, slot, &bytes, &mime)?;
     Ok(Some(path_to_string(&path)))
-}
-
-async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(format!("Artwork download URL must be http(s): {url}"));
-    }
-    let client = reqwest::Client::builder()
-        .user_agent("Orbit/0.2 (+https://github.com/orbit-launcher)")
-        .build()
-        .map_err(|err| err.to_string())?;
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|err| err.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "Failed to download image (HTTP {})",
-            response.status()
-        ));
-    }
-    response
-        .bytes()
-        .await
-        .map_err(|err| err.to_string())
-        .map(|b| b.to_vec())
 }
 
 fn artwork_changed(before: &GameArtwork, after: &GameArtwork) -> bool {

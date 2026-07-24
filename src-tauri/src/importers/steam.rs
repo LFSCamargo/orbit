@@ -8,6 +8,7 @@ use crate::models::{
     Achievement, GameArtwork, GamePlatform, GameProvider, ImportedGame, LaunchConfiguration,
 };
 use crate::utils::size::path_size_bytes;
+use crate::utils::steam_paths::detect_steam_root;
 
 pub struct SteamImporter {
     steam_root: Option<PathBuf>,
@@ -83,17 +84,6 @@ impl GameImporter for SteamImporter {
 
         Ok(games)
     }
-}
-
-fn detect_steam_root() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    let candidates = [
-        home.join("Library/Application Support/Steam"),
-        PathBuf::from("/Applications/Steam.app/Contents/MacOS"),
-        home.join(".steam/steam"),
-        home.join(".local/share/Steam"),
-    ];
-    candidates.into_iter().find(|path| path.exists())
 }
 
 fn parse_library_folders(path: &Path) -> Result<Vec<PathBuf>, ImportError> {

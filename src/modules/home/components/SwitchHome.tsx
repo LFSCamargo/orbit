@@ -1,7 +1,9 @@
 import { useMemo, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { Clock3, HardDrive, Layers, Package, Trophy } from 'lucide-react'
+import { StatCard } from '@/components/data/StatCard'
 import { Focusable } from '@/components/focus/Focusable'
+import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { resolveHeroContentDisplay } from '@/components/home/GameContentBadge'
 import { NativeGlassPanel } from '@/components/home/NativeGlassPanel'
 import { useHeroTone } from '@/hooks/useHeroTone'
@@ -111,13 +113,11 @@ export function SwitchHome({
                     selected && 'switch-tile-selected',
                   )}
                 >
-                  <div
-                    className="square-game-art h-[148px] w-[148px] overflow-hidden rounded-[18px] bg-cover bg-center"
-                    style={{
-                      backgroundImage: icon
-                        ? `url(${icon})`
-                        : placeholderGradient(game.id),
-                    }}
+                  <SquareGameArt
+                    image={icon}
+                    placeholder={placeholderGradient(game.id)}
+                    roundedClassName="rounded-[18px]"
+                    className="h-[148px] w-[148px]"
                   />
                 </Focusable>
               )
@@ -134,13 +134,11 @@ export function SwitchHome({
           contentClassName="p-5"
         >
           <div className="flex flex-wrap items-center gap-5">
-            <div
-              className="square-game-art h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[16px] bg-cover bg-center"
-              style={{
-                backgroundImage: heroThumb
-                  ? `url(${heroThumb})`
-                  : placeholderGradient(heroGame.id),
-              }}
+            <SquareGameArt
+              image={heroThumb}
+              placeholder={placeholderGradient(heroGame.id)}
+              roundedClassName="rounded-[16px]"
+              className="h-[88px] w-[88px]"
             />
 
             <div className="min-w-0 flex-1 basis-[14rem]">
@@ -249,22 +247,15 @@ function SwitchStatCard({
   detail?: string
 }) {
   return (
-    <div className="switch-glass-card rounded-2xl px-3.5 py-2.5 ring-1 ring-white/[0.06]">
-      <div className="switch-hero-muted flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-        {icon}
-        {label}
-      </div>
-      <p className="switch-hero-stat-value mt-1.5 truncate text-sm font-semibold">
-        {value}
-      </p>
-      <p
-        className={clsx(
-          'switch-hero-muted mt-1 line-clamp-2 min-h-[1.75rem] text-[10px] leading-snug',
-          !detail && 'invisible',
-        )}
-      >
-        {detail || '\u00A0'}
-      </p>
-    </div>
+    <StatCard
+      icon={icon}
+      label={label}
+      value={value}
+      detail={detail ?? ''}
+      className="switch-glass-card rounded-2xl px-3.5 py-2.5 ring-1 ring-white/[0.06]"
+      labelClassName="switch-hero-muted text-[10px] font-semibold uppercase tracking-wider"
+      valueClassName="switch-hero-stat-value mt-1.5 truncate text-sm font-semibold"
+      detailClassName="switch-hero-muted mt-1 line-clamp-2 min-h-[1.75rem] text-[10px] leading-snug"
+    />
   )
 }

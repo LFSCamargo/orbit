@@ -11,6 +11,7 @@ import { hideOrbitWindow, quitOrbit } from '@/lib/tauri'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useThemeLayout } from '@/themes/useThemeLayout'
+import { themeTokens } from '@/themes/tokens'
 import type { AppScreen } from '@/types/game'
 
 interface MenuItem {
@@ -29,6 +30,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
   const activeSession = useSessionStore((s) => s.activeSession)
   const { stop } = useGameActions()
   const layout = useThemeLayout()
+  const tokens = themeTokens(layout)
 
   const items = useMemo(() => {
     const navigate = (screen: AppScreen) => {
@@ -130,34 +132,6 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [open, closeHomeMenu])
 
-  const shellClass =
-    layout === 'switch'
-      ? 'text-[var(--switch-ink)]'
-      : layout === 'ps5'
-        ? 'text-[var(--ps5-ink)]'
-        : 'text-orbit-foreground'
-
-  const panelClass =
-    layout === 'switch'
-      ? 'rounded-[2rem] border border-[var(--switch-border)] bg-[var(--switch-surface)]'
-      : layout === 'ps5'
-        ? 'rounded-[1.75rem] border border-[var(--ps5-border)] bg-[var(--ps5-panel)]'
-        : 'orbit-panel rounded-theme'
-
-  const mutedClass =
-    layout === 'switch'
-      ? 'text-[var(--switch-muted)]'
-      : layout === 'ps5'
-        ? 'text-[var(--ps5-muted)]'
-        : 'text-orbit-muted'
-
-  const accentClass =
-    layout === 'switch'
-      ? 'bg-[#ff4d6d] text-white'
-      : layout === 'ps5'
-        ? 'bg-white/15 text-white'
-        : 'bg-orbit-accent text-orbit-canvas'
-
   const confirmGlyph = glyphFor(family, 'confirm')
   const backGlyph = glyphFor(family, 'back')
 
@@ -176,7 +150,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className={`w-full max-w-md p-6 ${panelClass} ${shellClass}`}
+            className={`w-full max-w-md p-6 ${tokens.panel} ${tokens.ink}`}
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -185,21 +159,21 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p
-                  className={`text-xs font-semibold uppercase tracking-[0.2em] ${mutedClass}`}
+                  className={`text-xs font-semibold uppercase tracking-[0.2em] ${tokens.muted}`}
                 >
                   Orbit
                 </p>
                 <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">
                   Quick menu
                 </h2>
-                <p className={`mt-1 text-sm ${mutedClass}`}>Choose where to go next</p>
+                <p className={`mt-1 text-sm ${tokens.muted}`}>Choose where to go next</p>
               </div>
               <Focusable
                 focusId="home-menu-close"
                 group="home-menu"
                 order={items.length}
                 onClick={closeHomeMenu}
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${mutedClass} bg-white/5`}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${tokens.muted} bg-white/5`}
                 aria-label="Close menu"
               >
                 <X className="h-5 w-5" />
@@ -226,14 +200,14 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
                     >
                       <span
                         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                          danger ? 'bg-rose-500/15 text-rose-400' : accentClass
+                          danger ? 'bg-rose-500/15 text-rose-400' : tokens.accent
                         }`}
                       >
                         <Icon className="h-5 w-5" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold">{item.label}</span>
-                        <span className={`mt-0.5 block text-sm ${mutedClass}`}>
+                        <span className={`mt-0.5 block text-sm ${tokens.muted}`}>
                           {item.description}
                         </span>
                       </span>
@@ -243,7 +217,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
               })}
             </ul>
 
-            <p className={`mt-5 text-center text-xs ${mutedClass}`}>
+            <p className={`mt-5 text-center text-xs ${tokens.muted}`}>
               {confirmGlyph} Select · {backGlyph} Close
             </p>
           </motion.div>

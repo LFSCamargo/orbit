@@ -113,10 +113,7 @@ fn resolve_icon_url(icon: Option<String>, cover: Option<String>) -> Option<Strin
 }
 
 async fn sgdb_get(api_key: &str, url: &str) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("Orbit/0.2 (+https://github.com/orbit-launcher)")
-        .build()
-        .map_err(|err| err.to_string())?;
+    let client = crate::services::http::orbit_client()?;
     let response = client
         .get(url)
         .bearer_auth(api_key.trim())
