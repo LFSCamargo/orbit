@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::database::GameRepository;
 use crate::launching::{
-    is_process_running, launch_game, list_process_pids_by_name, terminate_pid,
+    is_process_running, launch_game, list_process_pids_by_name, terminate_pid, LaunchContext,
 };
 use crate::models::{Game, GameProvider, GameSession, SessionStopReason};
 use crate::AppState;
@@ -48,7 +48,9 @@ impl SessionManager {
             Vec::new()
         };
 
-        if let Err(error) = launch_game(game) {
+        let ctx = LaunchContext::from_app(app);
+
+        if let Err(error) = launch_game(game, &ctx) {
             let _ = app.emit(
                 "game-session-error",
                 serde_json::json!({ "message": error.to_string() }),

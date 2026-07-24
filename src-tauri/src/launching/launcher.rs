@@ -3,23 +3,47 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::importers::detect_gamehub;
+use crate::launching::context::LaunchContext;
+use crate::launching::gamehub_readiness::{launch_gamehub_with_deep_link, GAMEHUB_PROCESS_NAME};
+use crate::launching::screen_placement::{
+    astris_app_path, screen_watcher_process_names, STEAM_PROCESS_NAME,
+};
 use crate::models::{Game, GameProvider, LaunchConfiguration};
+use crate::utils::gamehub_shortcut::deep_link_from_shortcut;
 use crate::utils::macos_apps::is_switch_rom;
 use crate::utils::paths::resolve_switch_base_launch_path;
 
-pub fn launch_game(game: &Game) -> Result<()> {
+pub fn launch_game(game: &Game, ctx: &LaunchContext) -> Result<()> {
+    spawn_screen_watchers(game, ctx);
+
     match &game.launch_config {
         LaunchConfiguration::Gamehub {
             gamehub_app_path,
             shortcut_app_path,
-        } => launch_gamehub_shortcut(gamehub_app_path, shortcut_app_path)?,
-        _ if game.provider == GameProvider::Gamehub => launch_legacy_gamehub(game)?,
-        _ => launch_configuration(&game.launch_config)?,
+        } => launch_gamehub_shortcut(gamehub_app_path, shortcut_app_path, ctx)?,
+        _ if game.provider == GameProvider::Gamehub => launch_legacy_gamehub(game, ctx)?,
+        _ => launch_configuration(&game.launch_config, ctx, game.provider.clone())?,
     }
     Ok(())
 }
 
-pub fn launch_configuration(config: &LaunchConfiguration) -> Result<()> {
+fn spawn_screen_watchers(game: &Game, ctx: &LaunchContext) {
+    let names = match game.provider {
+        GameProvider::Gamehub => vec![GAMEHUB_PROCESS_NAME.to_string()],
+        GameProvider::Steam => vec![STEAM_PROCESS_NAME.to_string()],
+        _ => screen_watcher_process_names(&game.launch_config, game.provider.clone()),
+    };
+    if names.is_empty() {
+        return;
+    }
+    ctx.spawn_fullscreen_watchers(names.iter().map(String::as_str));
+}
+
+pub fn launch_configuration(
+    config: &LaunchConfiguration,
+    ctx: &LaunchContext,
+    provider: GameProvider,
+) -> Result<()> {
     match config {
         LaunchConfiguration::OpenFile {
             file_path,
@@ -53,7 +77,7 @@ pub fn launch_configuration(config: &LaunchConfiguration) -> Result<()> {
         LaunchConfiguration::Gamehub {
             gamehub_app_path,
             shortcut_app_path,
-        } => launch_gamehub_shortcut(gamehub_app_path, shortcut_app_path)?,
+        } => launch_gamehub_shortcut(gamehub_app_path, shortcut_app_path, ctx)?,
         LaunchConfiguration::OpenUrl { url } => {
             open_url(url)?;
         }
@@ -73,10 +97,11 @@ pub fn launch_configuration(config: &LaunchConfiguration) -> Result<()> {
             }
         }
     }
+    let _ = (ctx, provider);
     Ok(())
 }
 
-fn launch_legacy_gamehub(game: &Game) -> Result<()> {
+fn launch_legacy_gamehub(game: &Game, ctx: &LaunchContext) -> Result<()> {
     match &game.launch_config {
         LaunchConfiguration::OpenApplication {
             application_path, ..
@@ -86,37 +111,33 @@ fn launch_legacy_gamehub(game: &Game) -> Result<()> {
             launch_gamehub_shortcut(
                 &gamehub.to_string_lossy(),
                 application_path,
+                ctx,
             )
         }
         LaunchConfiguration::OpenFile { file_path, .. } => {
             let gamehub = detect_gamehub()
                 .ok_or_else(|| anyhow::anyhow!("GameHub is not installed in /Applications"))?;
-            launch_gamehub_shortcut(&gamehub.to_string_lossy(), file_path)
+            launch_gamehub_shortcut(&gamehub.to_string_lossy(), file_path, ctx)
         }
-        _ => launch_configuration(&game.launch_config),
+        _ => launch_configuration(&game.launch_config, ctx, game.provider.clone()),
     }
 }
 
-fn launch_gamehub_shortcut(_gamehub_app: &str, shortcut_app: &str) -> Result<()> {
+fn launch_gamehub_shortcut(gamehub_app: &str, shortcut_app: &str, ctx: &LaunchContext) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
-        if !Path::new(shortcut_app).exists() {
+        let shortcut_path = Path::new(shortcut_app);
+        if !shortcut_path.exists() {
             bail!("Game shortcut not found at {shortcut_app}");
         }
 
-        // Shortcuts ship a launcher script that forwards gamehub:// deep links to GameHub.
-        let status = Command::new("open")
-            .arg(shortcut_app)
-            .status()
-            .context("Failed to open GameHub game shortcut")?;
-        if !status.success() {
-            bail!("Failed to open game shortcut (exit {status})");
-        }
+        let deep_link = deep_link_from_shortcut(shortcut_path)?;
+        launch_gamehub_with_deep_link(gamehub_app, &deep_link)?;
         Ok(())
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (_gamehub_app, shortcut_app);
+        let _ = (gamehub_app, shortcut_app, ctx);
         bail!("GameHub launching is only implemented for macOS in this MVP");
     }
 }
@@ -132,12 +153,19 @@ fn launch_open_file(file_path: &str, application_path: Option<&str>) -> Result<(
 
         let launch_path = resolved.to_string_lossy().into_owned();
 
-        // Switch ROMs rely on macOS default app associations (.nsp / .xci → Astris, etc.).
         let status = if is_switch_rom(&resolved) {
-            Command::new("open")
-                .arg(&launch_path)
-                .status()
-                .context("Failed to open Switch ROM")?
+            if let Some(astris_app) = astris_app_path() {
+                Command::new("open")
+                    .args(["-a", &astris_app.to_string_lossy()])
+                    .arg(&launch_path)
+                    .status()
+                    .context("Failed to open Switch ROM with Astris")?
+            } else {
+                Command::new("open")
+                    .arg(&launch_path)
+                    .status()
+                    .context("Failed to open Switch ROM")?
+            }
         } else if let Some(app) = application_path {
             Command::new("open")
                 .args(["-a", app])
