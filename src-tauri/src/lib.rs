@@ -5,14 +5,16 @@ mod database;
 mod importers;
 mod launching;
 mod models;
+mod platform;
 mod services;
 mod utils;
 
 use std::sync::Arc;
 
-use database::GameRepository;
+use database::{GameRepository, MetadataCacheRepository};
 use launching::SessionManager;
-use utils::paths::database_path;
+use utils::api_keys::init_env;
+use utils::paths::{database_path, metadata_cache_path};
 
 pub struct AppState {
     pub repo: Arc<GameRepository>,
@@ -21,13 +23,20 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    init_env();
     let db_path = database_path();
     let repo = GameRepository::open(&db_path).expect("Failed to open Orbit database");
+    let _ = MetadataCacheRepository::open(&metadata_cache_path())
+        .expect("Failed to open metadata cache database");
     let sessions = SessionManager::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            platform::macos::start_controller_home(app.handle().clone());
+            Ok(())
+        })
         .manage(AppState {
             repo: Arc::new(repo),
             sessions: Arc::new(sessions),
@@ -43,12 +52,14 @@ pub fn run() {
             commands::games::clear_library,
             commands::games::get_setting,
             commands::games::set_setting,
+            commands::dialog::pick_open_path,
             commands::session::launch_game,
             commands::session::stop_game,
             commands::session::get_active_session,
             commands::window::set_window_fullscreen,
             commands::window::hide_orbit_window,
             commands::window::show_orbit_window,
+            commands::window::quit_orbit,
             commands::importers::detect_importers,
             commands::importers::scan_steam_library,
             commands::importers::scan_astris_folder,
@@ -63,6 +74,10 @@ pub fn run() {
             commands::artwork::read_artwork_from_path,
             commands::artwork::fetch_artwork_from_url,
             commands::artwork::search_public_artwork,
+            commands::metadata::enrich_game_metadata,
+            commands::metadata::enrich_games_metadata,
+            commands::metadata::get_metadata_cache_stats,
+            commands::metadata::test_metadata_api_keys,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Orbit");
