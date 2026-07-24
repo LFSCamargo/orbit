@@ -13,14 +13,14 @@ Source of truth: `.cursor/rules/quality-gating.mdc`, [docs/PROJECT.mdc](../../do
 
 ## Quick reference — local commands
 
-| Gate | Command |
-| ---- | ------- |
-| Format | `yarn run format:check` |
-| Typecheck | `yarn run typecheck` |
-| Rust tests | `yarn run test:rust` |
-| E2E | `yarn run test:e2e` |
-| Frontend build | `yarn run build` |
-| Release build | `yarn run tauri:build` |
+| Gate           | Command                 |
+| -------------- | ----------------------- |
+| Format         | `yarn run format:check` |
+| Typecheck      | `yarn run typecheck`    |
+| Rust tests     | `yarn run test:rust`    |
+| E2E            | `yarn run test:e2e`     |
+| Frontend build | `yarn run build`        |
+| Release build  | `yarn run tauri:build`  |
 
 ## Workflow
 
@@ -51,22 +51,22 @@ For UI/theme/controller changes, include `yarn run test:e2e`.
 
 ### Classify failures
 
-| Category | Examples | Action |
-| -------- | -------- | ------ |
-| **Straightforward** | Prettier drift, type error in touched file, failing Rust unit test | Fix immediately |
-| **Needs user input** | E2E flake, breaking Tauri API change, ambiguous product behavior | Ask user first |
-| **Out of scope** | Unrelated test failure on another screen | Report; suggest separate fix |
+| Category             | Examples                                                           | Action                       |
+| -------------------- | ------------------------------------------------------------------ | ---------------------------- |
+| **Straightforward**  | Prettier drift, type error in touched file, failing Rust unit test | Fix immediately              |
+| **Needs user input** | E2E flake, breaking Tauri API change, ambiguous product behavior   | Ask user first               |
+| **Out of scope**     | Unrelated test failure on another screen                           | Report; suggest separate fix |
 
 ### Gate-specific fixes
 
-| Gate | Fix approach | Rule reference |
-| ---- | ------------ | -------------- |
-| Format | Run `yarn run format` or fix Prettier issues | quality-gating |
-| Typecheck | Fix types at source; no `@ts-ignore` | quality-gating |
-| Rust tests | Fix logic in `src-tauri/`; add regression test | test-driven |
-| E2E | Fix selectors/flows; update Playwright spec if UI changed intentionally | test-driven |
-| Build | Fix compile/bundle errors | spaghetti-checker |
-| Layout | Split oversized files per module layout | spaghetti-checker |
+| Gate       | Fix approach                                                            | Rule reference    |
+| ---------- | ----------------------------------------------------------------------- | ----------------- |
+| Format     | Run `yarn run format` or fix Prettier issues                            | quality-gating    |
+| Typecheck  | Fix types at source; no `@ts-ignore`                                    | quality-gating    |
+| Rust tests | Fix logic in `src-tauri/`; add regression test                          | test-driven       |
+| E2E        | Fix selectors/flows; update Playwright spec if UI changed intentionally | test-driven       |
+| Build      | Fix compile/bundle errors                                               | spaghetti-checker |
+| Layout     | Split oversized files per module layout                                 | spaghetti-checker |
 
 ### Ask user before fixing (required when blocked)
 

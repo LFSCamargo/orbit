@@ -93,12 +93,12 @@ test.describe('Switch home experience', () => {
     await page.locator('[data-focus-id="switch-game-mock-zelda"]').click()
     await expect(page.locator('.switch-hero-title')).toHaveText('The Legend of Zelda')
 
-    await expect
-      .poll(async () => blurImg.getAttribute('src'))
-      .not.toBe(initialSrc)
+    await expect.poll(async () => blurImg.getAttribute('src')).not.toBe(initialSrc)
   })
 
-  test('carousel tiles use a full cyan ring on focus without clipping', async ({ page }) => {
+  test('carousel tiles use a full cyan ring on focus without clipping', async ({
+    page,
+  }) => {
     const tile = page.locator('[data-focus-id="switch-game-mock-cyberpunk"]')
     await tile.hover()
     await expect(tile).toHaveAttribute('data-focused', 'true')
@@ -159,9 +159,13 @@ test.describe('Switch home experience', () => {
   test('uses frosted blur on light hero artwork too', async ({ page }) => {
     await page.locator('[data-focus-id="switch-game-mock-requiem"]').click()
     await expect(page.locator('.switch-hero-title')).toHaveText('Resident Evil Requiem')
-    await expect(page.locator('.switch-home')).toHaveAttribute('data-hero-tone', 'light', {
-      timeout: 10_000,
-    })
+    await expect(page.locator('.switch-home')).toHaveAttribute(
+      'data-hero-tone',
+      'light',
+      {
+        timeout: 10_000,
+      },
+    )
 
     const panel = page.locator('.switch-glass-panel')
     await expect(panel.locator('.native-glass-blur')).toBeVisible()
@@ -220,14 +224,15 @@ test.describe('Switch shell navigation', () => {
 
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
-    await expect(page.locator('[data-focus-id="library-game-mock-zelda"]')).toHaveAttribute(
-      'data-focused',
-      'true',
-    )
+    await expect(
+      page.locator('[data-focus-id="library-game-mock-zelda"]'),
+    ).toHaveAttribute('data-focused', 'true')
   })
 
   test('home nav stays highlighted on home screen', async ({ page }) => {
-    await expect(page.locator('[data-focus-id="switch-nav-home"]')).toHaveClass(/border-\[var\(--switch-cyan\)\]/)
+    await expect(page.locator('[data-focus-id="switch-nav-home"]')).toHaveClass(
+      /border-\[var\(--switch-cyan\)\]/,
+    )
   })
 })
 
@@ -236,7 +241,9 @@ test.describe('PS5 glass dashboard', () => {
     await bootPs5(page)
   })
 
-  test('uses one shared frosted panel with hero blur for dark heroes', async ({ page }) => {
+  test('uses one shared frosted panel with hero blur for dark heroes', async ({
+    page,
+  }) => {
     const panel = page.locator('.ps5-dashboard-glass')
     await expect(panel.locator('.native-glass-blur')).toBeVisible()
     await expect(panel.locator('.native-glass-tint')).toBeVisible()
@@ -251,14 +258,18 @@ test.describe('PS5 glass dashboard', () => {
       .evaluate((el) => getComputedStyle(el).filter)
     expect(filter).toContain('blur(18px)')
 
-    const tint = await panel.locator('.native-glass-tint').evaluate((el) => getComputedStyle(el).backgroundImage)
+    const tint = await panel
+      .locator('.native-glass-tint')
+      .evaluate((el) => getComputedStyle(el).backgroundImage)
     expect(tint).toContain('linear-gradient')
     expect(tint).toMatch(/10,\s*22,\s*40|18,\s*32,\s*56/)
   })
 
   test('keeps frosted blur and light title on bright heroes', async ({ page }) => {
     await page.locator('[data-focus-id="ps5-tile-mock-requiem"]').click()
-    await expect(page.getByRole('heading', { name: 'Resident Evil Requiem' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Resident Evil Requiem' }),
+    ).toBeVisible()
 
     const panel = page.locator('.ps5-dashboard-glass')
     await expect(panel.locator('.native-glass-blur')).toBeVisible()

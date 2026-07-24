@@ -60,6 +60,7 @@ Library content inventory on the home hero, smarter Switch and GameHub imports, 
 ### Added
 
 **Switch (Astris)**
+
 - Switch library scanner that groups base games, updates, and DLC from ROM folders inferred from your library
 - Switch content visualizer screen (Settings → Import → Switch content visualizer)
 - Home hero shows game version and installed DLC count for Switch titles
@@ -67,15 +68,18 @@ Library content inventory on the home hero, smarter Switch and GameHub imports, 
 - Launch always resolves to the base `.nsp` / `.xci` application ROM; updates are left for the emulator
 
 **Steam**
+
 - Home hero shows build ID and installed add-on count for Cyberpunk 2077 (Steam AppID `1091500`) as a proof of concept
 
 **GameHub**
+
 - Import verified GameHub shortcuts from `/Applications` and `~/Applications`
 - Detection via bundle id `com.gamehub.shortcut.*` and `gamehub://launch/` deep links in shortcut launchers
 - Play opens the shortcut `.app`, which forwards the deep link to GameHub
 - Setup instructions on the Import screen
 
 **Launcher & sessions**
+
 - Full-screen playing view with game artwork, title, and stop button while a session is active
 - Edit launch path on the game edit page when a title fails to open
 
@@ -106,6 +110,7 @@ First public release of **Orbit** — a controller-first game launcher for macOS
 ### Added
 
 **Library & launcher**
+
 - Home screen with cinematic hero, recent rows, and glass activity dashboard
 - Library grid with filters, sorting, and search
 - Game details with playtime, install size, and achievements
@@ -114,6 +119,7 @@ First public release of **Orbit** — a controller-first game launcher for macOS
 - Launch/stop sessions with Orbit window hide during play
 
 **Importers**
+
 - Steam library sync (playtime, SizeOnDisk, achievements)
 - Astris folder scan (`.nsp` / `.xci`)
 - macOS Applications scan
@@ -121,21 +127,25 @@ First public release of **Orbit** — a controller-first game launcher for macOS
 - Manual file/folder import
 
 **Themes**
+
 - Orbit Default — hero rows and frosted dashboard
 - PlayStation 5 — immersive artwork and stats panel
 - Switch 2 — square tiles and bottom navigation
 - Custom JSON themes via `~/Library/Application Support/Orbit/themes/`
 
 **Input**
+
 - Gamepad support (Xbox / PlayStation / Nintendo mapping)
 - Spatial focus system and keyboard shortcuts
 
 **Platform**
+
 - Tauri 2 + Rust backend (SQLite, importers, process launch)
 - React 19 frontend with Framer Motion transitions
 - macOS 12+ target (Apple Silicon primary)
 
 **Tooling & docs**
+
 - `yarn release:macos` release script (`.app.tar.gz`, `.dmg`, checksums)
 - GitHub Actions release workflow on `v*` tags
 - Project docs, contributing guide, and E2E tests (Playwright)

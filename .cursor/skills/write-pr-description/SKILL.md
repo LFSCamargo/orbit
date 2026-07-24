@@ -41,14 +41,14 @@ git diff "$BASE"...HEAD --name-only
 
 From commits + diff, identify:
 
-| Signal | Where to look |
-| ------ | ------------- |
-| Feature scope | `src/features/`, `src/components/` |
-| Tauri / backend | `src-tauri/src/commands/`, `importers/`, `launching/` |
-| Themes | `src/themes/`, `docs/UI.mdc`, `docs/THEMES.md`, `docs/examples/` |
-| Controller / focus | `src/controllers/` |
-| Tests | `e2e/`, `src-tauri/**` `#[cfg(test)]` |
-| Docs | `docs/*.mdc`, `README.md` |
+| Signal             | Where to look                                                    |
+| ------------------ | ---------------------------------------------------------------- |
+| Feature scope      | `src/features/`, `src/components/`                               |
+| Tauri / backend    | `src-tauri/src/commands/`, `importers/`, `launching/`            |
+| Themes             | `src/themes/`, `docs/UI.mdc`, `docs/THEMES.md`, `docs/examples/` |
+| Controller / focus | `src/controllers/`                                               |
+| Tests              | `e2e/`, `src-tauri/**` `#[cfg(test)]`                            |
+| Docs               | `docs/*.mdc`, `README.md`                                        |
 
 Read key changed files when the diff stat alone is ambiguous.
 

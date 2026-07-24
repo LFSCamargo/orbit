@@ -58,7 +58,7 @@ export function GameCard({
           fit={squareArtFit}
           roundedClassName="rounded-[18px]"
         />
-        <p className="mt-2 min-h-8 line-clamp-2 text-center text-xs font-semibold leading-snug text-[var(--switch-muted)]">
+        <p className="mt-2 line-clamp-2 min-h-8 text-center text-xs font-semibold leading-snug text-[var(--switch-muted)]">
           {game.title}
         </p>
       </Focusable>
@@ -86,7 +86,7 @@ export function GameCard({
           fit={squareArtFit}
           roundedClassName="rounded-xl"
         />
-        <p className="mt-2 min-h-8 line-clamp-2 text-center text-xs font-semibold leading-snug text-[var(--ps5-muted)]">
+        <p className="mt-2 line-clamp-2 min-h-8 text-center text-xs font-semibold leading-snug text-[var(--ps5-muted)]">
           {game.title}
         </p>
       </Focusable>
@@ -106,7 +106,7 @@ export function GameCard({
         onOpen()
       }}
       className={clsx(
-        'orbit-library-card shrink-0 rounded-card text-left orbit-transition',
+        'orbit-library-card orbit-transition shrink-0 rounded-card text-left',
         className ?? 'w-[11.5rem]',
       )}
     >
@@ -143,7 +143,9 @@ export function GameCard({
           </span>
         )}
         <div className="min-h-[4.6rem] px-3 py-2.5">
-          <p className="line-clamp-2 font-medium leading-snug text-orbit-foreground">{game.title}</p>
+          <p className="line-clamp-2 font-medium leading-snug text-orbit-foreground">
+            {game.title}
+          </p>
           <p className="mt-1 truncate text-xs uppercase tracking-wider text-orbit-muted">
             {game.provider}
           </p>

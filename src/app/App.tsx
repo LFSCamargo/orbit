@@ -49,29 +49,29 @@ export function App() {
       >
         <AppShell family={family}>
           <AnimatePresence mode="wait">
-        <motion.div
-          key={screen}
-          initial={pageTransition.initial}
-          animate={pageTransition.animate}
-          exit={pageTransition.exit}
-          transition={pageTransition.transition}
-          className={
-            layout === 'switch' || layout === 'ps5'
-              ? 'flex min-h-full flex-1 flex-col'
-              : undefined
-          }
-          data-screen={screen}
-        >
-          {screen === 'home' && <HomePage />}
-          {screen === 'library' && <LibraryPage />}
-          {screen === 'search' && <SearchPage />}
-          {screen === 'game-details' && <GameDetailsPage />}
-          {screen === 'game-edit' && <GameEditPage />}
-          {screen === 'add-game' && <AddGamePage />}
-          {screen === 'settings' && <SettingsPage />}
-          {screen === 'switch-library' && <SwitchLibraryPage />}
-        </motion.div>
-        </AnimatePresence>
+            <motion.div
+              key={screen}
+              initial={pageTransition.initial}
+              animate={pageTransition.animate}
+              exit={pageTransition.exit}
+              transition={pageTransition.transition}
+              className={
+                layout === 'switch' || layout === 'ps5'
+                  ? 'flex min-h-full flex-1 flex-col'
+                  : undefined
+              }
+              data-screen={screen}
+            >
+              {screen === 'home' && <HomePage />}
+              {screen === 'library' && <LibraryPage />}
+              {screen === 'search' && <SearchPage />}
+              {screen === 'game-details' && <GameDetailsPage />}
+              {screen === 'game-edit' && <GameEditPage />}
+              {screen === 'add-game' && <AddGamePage />}
+              {screen === 'settings' && <SettingsPage />}
+              {screen === 'switch-library' && <SwitchLibraryPage />}
+            </motion.div>
+          </AnimatePresence>
         </AppShell>
       </div>
       <HomeMenuModal family={family} />

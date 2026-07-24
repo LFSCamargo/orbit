@@ -25,11 +25,7 @@ export function artworkPreview(
   slot: ArtworkSlot,
 ): string | undefined {
   const value =
-    slot === 'cover'
-      ? artwork.cover
-      : slot === 'hero'
-        ? artwork.hero
-        : artwork.icon
+    slot === 'cover' ? artwork.cover : slot === 'hero' ? artwork.hero : artwork.icon
   return mediaSrc(value)
 }
 

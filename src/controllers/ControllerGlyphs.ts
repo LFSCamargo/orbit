@@ -59,10 +59,7 @@ const GLYPHS: Record<ControllerFamily, Record<ControllerAction, string>> = {
   },
 }
 
-export function glyphFor(
-  family: ControllerFamily,
-  action: ControllerAction,
-): string {
+export function glyphFor(family: ControllerFamily, action: ControllerAction): string {
   return GLYPHS[family][action]
 }
 

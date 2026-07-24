@@ -6,18 +6,18 @@ How to run Orbit locally, test changes, and troubleshoot common issues. For arch
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-| ---- | ------- | ----- |
-| **macOS** | 12+ | Primary target; Apple Silicon recommended |
-| **Node.js** | 22+ | Required for frontend tooling |
-| **Yarn** | 1.x or compatible | Package manager |
-| **Rust** | stable | Install via [rustup](https://rustup.rs) |
-| **Xcode CLT** | Latest | `xcode-select --install` |
+| Tool          | Version           | Notes                                     |
+| ------------- | ----------------- | ----------------------------------------- |
+| **macOS**     | 12+               | Primary target; Apple Silicon recommended |
+| **Node.js**   | 22+               | Required for frontend tooling             |
+| **Yarn**      | 1.x or compatible | Package manager                           |
+| **Rust**      | stable            | Install via [rustup](https://rustup.rs)   |
+| **Xcode CLT** | Latest            | `xcode-select --install`                  |
 
 Optional for E2E:
 
-| Tool | Notes |
-| ---- | ----- |
+| Tool                | Notes                                            |
+| ------------------- | ------------------------------------------------ |
 | Playwright browsers | Installed automatically on first `yarn test:e2e` |
 
 ---
@@ -45,11 +45,11 @@ Runs the Tauri shell with hot reload on the Vite dev server and the real SQLite 
 yarn tauri:dev
 ```
 
-| Detail | Value |
-| ------ | ----- |
-| Vite dev URL | `http://localhost:1420` (from `tauri.conf.json`) |
-| Database | `~/Library/Application Support/Orbit/orbit.db` |
-| Custom themes | `~/Library/Application Support/Orbit/themes/` |
+| Detail        | Value                                            |
+| ------------- | ------------------------------------------------ |
+| Vite dev URL  | `http://localhost:1420` (from `tauri.conf.json`) |
+| Database      | `~/Library/Application Support/Orbit/orbit.db`   |
+| Custom themes | `~/Library/Application Support/Orbit/themes/`    |
 
 Use this mode when working on importers, launch, SQLite, native dialogs, or window management.
 
@@ -85,14 +85,14 @@ Collects versioned artifacts and checksums into `release/<version>/`:
 yarn release:macos
 ```
 
-| Flag | Description |
-| ---- | ----------- |
-| `--arch native` | Default — matches the current Mac (`aarch64` or `x86_64`) |
-| `--arch universal` | Universal binary (Apple Silicon + Intel) |
-| `--arch aarch64` | Apple Silicon only |
-| `--arch x86_64` | Intel only |
-| `--skip-tests` | Skip `yarn test:rust` |
-| `--skip-typecheck` | Skip `yarn typecheck` |
+| Flag               | Description                                               |
+| ------------------ | --------------------------------------------------------- |
+| `--arch native`    | Default — matches the current Mac (`aarch64` or `x86_64`) |
+| `--arch universal` | Universal binary (Apple Silicon + Intel)                  |
+| `--arch aarch64`   | Apple Silicon only                                        |
+| `--arch x86_64`    | Intel only                                                |
+| `--skip-tests`     | Skip `yarn test:rust`                                     |
+| `--skip-typecheck` | Skip `yarn typecheck`                                     |
 
 **Output** (example for v0.1.0 on Apple Silicon):
 
@@ -144,11 +144,11 @@ yarn test:e2e:ui
 
 E2E specs:
 
-| Spec | Covers |
-| ---- | ------ |
-| `e2e/orbit-ui-flow.spec.ts` | Orbit default theme — hero, glass panel, focus, navigation |
-| `e2e/switch-ui-flow.spec.ts` | Switch 2 theme shell |
-| `e2e/ui-flow.spec.ts` | Shared UI flows |
+| Spec                         | Covers                                                     |
+| ---------------------------- | ---------------------------------------------------------- |
+| `e2e/orbit-ui-flow.spec.ts`  | Orbit default theme — hero, glass panel, focus, navigation |
+| `e2e/switch-ui-flow.spec.ts` | Switch 2 theme shell                                       |
+| `e2e/ui-flow.spec.ts`        | Shared UI flows                                            |
 
 Run E2E after changes to navigation, themes, controller focus, or screen layouts.
 
@@ -182,17 +182,17 @@ To reset local state during development, quit Orbit and remove `orbit.db` (this 
 
 Orbit has no required `.env` file. Optional settings are configured in the app:
 
-| Setting | Where | Purpose |
-| ------- | ----- | ------- |
-| RAWG API key | Settings UI | Artwork search + non-Steam enrichment fallback |
-| SteamGridDB API key | Settings UI | Launcher grids/heroes/logos/icons on enrich |
+| Setting                 | Where       | Purpose                                                  |
+| ----------------------- | ----------- | -------------------------------------------------------- |
+| RAWG API key            | Settings UI | Artwork search + non-Steam enrichment fallback           |
+| SteamGridDB API key     | Settings UI | Launcher grids/heroes/logos/icons on enrich              |
 | Auto-enrich new imports | Settings UI | Runs after scan for newly inserted game IDs (default on) |
-| Theme id | Settings UI | Active built-in or custom theme |
+| Theme id                | Settings UI | Active built-in or custom theme                          |
 
 In browser dev (`yarn dev`), theme id can also be set via `localStorage`:
 
 ```javascript
-localStorage.setItem('orbit.themeId', 'orbit')   // orbit | ps5 | switch-2
+localStorage.setItem('orbit.themeId', 'orbit') // orbit | ps5 | switch-2
 ```
 
 ---

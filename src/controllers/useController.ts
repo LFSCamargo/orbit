@@ -77,9 +77,7 @@ export function useControllerNavigation() {
           const target = backTarget(screen, previousScreen)
           setScreen(target)
           if (screen === 'game-details') {
-            focusManager.restoreFocus(
-              focusRestoreId(layout, target, selectedGameId),
-            )
+            focusManager.restoreFocus(focusRestoreId(layout, target, selectedGameId))
           }
           break
         }
@@ -134,9 +132,12 @@ export function useControllerNavigation() {
 
     let unlistenStickScroll: (() => void) | undefined
     if (useNativeStickScroll) {
-      void listen<{ deltaX: number; deltaY: number }>('controller-stick-scroll', (event) => {
-        applyStickScroll(event.payload.deltaX, event.payload.deltaY)
-      }).then((unlisten) => {
+      void listen<{ deltaX: number; deltaY: number }>(
+        'controller-stick-scroll',
+        (event) => {
+          applyStickScroll(event.payload.deltaX, event.payload.deltaY)
+        },
+      ).then((unlisten) => {
         unlistenStickScroll = unlisten
       })
     }

@@ -58,7 +58,7 @@ export function Ps5Shell({
                     'ps5-nav rounded-lg px-3 py-1.5 text-lg transition-colors',
                     active
                       ? 'font-semibold text-[var(--ps5-ink)]'
-                      : 'font-normal text-[var(--ps5-muted)]/50 hover:text-[var(--ps5-muted)]',
+                      : 'text-[var(--ps5-muted)]/50 font-normal hover:text-[var(--ps5-muted)]',
                   )}
                 >
                   {item.label}
@@ -96,7 +96,7 @@ export function Ps5Shell({
         </div>
       </header>
 
-      <main className="ps5-main min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-[var(--ps5-bg)]">
+      <main className="ps5-main min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-[var(--ps5-bg)]">
         <div className="flex min-h-full flex-col">{children}</div>
       </main>
 

@@ -24,7 +24,8 @@ export default {
         card: 'var(--orbit-card-radius)',
       },
       boxShadow: {
-        focus: '0 0 0 3px rgb(var(--orbit-focus) / 0.9), 0 0 40px rgb(var(--orbit-accent) / 0.25)',
+        focus:
+          '0 0 0 3px rgb(var(--orbit-focus) / 0.9), 0 0 40px rgb(var(--orbit-accent) / 0.25)',
         hero: '0 30px 80px rgba(0, 0, 0, 0.55)',
       },
       backdropBlur: {

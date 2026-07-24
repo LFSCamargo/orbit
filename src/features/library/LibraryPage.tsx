@@ -74,7 +74,9 @@ export function LibraryPage() {
           onClick={() => setLibraryFilters({ favoritesOnly: !filters.favoritesOnly })}
           className={clsx(
             'rounded-xl px-3 py-2 text-sm',
-            filters.favoritesOnly ? 'bg-rose-500/30 text-rose-100' : 'bg-white/8 text-orbit-muted',
+            filters.favoritesOnly
+              ? 'bg-rose-500/30 text-rose-100'
+              : 'bg-white/8 text-orbit-muted',
           )}
         >
           Favorites
@@ -100,7 +102,9 @@ export function LibraryPage() {
               }}
               className={clsx(
                 'rounded-full px-3 py-1.5 text-xs uppercase tracking-wider',
-                active ? 'bg-orbit-accent/90 text-orbit-canvas' : 'bg-white/8 text-orbit-muted',
+                active
+                  ? 'bg-orbit-accent/90 text-orbit-canvas'
+                  : 'bg-white/8 text-orbit-muted',
               )}
             >
               {provider}
@@ -147,7 +151,9 @@ function sortGames(a: Game, b: Game, sort: LibrarySort) {
     case 'playtime':
       return b.totalPlaytimeSeconds - a.totalPlaytimeSeconds
     case 'provider':
-      return a.provider.localeCompare(b.provider) || a.sortTitle.localeCompare(b.sortTitle)
+      return (
+        a.provider.localeCompare(b.provider) || a.sortTitle.localeCompare(b.sortTitle)
+      )
     case 'alphabetical':
     default:
       return a.sortTitle.localeCompare(b.sortTitle)

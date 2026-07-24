@@ -7,7 +7,10 @@ import {
   type MappedButtons,
 } from './ControllerMapping'
 
-export type GamepadEventHandler = (action: ControllerAction, event: GamepadActionEvent) => void
+export type GamepadEventHandler = (
+  action: ControllerAction,
+  event: GamepadActionEvent,
+) => void
 
 export interface GamepadActionEvent {
   action: ControllerAction
@@ -224,7 +227,10 @@ export class GamepadManager {
       const scrollX = this.scrollAxisValue(pad.axes[2] ?? 0)
       const scrollY = this.scrollAxisValue(pad.axes[3] ?? 0)
       if (scrollX !== 0 || scrollY !== 0) {
-        this.emitScroll(scrollX * SCROLL_SPEED_PX_PER_MS * dt, scrollY * SCROLL_SPEED_PX_PER_MS * dt)
+        this.emitScroll(
+          scrollX * SCROLL_SPEED_PX_PER_MS * dt,
+          scrollY * SCROLL_SPEED_PX_PER_MS * dt,
+        )
       }
     }
 

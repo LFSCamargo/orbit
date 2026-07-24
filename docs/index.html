@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -113,7 +113,9 @@
         font-weight: 600;
         text-decoration: none;
         border: 1px solid transparent;
-        transition: background 0.2s, border-color 0.2s;
+        transition:
+          background 0.2s,
+          border-color 0.2s;
       }
 
       .btn-primary {
@@ -258,11 +260,18 @@
         <h1>Controller-first game launcher for macOS</h1>
         <p class="tagline">
           A modern alternative to Pegasus Frontend — cinematic home screen, multi-source
-          imports, and couch-friendly navigation. Inspired by PS5, Nintendo Switch, and Apple TV.
+          imports, and couch-friendly navigation. Inspired by PS5, Nintendo Switch, and
+          Apple TV.
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/lfscamargo/orbit">View on GitHub</a>
-          <a class="btn btn-secondary" href="https://github.com/lfscamargo/orbit#quick-start">Get started</a>
+          <a class="btn btn-primary" href="https://github.com/lfscamargo/orbit"
+            >View on GitHub</a
+          >
+          <a
+            class="btn btn-secondary"
+            href="https://github.com/lfscamargo/orbit#quick-start"
+            >Get started</a
+          >
         </div>
       </div>
     </header>
@@ -275,25 +284,43 @@
             Orbit is a desktop game library and launcher built with
             <strong style="color: var(--foreground)">Tauri 2</strong>,
             <strong style="color: var(--foreground)">React</strong>, and
-            <strong style="color: var(--foreground)">SQLite</strong>. It keeps your games in one
-            place, tracks playtime and achievements locally, and launches them safely from Rust —
-            the frontend never spawns processes directly.
+            <strong style="color: var(--foreground)">SQLite</strong>. It keeps your games
+            in one place, tracks playtime and achievements locally, and launches them
+            safely from Rust — the frontend never spawns processes directly.
           </p>
           <p>
-            Designed for Apple Silicon Macs first, with a fullscreen UI made for controllers and
-            keyboards alike.
+            Designed for Apple Silicon Macs first, with a fullscreen UI made for
+            controllers and keyboards alike.
           </p>
         </section>
 
         <section>
           <h2>Features</h2>
           <ul class="features">
-            <li><strong>Home &amp; library</strong> — cinematic hero, filterable grid, search</li>
-            <li><strong>Imports</strong> — Steam, Astris (.nsp/.xci), GameHub, macOS apps, manual paths</li>
-            <li><strong>Launch sessions</strong> — playtime tracking, hide window while playing</li>
-            <li><strong>Edit artwork</strong> — title, description, portrait, landscape, and icon</li>
-            <li><strong>Themes</strong> — Orbit, PS5, and Switch 2 layouts + custom JSON themes</li>
-            <li><strong>Controller navigation</strong> — spatial focus with gamepad and keyboard</li>
+            <li>
+              <strong>Home &amp; library</strong> — cinematic hero, filterable grid,
+              search
+            </li>
+            <li>
+              <strong>Imports</strong> — Steam, Astris (.nsp/.xci), GameHub, macOS apps,
+              manual paths
+            </li>
+            <li>
+              <strong>Launch sessions</strong> — playtime tracking, hide window while
+              playing
+            </li>
+            <li>
+              <strong>Edit artwork</strong> — title, description, portrait, landscape, and
+              icon
+            </li>
+            <li>
+              <strong>Themes</strong> — Orbit, PS5, and Switch 2 layouts + custom JSON
+              themes
+            </li>
+            <li>
+              <strong>Controller navigation</strong> — spatial focus with gamepad and
+              keyboard
+            </li>
           </ul>
         </section>
 
@@ -301,15 +328,35 @@
           <h2>Screenshots</h2>
           <div class="screenshots">
             <figure>
-              <img src="assets/orbit-theme.png" alt="Orbit default theme with hero and recent games row" width="1440" height="900" loading="lazy" />
+              <img
+                src="assets/orbit-theme.png"
+                alt="Orbit default theme with hero and recent games row"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
               <figcaption>Orbit default — hero rows and glass dashboard</figcaption>
             </figure>
             <figure>
-              <img src="assets/ps5-theme.png" alt="PlayStation 5 inspired theme with immersive artwork" width="1440" height="900" loading="lazy" />
-              <figcaption>PlayStation 5 theme — immersive artwork and stats panel</figcaption>
+              <img
+                src="assets/ps5-theme.png"
+                alt="PlayStation 5 inspired theme with immersive artwork"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>
+                PlayStation 5 theme — immersive artwork and stats panel
+              </figcaption>
             </figure>
             <figure>
-              <img src="assets/switch-theme.png" alt="Nintendo Switch inspired theme with square tiles" width="1440" height="900" loading="lazy" />
+              <img
+                src="assets/switch-theme.png"
+                alt="Nintendo Switch inspired theme with square tiles"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
               <figcaption>Switch 2 theme — square tiles and bottom navigation</figcaption>
             </figure>
           </div>
@@ -334,13 +381,21 @@
           <div class="panel">
             <p>
               Drop plain JSON files into
-              <code style="color: var(--accent)">~/Library/Application Support/Orbit/themes/</code>
-              and reload from Settings. Themes can change colors, motion, and the entire app layout.
+              <code style="color: var(--accent)"
+                >~/Library/Application Support/Orbit/themes/</code
+              >
+              and reload from Settings. Themes can change colors, motion, and the entire
+              app layout.
             </p>
             <p>
-              <a href="https://github.com/lfscamargo/orbit/blob/main/docs/THEMES.md">Theme authoring guide</a>
+              <a href="https://github.com/lfscamargo/orbit/blob/main/docs/THEMES.md"
+                >Theme authoring guide</a
+              >
               ·
-              <a href="https://github.com/lfscamargo/orbit/blob/main/docs/examples/arcade-neon.json">Example theme</a>
+              <a
+                href="https://github.com/lfscamargo/orbit/blob/main/docs/examples/arcade-neon.json"
+                >Example theme</a
+              >
             </p>
           </div>
         </section>
@@ -348,8 +403,12 @@
         <section>
           <h2>Controller mapping</h2>
           <div class="panel">
-            <p style="margin-bottom: 0.5rem; color: var(--foreground)">D-pad / stick · Navigate · A · Select · B · Back</p>
-            <p style="margin-bottom: 0.5rem; color: var(--foreground)">X · Edit · Y · Add game · L1/R1 · Sections · Menu · Settings</p>
+            <p style="margin-bottom: 0.5rem; color: var(--foreground)">
+              D-pad / stick · Navigate · A · Select · B · Back
+            </p>
+            <p style="margin-bottom: 0.5rem; color: var(--foreground)">
+              X · Edit · Y · Add game · L1/R1 · Sections · Menu · Settings
+            </p>
             <p style="margin: 0">Keyboard: arrows, Enter, Escape, F, C, [ ] , M</p>
           </div>
         </section>
@@ -362,9 +421,13 @@
           Orbit is open source.
           <a href="https://github.com/lfscamargo/orbit">Source code</a>
           ·
-          <a href="https://github.com/lfscamargo/orbit/blob/main/README.md">Documentation</a>
+          <a href="https://github.com/lfscamargo/orbit/blob/main/README.md"
+            >Documentation</a
+          >
           ·
-          <a href="https://github.com/lfscamargo/orbit/blob/main/CONTRIBUTING.md">Contributing</a>
+          <a href="https://github.com/lfscamargo/orbit/blob/main/CONTRIBUTING.md"
+            >Contributing</a
+          >
         </p>
       </div>
     </footer>

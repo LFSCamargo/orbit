@@ -48,11 +48,7 @@ export function detectControllerFamily(id: string): ControllerFamily {
   ) {
     return 'nintendo'
   }
-  if (
-    lower.includes('xbox') ||
-    lower.includes('xinput') ||
-    lower.includes('microsoft')
-  ) {
+  if (lower.includes('xbox') || lower.includes('xinput') || lower.includes('microsoft')) {
     return 'xbox'
   }
   return 'generic'

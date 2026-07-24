@@ -1,14 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  Home,
-  LayoutGrid,
-  LogOut,
-  Play,
-  Settings,
-  Square,
-  X,
-} from 'lucide-react'
+import { Home, LayoutGrid, LogOut, Play, Settings, Square, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
@@ -192,15 +184,15 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${mutedClass}`}>
+                <p
+                  className={`text-xs font-semibold uppercase tracking-[0.2em] ${mutedClass}`}
+                >
                   Orbit
                 </p>
                 <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight">
                   Quick menu
                 </h2>
-                <p className={`mt-1 text-sm ${mutedClass}`}>
-                  Choose where to go next
-                </p>
+                <p className={`mt-1 text-sm ${mutedClass}`}>Choose where to go next</p>
               </div>
               <Focusable
                 focusId="home-menu-close"

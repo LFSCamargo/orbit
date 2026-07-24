@@ -84,8 +84,8 @@ export function SwitchLibraryPage() {
         <div className="mb-6 rounded-card bg-black/20 px-4 py-3 text-sm text-orbit-muted ring-1 ring-white/10">
           <p>
             {scan.totalFiles} ROM file{scan.totalFiles === 1 ? '' : 's'} across{' '}
-            {folders.length} folder{folders.length === 1 ? '' : 's'} · {scan.groups.length}{' '}
-            title{scan.groups.length === 1 ? '' : 's'}
+            {folders.length} folder{folders.length === 1 ? '' : 's'} ·{' '}
+            {scan.groups.length} title{scan.groups.length === 1 ? '' : 's'}
           </p>
           {folders.length > 0 && (
             <ul className="mt-2 space-y-1 font-mono text-xs">
@@ -101,8 +101,9 @@ export function SwitchLibraryPage() {
 
       {!busy && scan && folders.length === 0 && (
         <div className="orbit-panel rounded-theme p-6 text-sm text-orbit-muted">
-          No Switch ROM folders found. Import Astris games first — Orbit reads each game&apos;s
-          file path in your library and scans that directory for related content.
+          No Switch ROM folders found. Import Astris games first — Orbit reads each
+          game&apos;s file path in your library and scans that directory for related
+          content.
         </div>
       )}
 

@@ -369,10 +369,8 @@ test.describe('Orbit shell navigation', () => {
     await expect(page.locator('[data-screen="game-edit"]')).toBeVisible()
 
     await page.locator('[data-focus-id="edit-enrich"]').click()
-    await expect(page.getByText(/Updated|TheGamesDB|SteamGridDB|enriched/i)).toBeVisible(
-      {
-        timeout: 10_000,
-      },
-    )
+    await expect(page.getByText(/Updated|TheGamesDB|SteamGridDB|enriched/i)).toBeVisible({
+      timeout: 10_000,
+    })
   })
 })

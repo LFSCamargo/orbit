@@ -225,9 +225,10 @@ export function SettingsPage() {
             >
               SteamGridDB
             </a>
-            . Keys can live in your project <code className="text-orbit-accent">.env</code>{' '}
-            (<code>THE_GAMES_DB_API_KEY</code>, <code>STEAMGRIDDB_API_KEY</code>) or be saved
-            here.
+            . Keys can live in your project{' '}
+            <code className="text-orbit-accent">.env</code> (
+            <code>THE_GAMES_DB_API_KEY</code>, <code>STEAMGRIDDB_API_KEY</code>) or be
+            saved here.
           </p>
           <p className="mt-2 text-sm text-orbit-muted">
             Cached metadata entries:{' '}

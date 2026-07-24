@@ -7,7 +7,10 @@ import { formatBytes } from '@/lib/format'
 import type { SwitchContentKind, SwitchRomEntry, SwitchTitleGroup } from '@/types/switch'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 
-function kindBadgeClass(kind: SwitchContentKind, layout: ReturnType<typeof useThemeLayout>) {
+function kindBadgeClass(
+  kind: SwitchContentKind,
+  layout: ReturnType<typeof useThemeLayout>,
+) {
   const base =
     kind === 'base'
       ? 'bg-emerald-500/20 text-emerald-100 ring-emerald-400/30'
@@ -26,7 +29,13 @@ function kindBadgeClass(kind: SwitchContentKind, layout: ReturnType<typeof useTh
   return base
 }
 
-function RomRow({ entry, layout }: { entry: SwitchRomEntry; layout: ReturnType<typeof useThemeLayout> }) {
+function RomRow({
+  entry,
+  layout,
+}: {
+  entry: SwitchRomEntry
+  layout: ReturnType<typeof useThemeLayout>
+}) {
   const muted =
     layout === 'switch'
       ? 'text-[var(--switch-muted)]'
@@ -46,17 +55,19 @@ function RomRow({ entry, layout }: { entry: SwitchRomEntry; layout: ReturnType<t
           {kindLabel(entry.kind)}
         </span>
         {entry.version && (
-          <span className={clsx('text-xs font-mono', muted)}>{entry.version}</span>
+          <span className={clsx('font-mono text-xs', muted)}>{entry.version}</span>
         )}
         {entry.titleId && (
-          <span className={clsx('text-xs font-mono', muted)}>{entry.titleId}</span>
+          <span className={clsx('font-mono text-xs', muted)}>{entry.titleId}</span>
         )}
         {entry.inLibrary && (
           <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-white/80">
             In Orbit
           </span>
         )}
-        <span className={clsx('ml-auto text-xs', muted)}>{formatBytes(entry.sizeBytes)}</span>
+        <span className={clsx('ml-auto text-xs', muted)}>
+          {formatBytes(entry.sizeBytes)}
+        </span>
       </div>
       <p className="mt-2 text-sm font-medium">{entry.label}</p>
       <p className={clsx('mt-1 truncate font-mono text-xs', muted)} title={entry.path}>
@@ -118,13 +129,18 @@ export function SwitchTitleGroupCard({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className={clsx('text-lg font-semibold', titleClass)}>{group.displayTitle}</h3>
+            <h3 className={clsx('text-lg font-semibold', titleClass)}>
+              {group.displayTitle}
+            </h3>
             {group.baseTitleId && (
-              <span className={clsx('font-mono text-xs', mutedClass)}>{group.baseTitleId}</span>
+              <span className={clsx('font-mono text-xs', mutedClass)}>
+                {group.baseTitleId}
+              </span>
             )}
           </div>
           <p className={clsx('mt-1 text-sm', mutedClass)}>
-            {group.base ? 'Base installed' : 'Base missing'} · {group.updates.length} update
+            {group.base ? 'Base installed' : 'Base missing'} · {group.updates.length}{' '}
+            update
             {group.updates.length === 1 ? '' : 's'} · {group.dlcs.length} DLC
             {group.dlcs.length === 1 ? '' : 's'}
             {group.extras.length > 0 ? ` · ${group.extras.length} extra` : ''}
@@ -163,7 +179,9 @@ export function SwitchTitleGroupCard({
           ))}
 
           {!group.base && group.updates.length === 0 && group.dlcs.length === 0 && (
-            <p className={clsx('text-sm', mutedClass)}>No recognized content in this group.</p>
+            <p className={clsx('text-sm', mutedClass)}>
+              No recognized content in this group.
+            </p>
           )}
         </div>
       )}

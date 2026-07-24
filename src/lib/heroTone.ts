@@ -47,7 +47,9 @@ export async function detectHeroTone(imageUrl: string | null): Promise<HeroTone>
         const sampleHeight = img.naturalHeight * 0.48
         ctx.drawImage(img, 0, 0, sampleWidth, sampleHeight, 0, 0, width, height)
 
-        const tone = resolveHeroTone(averageLuminance(ctx.getImageData(0, 0, width, height)))
+        const tone = resolveHeroTone(
+          averageLuminance(ctx.getImageData(0, 0, width, height)),
+        )
         resolve(tone)
       } catch {
         resolve('dark')

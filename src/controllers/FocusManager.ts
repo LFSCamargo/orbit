@@ -19,11 +19,7 @@ function rectCenter(el: HTMLElement) {
   }
 }
 
-function isInDirection(
-  from: DOMRect,
-  to: DOMRect,
-  direction: FocusDirection,
-): boolean {
+function isInDirection(from: DOMRect, to: DOMRect, direction: FocusDirection): boolean {
   const toCx = to.left + to.width / 2
   const toCy = to.top + to.height / 2
 
@@ -39,11 +35,7 @@ function isInDirection(
   }
 }
 
-function scoreCandidate(
-  from: DOMRect,
-  to: DOMRect,
-  direction: FocusDirection,
-): number {
+function scoreCandidate(from: DOMRect, to: DOMRect, direction: FocusDirection): number {
   const fromCx = from.left + from.width / 2
   const fromCy = from.top + from.height / 2
   const toCx = to.left + to.width / 2
@@ -170,7 +162,12 @@ export class FocusManager {
     if (id && !this.nodes.has(id)) return
     const node = id ? this.nodes.get(id) : null
     if (node?.disabled) return
-    if (node && this.groupTrap && this.groupPreference && node.group !== this.groupPreference) {
+    if (
+      node &&
+      this.groupTrap &&
+      this.groupPreference &&
+      node.group !== this.groupPreference
+    ) {
       return
     }
 
@@ -199,7 +196,11 @@ export class FocusManager {
   }
 
   restoreFocus(preferredId?: string | null) {
-    if (preferredId && this.nodes.has(preferredId) && !this.nodes.get(preferredId)?.disabled) {
+    if (
+      preferredId &&
+      this.nodes.has(preferredId) &&
+      !this.nodes.get(preferredId)?.disabled
+    ) {
       this.setFocus(preferredId)
       return
     }

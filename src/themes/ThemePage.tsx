@@ -10,15 +10,25 @@ interface ThemePageProps {
   className?: string
 }
 
-export function ThemePage({ title, subtitle, eyebrow, children, className }: ThemePageProps) {
+export function ThemePage({
+  title,
+  subtitle,
+  eyebrow,
+  children,
+  className,
+}: ThemePageProps) {
   const layout = useThemeLayout()
 
   if (layout === 'switch') {
     return (
       <div className={clsx('flex min-h-full flex-1 flex-col px-8 py-4', className)}>
         <header className="mb-5 shrink-0 border-b border-[var(--switch-border)] pb-4">
-          <h1 className="text-[1.65rem] font-normal text-[var(--switch-cyan)]">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-[var(--switch-muted)]">{subtitle}</p>}
+          <h1 className="text-[1.65rem] font-normal text-[var(--switch-cyan)]">
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="mt-1 text-sm text-[var(--switch-muted)]">{subtitle}</p>
+          )}
         </header>
         <div className="min-h-0 flex-1">{children}</div>
       </div>
@@ -47,7 +57,12 @@ export function ThemePage({ title, subtitle, eyebrow, children, className }: The
   }
 
   return (
-    <div className={clsx('orbit-route min-h-screen bg-transparent px-10 pb-16 pt-2 text-white', className)}>
+    <div
+      className={clsx(
+        'orbit-route min-h-screen bg-transparent px-10 pb-16 pt-2 text-white',
+        className,
+      )}
+    >
       <header className="mb-8">
         <h1 className="text-3xl font-bold">{title}</h1>
         {subtitle && <p className="mt-2 text-sm text-white/50">{subtitle}</p>}

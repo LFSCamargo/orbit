@@ -93,13 +93,8 @@ export function useGameActions() {
   })
 
   const update = useMutation({
-    mutationFn: ({
-      gameId,
-      request,
-    }: {
-      gameId: string
-      request: UpdateGameRequest
-    }) => updateGame(gameId, request),
+    mutationFn: ({ gameId, request }: { gameId: string; request: UpdateGameRequest }) =>
+      updateGame(gameId, request),
     onSuccess: invalidate,
   })
 

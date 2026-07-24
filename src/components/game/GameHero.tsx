@@ -98,7 +98,7 @@ export function GameHero({
               group="hero-actions"
               order={1}
               onClick={onOpenDetails}
-              className="rounded-card bg-white/10 px-6 py-3.5 text-base font-medium text-white backdrop-blur-panel ring-1 ring-white/15"
+              className="rounded-card bg-white/10 px-6 py-3.5 text-base font-medium text-white ring-1 ring-white/15 backdrop-blur-panel"
             >
               Details
             </Focusable>
@@ -107,7 +107,7 @@ export function GameHero({
               group="hero-actions"
               order={2}
               onClick={onToggleFavorite}
-              className="rounded-card bg-white/10 p-3.5 text-white backdrop-blur-panel ring-1 ring-white/15"
+              className="rounded-card bg-white/10 p-3.5 text-white ring-1 ring-white/15 backdrop-blur-panel"
               aria-label="Toggle favorite"
             >
               <Heart

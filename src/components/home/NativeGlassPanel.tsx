@@ -50,14 +50,20 @@ export function NativeGlassPanel({
             className={clsx(
               'native-glass-blur absolute h-[100vh] w-[100vw] max-w-none scale-[1.12] object-cover',
               placement === 'bottom'
-                ? 'native-glass-blur-bottom left-1/2 bottom-0 -translate-x-1/2 object-[center_bottom]'
+                ? 'native-glass-blur-bottom bottom-0 left-1/2 -translate-x-1/2 object-[center_bottom]'
                 : 'native-glass-blur-center left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 object-center',
             )}
           />
         </div>
       )}
-      <div className="native-glass-tint pointer-events-none absolute inset-0" aria-hidden />
-      <div className="native-glass-sheen pointer-events-none absolute inset-0 z-[1]" aria-hidden />
+      <div
+        className="native-glass-tint pointer-events-none absolute inset-0"
+        aria-hidden
+      />
+      <div
+        className="native-glass-sheen pointer-events-none absolute inset-0 z-[1]"
+        aria-hidden
+      />
       <div className={clsx('relative z-10', contentClassName)}>{children}</div>
     </div>
   )

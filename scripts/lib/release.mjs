@@ -18,7 +18,9 @@ export function parseSemver(version) {
 }
 
 export function formatSemver({ major, minor, patch, prerelease }) {
-  return prerelease ? `${major}.${minor}.${patch}-${prerelease}` : `${major}.${minor}.${patch}`
+  return prerelease
+    ? `${major}.${minor}.${patch}-${prerelease}`
+    : `${major}.${minor}.${patch}`
 }
 
 export function bumpSemver(current, kind) {
@@ -29,7 +31,12 @@ export function bumpSemver(current, kind) {
     return formatSemver({ ...parsed, patch: parsed.patch + 1, prerelease: null })
   }
   if (kind === 'minor') {
-    return formatSemver({ major: parsed.major, minor: parsed.minor + 1, patch: 0, prerelease: null })
+    return formatSemver({
+      major: parsed.major,
+      minor: parsed.minor + 1,
+      patch: 0,
+      prerelease: null,
+    })
   }
   if (kind === 'major') {
     return formatSemver({ major: parsed.major + 1, minor: 0, patch: 0, prerelease: null })
@@ -170,7 +177,12 @@ ${entry}`,
   const lines = content.split('\n')
   const firstReleaseIdx = lines.findIndex((line) => /^## \[\d]/.test(line))
   const insertAt = firstReleaseIdx === -1 ? lines.length : firstReleaseIdx
-  const updated = [...lines.slice(0, insertAt), entry.trimEnd(), '', ...lines.slice(insertAt)].join('\n')
+  const updated = [
+    ...lines.slice(0, insertAt),
+    entry.trimEnd(),
+    '',
+    ...lines.slice(insertAt),
+  ].join('\n')
   writeFileSync(changelogPath, updated.endsWith('\n') ? updated : `${updated}\n`)
   return changelogPath
 }

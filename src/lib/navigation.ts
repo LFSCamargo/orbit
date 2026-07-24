@@ -52,7 +52,10 @@ export function focusRestoreId(
 }
 
 /** Primary focus target when entering a top-level shell route via L/R section keys. */
-export function screenEntryFocusId(layout: ThemeLayout, screen: AppScreen): string | null {
+export function screenEntryFocusId(
+  layout: ThemeLayout,
+  screen: AppScreen,
+): string | null {
   switch (screen) {
     case 'home':
       if (layout === 'ps5') return 'ps5-play'

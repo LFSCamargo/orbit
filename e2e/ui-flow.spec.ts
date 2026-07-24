@@ -15,7 +15,9 @@ test.describe('PS5 hero contrast', () => {
 
   test('keeps light hero copy even on bright artwork', async ({ page }) => {
     await page.locator('[data-focus-id="ps5-tile-mock-requiem"]').click()
-    await expect(page.getByRole('heading', { name: 'Resident Evil Requiem' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Resident Evil Requiem' }),
+    ).toBeVisible()
 
     const title = page.locator('.ps5-hero-title')
     await expect(title).toHaveCSS('color', 'rgb(255, 255, 255)')
@@ -36,7 +38,9 @@ test.describe('PS5 hero contrast', () => {
   })
 
   test('places selected game title under the next tile', async ({ page }) => {
-    const selected = page.locator('[data-focus-id^="ps5-tile-"][data-ps5-tile="selected"]')
+    const selected = page.locator(
+      '[data-focus-id^="ps5-tile-"][data-ps5-tile="selected"]',
+    )
     await expect(selected).toBeVisible()
     await page.waitForTimeout(350)
 
@@ -50,7 +54,9 @@ test.describe('PS5 hero contrast', () => {
       const titleEl = document.querySelector('.ps5-tile-title') as HTMLElement | null
       if (!selectedEl || !titleEl) return null
 
-      const tiles = [...document.querySelectorAll('[data-focus-id^="ps5-tile-"]')] as HTMLElement[]
+      const tiles = [
+        ...document.querySelectorAll('[data-focus-id^="ps5-tile-"]'),
+      ] as HTMLElement[]
       const index = tiles.indexOf(selectedEl)
       const nextEl = tiles[index + 1]
       if (!nextEl) return null
@@ -79,13 +85,18 @@ test.describe('PS5 hero contrast', () => {
     expect(geometry!.titleTop).toBeLessThan(geometry!.selectedBottom)
   })
 
-  test('places last-tile title on the left edge of the selected cover', async ({ page }) => {
+  test('places last-tile title on the left edge of the selected cover', async ({
+    page,
+  }) => {
     const tiles = page.locator('[data-focus-id^="ps5-tile-"]')
     const count = await tiles.count()
     expect(count).toBeGreaterThan(1)
 
     await tiles.nth(count - 1).click()
-    await expect(page.locator('.ps5-game-row')).toHaveAttribute('data-ps5-title-mode', 'last')
+    await expect(page.locator('.ps5-game-row')).toHaveAttribute(
+      'data-ps5-title-mode',
+      'last',
+    )
     await expect(page.locator('.ps5-tile-title-last')).toBeVisible()
 
     await page.waitForTimeout(350)

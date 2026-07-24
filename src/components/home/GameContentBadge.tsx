@@ -1,7 +1,12 @@
 import { clsx } from 'clsx'
 import { Layers, Package } from 'lucide-react'
 import type { GameContentMap, GameContentSummary } from '@/types/gameContent'
-import { formatContentDetail, formatContentVersion, formatDlcCount, formatDlcNamesPreview } from '@/lib/format'
+import {
+  formatContentDetail,
+  formatContentVersion,
+  formatDlcCount,
+  formatDlcNamesPreview,
+} from '@/lib/format'
 
 interface GameContentBadgeProps {
   summary?: GameContentSummary
@@ -9,7 +14,11 @@ interface GameContentBadgeProps {
   variant?: 'switch' | 'orbit' | 'ps5'
 }
 
-export function GameContentBadge({ summary, className, variant = 'orbit' }: GameContentBadgeProps) {
+export function GameContentBadge({
+  summary,
+  className,
+  variant = 'orbit',
+}: GameContentBadgeProps) {
   if (!summary) return null
 
   const hasVersion = Boolean(summary.versionLabel)
@@ -28,7 +37,8 @@ export function GameContentBadge({ summary, className, variant = 'orbit' }: Game
         <span
           className={clsx(
             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-            variant === 'switch' && 'bg-black/55 text-[var(--switch-cyan)] ring-1 ring-white/10',
+            variant === 'switch' &&
+              'bg-black/55 text-[var(--switch-cyan)] ring-1 ring-white/10',
             variant === 'ps5' && 'bg-black/55 text-white/90 ring-1 ring-white/15',
             variant === 'orbit' && 'bg-black/60 text-white/90 ring-1 ring-white/10',
           )}

@@ -100,7 +100,9 @@ export function PlayingScreen({
 
         <div
           className={`mt-6 overflow-hidden shadow-hero ring-1 ring-white/10 ${
-            layout === 'orbit' ? 'h-36 w-36 rounded-card' : 'square-game-art h-32 w-32 rounded-[1.25rem]'
+            layout === 'orbit'
+              ? 'h-36 w-36 rounded-card'
+              : 'square-game-art h-32 w-32 rounded-[1.25rem]'
           }`}
           style={{
             background: iconSrc ? '#000' : game ? artworkPlaceholder(game.id) : undefined,
@@ -121,7 +123,9 @@ export function PlayingScreen({
           </div>
         )}
 
-        <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight">
+          {title}
+        </h1>
         <p className={`mt-2 text-sm ${mutedClass}`}>{subtitle}</p>
 
         <Focusable

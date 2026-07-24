@@ -94,7 +94,9 @@ export function GameDetailsPage() {
                 ? 'text-[var(--ps5-muted)]'
                 : 'text-orbit-muted'
           }
-        >Game not found.</p>
+        >
+          Game not found.
+        </p>
         <Focusable
           focusId="details-back-missing"
           group="details-actions"
@@ -114,7 +116,10 @@ export function GameDetailsPage() {
   const heroSrc = mediaSrc(game.artwork.hero)
   const coverSrc = mediaSrc(game.artwork.cover)
   const iconSrc = mediaSrc(game.artwork.icon)
-  const tileSrc = gameTileImage(game.artwork, layout === 'switch' || layout === 'ps5' ? 'square' : 'portrait')
+  const tileSrc = gameTileImage(
+    game.artwork,
+    layout === 'switch' || layout === 'ps5' ? 'square' : 'portrait',
+  )
   const hero = heroSrc || placeholderGradient(game.id)
   const achievements = game.achievements ?? []
   const unlocked = achievements.filter((item) => item.unlocked).length
@@ -148,7 +153,10 @@ export function GameDetailsPage() {
       >
         {isThemedShell ? (
           <>
-            <div className="details-hero-scrim pointer-events-none absolute inset-0 bg-black/50" aria-hidden />
+            <div
+              className="details-hero-scrim pointer-events-none absolute inset-0 bg-black/50"
+              aria-hidden
+            />
             <div
               className="pointer-events-none absolute inset-0"
               style={{ background: heroFade }}
@@ -160,16 +168,20 @@ export function GameDetailsPage() {
         )}
         <div
           className={`relative z-10 flex items-end gap-8 ${
-            isThemedShell ? 'min-h-[36vh] px-6 pb-8 pt-6' : 'min-h-[48vh] px-10 pb-10 pt-28'
+            isThemedShell
+              ? 'min-h-[36vh] px-6 pb-8 pt-6'
+              : 'min-h-[48vh] px-10 pb-10 pt-28'
           }`}
         >
           <motion.div
             initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              className={`hidden shrink-0 overflow-hidden sm:block ${
-                isSwitch || isPs5 ? 'square-game-art bg-black' : 'shadow-hero ring-1 ring-white/10'
-              } ${
+            className={`hidden shrink-0 overflow-hidden sm:block ${
+              isSwitch || isPs5
+                ? 'square-game-art bg-black'
+                : 'shadow-hero ring-1 ring-white/10'
+            } ${
               layout === 'switch' || layout === 'ps5'
                 ? 'h-40 w-40 rounded-[1.25rem]'
                 : 'h-72 w-52 rounded-card'
@@ -181,9 +193,15 @@ export function GameDetailsPage() {
                   : placeholderGradient(game.id),
             }}
           >
-            {(layout === 'switch' || layout === 'ps5' ? tileSrc || iconSrc : coverSrc) && (
+            {(layout === 'switch' || layout === 'ps5'
+              ? tileSrc || iconSrc
+              : coverSrc) && (
               <img
-                src={(layout === 'switch' || layout === 'ps5' ? tileSrc || iconSrc : coverSrc)!}
+                src={
+                  (layout === 'switch' || layout === 'ps5'
+                    ? tileSrc || iconSrc
+                    : coverSrc)!
+                }
                 alt=""
                 className="h-full w-full object-cover"
               />
@@ -268,7 +286,9 @@ export function GameDetailsPage() {
           onClick={() => favorite.mutate(game.id)}
           className="inline-flex items-center gap-2 rounded-card bg-white/10 px-5 py-3"
         >
-          <Heart className={`h-4 w-4 ${game.favorite ? 'fill-rose-400 text-rose-400' : ''}`} />
+          <Heart
+            className={`h-4 w-4 ${game.favorite ? 'fill-rose-400 text-rose-400' : ''}`}
+          />
           Favorite
         </Focusable>
 
@@ -314,15 +334,29 @@ export function GameDetailsPage() {
       </div>
 
       <div className={`mt-10 grid gap-4 md:grid-cols-4 ${isThemedShell ? '' : 'px-10'}`}>
-        <MetaCard themed={isThemedShell} icon={<Clock3 className="h-4 w-4" />} label="Playtime" value={formatPlaytime(game.totalPlaytimeSeconds)} />
-        <MetaCard themed={isThemedShell} icon={<HardDrive className="h-4 w-4" />} label="Install size" value={formatBytes(game.installSizeBytes)} />
+        <MetaCard
+          themed={isThemedShell}
+          icon={<Clock3 className="h-4 w-4" />}
+          label="Playtime"
+          value={formatPlaytime(game.totalPlaytimeSeconds)}
+        />
+        <MetaCard
+          themed={isThemedShell}
+          icon={<HardDrive className="h-4 w-4" />}
+          label="Install size"
+          value={formatBytes(game.installSizeBytes)}
+        />
         <MetaCard
           themed={isThemedShell}
           icon={<Trophy className="h-4 w-4" />}
           label="Achievements"
           value={formatAchievementProgress(unlocked, achievements.length)}
         />
-        <MetaCard themed={isThemedShell} label="Added" value={formatRelativeDate(game.dateAdded)} />
+        <MetaCard
+          themed={isThemedShell}
+          label="Added"
+          value={formatRelativeDate(game.dateAdded)}
+        />
       </div>
 
       {achievements.length > 0 && (
