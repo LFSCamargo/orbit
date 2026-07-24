@@ -1,14 +1,7 @@
 import { useMemo, useState } from 'react'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  ArrowLeft,
-  Check,
-  FolderOpen,
-  Gamepad2,
-  HardDrive,
-  Joystick,
-} from 'lucide-react'
+import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive, Joystick } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGameActions } from '@/hooks/useGames'
 import { backTarget } from '@/lib/navigation'
@@ -74,13 +67,7 @@ export function AddGamePage() {
   const previousScreen = useUiStore((s) => s.previousScreen)
   const setScreen = useUiStore((s) => s.setScreen)
   const setImportToast = useUiStore((s) => s.setImportToast)
-  const {
-    scanSteam,
-    scanAstris,
-    scanNative,
-    scanGamehub,
-    create,
-  } = useGameActions()
+  const { scanSteam, scanAstris, scanNative, scanGamehub, create } = useGameActions()
 
   const [step, setStep] = useState<Step>('source')
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -101,13 +88,25 @@ export function AddGamePage() {
     try {
       if (id === 'steam') {
         const result = await scanSteam.mutateAsync()
-        finish(`Imported ${result.imported} Steam games`)
+        finish(
+          `Imported ${result.imported} Steam games${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (id === 'native') {
         const result = await scanNative.mutateAsync()
-        finish(`Imported ${result.imported} macOS apps`)
+        finish(
+          `Imported ${result.imported} macOS apps${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (id === 'gamehub') {
         const result = await scanGamehub.mutateAsync(undefined)
-        finish(`Imported ${result.imported} GameHub shortcuts`)
+        finish(
+          `Imported ${result.imported} GameHub shortcuts${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
@@ -140,10 +139,18 @@ export function AddGamePage() {
 
       if (source.id === 'astris') {
         const result = await scanAstris.mutateAsync(selected)
-        finish(`Imported ${result.imported} Switch titles`)
+        finish(
+          `Imported ${result.imported} Switch titles${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (source.id === 'gamehub') {
         const result = await scanGamehub.mutateAsync(selected)
-        finish(`Imported ${result.imported} GameHub titles`)
+        finish(
+          `Imported ${result.imported} GameHub titles${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (source.id === 'manual-file') {
         const base = selected.split('/').pop() ?? 'New Game'
         setTitle(base.replace(/\.(app|exe|nsp|xci)$/i, ''))
@@ -184,7 +191,10 @@ export function AddGamePage() {
   }
 
   return (
-    <ThemePage title="Add game" subtitle="Controller-friendly import for Steam, Astris, GameHub, and local files.">
+    <ThemePage
+      title="Add game"
+      subtitle="Controller-friendly import for Steam, Astris, GameHub, and local files."
+    >
       <div className="mb-8">
         <Focusable
           focusId="add-back"
@@ -236,7 +246,9 @@ export function AddGamePage() {
                     )}
                   </div>
                   <h2 className="font-display text-2xl font-semibold">{item.title}</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-orbit-muted">{item.body}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-orbit-muted">
+                    {item.body}
+                  </p>
                 </Focusable>
               ))}
             </div>

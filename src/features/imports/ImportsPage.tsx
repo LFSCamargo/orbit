@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGameActions, useImporters } from '@/hooks/useGames'
@@ -55,18 +55,34 @@ export function ImportsSection() {
     try {
       if (id === 'steam') {
         const result = await scanSteam.mutateAsync()
-        setImportToast(`Steam sync complete · ${result.imported} games`)
+        setImportToast(
+          `Steam sync complete · ${result.imported} games${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (id === 'native') {
         const result = await scanNative.mutateAsync()
-        setImportToast(`macOS scan complete · ${result.imported} apps`)
+        setImportToast(
+          `macOS scan complete · ${result.imported} apps${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (id === 'astris') {
         const folder = await open({ directory: true, multiple: false })
         if (!folder || Array.isArray(folder)) return
         const result = await scanAstris.mutateAsync(folder)
-        setImportToast(`Astris sync complete · ${result.imported} titles`)
+        setImportToast(
+          `Astris sync complete · ${result.imported} titles${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       } else if (id === 'gamehub') {
         const result = await scanGamehub.mutateAsync(undefined)
-        setImportToast(`GameHub sync complete · ${result.imported} shortcuts`)
+        setImportToast(
+          `GameHub sync complete · ${result.imported} shortcuts${
+            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
+          }`,
+        )
       }
     } catch (error) {
       setImportToast(error instanceof Error ? error.message : String(error))
@@ -81,7 +97,8 @@ export function ImportsSection() {
         <div>
           <h2 className="font-display text-xl font-semibold">Import games</h2>
           <p className="mt-1 text-sm text-orbit-muted">
-            Bring games into Orbit from Steam, Astris, GameHub, native macOS apps, or a single file.
+            Bring games into Orbit from Steam, Astris, GameHub, native macOS apps, or a
+            single file.
           </p>
         </div>
         <Focusable
@@ -121,8 +138,8 @@ export function ImportsSection() {
       >
         <h3 className="font-display text-lg font-semibold">Switch content visualizer</h3>
         <p className="mt-2 text-sm text-orbit-muted">
-          See base games, updates, and DLC for titles already in your library. Orbit scans the ROM
-          folders from your imported Astris paths automatically.
+          See base games, updates, and DLC for titles already in your library. Orbit scans
+          the ROM folders from your imported Astris paths automatically.
         </p>
       </Focusable>
 
@@ -147,11 +164,11 @@ export function ImportsSection() {
               noRing
               disabled={busyId !== null}
               onClick={() => void run(item.id)}
-              className="rounded-card bg-white/5 p-5 text-left orbit-transition ring-1 ring-white/10"
+              className="orbit-transition rounded-card bg-white/5 p-5 text-left ring-1 ring-white/10"
             >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-display text-lg font-semibold">{item.title}</h3>
-                <span className="rounded-full bg-white/8 px-2.5 py-1 text-[10px] uppercase tracking-wider text-orbit-muted">
+                <span className="bg-white/8 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-orbit-muted">
                   {label}
                 </span>
               </div>

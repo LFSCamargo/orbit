@@ -1,4 +1,4 @@
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/lib/dialog'
 import { ImagePlus, Search, Trash2 } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ArtworkSlot } from '@/lib/artwork'
