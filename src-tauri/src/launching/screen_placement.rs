@@ -106,5 +106,81 @@ mod tests {
             macos_process_name_for_app(Path::new("/Applications/Astris.app")).as_deref(),
             Some("Astris")
         );
+        assert!(macos_process_name_for_app(Path::new("/usr/bin/open")).is_none());
+    }
+
+    #[test]
+    fn watcher_names_for_gamehub_config() {
+        let names = screen_watcher_process_names(
+            &LaunchConfiguration::Gamehub {
+                gamehub_app_path: "/Applications/GameHub.app".into(),
+                shortcut_app_path: "/Applications/Games/Hades.app".into(),
+            },
+            GameProvider::Gamehub,
+        );
+        assert_eq!(names, vec!["GameHub".to_string()]);
+    }
+
+    #[test]
+    fn watcher_names_for_open_application() {
+        let names = screen_watcher_process_names(
+            &LaunchConfiguration::OpenApplication {
+                application_path: "/Applications/Chess.app".into(),
+                arguments: None,
+            },
+            GameProvider::Native,
+        );
+        assert_eq!(names, vec!["Chess".to_string()]);
+    }
+
+    #[test]
+    fn watcher_names_for_steam_and_gamehub_urls() {
+        let steam = screen_watcher_process_names(
+            &LaunchConfiguration::OpenUrl {
+                url: "steam://rungameid/570".into(),
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(steam, vec!["Steam".to_string()]);
+
+        let gamehub = screen_watcher_process_names(
+            &LaunchConfiguration::OpenUrl {
+                url: "gamehub://launch/abc".into(),
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(gamehub, vec!["GameHub".to_string()]);
+
+        let other = screen_watcher_process_names(
+            &LaunchConfiguration::OpenUrl {
+                url: "https://example.com".into(),
+            },
+            GameProvider::Manual,
+        );
+        assert!(other.is_empty());
+    }
+
+    #[test]
+    fn watcher_names_for_custom_command() {
+        let names = screen_watcher_process_names(
+            &LaunchConfiguration::CustomCommand {
+                executable: "/usr/local/bin/my-launcher".into(),
+                arguments: vec![],
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(names, vec!["my-launcher".to_string()]);
+    }
+
+    #[test]
+    fn watcher_names_for_open_file_with_app() {
+        let names = screen_watcher_process_names(
+            &LaunchConfiguration::OpenFile {
+                file_path: "/Games/rom.bin".into(),
+                application_path: Some("/Applications/Emulator.app".into()),
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(names, vec!["Emulator".to_string()]);
     }
 }

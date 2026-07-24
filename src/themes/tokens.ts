@@ -18,7 +18,8 @@ const TOKENS: Record<ThemeLayout, ThemeTokens> = {
     isThemed: true,
     cardVariant: 'square',
     shell: 'switch-shell bg-[var(--switch-bg)] text-[var(--switch-ink)]',
-    panel: 'rounded-[2rem] border border-[var(--switch-border)] bg-[var(--switch-surface)]',
+    panel:
+      'rounded-[2rem] border border-[var(--switch-border)] bg-[var(--switch-surface)]',
     ink: 'text-[var(--switch-ink)]',
     muted: 'text-[var(--switch-muted)]',
     accent: 'bg-[#ff4d6d] text-white',

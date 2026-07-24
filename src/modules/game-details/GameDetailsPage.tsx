@@ -1,13 +1,5 @@
 import { useState } from 'react'
-import {
-  ArrowLeft,
-  EyeOff,
-  Heart,
-  Pencil,
-  Play,
-  Square,
-  Trash2,
-} from 'lucide-react'
+import { ArrowLeft, EyeOff, Heart, Pencil, Play, Square, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { Focusable } from '@/components/focus/Focusable'

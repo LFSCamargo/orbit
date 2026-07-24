@@ -43,7 +43,7 @@ From commits + diff, identify:
 
 | Signal             | Where to look                                                    |
 | ------------------ | ---------------------------------------------------------------- |
-| Feature scope      | `src/modules/`, `src/components/`                               |
+| Feature scope      | `src/modules/`, `src/components/`                                |
 | Tauri / backend    | `src-tauri/src/commands/`, `importers/`, `launching/`            |
 | Themes             | `src/themes/`, `docs/UI.mdc`, `docs/THEMES.md`, `docs/examples/` |
 | Controller / focus | `src/controllers/`                                               |

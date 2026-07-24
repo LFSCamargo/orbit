@@ -164,6 +164,22 @@ impl MetadataCacheRepository {
 mod tests {
     use super::*;
 
+    fn sample_row(game_id: &str, title: &str) -> CachedMetadataRow {
+        CachedMetadataRow {
+            game_id: game_id.into(),
+            tgdb_id: Some(42),
+            title: title.into(),
+            summary: Some("A great game.".into()),
+            release_date: Some("2018-01-25".into()),
+            developer: Some("Team Cherry".into()),
+            publisher: Some("Team Cherry".into()),
+            cover_path: Some("/cache/cover.png".into()),
+            background_path: Some("/cache/bg.png".into()),
+            icon_path: None,
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        }
+    }
+
     #[test]
     fn external_ids_index_exists() {
         let cache = MetadataCacheRepository::open_in_memory().expect("cache");
@@ -176,5 +192,73 @@ mod tests {
             )
             .expect("index query");
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn upsert_get_round_trip() {
+        let cache = MetadataCacheRepository::open_in_memory().expect("cache");
+        assert_eq!(cache.count().expect("count"), 0);
+        assert!(cache.get("missing").expect("get").is_none());
+
+        let row = sample_row("game-1", "Hollow Knight");
+        cache.upsert(&row).expect("upsert");
+        assert_eq!(cache.count().expect("count"), 1);
+
+        let fetched = cache.get("game-1").expect("get").expect("exists");
+        assert_eq!(fetched.game_id, "game-1");
+        assert_eq!(fetched.tgdb_id, Some(42));
+        assert_eq!(fetched.title, "Hollow Knight");
+        assert_eq!(fetched.summary.as_deref(), Some("A great game."));
+        assert_eq!(fetched.developer.as_deref(), Some("Team Cherry"));
+        assert_eq!(fetched.cover_path.as_deref(), Some("/cache/cover.png"));
+        assert_eq!(fetched.updated_at, "2026-01-01T00:00:00Z");
+
+        let updated = CachedMetadataRow {
+            title: "Hollow Knight: Silksong".into(),
+            summary: Some("Sequel.".into()),
+            updated_at: "2026-02-01T00:00:00Z".into(),
+            ..row
+        };
+        cache.upsert(&updated).expect("re-upsert");
+        assert_eq!(cache.count().expect("count"), 1);
+
+        let fetched = cache.get("game-1").expect("get").expect("exists");
+        assert_eq!(fetched.title, "Hollow Knight: Silksong");
+        assert_eq!(fetched.summary.as_deref(), Some("Sequel."));
+        assert_eq!(fetched.updated_at, "2026-02-01T00:00:00Z");
+    }
+
+    #[test]
+    fn upsert_external_id_and_count() {
+        let cache = MetadataCacheRepository::open_in_memory().expect("cache");
+        cache.upsert(&sample_row("game-a", "A")).expect("upsert a");
+        cache.upsert(&sample_row("game-b", "B")).expect("upsert b");
+        assert_eq!(cache.count().expect("count"), 2);
+
+        cache
+            .upsert_external_id("game-a", "steam", "570")
+            .expect("external steam");
+        cache
+            .upsert_external_id("game-a", "tgdb", "12345")
+            .expect("external tgdb");
+        // Same source+external_id remaps to another game_id.
+        cache
+            .upsert_external_id("game-b", "steam", "570")
+            .expect("remap steam");
+
+        let conn = cache.conn.lock().unwrap();
+        let external_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM game_external_ids", [], |row| row.get(0))
+            .expect("external count");
+        assert_eq!(external_count, 2);
+
+        let steam_game: String = conn
+            .query_row(
+                "SELECT game_id FROM game_external_ids WHERE source = ?1 AND external_id = ?2",
+                params!["steam", "570"],
+                |row| row.get(0),
+            )
+            .expect("steam mapping");
+        assert_eq!(steam_game, "game-b");
     }
 }

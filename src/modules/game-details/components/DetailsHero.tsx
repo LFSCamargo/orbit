@@ -1,11 +1,7 @@
 import { motion } from 'framer-motion'
 import { ProviderBadge } from '@/components/game/ProviderBadge'
 import { gameTileImage } from '@/lib/artwork'
-import {
-  formatPlaytime,
-  formatRelativeDate,
-  placeholderGradient,
-} from '@/lib/format'
+import { formatPlaytime, formatRelativeDate, placeholderGradient } from '@/lib/format'
 import { mediaSrc } from '@/lib/media'
 import type { ThemeLayout } from '@/themes/useThemeLayout'
 import type { Game } from '@/types/game'
@@ -67,9 +63,7 @@ export function DetailsHero({ game, layout }: DetailsHeroProps) {
       )}
       <div
         className={`relative z-10 flex items-end gap-8 ${
-          isThemedShell
-            ? 'min-h-[36vh] px-6 pb-8 pt-6'
-            : 'min-h-[48vh] px-10 pb-10 pt-28'
+          isThemedShell ? 'min-h-[36vh] px-6 pb-8 pt-6' : 'min-h-[48vh] px-10 pb-10 pt-28'
         }`}
       >
         <motion.div
@@ -92,14 +86,10 @@ export function DetailsHero({ game, layout }: DetailsHeroProps) {
                 : placeholderGradient(game.id),
           }}
         >
-          {(layout === 'switch' || layout === 'ps5'
-            ? tileSrc || iconSrc
-            : coverSrc) && (
+          {(layout === 'switch' || layout === 'ps5' ? tileSrc || iconSrc : coverSrc) && (
             <img
               src={
-                (layout === 'switch' || layout === 'ps5'
-                  ? tileSrc || iconSrc
-                  : coverSrc)!
+                (layout === 'switch' || layout === 'ps5' ? tileSrc || iconSrc : coverSrc)!
               }
               alt=""
               className="h-full w-full object-cover"

@@ -30,10 +30,7 @@ export function LibraryPage() {
   const tokens = themeTokens(layout)
   const cardVariant = tokens.cardVariant
 
-  const filtered = useMemo(
-    () => filterLibraryGames(games, filters),
-    [games, filters],
-  )
+  const filtered = useMemo(() => filterLibraryGames(games, filters), [games, filters])
 
   return (
     <ThemePage title="Library" subtitle={`${filtered.length} games`}>

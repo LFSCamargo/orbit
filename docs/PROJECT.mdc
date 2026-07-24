@@ -73,6 +73,8 @@ orbit/
 | `format` | `prettier --write .` | Format all files |
 | `format:check` | `prettier --check .` | CI-style format gate |
 | `test:rust` | `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
+| `test:unit` | `vitest run` | Frontend unit tests (Vitest + Testing Library) |
+| `test:unit:watch` | `vitest` | Vitest watch mode |
 | `test:e2e` | `playwright test` | Browser E2E (mock API or Tauri webview) |
 | `test:e2e:ui` | `playwright test --ui` | Playwright UI mode |
 
@@ -111,6 +113,7 @@ Defined in `.cursor/rules/quality-gating.mdc`. Run before declaring work done:
 ```bash
 yarn run format:check
 yarn run typecheck
+yarn run test:unit      # when src/lib/ or unit-tested helpers changed
 yarn run test:rust      # when src-tauri/ changed
 yarn run build
 yarn run test:e2e       # when UI/navigation/themes changed
@@ -136,6 +139,18 @@ Rules:
 
 ---
 
+## Unit testing
+
+Vitest config: `vitest.config.ts` (same `@` → `src` alias as Vite). Setup: `src/test/setup.ts`.
+
+```bash
+yarn test:unit
+yarn test:unit:watch
+```
+
+Prefer Vitest for pure helpers under `src/lib/`, theme tokens, and module filter/sort logic.
+Optional light component tests use Testing Library + jsdom.
+
 ## E2E testing
 
 Playwright config: `playwright.config.ts`. Primary spec: `e2e/orbit-ui-flow.spec.ts`.
@@ -158,9 +173,10 @@ Future CI should mirror local gates:
 
 1. `yarn run format:check`
 2. `yarn run typecheck`
-3. `yarn run test:rust`
-4. `yarn run build`
-5. `yarn run test:e2e` (optional job with Playwright)
+3. `yarn run test:unit`
+4. `yarn run test:rust`
+5. `yarn run build`
+6. `yarn run test:e2e` (optional job with Playwright)
 
 ---
 
@@ -171,6 +187,7 @@ yarn install
 yarn tauri:dev                    # desktop dev
 yarn dev                          # frontend-only with mocks
 yarn run typecheck
+yarn run test:unit
 yarn run test:rust
 yarn run test:e2e
 yarn run tauri:build              # release bundle

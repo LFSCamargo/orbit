@@ -737,4 +737,165 @@ mod tests {
         assert!(artwork.hero.is_none());
         assert_eq!(artwork.logo.as_deref(), Some("/path/logo.png"));
     }
+
+    fn sample_create(title: &str) -> CreateGameRequest {
+        CreateGameRequest {
+            title: title.into(),
+            description: Some(format!("{title} desc")),
+            provider: GameProvider::Manual,
+            platform: GamePlatform::Macos,
+            launch_config: LaunchConfiguration::OpenUrl {
+                url: format!("https://example.com/{title}"),
+            },
+            artwork: None,
+            install_size_bytes: None,
+        }
+    }
+
+    #[test]
+    fn create_get_update_delete_game_round_trip() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let created = repo.create_game(sample_create("Celeste")).expect("create");
+        assert_eq!(created.title, "Celeste");
+        assert_eq!(created.sort_title, "celeste");
+        assert!(!created.favorite);
+        assert!(!created.hidden);
+        assert_eq!(created.total_playtime_seconds, 0);
+
+        let fetched = repo
+            .get_game(&created.id)
+            .expect("get")
+            .expect("exists");
+        assert_eq!(fetched.id, created.id);
+        assert_eq!(fetched.description.as_deref(), Some("Celeste desc"));
+
+        let updated = repo
+            .update_game(
+                &created.id,
+                UpdateGameRequest {
+                    title: Some("Celeste Remastered".into()),
+                    description: Some("updated desc".into()),
+                    artwork: Some(GameArtwork {
+                        cover: Some("/covers/celeste.png".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .expect("update");
+        assert_eq!(updated.title, "Celeste Remastered");
+        assert_eq!(updated.sort_title, "celeste remastered");
+        assert_eq!(updated.description.as_deref(), Some("updated desc"));
+        assert_eq!(
+            updated.artwork.cover.as_deref(),
+            Some("/covers/celeste.png")
+        );
+
+        repo.delete_game(&created.id).expect("delete");
+        assert!(repo.get_game(&created.id).expect("get after delete").is_none());
+        assert!(repo.delete_game(&created.id).is_err());
+    }
+
+    #[test]
+    fn toggle_favorite_and_set_hidden() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let game = repo.create_game(sample_create("Hades")).expect("create");
+        assert!(!game.favorite);
+        assert!(!game.hidden);
+
+        let favorited = repo.toggle_favorite(&game.id).expect("favorite on");
+        assert!(favorited.favorite);
+        let unfavorited = repo.toggle_favorite(&game.id).expect("favorite off");
+        assert!(!unfavorited.favorite);
+
+        let hidden = repo.set_hidden(&game.id, true).expect("hide");
+        assert!(hidden.hidden);
+        let shown = repo.set_hidden(&game.id, false).expect("unhide");
+        assert!(!shown.hidden);
+    }
+
+    #[test]
+    fn record_play_session_updates_total_playtime() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let game = repo.create_game(sample_create("Hollow Knight")).expect("create");
+        assert_eq!(game.total_playtime_seconds, 0);
+        assert!(game.last_played_at.is_none());
+
+        let session = GameSession {
+            id: Uuid::new_v4().to_string(),
+            game_id: game.id.clone(),
+            provider: GameProvider::Manual,
+            pid: Some(4242),
+            started_at: "2026-01-01T10:00:00Z".into(),
+            ended_at: None,
+            exit_code: None,
+            stop_reason: None,
+            duration_seconds: None,
+        };
+        repo.record_play_start(&session).expect("start");
+
+        let ended = GameSession {
+            ended_at: Some("2026-01-01T10:05:00Z".into()),
+            exit_code: Some(0),
+            stop_reason: Some(SessionStopReason::ProcessExited),
+            duration_seconds: Some(300),
+            ..session
+        };
+        repo.record_play_end(&ended).expect("end");
+
+        let after = repo.get_game(&game.id).expect("get").expect("exists");
+        assert_eq!(after.total_playtime_seconds, 300);
+        assert_eq!(after.last_played_at.as_deref(), Some("2026-01-01T10:05:00Z"));
+
+        let second = GameSession {
+            id: Uuid::new_v4().to_string(),
+            game_id: game.id.clone(),
+            provider: GameProvider::Manual,
+            pid: None,
+            started_at: "2026-01-02T10:00:00Z".into(),
+            ended_at: Some("2026-01-02T10:02:00Z".into()),
+            exit_code: Some(0),
+            stop_reason: Some(SessionStopReason::UserStopped),
+            duration_seconds: Some(120),
+        };
+        repo.record_play_start(&second).expect("start 2");
+        repo.record_play_end(&second).expect("end 2");
+
+        let after_second = repo.get_game(&game.id).expect("get").expect("exists");
+        assert_eq!(after_second.total_playtime_seconds, 420);
+        assert_eq!(
+            after_second.last_played_at.as_deref(),
+            Some("2026-01-02T10:02:00Z")
+        );
+    }
+
+    #[test]
+    fn clear_library_removes_all_games() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let a = repo.create_game(sample_create("A")).expect("create a");
+        let b = repo.create_game(sample_create("B")).expect("create b");
+        repo.toggle_favorite(&a.id).expect("favorite");
+
+        let session = GameSession {
+            id: Uuid::new_v4().to_string(),
+            game_id: b.id.clone(),
+            provider: GameProvider::Manual,
+            pid: None,
+            started_at: "2026-01-01T00:00:00Z".into(),
+            ended_at: None,
+            exit_code: None,
+            stop_reason: None,
+            duration_seconds: None,
+        };
+        repo.record_play_start(&session).expect("session");
+
+        let deleted = repo.clear_library().expect("clear");
+        assert_eq!(deleted, 2);
+        assert!(repo.list_games().expect("list").is_empty());
+        assert!(repo.get_game(&a.id).expect("get a").is_none());
+        assert!(repo.get_game(&b.id).expect("get b").is_none());
+
+        let deleted_again = repo.clear_library().expect("clear empty");
+        assert_eq!(deleted_again, 0);
+    }
 }

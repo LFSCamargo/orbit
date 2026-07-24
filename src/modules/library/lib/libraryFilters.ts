@@ -25,7 +25,9 @@ export function sortGames(a: Game, b: Game, sort: LibrarySort) {
     case 'playtime':
       return b.totalPlaytimeSeconds - a.totalPlaytimeSeconds
     case 'provider':
-      return a.provider.localeCompare(b.provider) || a.sortTitle.localeCompare(b.sortTitle)
+      return (
+        a.provider.localeCompare(b.provider) || a.sortTitle.localeCompare(b.sortTitle)
+      )
     case 'alphabetical':
     default:
       return a.sortTitle.localeCompare(b.sortTitle)

@@ -120,6 +120,20 @@ The workflow syncs the version from the tag, builds on GitHub's `macos-14` runne
 
 ## Testing
 
+### Frontend unit tests (Vitest)
+
+Required when changing pure helpers under `src/lib/`, theme tokens, or library filter/sort logic:
+
+```bash
+yarn test:unit
+```
+
+Watch mode while iterating:
+
+```bash
+yarn test:unit:watch
+```
+
 ### Rust unit tests
 
 Required when changing `src-tauri/`:
@@ -221,6 +235,7 @@ Run before opening a PR (see [CONTRIBUTING.md](CONTRIBUTING.md)):
 ```bash
 yarn run format:check
 yarn run typecheck
+yarn run test:unit      # when src/lib/ or unit-tested helpers changed
 yarn run test:rust      # when src-tauri/ changed
 yarn run build
 yarn run test:e2e       # when UI/navigation/themes changed
@@ -296,6 +311,7 @@ yarn build                # Typecheck + Vite production build
 yarn tauri:build          # Release .app bundle
 yarn release:macos        # Package .app + .dmg to release/<version>/
 yarn typecheck            # TypeScript
+yarn test:unit            # Vitest unit tests
 yarn test:rust            # Rust unit tests
 yarn test:e2e             # Playwright E2E
 yarn format               # Prettier write

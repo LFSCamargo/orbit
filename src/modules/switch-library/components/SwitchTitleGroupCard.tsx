@@ -30,13 +30,7 @@ function kindBadgeClass(
   return base
 }
 
-function RomRow({
-  entry,
-  muted,
-}: {
-  entry: SwitchRomEntry
-  muted: string
-}) {
+function RomRow({ entry, muted }: { entry: SwitchRomEntry; muted: string }) {
   const layout = useThemeLayout()
   return (
     <div className="rounded-xl bg-black/20 px-4 py-3 ring-1 ring-white/5">

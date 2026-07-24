@@ -5,10 +5,7 @@ import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive, Joystick } from 'luc
 import { Focusable } from '@/components/focus/Focusable'
 import { useGameActions } from '@/hooks/useGames'
 import { backTarget } from '@/lib/navigation'
-import {
-  useImportScan,
-  type ImportScanId,
-} from '@/modules/imports/hooks/useImportScan'
+import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import type { GamePlatform, GameProvider, LaunchConfiguration } from '@/types/game'

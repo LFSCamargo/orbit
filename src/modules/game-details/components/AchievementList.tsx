@@ -28,7 +28,9 @@ export function AchievementList({ achievements, themed }: AchievementListProps) 
               <div>
                 <p className="font-medium">{achievement.name}</p>
                 {achievement.description && (
-                  <p className="mt-1 text-sm text-orbit-muted">{achievement.description}</p>
+                  <p className="mt-1 text-sm text-orbit-muted">
+                    {achievement.description}
+                  </p>
                 )}
               </div>
               <Trophy

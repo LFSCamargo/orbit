@@ -13,6 +13,114 @@ use crate::utils::gamehub_shortcut::deep_link_from_shortcut;
 use crate::utils::macos_apps::is_switch_rom;
 use crate::utils::paths::resolve_switch_base_launch_path;
 
+/// Pure launch decision from config + provider (no process spawn).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchStrategy {
+    SteamUrl {
+        url: String,
+    },
+    OpenUrl {
+        url: String,
+    },
+    GamehubShortcut {
+        gamehub_app_path: String,
+        shortcut_app_path: String,
+    },
+    /// GameHub provider with a non-`gamehub` launch config — remapped at launch time.
+    LegacyGamehub {
+        shortcut_path: String,
+    },
+    OpenApplication {
+        application_path: String,
+        arguments: Option<Vec<String>>,
+    },
+    /// Switch ROM (`.nsp` / `.xci`) — open with Astris when available.
+    SwitchRom {
+        file_path: String,
+    },
+    OpenFile {
+        file_path: String,
+        application_path: Option<String>,
+    },
+    CustomCommand {
+        executable: String,
+        arguments: Vec<String>,
+    },
+}
+
+/// Decide how a game should launch without spawning processes.
+pub fn resolve_launch_strategy(
+    config: &LaunchConfiguration,
+    provider: GameProvider,
+) -> LaunchStrategy {
+    match config {
+        LaunchConfiguration::Gamehub {
+            gamehub_app_path,
+            shortcut_app_path,
+        } => LaunchStrategy::GamehubShortcut {
+            gamehub_app_path: gamehub_app_path.clone(),
+            shortcut_app_path: shortcut_app_path.clone(),
+        },
+        other if provider == GameProvider::Gamehub => match other {
+            LaunchConfiguration::OpenApplication {
+                application_path, ..
+            } => LaunchStrategy::LegacyGamehub {
+                shortcut_path: application_path.clone(),
+            },
+            LaunchConfiguration::OpenFile { file_path, .. } => LaunchStrategy::LegacyGamehub {
+                shortcut_path: file_path.clone(),
+            },
+            _ => resolve_config_strategy(other),
+        },
+        other => resolve_config_strategy(other),
+    }
+}
+
+fn resolve_config_strategy(config: &LaunchConfiguration) -> LaunchStrategy {
+    match config {
+        LaunchConfiguration::Steam { app_id } => LaunchStrategy::SteamUrl {
+            url: format!("steam://rungameid/{app_id}"),
+        },
+        LaunchConfiguration::OpenUrl { url } => LaunchStrategy::OpenUrl { url: url.clone() },
+        LaunchConfiguration::OpenApplication {
+            application_path,
+            arguments,
+        } => LaunchStrategy::OpenApplication {
+            application_path: application_path.clone(),
+            arguments: arguments.clone(),
+        },
+        LaunchConfiguration::OpenFile {
+            file_path,
+            application_path,
+        } => {
+            if is_switch_rom(Path::new(file_path)) {
+                LaunchStrategy::SwitchRom {
+                    file_path: file_path.clone(),
+                }
+            } else {
+                LaunchStrategy::OpenFile {
+                    file_path: file_path.clone(),
+                    application_path: application_path.clone(),
+                }
+            }
+        }
+        LaunchConfiguration::CustomCommand {
+            executable,
+            arguments,
+        } => LaunchStrategy::CustomCommand {
+            executable: executable.clone(),
+            arguments: arguments.clone(),
+        },
+        LaunchConfiguration::Gamehub {
+            gamehub_app_path,
+            shortcut_app_path,
+        } => LaunchStrategy::GamehubShortcut {
+            gamehub_app_path: gamehub_app_path.clone(),
+            shortcut_app_path: shortcut_app_path.clone(),
+        },
+    }
+}
+
 pub fn launch_game(game: &Game, ctx: &LaunchContext) -> Result<()> {
     spawn_screen_watchers(game, ctx);
 
@@ -224,5 +332,144 @@ fn open_url(url: &str) -> Result<()> {
             bail!("xdg-open exited with {status}");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strategy_steam_url() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::Steam {
+                app_id: "1091500".into(),
+            },
+            GameProvider::Steam,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::SteamUrl {
+                url: "steam://rungameid/1091500".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn strategy_gamehub_shortcut() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::Gamehub {
+                gamehub_app_path: "/Applications/GameHub.app".into(),
+                shortcut_app_path: "/Applications/Games/Hades.app".into(),
+            },
+            GameProvider::Gamehub,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::GamehubShortcut {
+                gamehub_app_path: "/Applications/GameHub.app".into(),
+                shortcut_app_path: "/Applications/Games/Hades.app".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn strategy_legacy_gamehub_from_open_application() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::OpenApplication {
+                application_path: "/Applications/Games/Hades.app".into(),
+                arguments: None,
+            },
+            GameProvider::Gamehub,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::LegacyGamehub {
+                shortcut_path: "/Applications/Games/Hades.app".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn strategy_native_app() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::OpenApplication {
+                application_path: "/Applications/Chess.app".into(),
+                arguments: Some(vec!["--fullscreen".into()]),
+            },
+            GameProvider::Native,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::OpenApplication {
+                application_path: "/Applications/Chess.app".into(),
+                arguments: Some(vec!["--fullscreen".into()]),
+            }
+        );
+    }
+
+    #[test]
+    fn strategy_switch_rom_maps_to_astris() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::OpenFile {
+                file_path: "/Games/Zelda.nsp".into(),
+                application_path: None,
+            },
+            GameProvider::Astris,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::SwitchRom {
+                file_path: "/Games/Zelda.nsp".into(),
+            }
+        );
+
+        let xci = resolve_launch_strategy(
+            &LaunchConfiguration::OpenFile {
+                file_path: "/Games/Mario.XCI".into(),
+                application_path: None,
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(
+            xci,
+            LaunchStrategy::SwitchRom {
+                file_path: "/Games/Mario.XCI".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn strategy_open_file_non_rom() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::OpenFile {
+                file_path: "/Games/notes.txt".into(),
+                application_path: Some("/Applications/TextEdit.app".into()),
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::OpenFile {
+                file_path: "/Games/notes.txt".into(),
+                application_path: Some("/Applications/TextEdit.app".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn strategy_open_url() {
+        let strategy = resolve_launch_strategy(
+            &LaunchConfiguration::OpenUrl {
+                url: "https://example.com/play".into(),
+            },
+            GameProvider::Manual,
+        );
+        assert_eq!(
+            strategy,
+            LaunchStrategy::OpenUrl {
+                url: "https://example.com/play".into(),
+            }
+        );
     }
 }

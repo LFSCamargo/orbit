@@ -3,10 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
 import { useImporters } from '@/hooks/useGames'
 import { GAMEHUB_SETUP_STEPS } from '@/lib/launchConfig'
-import {
-  useImportScan,
-  type ImportScanId,
-} from '@/modules/imports/hooks/useImportScan'
+import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
 
 const IMPORTERS = [
