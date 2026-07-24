@@ -108,6 +108,9 @@ export function LibraryPage() {
       {isLoading ? (
         <p className="text-orbit-muted">Loading…</p>
       ) : (
+        // No windowed virtualization: FocusManager registers DOM nodes for spatial
+        // nav; unmounting off-screen cards would break controller focus. GameCard is
+        // memoized + handlers below are stable store actions for large libraries.
         <div
           className={clsx(
             layout === 'ps5' || layout === 'switch'
@@ -124,8 +127,8 @@ export function LibraryPage() {
               focusId={`library-game-${game.id}`}
               group="library-grid"
               order={index}
-              onSelect={() => setHeroGameId(game.id)}
-              onOpen={() => openGameDetails(game.id)}
+              onSelect={setHeroGameId}
+              onOpen={openGameDetails}
             />
           ))}
         </div>

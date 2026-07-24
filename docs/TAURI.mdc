@@ -60,7 +60,8 @@ src-tauri/src/
   database/
     mod.rs
     migrations.rs          # Versioned schema migrations
-    repository.rs          # All SQL access
+    repository.rs          # Library SQLite access
+    metadata_cache.rs      # Separate metadata enrichment cache DB
   importers/
     mod.rs
     steam.rs
@@ -131,11 +132,12 @@ Shared state injected into commands:
 ```rust
 pub struct AppState {
     pub repo: Arc<GameRepository>,
+    pub metadata_cache: Arc<MetadataCacheRepository>,
     pub sessions: Arc<SessionManager>,
 }
 ```
 
-Created in `lib.rs` at startup; database opened from `utils::paths::database_path()`.
+Created in `lib.rs` at startup; library DB from `utils::paths::database_path()`, metadata cache from `metadata_cache_path()`. Both repositories are opened once and shared via `AppState`.
 
 ## Database
 
@@ -146,9 +148,11 @@ Migrations in `database/migrations.rs` — applied sequentially via `schema_migr
 - **games** — `id`, `stable_key` (unique dedup), `title`, `sort_title`, `provider`, `platform`,
   `source_id`, `launch_config_json`, `artwork_json`, `favorite`, `hidden`, `date_added`,
   `last_played_at`, `total_playtime_seconds`, `description`, `install_size_bytes`, `achievements_json`
-- **play_sessions** — session history linked to `game_id`
+- **play_sessions** — session history linked to `game_id` (indexed on `game_id`)
 - **settings** — key/value JSON blobs
 - **import_sources** — provider + path registry
+
+`list_games` returns artwork-light rows (drops huge inline `data:image/...` base64; keeps file paths) and applies user overrides from a single batched query. `get_game` returns full artwork. `upsert_imported` preloads existing `stable_key` rows once instead of per-item SELECTs.
 
 `stable_key` prevents duplicate imports across rescans.
 

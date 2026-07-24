@@ -173,7 +173,7 @@ Shared components in `src/components/`:
 
 | Component | Path | Notes |
 | --------- | ---- | ----- |
-| `GameCard` | `game/GameCard.tsx` | Focusable tile; `data-focus-id` for spatial nav |
+| `GameCard` | `game/GameCard.tsx` | Memoized focusable tile; `data-focus-id` for spatial nav. Library grid is not window-virtualized — FocusManager needs mounted nodes for controller spatial focus. |
 | `SquareGameArt` | `game/SquareGameArt.tsx` | Normalized 1:1 tile art (cover or contain) |
 | `ProviderBadge` | `game/ProviderBadge.tsx` | Steam / Astris / native icon |
 

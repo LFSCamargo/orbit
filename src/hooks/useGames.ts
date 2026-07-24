@@ -47,7 +47,8 @@ export function useActiveSessionQuery() {
   return useQuery({
     queryKey: ['active-session'],
     queryFn: getActiveSession,
-    refetchInterval: 2_000,
+    // Poll only while a session is active; still fetches once on mount.
+    refetchInterval: (query) => (query.state.data ? 2_000 : false),
   })
 }
 

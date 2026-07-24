@@ -40,7 +40,8 @@ pub async fn enrich_game_metadata(
     state: State<'_, AppState>,
     game_id: String,
 ) -> Result<EnrichGameResult, String> {
-    let result = MetadataEnrichmentService::enrich_game(&state.repo, &game_id).await?;
+    let result =
+        MetadataEnrichmentService::enrich_game(&state.repo, &state.metadata_cache, &game_id).await?;
     Ok(EnrichGameResult {
         enriched: result.enriched,
         message: result.message,
@@ -52,14 +53,16 @@ pub async fn enrich_games_metadata(
     state: State<'_, AppState>,
     game_ids: Vec<String>,
 ) -> Result<EnrichGamesResult, String> {
-    let enriched = MetadataEnrichmentService::enrich_games(&state.repo, &game_ids).await?;
+    let enriched =
+        MetadataEnrichmentService::enrich_games(&state.repo, &state.metadata_cache, &game_ids)
+            .await?;
     Ok(EnrichGamesResult { enriched })
 }
 
 #[tauri::command]
-pub fn get_metadata_cache_stats() -> Result<MetadataCacheStats, String> {
+pub fn get_metadata_cache_stats(state: State<'_, AppState>) -> Result<MetadataCacheStats, String> {
     Ok(MetadataCacheStats {
-        game_count: MetadataEnrichmentService::cached_game_count(),
+        game_count: state.metadata_cache.count().unwrap_or(0),
         db_path: metadata_cache_path().to_string_lossy().into_owned(),
     })
 }

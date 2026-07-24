@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
@@ -19,7 +20,7 @@ pub struct CachedMetadataRow {
 }
 
 pub struct MetadataCacheRepository {
-    conn: Connection,
+    conn: Mutex<Connection>,
 }
 
 impl MetadataCacheRepository {
@@ -30,6 +31,16 @@ impl MetadataCacheRepository {
         }
         let conn = Connection::open(path)
             .with_context(|| format!("Failed to open metadata cache at {}", path.display()))?;
+        Self::from_connection(conn)
+    }
+
+    #[cfg(test)]
+    pub fn open_in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory().context("Failed to open in-memory metadata cache")?;
+        Self::from_connection(conn)
+    }
+
+    fn from_connection(conn: Connection) -> Result<Self> {
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS game_metadata (
@@ -54,20 +65,24 @@ impl MetadataCacheRepository {
                 external_id TEXT NOT NULL,
                 UNIQUE(source, external_id)
             );
+
+            CREATE INDEX IF NOT EXISTS idx_game_external_ids_game_id ON game_external_ids(game_id);
             "#,
         )?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     pub fn count(&self) -> Result<usize> {
-        let count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM game_metadata", [], |row| row.get(0))?;
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM game_metadata", [], |row| row.get(0))?;
         Ok(count as usize)
     }
 
     pub fn get(&self, game_id: &str) -> Result<Option<CachedMetadataRow>> {
-        match self.conn.query_row(
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
             "SELECT game_id, tgdb_id, title, summary, release_date, developer, publisher,
                     cover_path, background_path, icon_path, metadata_updated_at
              FROM game_metadata WHERE game_id = ?1",
@@ -95,7 +110,8 @@ impl MetadataCacheRepository {
     }
 
     pub fn upsert(&self, row: &CachedMetadataRow) -> Result<()> {
-        self.conn.execute(
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
             r#"
             INSERT INTO game_metadata (
                 game_id, tgdb_id, title, summary, release_date, developer, publisher,
@@ -131,7 +147,8 @@ impl MetadataCacheRepository {
     }
 
     pub fn upsert_external_id(&self, game_id: &str, source: &str, external_id: &str) -> Result<()> {
-        self.conn.execute(
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
             r#"
             INSERT INTO game_external_ids (game_id, source, external_id)
             VALUES (?1, ?2, ?3)
@@ -140,5 +157,24 @@ impl MetadataCacheRepository {
             params![game_id, source, external_id],
         )?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn external_ids_index_exists() {
+        let cache = MetadataCacheRepository::open_in_memory().expect("cache");
+        let conn = cache.conn.lock().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_game_external_ids_game_id'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("index query");
+        assert_eq!(count, 1);
     }
 }

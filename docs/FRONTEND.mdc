@@ -46,6 +46,7 @@ Themes and visual language: [docs/UI.mdc](UI.mdc).
 - **Cursor auto-hide:** hides after controller activity (`useCursorAutoHide`).
 - **Focus rings:** `[data-focused="true"]` styling driven by `FocusManager` + `Focusable`.
 - **No direct launch:** never spawn processes from TS — always `launchGame()` via Tauri.
+- **Library grid:** `GameCard` is `React.memo`'d with stable store handlers; full window virtualization is intentionally skipped so FocusManager spatial nav keeps all grid nodes mounted.
 
 ## Screen map
 

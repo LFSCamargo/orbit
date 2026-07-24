@@ -80,6 +80,9 @@ const MIGRATIONS: &[&str] = &[
     DELETE FROM collection_games WHERE game_id IN (SELECT id FROM games WHERE id LIKE 'mock-%');
     DELETE FROM games WHERE id LIKE 'mock-%';
     "#,
+    r#"
+    CREATE INDEX IF NOT EXISTS idx_play_sessions_game_id ON play_sessions(game_id);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

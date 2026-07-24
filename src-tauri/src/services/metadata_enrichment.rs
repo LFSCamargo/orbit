@@ -12,7 +12,6 @@ use crate::services::steamgrid::fetch_steamgrid_assets;
 use crate::services::thegamesdb::{self, TgdbGameDetails};
 use crate::utils::api_keys::{steamgriddb_api_key, thegamesdb_api_key};
 use crate::utils::gamehub_shortcut::inspect_gamehub_shortcut;
-use crate::utils::paths::metadata_cache_path;
 use crate::utils::steam_app_id::{steam_app_id_from_launch, steam_app_id_from_url};
 
 #[derive(Debug, Clone, Default)]
@@ -27,6 +26,7 @@ pub struct MetadataEnrichmentService;
 impl MetadataEnrichmentService {
     pub async fn enrich_game(
         repo: &GameRepository,
+        cache: &MetadataCacheRepository,
         game_id: &str,
     ) -> Result<EnrichmentResult, String> {
         let game = repo
@@ -38,7 +38,7 @@ impl MetadataEnrichmentService {
             .ok_or_else(|| "TheGamesDB API key not configured (.env or Settings)".to_string())?;
 
         let platform_ids = thegamesdb::platform_ids(&game.provider, &game.platform);
-        let tgdb_match = resolve_tgdb_match(&tgdb_key, &game, &platform_ids).await?;
+        let tgdb_match = resolve_tgdb_match(cache, &tgdb_key, &game, &platform_ids).await?;
         let Some(tgdb_match) = tgdb_match else {
             return Ok(EnrichmentResult {
                 enriched: false,
@@ -123,6 +123,7 @@ impl MetadataEnrichmentService {
         .map_err(|err| err.to_string())?;
 
         persist_metadata_cache(
+            cache,
             game_id,
             &tgdb_match,
             &title,
@@ -137,13 +138,17 @@ impl MetadataEnrichmentService {
         })
     }
 
-    pub async fn enrich_games(repo: &GameRepository, game_ids: &[String]) -> Result<usize, String> {
+    pub async fn enrich_games(
+        repo: &GameRepository,
+        cache: &MetadataCacheRepository,
+        game_ids: &[String],
+    ) -> Result<usize, String> {
         let mut enriched = 0usize;
         for (index, game_id) in game_ids.iter().enumerate() {
             if index > 0 {
                 tokio::time::sleep(Duration::from_millis(150)).await;
             }
-            match Self::enrich_game(repo, game_id).await {
+            match Self::enrich_game(repo, cache, game_id).await {
                 Ok(result) if result.enriched => enriched += 1,
                 Ok(_) => {}
                 Err(err) => {
@@ -160,27 +165,18 @@ impl MetadataEnrichmentService {
             _ => true,
         }
     }
-
-    pub fn cached_game_count() -> usize {
-        MetadataCacheRepository::open(&metadata_cache_path())
-            .ok()
-            .and_then(|cache| cache.count().ok())
-            .unwrap_or(0)
-    }
 }
 
 async fn resolve_tgdb_match(
+    cache: &MetadataCacheRepository,
     api_key: &str,
     game: &Game,
     platform_ids: &[i64],
 ) -> Result<Option<TgdbGameDetails>, String> {
-    let cache = MetadataCacheRepository::open(&metadata_cache_path()).ok();
-    if let Some(cache) = cache.as_ref() {
-        if let Ok(Some(cached)) = cache.get(&game.id) {
-            if let Some(tgdb_id) = cached.tgdb_id {
-                if let Ok(Some(details)) = thegamesdb::get_by_id(api_key, tgdb_id).await {
-                    return Ok(Some(details));
-                }
+    if let Ok(Some(cached)) = cache.get(&game.id) {
+        if let Some(tgdb_id) = cached.tgdb_id {
+            if let Ok(Some(details)) = thegamesdb::get_by_id(api_key, tgdb_id).await {
+                return Ok(Some(details));
             }
         }
     }
@@ -201,6 +197,7 @@ async fn resolve_tgdb_match(
 }
 
 fn persist_metadata_cache(
+    cache: &MetadataCacheRepository,
     game_id: &str,
     tgdb: &TgdbGameDetails,
     title: &str,
@@ -208,7 +205,6 @@ fn persist_metadata_cache(
     artwork: &GameArtwork,
     steam_app_id: Option<&str>,
 ) -> Result<(), String> {
-    let cache = MetadataCacheRepository::open(&metadata_cache_path()).map_err(|err| err.to_string())?;
     let updated_at = Utc::now().to_rfc3339();
     cache
         .upsert(&CachedMetadataRow {

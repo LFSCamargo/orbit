@@ -18,6 +18,7 @@ use utils::paths::{database_path, metadata_cache_path};
 
 pub struct AppState {
     pub repo: Arc<GameRepository>,
+    pub metadata_cache: Arc<MetadataCacheRepository>,
     pub sessions: Arc<SessionManager>,
 }
 
@@ -26,7 +27,7 @@ pub fn run() {
     init_env();
     let db_path = database_path();
     let repo = GameRepository::open(&db_path).expect("Failed to open Orbit database");
-    let _ = MetadataCacheRepository::open(&metadata_cache_path())
+    let metadata_cache = MetadataCacheRepository::open(&metadata_cache_path())
         .expect("Failed to open metadata cache database");
     let sessions = SessionManager::new();
 
@@ -39,6 +40,7 @@ pub fn run() {
         })
         .manage(AppState {
             repo: Arc::new(repo),
+            metadata_cache: Arc::new(metadata_cache),
             sessions: Arc::new(sessions),
         })
         .invoke_handler(tauri::generate_handler![

@@ -130,12 +130,16 @@ async fn finalize_scan(
     let mut enriched = 0usize;
     if !upsert.new_game_ids.is_empty() && MetadataEnrichmentService::auto_enrich_enabled(&state.repo)
     {
-        enriched = MetadataEnrichmentService::enrich_games(&state.repo, &upsert.new_game_ids)
-            .await
-            .unwrap_or_else(|err| {
-                eprintln!("[orbit] auto-enrich after {provider} import failed: {err}");
-                0
-            });
+        enriched = MetadataEnrichmentService::enrich_games(
+            &state.repo,
+            &state.metadata_cache,
+            &upsert.new_game_ids,
+        )
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("[orbit] auto-enrich after {provider} import failed: {err}");
+            0
+        });
     }
 
     Ok(ScanResult {

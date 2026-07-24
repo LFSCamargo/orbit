@@ -85,8 +85,8 @@ export function SearchPage() {
             focusId={`search-game-${game.id}`}
             group="search-grid"
             order={index}
-            onSelect={() => setHeroGameId(game.id)}
-            onOpen={() => openGameDetails(game.id)}
+            onSelect={setHeroGameId}
+            onOpen={openGameDetails}
           />
         ))}
       </div>

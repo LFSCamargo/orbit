@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { clsx } from 'clsx'
 import { Heart } from 'lucide-react'
 import type { Game } from '@/types/game'
@@ -14,12 +15,13 @@ interface GameCardProps {
   order: number
   variant?: 'portrait' | 'square'
   className?: string
-  onSelect: () => void
+  /** Prefer a stable parent handler `(id) => …` so memo skips re-renders. */
+  onSelect: (gameId: string) => void
   onFocusSelect?: () => void
-  onOpen: () => void
+  onOpen: (gameId: string) => void
 }
 
-export function GameCard({
+function GameCardComponent({
   game,
   focusId,
   group,
@@ -37,6 +39,11 @@ export function GameCard({
   const tilePlaceholder = placeholderGradient(game.id)
   const squareArtFit = game.artwork.icon ? 'contain' : 'cover'
 
+  const handleActivate = () => {
+    onSelect(game.id)
+    onOpen(game.id)
+  }
+
   if (layout === 'switch') {
     return (
       <Focusable
@@ -46,10 +53,7 @@ export function GameCard({
         noScale
         noRing
         onFocusSelect={onFocusSelect}
-        onClick={() => {
-          onSelect()
-          onOpen()
-        }}
+        onClick={handleActivate}
         className={clsx('switch-card w-full shrink-0 text-left', className)}
       >
         <SquareGameArt
@@ -74,10 +78,7 @@ export function GameCard({
         noScale
         noRing
         onFocusSelect={onFocusSelect}
-        onClick={() => {
-          onSelect()
-          onOpen()
-        }}
+        onClick={handleActivate}
         className={clsx('ps5-card w-full shrink-0 text-left', className)}
       >
         <SquareGameArt
@@ -101,10 +102,7 @@ export function GameCard({
       noScale
       noRing
       onFocusSelect={onFocusSelect}
-      onClick={() => {
-        onSelect()
-        onOpen()
-      }}
+      onClick={handleActivate}
       className={clsx(
         'orbit-library-card orbit-transition shrink-0 rounded-card text-left',
         className ?? 'w-[11.5rem]',
@@ -154,3 +152,6 @@ export function GameCard({
     </Focusable>
   )
 }
+
+/** Memoized so library/search grids skip re-renders when sibling cards update. */
+export const GameCard = memo(GameCardComponent)
