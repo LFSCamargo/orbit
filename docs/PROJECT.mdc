@@ -18,7 +18,7 @@ Root guides: [README.md](../README.md), [RUNNING.md](../RUNNING.md), [CONTRIBUTI
 orbit/
   src/                     # React frontend (Vite)
     app/                   # App shell, providers
-    features/              # Screen-level pages
+    modules/               # Screen-level modules (pages + colocated UI)
     components/            # Shared UI
     controllers/           # Gamepad + spatial focus
     hooks/                 # React hooks

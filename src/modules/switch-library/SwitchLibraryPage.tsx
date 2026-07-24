@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { open } from '@/lib/dialog'
 import { ArrowLeft, FolderOpen, RefreshCw } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { SwitchTitleGroupCard } from '@/components/switch/SwitchTitleGroupCard'
+import { SwitchTitleGroupCard } from '@/modules/switch-library/components/SwitchTitleGroupCard'
 import {
   useSwitchLibraryFolderScan,
   useSwitchLibraryScan,

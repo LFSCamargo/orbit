@@ -16,7 +16,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useSessionStore } from '@/stores/session.store'
 import { ThemePage } from '@/themes/ThemePage'
-import { ImportsSection } from '@/features/imports/ImportsPage'
+import { ImportsSection } from '@/modules/imports/ImportsPage'
 
 export function SettingsPage() {
   const { fullscreen, setFullscreen } = useFullscreen()

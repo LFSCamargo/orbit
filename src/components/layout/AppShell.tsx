@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavBar } from './NavBar'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
-import { PlayingScreen } from '@/features/session/PlayingScreen'
+import { PlayingScreen } from '@/modules/session/PlayingScreen'
 import { useSessionStore } from '@/stores/session.store'
 import { Ps5Shell } from '@/themes/Ps5Shell'
 import { SwitchShell } from '@/themes/SwitchShell'

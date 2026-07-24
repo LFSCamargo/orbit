@@ -51,15 +51,15 @@ Themes and visual language: [docs/UI.mdc](UI.mdc).
 
 Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
 
-| Screen | Component | Feature folder |
+| Screen | Component | Module folder |
 | ------ | --------- | -------------- |
-| Home | `HomePage` / theme shells | `features/home/`, `themes/` |
-| Library | `LibraryPage` | `features/library/` |
-| Search | `SearchPage` | `features/search/` |
-| Game details | `GameDetailsPage` | `features/game-details/` |
-| Edit | `GameEditPage` | `features/game-details/` — Fetch metadata & artwork |
-| Add game | `AddGamePage` | `features/imports/` |
-| Settings | `SettingsPage` | `features/settings/` — SteamGridDB/RAWG keys, auto-enrich |
+| Home | `HomePage` / theme shells | `modules/home/`, `themes/` |
+| Library | `LibraryPage` | `modules/library/` |
+| Search | `SearchPage` | `modules/search/` |
+| Game details | `GameDetailsPage` | `modules/game-details/` |
+| Edit | `GameEditPage` | `modules/game-details/` — Fetch metadata & artwork |
+| Add game | `AddGamePage` | `modules/imports/` |
+| Settings | `SettingsPage` | `modules/settings/` — TheGamesDB/SteamGridDB keys, auto-enrich |
 
 Theme layouts swap the home experience:
 
@@ -71,29 +71,41 @@ Theme layouts swap the home experience:
 
 ## Module pattern
 
-Each feature is self-contained under `src/features/<name>/`. Shared UI lives in `src/components/`.
+Each module is self-contained under `src/modules/<name>/` with colocated components and hooks.
+Shared cross-module UI lives in `src/components/`.
 
 ```
 src/
   app/
     App.tsx                # Screen router + motion wrapper
     providers.tsx          # QueryClient + theme init
-  features/
+  modules/
     home/
       HomePage.tsx
-      ThemeHome.tsx        # Orbit layout home
+      ThemeHome.tsx        # Layout dispatcher
+      components/          # OrbitHome, Ps5Home, SwitchHome (colocated)
+      hooks/
     library/
       LibraryPage.tsx
+      lib/
     search/
       SearchPage.tsx
     game-details/
       GameDetailsPage.tsx
       GameEditPage.tsx
+      components/
     imports/
       AddGamePage.tsx
       ImportsPage.tsx
+      hooks/
     settings/
       SettingsPage.tsx
+      components/
+    session/
+      PlayingScreen.tsx
+    switch-library/
+      SwitchLibraryPage.tsx
+      components/
   components/
     layout/
       AppShell.tsx         # Shell chrome + nav
@@ -102,8 +114,7 @@ src/
       NativeGlassPanel.tsx # Frosted glass hero panel
     game/
       GameCard.tsx
-      GameCarousel.tsx
-      GameHero.tsx
+      SquareGameArt.tsx
       ProviderBadge.tsx
     focus/
       Focusable.tsx        # Focusable wrapper
@@ -120,7 +131,6 @@ src/
     useController.ts       # Hook wiring actions → UI store
   hooks/
     useGames.ts            # TanStack Query wrappers
-    useHeroBlur.ts
     useHeroTone.ts
     useModalFocus.ts
     useCursorAutoHide.ts
@@ -133,6 +143,7 @@ src/
   themes/
     types.ts               # ThemeDefinition, BUILT_IN_THEMES
     useThemeLayout.ts
+    tokens.ts              # Shared themed class tokens
     Ps5Shell.tsx
     SwitchShell.tsx
     ThemePage.tsx
@@ -152,8 +163,9 @@ src/
 
 | File | Allowed contents |
 | ---- | ---------------- |
-| `features/*/*.tsx` | Single page/screen |
-| `components/*/*.tsx` | Single reusable component |
+| `modules/*/*.tsx` | Single page/screen |
+| `modules/*/components/*.tsx` | Module-specific colocated UI |
+| `components/*/*.tsx` | Single reusable cross-module component |
 | `hooks/*.ts` | Single hook |
 | `stores/*.store.ts` | Single Zustand store |
 | `app/App.tsx` | Screen switch + providers only |

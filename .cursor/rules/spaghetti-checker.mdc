@@ -15,10 +15,10 @@ readability, reviewability, and testability.
 ```
 src/
   app/                   # App shell, providers, routing entry
-  features/<name>/       # route-level pages (one page per file)
-  components/<area>/     # reusable UI (one component per .tsx)
+  modules/<name>/        # route-level modules (pages + colocated components/hooks)
+  components/<area>/     # reusable cross-module UI (one component per .tsx)
   controllers/           # gamepad + spatial focus (one concern per file)
-  hooks/                 # one hook per file
+  hooks/                 # one hook per file (shared across modules)
   stores/                # Zustand slices (one store per file)
   themes/                # built-in theme shells + layout hooks
   lib/                   # pure helpers, Tauri wrappers, formatters
@@ -28,8 +28,9 @@ src/
 
 | File | Allowed contents |
 | ---- | ---------------- |
-| `features/*/*.tsx` | Single page/screen component |
-| `components/*/*.tsx` | Single reusable component |
+| `modules/*/*.tsx` | Single page/screen component |
+| `modules/*/components/*.tsx` | Module-specific UI colocated with the module |
+| `components/*/*.tsx` | Single reusable cross-module component |
 | `hooks/*.ts` | Single custom hook |
 | `stores/*.store.ts` | Single Zustand store |
 | `controllers/*.ts` | Single controller/focus concern |
@@ -49,8 +50,8 @@ export function LibraryPage() {
 }
 ```
 
-Cross-feature shared UI → `src/components/`. Feature-specific UI stays in
-`src/features/<name>/` or colocated components under `src/components/<area>/`.
+Cross-module shared UI → `src/components/`. Module-specific UI stays colocated under
+`src/modules/<name>/components/`.
 
 ---
 
@@ -111,6 +112,6 @@ group, importer, service concern, or adapter.
 When creating or editing under `src/` or `src-tauri/src/`:
 
 1. **Match layout** — use the canonical folder tree above.
-2. **Split before merge** — new screen → `features/`; new command group → `commands/`; new importer → `importers/`.
+2. **Split before merge** — new screen → `modules/`; new command group → `commands/`; new importer → `importers/`.
 3. **Run gates** — `yarn run typecheck`, `yarn run test:rust` (Rust), `yarn run test:e2e` (UI).
 4. **Update docs** — README architecture section or `docs/THEMES.md` if structure or theme contract changed.

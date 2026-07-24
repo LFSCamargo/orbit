@@ -11,7 +11,7 @@ task complete and before committing.
 ## Gates (all must pass)
 
 1. **Layout** Follow `.cursor/rules/spaghetti-checker.mdc` — one context per file in
-   `src/features/`, `src/components/`, `src-tauri/src/commands/`, etc.
+   `src/modules/`, `src/components/`, `src-tauri/src/commands/`, etc.
 2. **Complexity (o1-check)** Per `.cursor/rules/o1-check.mdc` — avoid nested loops,
    unbounded queries, and oversized functions in production paths.
 3. **Format** `yarn run format:check` (Prettier + `prettier-plugin-tailwindcss`). No drift.
