@@ -17,7 +17,10 @@
     "format:check": "prettier --check .",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "clean:report": "node scripts/cleanup-dev-storage.mjs",
+    "clean": "node scripts/cleanup-dev-storage.mjs --clean",
+    "clean:deep": "node scripts/cleanup-dev-storage.mjs --deep"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
