@@ -45,7 +45,7 @@ Do not open PRs for:
 - ROM downloads, decryption, or keys management
 - Bundling or distributing emulators
 - Steam account authentication or cloud sync
-- Automatic artwork scraping pipelines (RAWG search in Settings is the supported path)
+- Automatic enrichment without user API keys for SteamGridDB artwork (Steam Store text still works keyless; RAWG/SteamGridDB keys live in Settings)
 
 See [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) for the full product boundary.
 

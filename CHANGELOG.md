@@ -20,6 +20,39 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [0.2.0] - TBD
+
+TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch shell polish, and library square tile normalization.
+
+### Added
+
+- **TheGamesDB** text metadata enrichment (title, description, release date, genres, developers, publishers) with a separate local cache database
+- **SteamGridDB** artwork enrichment (cover, hero, logo, icon) with optional API key
+- Auto-enrich newly imported games when `autoEnrichOnImport` is enabled (default on)
+- Manual **Fetch metadata & artwork** on Edit Properties for existing games
+- Settings: TheGamesDB + SteamGridDB API keys, auto-enrich toggle, and **Test API keys**
+- Square icon fallback to portrait cover when no dedicated icon is available
+- Transparent square icons flattened onto a black background when cached
+- Same-monitor launch placement — Steam, GameHub, Astris, and native apps open on the monitor where Orbit is running
+- Native path picker on the AppKit main thread (`pick_open_path`) for imports and artwork selection
+- PS5/Switch home shell polish: carousel tile titles, home menu modal, controller Home/Guide handling, and stick scrolling
+- Shared `SquareGameArt` component with fixed-size library grids on PS5 and Switch themes
+- Dev storage cleanup scripts: `yarn clean:report`, `yarn clean`, and `yarn clean:deep`
+
+### Changed
+
+- Import re-scans merge artwork and descriptions without wiping enriched or user-filled slots
+- Import toasts report how many games were enriched
+- `ScanResult` includes `enriched` count
+- Library and Search square tiles use fixed grid columns with top-aligned rows and reserved two-line title space
+- Square tiles use full-bleed cover for portrait fallbacks and contained fit for true square icons
+
+### Fixed
+
+- TheGamesDB lookup and JSON parsing for titles like DmC: Devil May Cry
+- Artwork cache write failures when a path pointed at a directory (`EISDIR`)
+- Steam importer skips directory paths masquerading as artwork files
+
 ## [0.1.1] - 2026-07-22
 
 Library content inventory on the home hero, smarter Switch and GameHub imports, a playing screen during sessions, and launch-path editing.
@@ -127,5 +160,6 @@ GitHub Releases includes:
 - GameHub importer is experimental
 - Intel Macs: build locally with `yarn release:macos -- --arch x86_64` or `--arch universal`
 
+[0.2.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.2.0
 [0.1.1]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.0

@@ -17,7 +17,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 - **Launching:** Resolve `LaunchConfiguration`, spawn process, monitor exit, record playtime.
 - **Sessions:** Track active game PID; block delete/clear while running.
 - **Themes:** Read custom JSON themes from Application Support.
-- **Artwork:** Read local image files, fetch URLs, optional RAWG search.
+- **Artwork:** Read local image files, fetch URLs, optional RAWG search, SteamGridDB enrichment cache.
 - **Window:** Fullscreen toggle, hide/show Orbit during gameplay.
 
 ## Security model
@@ -37,7 +37,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 - chrono (timestamps)
 - anyhow (error context)
 
-Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog`, `tauri-plugin-process`.
+Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog` (legacy; file pickers use custom command), `tauri-plugin-process`.
 
 ## Module pattern
 
@@ -50,11 +50,13 @@ src-tauri/src/
   commands/
     mod.rs
     games.rs               # Library CRUD + settings
+    dialog.rs              # pick_open_path — main-thread-safe NSOpenPanel via rfd
     session.rs             # launch_game, stop_game, get_active_session
     window.rs              # Fullscreen + hide/show
-    importers.rs           # detect + scan commands
+    importers.rs           # detect + scan commands (+ auto-enrich hook)
     themes.rs              # Custom theme discovery
     artwork.rs             # Image read/fetch/search
+    metadata.rs            # enrich_game_metadata / enrich_games_metadata
   database/
     mod.rs
     migrations.rs          # Versioned schema migrations
@@ -67,7 +69,10 @@ src-tauri/src/
     native_apps.rs
   launching/
     mod.rs
+    app_launch.rs          # Shared open-app + 3s delay helpers
+    context.rs             # Launch-time screen context from Orbit window
     launcher.rs            # Resolve LaunchConfiguration → Command
+    gamehub_readiness.rs   # GameHub deep-link dispatch
     process_monitor.rs     # Watch child process exit
     session.rs             # SessionManager — active session state
   models/
@@ -77,10 +82,15 @@ src-tauri/src/
   services/
     mod.rs
     library_sync.rs        # Upsert imported games (stable_key dedup)
-    artwork.rs             # RAWG / fetch helpers
+    metadata_enrichment.rs # TheGamesDB + SteamGridDB orchestrator
+    metadata_merge.rs      # Placeholder description + artwork slot merge
+    thegamesdb.rs          # TheGamesDB API client
+    steamgrid.rs           # SteamGridDB API client
+    artwork.rs             # Disk artwork-cache helpers
   utils/
     mod.rs
-    paths.rs               # database_path, app support dirs
+    paths.rs               # database_path, artwork_cache_dir, app support dirs
+    steam_app_id.rs        # Parse Steam app IDs from launch config / deep links
     filenames.rs           # Parse title from ROM/exe names
     size.rs                # Directory size calculation
 ```
@@ -102,8 +112,8 @@ async fn magic(path: String) -> Result<(), String> { /* ... */ }
 #[tauri::command]
 pub async fn scan_steam_library(state: State<'_, AppState>) -> Result<ScanResult, String> {
     let games = SteamImporter::new(None).discover_games().await.map_err(|e| e.to_string())?;
-    let imported = LibrarySyncService::upsert_imported(&state.repo, &games).map_err(|e| e.to_string())?;
-    Ok(ScanResult { imported, provider: "steam".into() })
+    let upsert = LibrarySyncService::upsert_imported(&state.repo, &games).map_err(|e| e.to_string())?;
+    Ok(ScanResult { imported: upsert.imported, enriched: 0, provider: "steam".into() })
 }
 ```
 
@@ -153,7 +163,13 @@ Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`.
 3. `launcher.rs` spawns the appropriate process (Steam URL, open file, open app, custom command).
    Switch `.nsp` / `.xci` launches always resolve to the **base application ROM** in the same folder; updates and DLC are left for the emulator to pick up.
-   **GameHub** titles use launch type `gamehub`: open `GameHub.app`, wait briefly, then open the game's shortcut `.app` in Applications.
+   **GameHub** titles use launch type `gamehub`: open `GameHub.app`, wait 3 seconds, then spawn
+   `GameHub.app/Contents/MacOS/GameHub` with the shortcut's `gamehub://` deep link. While GameHub
+   boots, a macOS helper moves its window to Orbit's current monitor and toggles fullscreen.
+   **Steam** titles invoke `steam://rungameid/{appId}` with the same monitor helper targeting
+   `Steam`. **Astris** Switch ROMs open via `open -a Astris` when installed; a background watcher
+   moves Astris onto Orbit's monitor and fullscreens it. **Native macOS apps** use the `.app`
+   process name the same way.
 4. PID stored; `hide_orbit_window` optional during play.
 5. `process_monitor.rs` watches exit → updates playtime, ends session, `show_orbit_window`.
 

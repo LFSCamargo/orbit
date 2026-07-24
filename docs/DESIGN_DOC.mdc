@@ -27,6 +27,7 @@ process logic lives in Rust; the frontend never launches games directly.
 - User can **launch** a game; Orbit tracks the session and playtime.
 - User can **stop** an active game session from the UI.
 - User can sync **Steam** library metadata (playtime, SizeOnDisk, achievements) locally.
+- User can **enrich** newly imported Steam/GameHub games with store descriptions and SteamGridDB artwork (optional API key); existing games via Edit Properties → Fetch metadata.
 - User can switch **themes** including custom JSON themes from Application Support.
 - User can navigate entirely with a **gamepad** or keyboard fallback.
 
@@ -40,8 +41,8 @@ process logic lives in Rust; the frontend never launches games directly.
 
 ## Out of scope
 
-ROM downloads/decryption, keys management, emulator distribution, automatic online artwork
-scraping (manual search + optional RAWG key only), Steam account auth, cloud sync, social features.
+ROM downloads/decryption, keys management, emulator distribution, Steam account auth, cloud sync,
+social features. Bulk “enrich entire library” jobs and Switch title-ID databases are deferred past 0.2.
 
 ---
 
@@ -55,9 +56,9 @@ Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts
 | Library | `library` | Filterable/sortable game grid |
 | Search | `search` | Text search across library |
 | Game details | `game-details` | Metadata, achievements, play/launch |
-| Edit properties | `game-edit` | Title, description, artwork slots |
+| Edit properties | `game-edit` | Title, description, artwork slots, Fetch metadata |
 | Add game | `add-game` | Importer detection, scans, manual import |
-| Settings | `settings` | Theme, RAWG key, library maintenance |
+| Settings | `settings` | Theme, SteamGridDB/RAWG keys, auto-enrich, library maintenance |
 
 ### Screen transitions
 
@@ -121,10 +122,10 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
 | `detect_importers` | — | `ImporterStatus[]` | Steam, Astris, native, GameHub |
-| `scan_steam_library` | — | `ScanResult` | Upserts via `LibrarySyncService` |
+| `scan_steam_library` | — | `ScanResult` | Upserts + optional auto-enrich for new IDs |
 | `scan_astris_folder` | `folder` | `ScanResult` | User-selected folder |
 | `scan_native_apps` | — | `ScanResult` | macOS `/Applications` |
-| `scan_gamehub_folder` | `folder?` | `ScanResult` | Experimental |
+| `scan_gamehub_folder` | `folder?` | `ScanResult` | GameHub shortcuts; auto-enrich when Steam app ID present |
 | `import_game_path` | `path` | `ScanResult` | Manual file/folder pick |
 
 ### Themes & artwork
@@ -135,7 +136,11 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `themes_directory` | — | `string` | Path to custom themes folder |
 | `read_artwork_from_path` | `path` | `string` | Base64 image |
 | `fetch_artwork_from_url` | `url` | `string` | Base64 image |
-| `search_public_artwork` | `query`, `rawgApiKey?` | `ArtworkResult[]` | Optional RAWG integration |
+| `search_public_artwork` | `query` | `ArtworkResult[]` | RAWG (optional key) + Wikimedia |
+| `enrich_game_metadata` | `gameId` | `{ enriched, message }` | TheGamesDB metadata + SteamGridDB / TheGamesDB artwork |
+| `enrich_games_metadata` | `gameIds` | `{ enriched }` | Batch used after import |
+| `get_metadata_cache_stats` | — | `{ gameCount, dbPath }` | Local metadata cache size |
+| `test_metadata_api_keys` | — | `{ thegamesdbOk, steamgriddbOk, message }` | Settings connection test |
 
 TypeScript shapes: `src/types/game.ts`, `src/themes/types.ts`.
 Rust models: `src-tauri/src/models/`.
@@ -149,14 +154,16 @@ Rust models: `src-tauri/src/models/`.
 | `games` | Library entries — title, provider, platform, launch JSON, artwork JSON, playtime, achievements |
 | `import_sources` | Registered importer paths per provider |
 | `play_sessions` | Launch/stop history with PID, duration, exit code |
-| `settings` | Key/value JSON (theme id, API keys) |
+| `settings` | Key/value JSON (`themeId`, `theGamesDbApiKey`, `steamGridDbApiKey`, `rawgApiKey`, `autoEnrichOnImport`) |
 | `collections` / `collection_games` | Future grouping (schema present) |
 | `user_overrides` | Per-game override JSON |
 | `schema_migrations` | Migration versioning |
 
-Database path: `~/Library/Application Support/Orbit/orbit.db` (see `src-tauri/src/utils/paths.rs`).
+Database path: `~/Library/Application Support/Orbit/orbit.sqlite3` (see `src-tauri/src/utils/paths.rs`).
 
-Artwork is stored as Base64 inside `artwork_json` on each game row.
+Separate metadata cache: `~/Library/Application Support/Orbit/metadata.sqlite` (TheGamesDB + artwork paths per library game).
+
+Artwork may be Base64 in `artwork_json` or filesystem paths under `artwork-cache/` (enriched downloads).
 
 ---
 

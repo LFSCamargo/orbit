@@ -141,4 +141,4 @@ Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, qua
 
 ## Out of scope
 
-ROM downloads/decryption, keys management, emulator distribution, automatic online artwork scraping (manual search + optional RAWG key only), Steam account auth, cloud sync, social features.
+ROM downloads/decryption, keys management, emulator distribution, Steam account auth, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).

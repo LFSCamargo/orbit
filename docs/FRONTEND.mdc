@@ -57,9 +57,9 @@ Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
 | Library | `LibraryPage` | `features/library/` |
 | Search | `SearchPage` | `features/search/` |
 | Game details | `GameDetailsPage` | `features/game-details/` |
-| Edit | `GameEditPage` | `features/game-details/` |
+| Edit | `GameEditPage` | `features/game-details/` — Fetch metadata & artwork |
 | Add game | `AddGamePage` | `features/imports/` |
-| Settings | `SettingsPage` | `features/settings/` |
+| Settings | `SettingsPage` | `features/settings/` — SteamGridDB/RAWG keys, auto-enrich |
 
 Theme layouts swap the home experience:
 
@@ -138,6 +138,7 @@ src/
     ThemePage.tsx
   lib/
     tauri.ts               # Typed invoke wrappers
+    dialog.ts              # Native open panel (pick_open_path; avoids macOS NSOpenPanel panic)
     devMockApi.ts          # Browser dev mocks
     navigation.ts          # Screen helpers
     artwork.ts / artworkApi.ts

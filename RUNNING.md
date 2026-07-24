@@ -171,7 +171,8 @@ On macOS, Orbit stores local data under Application Support:
   themes/*.json         # User-authored custom themes
 ```
 
-Settings such as active theme id and optional RAWG API key are stored in the SQLite `settings` table.
+Settings such as active theme id, optional RAWG API key, SteamGridDB API key, and
+`autoEnrichOnImport` are stored in the SQLite `settings` table.
 
 To reset local state during development, quit Orbit and remove `orbit.db` (this clears your library).
 
@@ -183,7 +184,9 @@ Orbit has no required `.env` file. Optional settings are configured in the app:
 
 | Setting | Where | Purpose |
 | ------- | ----- | ------- |
-| RAWG API key | Settings UI | Artwork search via `search_public_artwork` |
+| RAWG API key | Settings UI | Artwork search + non-Steam enrichment fallback |
+| SteamGridDB API key | Settings UI | Launcher grids/heroes/logos/icons on enrich |
+| Auto-enrich new imports | Settings UI | Runs after scan for newly inserted game IDs (default on) |
 | Theme id | Settings UI | Active built-in or custom theme |
 
 In browser dev (`yarn dev`), theme id can also be set via `localStorage`:
@@ -191,6 +194,23 @@ In browser dev (`yarn dev`), theme id can also be set via `localStorage`:
 ```javascript
 localStorage.setItem('orbit.themeId', 'orbit')   // orbit | ps5 | switch-2
 ```
+
+---
+
+## Metadata enrichment
+
+Orbit fetches game descriptions from [TheGamesDB](https://api.thegamesdb.net/) and Steam artwork from [SteamGridDB](https://www.steamgriddb.com/). Results are cached locally in `metadata.sqlite` under Application Support.
+
+Add keys to a project `.env` (loaded at startup) or save them in **Settings → Metadata & artwork**:
+
+```bash
+THE_GAMES_DB_API_KEY="your-thegamesdb-key"
+STEAMGRIDDB_API_KEY="your-steamgriddb-bearer-token"
+```
+
+Use **Test connections** in Settings to verify both keys. Auto-enrich on import can be toggled there; manual fetch is available in **Edit Properties**.
+
+Optional `RAWG_API_KEY` in Settings still powers artwork search in Edit Properties (Wikimedia Commons works without a key).
 
 ---
 
@@ -219,6 +239,20 @@ Full gate list: [`.cursor/rules/quality-gating.mdc`](.cursor/rules/quality-gatin
 - Ensure Rust is installed: `rustc --version`
 - Update toolchain: `rustup update stable`
 - Clean and retry: `cargo clean --manifest-path src-tauri/Cargo.toml`
+
+**Disk usage grew while developing**
+
+Rust incremental builds accumulate under `src-tauri/target/` (often **5–15 GB**). This is normal for Tauri projects.
+
+```bash
+yarn clean:report   # show what is using space
+yarn clean          # cargo clean + remove dist/test/release artifacts (~11 GB typical)
+yarn clean:deep     # also prune global yarn + cargo caches (optional)
+```
+
+Orbit app data lives in `~/Library/Application Support/Orbit/` (SQLite + artwork). Do not delete that folder unless you intend to reset your library. GameHub/wine data under `~/Library/Application Support/com.gamemac.www/` is separate and can be much larger if you test GameHub games.
+
+See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 
 **Blank window or Vite connection refused**
 
@@ -266,4 +300,5 @@ yarn test:rust            # Rust unit tests
 yarn test:e2e             # Playwright E2E
 yarn format               # Prettier write
 yarn format:check         # Prettier check
+yarn metadata:fetch -- …  # Standalone metadata + artwork cache CLI
 ```
