@@ -26,4 +26,13 @@ describe('SquareGameArt', () => {
     const { container } = render(<SquareGameArt />)
     expect(container.firstElementChild).toHaveClass('bg-cover')
   })
+
+  it('does not force w-full so fixed-size home tiles keep their dimensions', () => {
+    const { container } = render(
+      <SquareGameArt className="h-[148px] w-[148px]" image="https://cdn.example/a.png" />,
+    )
+    const el = container.firstElementChild as HTMLElement
+    expect(el).toHaveClass('h-[148px]', 'w-[148px]')
+    expect(el).not.toHaveClass('w-full')
+  })
 })

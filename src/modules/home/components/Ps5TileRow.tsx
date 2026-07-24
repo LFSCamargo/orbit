@@ -123,7 +123,7 @@ export function Ps5TileRow({
                 image={icon}
                 placeholder={placeholderGradient(game.id)}
                 roundedClassName="rounded-[10px]"
-                className="ps5-tile-art"
+                className="ps5-tile-art block"
               />
             </Focusable>
           )

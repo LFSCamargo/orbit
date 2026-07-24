@@ -8,6 +8,15 @@ interface SquareGameArtProps {
   roundedClassName?: string
 }
 
+function backgroundImageValue(image?: string, placeholder?: string): string | undefined {
+  if (image) {
+    // Quote so data: URLs and asset paths with special characters stay valid CSS.
+    const safe = image.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return `url("${safe}")`
+  }
+  return placeholder
+}
+
 /** Normalized 1:1 game tile with either full-bleed cover or contained icon artwork. */
 export function SquareGameArt({
   image,
@@ -19,13 +28,15 @@ export function SquareGameArt({
   return (
     <div
       className={clsx(
-        'square-game-art aspect-square w-full shrink-0 overflow-hidden bg-center bg-no-repeat',
+        // Do not force `w-full` here — home carousels pass fixed `h-* w-*` sizes inside
+        // flex rows, and `w-full` collapses those tiles to zero width.
+        'square-game-art shrink-0 overflow-hidden bg-center bg-no-repeat',
         fit === 'contain' ? 'bg-contain' : 'bg-cover',
         roundedClassName,
         className,
       )}
       style={{
-        backgroundImage: image ? `url(${image})` : placeholder,
+        backgroundImage: backgroundImageValue(image, placeholder),
       }}
     />
   )

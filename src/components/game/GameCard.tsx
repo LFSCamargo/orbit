@@ -61,6 +61,7 @@ function GameCardComponent({
           placeholder={tilePlaceholder}
           fit={squareArtFit}
           roundedClassName="rounded-[18px]"
+          className="aspect-square w-full"
         />
         <p className="mt-2 line-clamp-2 min-h-8 text-center text-xs font-semibold leading-snug text-[var(--switch-muted)]">
           {game.title}
@@ -86,6 +87,7 @@ function GameCardComponent({
           placeholder={tilePlaceholder}
           fit={squareArtFit}
           roundedClassName="rounded-xl"
+          className="aspect-square w-full"
         />
         <p className="mt-2 line-clamp-2 min-h-8 text-center text-xs font-semibold leading-snug text-[var(--ps5-muted)]">
           {game.title}
@@ -115,6 +117,7 @@ function GameCardComponent({
             placeholder={tilePlaceholder}
             fit={squareArtFit}
             roundedClassName="rounded-none"
+            className="aspect-square w-full"
           />
         ) : (
           <div
