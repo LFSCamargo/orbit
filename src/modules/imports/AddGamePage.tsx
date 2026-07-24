@@ -5,6 +5,10 @@ import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive, Joystick } from 'luc
 import { Focusable } from '@/components/focus/Focusable'
 import { useGameActions } from '@/hooks/useGames'
 import { backTarget } from '@/lib/navigation'
+import {
+  useImportScan,
+  type ImportScanId,
+} from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import type { GamePlatform, GameProvider, LaunchConfiguration } from '@/types/game'
@@ -67,7 +71,8 @@ export function AddGamePage() {
   const previousScreen = useUiStore((s) => s.previousScreen)
   const setScreen = useUiStore((s) => s.setScreen)
   const setImportToast = useUiStore((s) => s.setImportToast)
-  const { scanSteam, scanAstris, scanNative, scanGamehub, create } = useGameActions()
+  const { create } = useGameActions()
+  const { runScan } = useImportScan()
 
   const [step, setStep] = useState<Step>('source')
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -86,28 +91,11 @@ export function AddGamePage() {
     setBusy(true)
     setStatus(null)
     try {
-      if (id === 'steam') {
-        const result = await scanSteam.mutateAsync()
-        finish(
-          `Imported ${result.imported} Steam games${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      } else if (id === 'native') {
-        const result = await scanNative.mutateAsync()
-        finish(
-          `Imported ${result.imported} macOS apps${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      } else if (id === 'gamehub') {
-        const result = await scanGamehub.mutateAsync(undefined)
-        finish(
-          `Imported ${result.imported} GameHub shortcuts${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      }
+      const outcome = await runScan(id as ImportScanId, {
+        messageStyle: 'imported',
+        toast: false,
+      })
+      if (outcome) finish(outcome.message)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
     } finally {
@@ -137,20 +125,13 @@ export function AddGamePage() {
       }
       setSelectedPath(selected)
 
-      if (source.id === 'astris') {
-        const result = await scanAstris.mutateAsync(selected)
-        finish(
-          `Imported ${result.imported} Switch titles${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      } else if (source.id === 'gamehub') {
-        const result = await scanGamehub.mutateAsync(selected)
-        finish(
-          `Imported ${result.imported} GameHub titles${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
+      if (source.id === 'astris' || source.id === 'gamehub') {
+        const outcome = await runScan(source.id, {
+          folder: selected,
+          messageStyle: 'imported',
+          toast: false,
+        })
+        if (outcome) finish(outcome.message)
       } else if (source.id === 'manual-file') {
         const base = selected.split('/').pop() ?? 'New Game'
         setTitle(base.replace(/\.(app|exe|nsp|xci)$/i, ''))

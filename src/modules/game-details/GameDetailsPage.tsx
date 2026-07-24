@@ -1,32 +1,22 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import {
   ArrowLeft,
-  Clock3,
   EyeOff,
-  HardDrive,
   Heart,
   Pencil,
   Play,
   Square,
   Trash2,
-  Trophy,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { Focusable } from '@/components/focus/Focusable'
-import { ProviderBadge } from '@/components/game/ProviderBadge'
 import { focusManager } from '@/controllers/FocusManager'
 import { useGame, useGameActions } from '@/hooks/useGames'
-import { gameTileImage } from '@/lib/artwork'
-import {
-  formatAchievementProgress,
-  formatBytes,
-  formatPlaytime,
-  formatRelativeDate,
-  placeholderGradient,
-} from '@/lib/format'
-import { mediaSrc } from '@/lib/media'
 import { backTarget, focusRestoreId } from '@/lib/navigation'
+import { AchievementList } from '@/modules/game-details/components/AchievementList'
+import { DetailsHero } from '@/modules/game-details/components/DetailsHero'
+import { MetaGrid } from '@/modules/game-details/components/MetaGrid'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useThemeLayout } from '@/themes/useThemeLayout'
@@ -113,22 +103,7 @@ export function GameDetailsPage() {
   }
 
   const isRunning = activeSession?.gameId === game.id
-  const heroSrc = mediaSrc(game.artwork.hero)
-  const coverSrc = mediaSrc(game.artwork.cover)
-  const iconSrc = mediaSrc(game.artwork.icon)
-  const tileSrc = gameTileImage(
-    game.artwork,
-    layout === 'switch' || layout === 'ps5' ? 'square' : 'portrait',
-  )
-  const hero = heroSrc || placeholderGradient(game.id)
   const achievements = game.achievements ?? []
-  const unlocked = achievements.filter((item) => item.unlocked).length
-
-  const heroFade = isPs5
-    ? 'linear-gradient(180deg, var(--ps5-bg) 0%, transparent 28%, transparent 55%, var(--ps5-bg) 100%)'
-    : isSwitch
-      ? 'linear-gradient(180deg, var(--switch-bg) 0%, transparent 28%, transparent 55%, var(--switch-bg) 100%)'
-      : undefined
 
   return (
     <motion.div
@@ -137,97 +112,7 @@ export function GameDetailsPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.35 }}
     >
-      <div
-        className={`relative overflow-hidden ${
-          isThemedShell ? 'min-h-[36vh] rounded-2xl ring-1 ring-white/10' : 'min-h-[48vh]'
-        }`}
-        style={{
-          backgroundImage: heroSrc
-            ? isThemedShell
-              ? `url(${heroSrc})`
-              : `linear-gradient(180deg, rgba(4,6,10,0.35), rgba(4,6,10,0.92)), url(${heroSrc})`
-            : hero,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        {isThemedShell ? (
-          <>
-            <div
-              className="details-hero-scrim pointer-events-none absolute inset-0 bg-black/50"
-              aria-hidden
-            />
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{ background: heroFade }}
-              aria-hidden
-            />
-          </>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-r from-orbit-canvas via-orbit-canvas/70 to-transparent" />
-        )}
-        <div
-          className={`relative z-10 flex items-end gap-8 ${
-            isThemedShell
-              ? 'min-h-[36vh] px-6 pb-8 pt-6'
-              : 'min-h-[48vh] px-10 pb-10 pt-28'
-          }`}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className={`hidden shrink-0 overflow-hidden sm:block ${
-              isSwitch || isPs5
-                ? 'square-game-art bg-black'
-                : 'shadow-hero ring-1 ring-white/10'
-            } ${
-              layout === 'switch' || layout === 'ps5'
-                ? 'h-40 w-40 rounded-[1.25rem]'
-                : 'h-72 w-52 rounded-card'
-            }`}
-            style={{
-              background:
-                layout === 'switch' || layout === 'ps5'
-                  ? '#000'
-                  : placeholderGradient(game.id),
-            }}
-          >
-            {(layout === 'switch' || layout === 'ps5'
-              ? tileSrc || iconSrc
-              : coverSrc) && (
-              <img
-                src={
-                  (layout === 'switch' || layout === 'ps5'
-                    ? tileSrc || iconSrc
-                    : coverSrc)!
-                }
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            )}
-          </motion.div>
-          <div className="max-w-2xl">
-            <ProviderBadge provider={game.provider} />
-            <h1 className="mt-4 font-display text-5xl font-semibold tracking-tight">
-              {game.title}
-            </h1>
-            {game.description && (
-              <p
-                className={`mt-3 max-w-xl text-sm leading-relaxed ${
-                  isThemedShell ? 'text-white/70' : 'text-orbit-muted'
-                }`}
-              >
-                {game.description}
-              </p>
-            )}
-            <p className={`mt-3 ${isThemedShell ? 'text-white/60' : 'text-orbit-muted'}`}>
-              {game.platform} · {formatPlaytime(game.totalPlaytimeSeconds)} · Last played{' '}
-              {formatRelativeDate(game.lastPlayedAt)}
-            </p>
-          </div>
-        </div>
-      </div>
+      <DetailsHero game={game} layout={layout} />
 
       <div className={`flex flex-wrap gap-3 ${isThemedShell ? 'pt-6' : 'px-10 pt-8'}`}>
         <Focusable
@@ -333,66 +218,10 @@ export function GameDetailsPage() {
         </Focusable>
       </div>
 
-      <div className={`mt-10 grid gap-4 md:grid-cols-4 ${isThemedShell ? '' : 'px-10'}`}>
-        <MetaCard
-          themed={isThemedShell}
-          icon={<Clock3 className="h-4 w-4" />}
-          label="Playtime"
-          value={formatPlaytime(game.totalPlaytimeSeconds)}
-        />
-        <MetaCard
-          themed={isThemedShell}
-          icon={<HardDrive className="h-4 w-4" />}
-          label="Install size"
-          value={formatBytes(game.installSizeBytes)}
-        />
-        <MetaCard
-          themed={isThemedShell}
-          icon={<Trophy className="h-4 w-4" />}
-          label="Achievements"
-          value={formatAchievementProgress(unlocked, achievements.length)}
-        />
-        <MetaCard
-          themed={isThemedShell}
-          label="Added"
-          value={formatRelativeDate(game.dateAdded)}
-        />
-      </div>
+      <MetaGrid game={game} themed={isThemedShell} />
 
-      {achievements.length > 0 && (
-        <div className={`mt-10 ${isThemedShell ? '' : 'px-10'}`}>
-          <h2 className="font-display text-2xl font-semibold">Achievements</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {achievements.map((achievement, index) => (
-              <motion.div
-                key={achievement.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04, duration: 0.3 }}
-                className={`orbit-panel rounded-card p-4 ${
-                  achievement.unlocked ? 'opacity-100' : 'opacity-55'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{achievement.name}</p>
-                    {achievement.description && (
-                      <p className="mt-1 text-sm text-orbit-muted">
-                        {achievement.description}
-                      </p>
-                    )}
-                  </div>
-                  <Trophy
-                    className={`h-4 w-4 shrink-0 ${
-                      achievement.unlocked ? 'text-amber-300' : 'text-orbit-muted'
-                    }`}
-                  />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
+      <AchievementList achievements={achievements} themed={isThemedShell} />
+
       <ConfirmDialog
         open={confirmDelete}
         title={`Delete ${game.title}?`}
@@ -410,37 +239,5 @@ export function GameDetailsPage() {
         }}
       />
     </motion.div>
-  )
-}
-
-function MetaCard({
-  label,
-  value,
-  icon,
-  themed = false,
-}: {
-  label: string
-  value: string
-  icon?: ReactNode
-  themed?: boolean
-}) {
-  return (
-    <div
-      className={
-        themed
-          ? 'rounded-2xl bg-white/5 p-5 ring-1 ring-white/10'
-          : 'orbit-panel rounded-card p-5'
-      }
-    >
-      <div
-        className={`flex items-center gap-2 text-xs uppercase tracking-wider ${
-          themed ? 'text-white/55' : 'text-orbit-muted'
-        }`}
-      >
-        {icon}
-        {label}
-      </div>
-      <p className="mt-2 font-display text-2xl font-medium">{value}</p>
-    </div>
   )
 }

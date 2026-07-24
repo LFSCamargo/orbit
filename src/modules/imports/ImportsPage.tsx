@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
-import { useGameActions, useImporters } from '@/hooks/useGames'
+import { useImporters } from '@/hooks/useGames'
 import { GAMEHUB_SETUP_STEPS } from '@/lib/launchConfig'
+import {
+  useImportScan,
+  type ImportScanId,
+} from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
 
 const IMPORTERS = [
@@ -37,10 +40,9 @@ const IMPORTERS = [
 export function ImportsSection() {
   const openAddGame = useUiStore((s) => s.openAddGame)
   const setScreen = useUiStore((s) => s.setScreen)
-  const setImportToast = useUiStore((s) => s.setImportToast)
   const importToast = useUiStore((s) => s.importToast)
   const { data: statuses = [] } = useImporters()
-  const { scanSteam, scanAstris, scanNative, scanGamehub } = useGameActions()
+  const { runScan } = useImportScan()
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const statusFor = (id: string) => statuses.find((item) => item.id === id)
@@ -53,39 +55,9 @@ export function ImportsSection() {
 
     setBusyId(id)
     try {
-      if (id === 'steam') {
-        const result = await scanSteam.mutateAsync()
-        setImportToast(
-          `Steam sync complete · ${result.imported} games${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      } else if (id === 'native') {
-        const result = await scanNative.mutateAsync()
-        setImportToast(
-          `macOS scan complete · ${result.imported} apps${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      } else if (id === 'astris') {
-        const folder = await open({ directory: true, multiple: false })
-        if (!folder || Array.isArray(folder)) return
-        const result = await scanAstris.mutateAsync(folder)
-        setImportToast(
-          `Astris sync complete · ${result.imported} titles${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      } else if (id === 'gamehub') {
-        const result = await scanGamehub.mutateAsync(undefined)
-        setImportToast(
-          `GameHub sync complete · ${result.imported} shortcuts${
-            result.enriched > 0 ? ` · enriched ${result.enriched}` : ''
-          }`,
-        )
-      }
-    } catch (error) {
-      setImportToast(error instanceof Error ? error.message : String(error))
+      await runScan(id as ImportScanId, { messageStyle: 'sync' })
+    } catch {
+      // Toast already set by useImportScan
     } finally {
       setBusyId(null)
     }

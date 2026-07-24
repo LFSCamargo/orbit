@@ -93,14 +93,14 @@ src/
     game-details/
       GameDetailsPage.tsx
       GameEditPage.tsx
-      components/
+      components/          # DetailsHero, MetaGrid, AchievementList
     imports/
       AddGamePage.tsx
       ImportsPage.tsx
-      hooks/
+      hooks/               # useImportScan (shared Steam/Astris/native/GameHub scan)
     settings/
       SettingsPage.tsx
-      components/
+      components/          # ThemeSettings, ApiKeySettings, LibrarySettings
     session/
       PlayingScreen.tsx
     switch-library/
