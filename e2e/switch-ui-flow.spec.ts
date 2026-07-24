@@ -77,7 +77,7 @@ test.describe('Switch home experience', () => {
     expect(tint.backgroundImage).toContain('linear-gradient')
     expect(tint.backgroundImage).toMatch(/14,\s*18,\s*28|8,\s*10,\s*16/)
 
-    await expect(page.locator('.switch-glass-card')).toHaveCount(3)
+    await expect(page.locator('.switch-glass-card')).toHaveCount(4)
   })
 
   test('updates the frosted blur when selecting another tile', async ({ page }) => {
@@ -241,7 +241,7 @@ test.describe('PS5 glass dashboard', () => {
     await expect(panel.locator('.native-glass-blur')).toBeVisible()
     await expect(panel.locator('.native-glass-tint')).toBeVisible()
     await expect(panel.locator('.native-glass-sheen')).toBeVisible()
-    await expect(page.locator('.ps5-dashboard-cell')).toHaveCount(3)
+    await expect(page.locator('.ps5-dashboard-cell')).toHaveCount(4)
 
     const backdrop = await panel.evaluate((el) => getComputedStyle(el).backdropFilter)
     expect(backdrop).toBe('none')
@@ -256,7 +256,7 @@ test.describe('PS5 glass dashboard', () => {
     expect(tint).toMatch(/10,\s*22,\s*40|18,\s*32,\s*56/)
   })
 
-  test('uses frosted blur on light heroes too', async ({ page }) => {
+  test('keeps frosted blur and light title on bright heroes', async ({ page }) => {
     await page.locator('[data-focus-id="ps5-tile-mock-requiem"]').click()
     await expect(page.getByRole('heading', { name: 'Resident Evil Requiem' })).toBeVisible()
 
@@ -266,6 +266,6 @@ test.describe('PS5 glass dashboard', () => {
     const titleColor = await page
       .locator('.ps5-hero-title')
       .evaluate((el) => getComputedStyle(el).color)
-    expect(titleColor).toBe('rgb(10, 22, 40)')
+    expect(titleColor).toBe('rgb(255, 255, 255)')
   })
 })

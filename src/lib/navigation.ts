@@ -28,6 +28,8 @@ export function focusRestoreId(
   layout: ThemeLayout,
   screen: AppScreen,
   gameId: string | null,
+  provider?: string | null,
+  lastPlayedAt?: string | null,
 ): string | null {
   if (!gameId) return null
 
@@ -39,6 +41,10 @@ export function focusRestoreId(
     case 'home':
       if (layout === 'switch') return `switch-game-${gameId}`
       if (layout === 'ps5') return `ps5-tile-${gameId}`
+      if (lastPlayedAt) return `orbit-recent-${gameId}`
+      if (provider === 'astris') return `orbit-switch-${gameId}`
+      if (provider === 'gamehub') return `orbit-gamehub-${gameId}`
+      if (provider === 'steam') return `orbit-steam-${gameId}`
       return `orbit-recent-${gameId}`
     default:
       return null

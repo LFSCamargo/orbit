@@ -63,7 +63,9 @@ test.describe('Orbit home experience', () => {
     expect(ring.length).toBeGreaterThan(8)
 
     // No Tailwind ring-offset yellow underline artifact.
-    const offset = await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--tw-ring-offset-width'))
+    const offset = await card.evaluate((el) =>
+      getComputedStyle(el).getPropertyValue('--tw-ring-offset-width'),
+    )
     expect(offset.trim() === '' || offset === '0px').toBe(true)
   })
 
@@ -103,7 +105,9 @@ test.describe('Orbit home experience', () => {
     await expect(hints).not.toContainText('Menu Menu')
   })
 
-  test('hero art swaps instantly without background-image transition', async ({ page }) => {
+  test('hero art swaps instantly without background-image transition', async ({
+    page,
+  }) => {
     const art = page.locator('.orbit-hero-art')
     await expect(art).toBeVisible()
 
@@ -146,7 +150,11 @@ async function expectWhiteFocusRing(page: Page, focusId: string) {
     const candidates = [read(el)]
     const inner = el.querySelector(':scope > div')
     if (inner) candidates.push(read(inner))
-    return candidates.find((shadow) => /255,\s*255,\s*255|rgb\(255 255 255|#fff/i.test(shadow)) ?? read(el)
+    return (
+      candidates.find((shadow) =>
+        /255,\s*255,\s*255|rgb\(255 255 255|#fff/i.test(shadow),
+      ) ?? read(el)
+    )
   })
   expect(ring).toMatch(/255,\s*255,\s*255|rgb\(255 255 255|#fff/i)
 }
@@ -178,7 +186,9 @@ test.describe('Orbit shell navigation', () => {
     )
     // Active route styling remains on Settings even while Library is focused.
     await expect(settingsNav).toHaveClass(/bg-white\/15/)
-    await expect(page.locator('[data-focus-id="nav-library"]')).not.toHaveClass(/bg-white\/15/)
+    await expect(page.locator('[data-focus-id="nav-library"]')).not.toHaveClass(
+      /bg-white\/15/,
+    )
   })
 
   test('navigates library and opens game details', async ({ page }) => {
@@ -189,7 +199,9 @@ test.describe('Orbit shell navigation', () => {
     await card.hover()
     await expect(card).toHaveAttribute('data-focused', 'true')
 
-    const ring = await card.locator(':scope > div').evaluate((el) => getComputedStyle(el).boxShadow)
+    const ring = await card
+      .locator(':scope > div')
+      .evaluate((el) => getComputedStyle(el).boxShadow)
     expect(ring).not.toBe('none')
 
     await card.click()
@@ -237,13 +249,19 @@ test.describe('Orbit shell navigation', () => {
     await expect(page.locator('[data-focus-id="import-steam"]')).toBeVisible()
   })
 
-  test('non-home routes use orbit-route padding aligned with home shell', async ({ page }) => {
+  test('non-home routes use orbit-route padding aligned with home shell', async ({
+    page,
+  }) => {
     await page.locator('[data-focus-id="nav-library"]').click()
     const route = page.locator('[data-screen="library"] .orbit-route')
     await expect(route).toBeVisible()
 
-    const paddingTop = await route.evaluate((el) => parseFloat(getComputedStyle(el).paddingTop))
-    const paddingX = await route.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft))
+    const paddingTop = await route.evaluate((el) =>
+      parseFloat(getComputedStyle(el).paddingTop),
+    )
+    const paddingX = await route.evaluate((el) =>
+      parseFloat(getComputedStyle(el).paddingLeft),
+    )
     expect(paddingTop).toBeGreaterThanOrEqual(8)
     expect(paddingX).toBeGreaterThanOrEqual(40)
   })
@@ -262,20 +280,25 @@ test.describe('Orbit shell navigation', () => {
 
     for (const screen of screens) {
       await page.keyboard.press('BracketRight')
-      await expect(page.locator(`[data-screen="${screen}"]`)).toBeVisible({ timeout: 10_000 })
+      await expect(page.locator(`[data-screen="${screen}"]`)).toBeVisible({
+        timeout: 10_000,
+      })
       await page.waitForTimeout(400)
     }
   })
 
-  test('section keys focus page content instead of leaving a stale nav ring', async ({ page }) => {
+  test('section keys focus page content instead of leaving a stale nav ring', async ({
+    page,
+  }) => {
     await page.keyboard.press('BracketRight')
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
-    await expect(page.locator('[data-focus-id="library-sort-alphabetical"]')).toHaveAttribute(
+    await expect(
+      page.locator('[data-focus-id="library-sort-alphabetical"]'),
+    ).toHaveAttribute('data-focused', 'true', { timeout: 5000 })
+    await expect(page.locator('[data-focus-id="nav-home"]')).toHaveAttribute(
       'data-focused',
-      'true',
-      { timeout: 5000 },
+      'false',
     )
-    await expect(page.locator('[data-focus-id="nav-home"]')).toHaveAttribute('data-focused', 'false')
 
     for (let i = 0; i < 2; i += 1) {
       await page.keyboard.press('BracketRight')
@@ -287,22 +310,31 @@ test.describe('Orbit shell navigation', () => {
       'true',
       { timeout: 5000 },
     )
-    await expect(page.locator('[data-focus-id="nav-home"]')).toHaveAttribute('data-focused', 'false')
+    await expect(page.locator('[data-focus-id="nav-home"]')).toHaveAttribute(
+      'data-focused',
+      'false',
+    )
     await expect(page.locator('[data-focus-id="nav-settings"]')).toHaveAttribute(
       'data-focused',
       'false',
     )
   })
 
-  test('controller arrows move focus across library filters and grid', async ({ page }) => {
+  test('controller arrows move focus across library filters and grid', async ({
+    page,
+  }) => {
     await page.locator('[data-focus-id="nav-library"]').click()
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
 
     await expectWhiteFocusRing(page, 'library-sort-alphabetical')
 
-    const before = await page.locator('[data-focused="true"]').getAttribute('data-focus-id')
+    const before = await page
+      .locator('[data-focused="true"]')
+      .getAttribute('data-focus-id')
     await page.keyboard.press('ArrowDown')
-    const after = await page.locator('[data-focused="true"]').getAttribute('data-focus-id')
+    const after = await page
+      .locator('[data-focused="true"]')
+      .getAttribute('data-focus-id')
     expect(after).not.toBe(before)
   })
 
@@ -313,7 +345,9 @@ test.describe('Orbit shell navigation', () => {
     await expectWhiteFocusRing(page, 'imports-add')
   })
 
-  test('game details actions stay reachable with controller back navigation', async ({ page }) => {
+  test('game details actions stay reachable with controller back navigation', async ({
+    page,
+  }) => {
     await page.locator('[data-focus-id="nav-library"]').click()
     await page.locator('[data-focus-id="library-game-mock-cyberpunk"]').click()
     await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
@@ -322,9 +356,23 @@ test.describe('Orbit shell navigation', () => {
     await expectWhiteFocusRing(page, 'details-back')
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
-    await expect(page.locator('[data-focus-id="library-game-mock-cyberpunk"]')).toHaveAttribute(
-      'data-focused',
-      'true',
+    await expect(
+      page.locator('[data-focus-id="library-game-mock-cyberpunk"]'),
+    ).toHaveAttribute('data-focused', 'true')
+  })
+
+  test('edit properties can fetch metadata and artwork', async ({ page }) => {
+    await page.locator('[data-focus-id="nav-library"]').click()
+    await page.locator('[data-focus-id="library-game-mock-cyberpunk"]').click()
+    await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
+    await page.locator('[data-focus-id="details-edit"]').click()
+    await expect(page.locator('[data-screen="game-edit"]')).toBeVisible()
+
+    await page.locator('[data-focus-id="edit-enrich"]').click()
+    await expect(page.getByText(/Updated|TheGamesDB|SteamGridDB|enriched/i)).toBeVisible(
+      {
+        timeout: 10_000,
+      },
     )
   })
 })

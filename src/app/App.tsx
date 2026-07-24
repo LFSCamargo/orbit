@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AppShell } from '@/components/layout/AppShell'
+import { HomeMenuModal } from '@/components/home/HomeMenuModal'
 import { useControllerNavigation } from '@/controllers/useController'
 import { AddGamePage } from '@/features/imports/AddGamePage'
 import { GameDetailsPage } from '@/features/game-details/GameDetailsPage'
@@ -27,6 +28,7 @@ const pageTransition = {
 
 export function App() {
   const screen = useUiStore((s) => s.screen)
+  const homeMenuOpen = useUiStore((s) => s.homeMenuOpen)
   const layout = useThemeLayout()
   const { family } = useControllerNavigation()
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
@@ -40,8 +42,13 @@ export function App() {
   }, [activeSession, setActiveSession])
 
   return (
-    <AppShell family={family}>
-      <AnimatePresence mode="wait">
+    <>
+      <div
+        className={homeMenuOpen ? 'pointer-events-none select-none' : undefined}
+        aria-hidden={homeMenuOpen}
+      >
+        <AppShell family={family}>
+          <AnimatePresence mode="wait">
         <motion.div
           key={screen}
           initial={pageTransition.initial}
@@ -64,7 +71,10 @@ export function App() {
           {screen === 'settings' && <SettingsPage />}
           {screen === 'switch-library' && <SwitchLibraryPage />}
         </motion.div>
-      </AnimatePresence>
-    </AppShell>
+        </AnimatePresence>
+        </AppShell>
+      </div>
+      <HomeMenuModal family={family} />
+    </>
   )
 }

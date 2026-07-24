@@ -88,6 +88,11 @@ export class FocusManager {
   private focusStack: string[] = []
   private listeners = new Set<FocusListener>()
   private groupPreference: string | null = null
+  private groupTrap = false
+
+  hasNode(id: string) {
+    return this.nodes.has(id)
+  }
 
   subscribe(listener: FocusListener): () => void {
     this.listeners.add(listener)
@@ -103,6 +108,17 @@ export class FocusManager {
 
   register(node: FocusableNode) {
     this.nodes.set(node.id, node)
+
+    if (this.groupTrap && this.groupPreference) {
+      if (node.group === this.groupPreference && !node.disabled) {
+        const current = this.getFocusedNode()
+        if (!current || current.group !== this.groupPreference) {
+          this.moveToGroup(this.groupPreference, true)
+        }
+      }
+      return
+    }
+
     if (!this.focusedId && !node.disabled) {
       this.setFocus(node.id)
     }
@@ -118,7 +134,11 @@ export class FocusManager {
           .filter((node) => !node.disabled && node.group === removed.group)
           .sort((a, b) => a.order - b.order)[0]
       : null
-    const fallback = sameGroup ?? this.firstEnabled()
+    const fallback =
+      sameGroup ??
+      (this.groupTrap && this.groupPreference
+        ? this.firstInGroup(this.groupPreference)
+        : this.firstEnabled())
     this.focusedId = fallback?.id ?? null
     this.emit()
     // Avoid scrolling the page when focus falls back during screen remounts.
@@ -132,18 +152,31 @@ export class FocusManager {
     return this.focusedId ? (this.nodes.get(this.focusedId) ?? null) : null
   }
 
-  setGroupPreference(group: string | null) {
+  setGroupPreference(group: string | null, options?: { trap?: boolean }) {
     this.groupPreference = group
+    this.groupTrap = options?.trap ?? false
+    if (group && this.groupTrap) {
+      this.ensureFocusInGroup(group)
+    }
+  }
+
+  ensureFocusInGroup(group: string) {
+    const current = this.getFocusedNode()
+    if (current?.group === group) return
+    this.moveToGroup(group, true)
   }
 
   setFocus(id: string | null) {
     if (id && !this.nodes.has(id)) return
-    if (id && this.nodes.get(id)?.disabled) return
+    const node = id ? this.nodes.get(id) : null
+    if (node?.disabled) return
+    if (node && this.groupTrap && this.groupPreference && node.group !== this.groupPreference) {
+      return
+    }
 
     this.focusedId = id
     this.emit()
 
-    const node = id ? this.nodes.get(id) : null
     if (node) {
       node.element.scrollIntoView({
         behavior: 'smooth',
@@ -180,7 +213,11 @@ export class FocusManager {
   move(direction: FocusDirection) {
     const current = this.getFocusedNode()
     if (!current) {
-      this.setFocus(this.firstEnabled()?.id ?? null)
+      if (this.groupTrap && this.groupPreference) {
+        this.moveToGroup(this.groupPreference, true)
+      } else {
+        this.setFocus(this.firstEnabled()?.id ?? null)
+      }
       return
     }
 
@@ -190,8 +227,8 @@ export class FocusManager {
 
     for (const node of this.nodes.values()) {
       if (node.id === current.id || node.disabled) continue
-      if (this.groupPreference && node.group !== this.groupPreference) {
-        // Prefer same group, but allow escape if nothing found.
+      if (this.groupTrap && this.groupPreference && node.group !== this.groupPreference) {
+        continue
       }
 
       const toRect = node.element.getBoundingClientRect()
@@ -208,13 +245,6 @@ export class FocusManager {
         bestScore = score
         best = node
       }
-    }
-
-    if (!best && this.groupPreference) {
-      // Retry without group preference bias.
-      this.groupPreference = null
-      this.move(direction)
-      return
     }
 
     if (best) {
@@ -259,7 +289,16 @@ export class FocusManager {
     }
   }
 
+  private firstInGroup(group: string) {
+    return [...this.nodes.values()]
+      .filter((node) => !node.disabled && node.group === group)
+      .sort((a, b) => a.order - b.order)[0]
+  }
+
   private firstEnabled() {
+    if (this.groupTrap && this.groupPreference) {
+      return this.firstInGroup(this.groupPreference)
+    }
     return [...this.nodes.values()]
       .filter((node) => !node.disabled)
       .sort((a, b) => a.order - b.order)[0]

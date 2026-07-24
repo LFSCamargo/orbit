@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import type { ControllerAction, ControllerFamily } from './ControllerMapping'
 import { focusManager } from './FocusManager'
 import { gamepadManager } from './GamepadManager'
 import { backTarget, focusRestoreId, screenEntryFocusId } from '@/lib/navigation'
+import { applyPageScroll } from '@/lib/pageScroll'
+import { showOrbitWindow, isTauriRuntime } from '@/lib/tauri'
 import { useThemeStore } from '@/stores/theme.store'
 import { resolveLayout } from '@/themes/useThemeLayout'
 import { useUiStore } from '@/stores/ui.store'
@@ -30,6 +33,20 @@ export function useControllerNavigation() {
     const handleAction = (action: ControllerAction) => {
       setFamily(gamepadManager.getFamily())
 
+      const homeMenuOpen = useUiStore.getState().homeMenuOpen
+      if (homeMenuOpen) {
+        const allowed: ControllerAction[] = [
+          'navigate-up',
+          'navigate-down',
+          'navigate-left',
+          'navigate-right',
+          'confirm',
+          'back',
+          'home',
+        ]
+        if (!allowed.includes(action)) return
+      }
+
       switch (action) {
         case 'navigate-up':
           focusManager.move('up')
@@ -49,6 +66,10 @@ export function useControllerNavigation() {
           break
         }
         case 'back': {
+          if (useUiStore.getState().homeMenuOpen) {
+            useUiStore.getState().closeHomeMenu()
+            break
+          }
           const { previousScreen } = useUiStore.getState()
           const { themeId, themes } = useThemeStore.getState()
           const theme = themes.find((item) => item.id === themeId) ?? themes[0]
@@ -68,6 +89,12 @@ export function useControllerNavigation() {
           scheduleScreenFocus(next)
           break
         }
+        case 'home':
+          // macOS uses the native GameController handler instead of the browser API.
+          if (!isTauriRuntime() || import.meta.env.TAURI_ENV_PLATFORM !== 'macos') {
+            void handleHomePress(document.hasFocus())
+          }
+          break
         case 'section-prev':
           cycleSection(-1)
           break
@@ -90,6 +117,36 @@ export function useControllerNavigation() {
     }
 
     const unsubPad = gamepadManager.subscribe(handleAction)
+
+    const applyStickScroll = (deltaX: number, deltaY: number) => {
+      markControllerActivity()
+      applyPageScroll(deltaX, deltaY)
+    }
+
+    const useNativeStickScroll =
+      isTauriRuntime() && import.meta.env.TAURI_ENV_PLATFORM === 'macos'
+
+    const unsubScroll = useNativeStickScroll
+      ? undefined
+      : gamepadManager.onScroll(({ deltaX, deltaY }) => {
+          applyStickScroll(deltaX, deltaY)
+        })
+
+    let unlistenStickScroll: (() => void) | undefined
+    if (useNativeStickScroll) {
+      void listen<{ deltaX: number; deltaY: number }>('controller-stick-scroll', (event) => {
+        applyStickScroll(event.payload.deltaX, event.payload.deltaY)
+      }).then((unlisten) => {
+        unlistenStickScroll = unlisten
+      })
+    }
+
+    let unlistenHome: (() => void) | undefined
+    void listen<{ wasFocused: boolean }>('controller-home-pressed', (event) => {
+      void handleHomePress(event.payload.wasFocused)
+    }).then((unlisten) => {
+      unlistenHome = unlisten
+    })
 
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
@@ -122,6 +179,7 @@ export function useControllerNavigation() {
         'section-next',
         'back',
         'menu',
+        'home',
       ]
 
       if (typing && !allowedWhileTyping.includes(action)) return
@@ -135,7 +193,10 @@ export function useControllerNavigation() {
 
     return () => {
       unsubPad()
+      unsubScroll?.()
+      unlistenStickScroll?.()
       unsubActivity()
+      unlistenHome?.()
       window.removeEventListener('keydown', onKeyDown)
       gamepadManager.stop()
     }
@@ -148,6 +209,23 @@ const SECTION_ORDER = ['home', 'library', 'search', 'settings'] as const
 
 const SCREEN_TRANSITION_MS = 380
 let screenFocusTimer: ReturnType<typeof setTimeout> | null = null
+
+async function handleHomePress(wasFocused: boolean) {
+  const { homeMenuOpen, openHomeMenu, closeHomeMenu } = useUiStore.getState()
+
+  if (!wasFocused) {
+    await showOrbitWindow()
+    if (homeMenuOpen) closeHomeMenu()
+    return
+  }
+
+  if (homeMenuOpen) {
+    closeHomeMenu()
+    return
+  }
+
+  openHomeMenu()
+}
 
 function scheduleScreenFocus(screen: (typeof SECTION_ORDER)[number]) {
   if (screenFocusTimer !== null) {

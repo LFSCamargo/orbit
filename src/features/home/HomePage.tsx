@@ -13,10 +13,6 @@ function byLastPlayed(a: Game, b: Game) {
   return (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '')
 }
 
-function byDateAdded(a: Game, b: Game) {
-  return b.dateAdded.localeCompare(a.dateAdded)
-}
-
 export function HomePage() {
   const { data: games = [], isLoading } = useGames()
   const { contentByGameId } = useGameContentMap()
@@ -32,24 +28,18 @@ export function HomePage() {
   const visible = useMemo(() => games.filter((game) => !game.hidden), [games])
 
   const rows = useMemo(() => {
-    const continuePlaying = [...visible]
+    const recentlyPlayed = [...visible]
       .filter((game) => game.lastPlayedAt)
       .sort(byLastPlayed)
-      .slice(0, 12)
-    const recentlyAdded = [...visible].sort(byDateAdded).slice(0, 12)
-    const favorites = visible.filter((game) => game.favorite)
     const byProvider = (provider: Game['provider']) =>
       visible.filter((game) => game.provider === provider)
 
     return [
-      { title: 'Continue Playing', group: 'row-continue', games: continuePlaying },
-      { title: 'Recently Added', group: 'row-recent', games: recentlyAdded },
-      { title: 'Favorites', group: 'row-favorites', games: favorites },
-      { title: 'Nintendo Switch', group: 'row-astris', games: byProvider('astris') },
-      { title: 'Steam', group: 'row-steam', games: byProvider('steam') },
-      { title: 'GameHub', group: 'row-gamehub', games: byProvider('gamehub') },
-      { title: 'macOS Games', group: 'row-native', games: byProvider('native') },
-    ]
+      { title: 'Recently Played', group: 'row-recent', games: recentlyPlayed },
+      { title: 'Switch Games', group: 'row-astris', games: byProvider('astris') },
+      { title: 'Game Hub', group: 'row-gamehub', games: byProvider('gamehub') },
+      { title: 'Steam Games', group: 'row-steam', games: byProvider('steam') },
+    ].filter((row) => row.games.length > 0)
   }, [visible])
 
   const heroGame =

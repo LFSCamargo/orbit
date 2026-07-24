@@ -56,7 +56,15 @@ export function GameDetailsPage() {
   const goBack = (gameId?: string | null) => {
     const target = backTarget('game-details', previousScreen)
     setScreen(target)
-    focusManager.restoreFocus(focusRestoreId(layout, target, gameId ?? selectedGameId))
+    focusManager.restoreFocus(
+      focusRestoreId(
+        layout,
+        target,
+        gameId ?? selectedGameId,
+        game?.provider,
+        game?.lastPlayedAt,
+      ),
+    )
   }
 
   if (isLoading) {
@@ -160,13 +168,18 @@ export function GameDetailsPage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               className={`hidden shrink-0 overflow-hidden sm:block ${
-                isSwitch || isPs5 ? 'square-game-art' : 'shadow-hero ring-1 ring-white/10'
+                isSwitch || isPs5 ? 'square-game-art bg-black' : 'shadow-hero ring-1 ring-white/10'
               } ${
               layout === 'switch' || layout === 'ps5'
                 ? 'h-40 w-40 rounded-[1.25rem]'
                 : 'h-72 w-52 rounded-card'
             }`}
-            style={{ background: placeholderGradient(game.id) }}
+            style={{
+              background:
+                layout === 'switch' || layout === 'ps5'
+                  ? '#000'
+                  : placeholderGradient(game.id),
+            }}
           >
             {(layout === 'switch' || layout === 'ps5' ? tileSrc || iconSrc : coverSrc) && (
               <img

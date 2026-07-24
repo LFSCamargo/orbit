@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
-import { glyphFor } from '@/controllers/ControllerGlyphs'
+import { glyphFor, rightStickGlyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { resolveNavScreen } from '@/lib/navigation'
 import { useUiStore } from '@/stores/ui.store'
@@ -124,6 +124,12 @@ export function SwitchShell({
         <div className="flex items-center justify-between border-t border-[var(--switch-border)] pt-3 text-xs text-[var(--switch-muted)]">
           <Tablet className="h-4 w-4" strokeWidth={2} aria-hidden />
           <div className="flex items-center gap-5">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-[var(--switch-ink)]">
+                {rightStickGlyphFor(family)}
+              </span>
+              Scroll
+            </span>
             <span className="inline-flex items-center gap-1.5">
               <Minus className="h-3.5 w-3.5" strokeWidth={2.5} />
               <span>/</span>

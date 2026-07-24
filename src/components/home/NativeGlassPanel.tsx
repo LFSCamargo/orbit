@@ -6,6 +6,8 @@ interface NativeGlassPanelProps {
   imageSrc: string | null
   /** Orbit uses backdrop-filter over in-frame hero art; Switch/PS5 use native blur bitmaps. */
   variant?: 'switch' | 'ps5' | 'orbit'
+  /** Where the blurred hero bitmap is anchored inside the clip. */
+  blurPlacement?: 'center' | 'bottom'
   className?: string
   contentClassName?: string
   children: ReactNode
@@ -19,12 +21,14 @@ interface NativeGlassPanelProps {
 export function NativeGlassPanel({
   imageSrc,
   variant = 'switch',
+  blurPlacement,
   className,
   contentClassName,
   children,
 }: NativeGlassPanelProps) {
   const useBackdrop = variant === 'orbit'
   const showBlur = Boolean(imageSrc) && !useBackdrop
+  const placement = blurPlacement ?? (variant === 'ps5' ? 'bottom' : 'center')
 
   return (
     <div
@@ -45,7 +49,7 @@ export function NativeGlassPanel({
             draggable={false}
             className={clsx(
               'native-glass-blur absolute h-[100vh] w-[100vw] max-w-none scale-[1.12] object-cover',
-              variant === 'ps5'
+              placement === 'bottom'
                 ? 'native-glass-blur-bottom left-1/2 bottom-0 -translate-x-1/2 object-[center_bottom]'
                 : 'native-glass-blur-center left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 object-center',
             )}

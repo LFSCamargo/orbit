@@ -3,7 +3,7 @@ import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
 import { resolveNavScreen } from '@/lib/navigation'
 import { useUiStore } from '@/stores/ui.store'
-import { glyphFor } from '@/controllers/ControllerGlyphs'
+import { glyphFor, rightStickGlyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 
@@ -55,6 +55,7 @@ export function NavBar({ family }: { family: ControllerFamily }) {
         <Hint glyph={glyphFor(family, 'secondary')} label="Edit" />
         <Hint glyph={glyphFor(family, 'context')} label="Add" />
         <Hint glyph={glyphFor(family, 'section-next')} label="Section" />
+        <Hint glyph={rightStickGlyphFor(family)} label="Scroll" />
         <Hint glyph={glyphFor(family, 'menu')} label="Menu" />
       </div>
     </header>

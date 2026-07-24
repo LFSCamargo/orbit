@@ -23,6 +23,9 @@ function applyCssVars(theme: ThemeDefinition) {
   root.style.setProperty('--orbit-accent', colors.accent)
   root.style.setProperty('--orbit-focus', colors.focus)
   root.style.setProperty('--orbit-border', colors.border)
+  if (theme.layout === 'ps5') {
+    root.style.setProperty('--ps5-accent', `rgb(${colors.accent.replace(/\s+/g, ', ')})`)
+  }
   root.style.setProperty('--orbit-radius', theme.radius ?? '1.25rem')
   root.style.setProperty('--orbit-card-radius', theme.cardRadius ?? '1rem')
   root.style.setProperty('--orbit-blur', theme.blur ?? '24px')

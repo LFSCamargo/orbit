@@ -30,10 +30,12 @@ export function AppShell({
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-orbit-canvas font-body text-orbit-foreground orbit-transition">
+    <div className="orbit-shell relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-orbit-canvas font-body text-orbit-foreground orbit-transition">
       <div className="theme-bg" />
       <NavBar family={family} />
-      <main className="relative z-10 pt-[5.5rem]">{children}</main>
+      <main className="orbit-main relative z-10 min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pt-[5.5rem]">
+        {children}
+      </main>
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { useMemo, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { clsx } from 'clsx'
 import {
   Clock3,
@@ -14,6 +15,7 @@ import {
 import { Focusable } from '@/components/focus/Focusable'
 import { resolveHeroContentDisplay } from '@/components/home/GameContentBadge'
 import { NativeGlassPanel } from '@/components/home/NativeGlassPanel'
+import { Ps5GlassChip } from '@/components/home/Ps5GlassChip'
 import { useHeroTone } from '@/hooks/useHeroTone'
 import { gameHeroImage, gameTileImage } from '@/lib/artwork'
 import {
@@ -58,6 +60,7 @@ function createHomeGameHandlers(
   setHero: (gameId: string) => void,
   onPlay: (game: Game) => void,
   onStop: () => void,
+  heroGameId: string,
 ) {
   const selectGame = (game: Game) => setHero(game.id)
 
@@ -70,7 +73,16 @@ function createHomeGameHandlers(
     }
   }
 
-  return { selectGame, launchGame }
+  /** First press selects; confirming the already-selected tile launches. */
+  const activateGame = (game: Game) => {
+    if (game.id === heroGameId) {
+      launchGame(game)
+    } else {
+      selectGame(game)
+    }
+  }
+
+  return { selectGame, launchGame, activateGame }
 }
 
 function SwitchHome({
@@ -102,11 +114,12 @@ function SwitchHome({
     return slice
   }, [games, heroGame])
 
-  const { selectGame, launchGame } = createHomeGameHandlers(
+  const { selectGame, activateGame } = createHomeGameHandlers(
     activeSession,
     setHero,
     onPlay,
     onStop,
+    heroGame.id,
   )
 
   const launchHero = () => {
@@ -153,7 +166,7 @@ function SwitchHome({
                   noScale
                   noRing
                   onFocusSelect={() => selectGame(game)}
-                  onClick={() => launchGame(game)}
+                  onClick={() => activateGame(game)}
                   className={clsx(
                     'switch-tile shrink-0 rounded-[18px]',
                     selected && 'switch-tile-selected',
@@ -330,17 +343,99 @@ function Ps5Home({
   const { achievements, unlocked } = gameStats(heroGame)
   const heroContent = resolveHeroContentDisplay(contentByGameId, heroGame.id)
   const isRunning = activeSession?.gameId === heroGame.id
-  const heroTone = useHeroTone(heroBg ?? null)
 
-  const { selectGame, launchGame } = createHomeGameHandlers(
+  const carouselGames = useMemo(() => {
+    const sorted = [...games]
+      .filter((game) => !game.hidden)
+      .sort((a, b) =>
+        (b.lastPlayedAt ?? b.dateAdded).localeCompare(a.lastPlayedAt ?? a.dateAdded),
+      )
+    const slice = sorted.slice(0, 16)
+    if (!slice.some((game) => game.id === heroGame.id)) {
+      return [heroGame, ...slice].slice(0, 16)
+    }
+    return slice
+  }, [games, heroGame])
+
+  const { selectGame, activateGame } = createHomeGameHandlers(
     activeSession,
     setHero,
     onPlay,
     onStop,
+    heroGame.id,
   )
 
+  const selectedIndex = Math.max(
+    0,
+    carouselGames.findIndex((game) => game.id === heroGame.id),
+  )
+  const hasNextTile = selectedIndex < carouselGames.length - 1
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [titleLeftPx, setTitleLeftPx] = useState(0)
+
+  useLayoutEffect(() => {
+    const row = rowRef.current
+    if (!row) return
+
+    const measureTitleLeft = () => {
+      const selected = row.querySelector(
+        '[data-ps5-tile="selected"]',
+      ) as HTMLElement | null
+      const slot = row.querySelector('.ps5-tile-title-slot') as HTMLElement | null
+      if (!selected || !slot) return
+
+      const art =
+        (selected.querySelector('.ps5-tile-art') as HTMLElement | null) ?? selected
+      const tiles = [...row.querySelectorAll('[data-focus-id^="ps5-tile-"]')] as HTMLElement[]
+      const index = tiles.indexOf(selected)
+      const next = index >= 0 ? tiles[index + 1] : null
+      const slotLeft = !next ? slot.getBoundingClientRect().left + 160 : slot.getBoundingClientRect().left
+
+      if (next) {
+        const nextArt =
+          (next.querySelector('.ps5-tile-art') as HTMLElement | null) ?? next
+        setTitleLeftPx(Math.round(nextArt.getBoundingClientRect().left - slotLeft))
+        return
+      }
+
+      // Last item: no neighbor on the right — pin to the left edge of the focused cover.
+      setTitleLeftPx(Math.round(art.getBoundingClientRect().left - slotLeft))
+    }
+
+    const selected = row.querySelector(
+      '[data-ps5-tile="selected"]',
+    ) as HTMLElement | null
+    selected?.scrollIntoView({
+      behavior: 'auto',
+      inline: 'nearest',
+      block: 'nearest',
+    })
+
+    measureTitleLeft()
+    const frame = window.requestAnimationFrame(measureTitleLeft)
+    const afterGrow = window.setTimeout(measureTitleLeft, 320)
+
+    const track = row.querySelector('.ps5-game-row-track')
+    track?.addEventListener('scroll', measureTitleLeft, { passive: true })
+    window.addEventListener('resize', measureTitleLeft)
+
+    const observer =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(measureTitleLeft)
+        : null
+    if (selected) observer?.observe(selected)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(afterGrow)
+      track?.removeEventListener('scroll', measureTitleLeft)
+      window.removeEventListener('resize', measureTitleLeft)
+      observer?.disconnect()
+    }
+  }, [heroGame.id, selectedIndex, hasNextTile, carouselGames.length])
+
   return (
-    <div className="ps5-home relative flex min-h-full flex-1 flex-col overflow-hidden" data-hero-tone={heroTone}>
+    <div className="ps5-home relative flex min-h-full flex-1 flex-col overflow-x-hidden overflow-y-visible">
       <div className="pointer-events-none absolute inset-0">
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -350,54 +445,79 @@ function Ps5Home({
               : placeholderGradient(heroGame.id),
           }}
         />
-        <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-[var(--ps5-bg)] via-[var(--ps5-bg)]/55 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-[var(--ps5-bg)] via-[var(--ps5-bg)]/65 to-transparent" />
-        <div className="absolute inset-0 bg-[var(--ps5-bg)]/15" />
+        <div className="absolute inset-0 bg-black/45" />
+        <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-[var(--ps5-bg)] via-[var(--ps5-bg)]/70 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-[var(--ps5-bg)] via-[var(--ps5-bg)]/80 to-transparent" />
+        <div className="absolute inset-0 bg-[var(--ps5-bg)]/35" />
       </div>
 
       <div className="relative z-10 flex min-h-full flex-col pb-6">
-        <div className="scrollbar-none flex shrink-0 items-center gap-2.5 overflow-x-auto px-8 pb-2 pt-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#00439c] text-xl font-bold text-white">
-            ⊞
+        <div
+          ref={rowRef}
+          className="ps5-game-row shrink-0 px-8 pt-4"
+          style={
+            {
+              '--ps5-selected-index': selectedIndex,
+              '--ps5-title-under-next': hasNextTile ? 1 : 0,
+              '--ps5-title-left': `${titleLeftPx}px`,
+            } as CSSProperties
+          }
+          data-ps5-title-mode={hasNextTile ? 'next' : 'last'}
+        >
+          <div className="ps5-game-row-track scrollbar-none flex items-start gap-3 overflow-x-auto overflow-y-visible">
+            {carouselGames.map((game, index) => {
+              const icon = gameTileImage(game.artwork, 'square')
+              const selected = heroGame.id === game.id
+              return (
+                <Focusable
+                  key={game.id}
+                  focusId={`ps5-tile-${game.id}`}
+                  group="ps5-tiles"
+                  order={index}
+                  noScale
+                  noRing
+                  onFocusSelect={() => selectGame(game)}
+                  onClick={() => activateGame(game)}
+                  className={clsx('ps5-tile shrink-0', selected && 'ps5-tile-selected')}
+                  data-ps5-tile={selected ? 'selected' : 'idle'}
+                >
+                  <div
+                    className="ps5-tile-art square-game-art overflow-hidden rounded-[10px] bg-cover bg-center"
+                    style={{
+                      backgroundImage: icon ? `url(${icon})` : placeholderGradient(game.id),
+                    }}
+                  />
+                </Focusable>
+              )
+            })}
           </div>
-          {games.slice(0, 14).map((game, index) => {
-            const icon = gameTileImage(game.artwork, 'square')
-            const focused = heroGame.id === game.id
-            return (
-              <Focusable
-                key={game.id}
-                focusId={`ps5-tile-${game.id}`}
-                group="ps5-tiles"
-                order={index}
-                noScale
-                noRing
-                onFocusSelect={() => selectGame(game)}
-                onClick={() => launchGame(game)}
+
+          <div className="ps5-tile-title-slot" aria-live="polite">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.h1
+                key={heroGame.id}
                 className={clsx(
-                  'ps5-tile h-14 w-14 shrink-0 overflow-hidden rounded-xl transition-transform duration-200',
-                  focused && 'ps5-tile-selected scale-110',
+                  'ps5-tile-title ps5-hero-title truncate font-normal',
+                  !hasNextTile && 'ps5-tile-title-last',
                 )}
+                style={{ left: titleLeftPx }}
+                initial={{ opacity: 0, x: hasNextTile ? -10 : 10, y: 6 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, x: hasNextTile ? 8 : -8, y: 4 }}
+                transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
               >
-                <div
-                  className="square-game-art h-full w-full bg-cover bg-center"
-                  style={{
-                    backgroundImage: icon ? `url(${icon})` : placeholderGradient(game.id),
-                  }}
-                />
-              </Focusable>
-            )
-          })}
+                {heroGame.title}
+              </motion.h1>
+            </AnimatePresence>
+          </div>
         </div>
 
-        <div className="ps5-hero-zone flex flex-1 flex-col px-8 pt-6">
+        <div className="ps5-hero-zone flex flex-1 flex-col px-8 pt-5">
             <div className="flex items-start gap-3">
               <span className="ps5-hero-eyebrow mt-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase">
                 {providerLabel(heroGame.provider)}
               </span>
             </div>
-            <h1 className="ps5-hero-title mt-3 max-w-3xl text-4xl font-semibold tracking-tight md:text-5xl">
-              {heroGame.title}
-            </h1>
             <p className="ps5-hero-description mt-3 line-clamp-3 min-h-[5.5rem] max-w-2xl text-lg leading-relaxed">
               {heroGame.description || '\u00A0'}
             </p>
@@ -413,28 +533,48 @@ function Ps5Home({
               >
                 {isRunning ? 'Stop Game' : 'Play Game'}
               </Focusable>
-              <Focusable
-                focusId="ps5-more"
-                group="ps5-home-actions"
-                order={1}
-                noScale
-                onClick={() => openGameDetails(heroGame.id)}
-                className="ps5-hero-more flex h-12 w-12 items-center justify-center rounded-full"
+              <Ps5GlassChip
+                imageSrc={heroBg ?? null}
+                className="h-12 w-12 shrink-0 rounded-full"
+                contentClassName="h-full w-full"
               >
-                •••
-              </Focusable>
+                <Focusable
+                  focusId="ps5-more"
+                  group="ps5-home-actions"
+                  order={1}
+                  noScale
+                  noRing
+                  onClick={() => openGameDetails(heroGame.id)}
+                  className="flex h-full w-full items-center justify-center bg-transparent p-0 text-lg text-white"
+                >
+                  •••
+                </Focusable>
+              </Ps5GlassChip>
               {heroContent ? (
                 <>
-                  <StatPill icon={<Package className="h-4 w-4" />} label={heroContent.versionValue} />
-                  <StatPill icon={<Layers className="h-4 w-4" />} label={heroContent.dlcValue} />
+                  <StatPill
+                    imageSrc={heroBg ?? null}
+                    icon={<Package className="h-4 w-4" />}
+                    label={heroContent.versionValue}
+                  />
+                  <StatPill
+                    imageSrc={heroBg ?? null}
+                    icon={<Layers className="h-4 w-4" />}
+                    label={heroContent.dlcValue}
+                  />
                 </>
               ) : (
                 <StatPill
+                  imageSrc={heroBg ?? null}
                   icon={<Trophy className="h-4 w-4" />}
                   label={formatAchievementProgress(unlocked, achievements.length)}
                 />
               )}
-              <StatPill icon={<Clock3 className="h-4 w-4" />} label={formatPlaytime(heroGame.totalPlaytimeSeconds)} />
+              <StatPill
+                imageSrc={heroBg ?? null}
+                icon={<Clock3 className="h-4 w-4" />}
+                label={formatPlaytime(heroGame.totalPlaytimeSeconds)}
+              />
             </div>
 
             <div className="mt-auto pt-10">
@@ -509,21 +649,64 @@ function OrbitHome({
   const isRunning = activeSession?.gameId === heroGame.id
 
   // Stable order — never reshuffle on hero change (that breaks focus/clicks).
-  const recentGames = useMemo(() => {
-    return [...games]
-      .filter((game) => !game.hidden)
-      .sort((a, b) =>
-        (b.lastPlayedAt ?? b.dateAdded).localeCompare(a.lastPlayedAt ?? a.dateAdded),
-      )
-      .slice(0, 12)
+  const homeRows = useMemo(() => {
+    const visible = games.filter((game) => !game.hidden)
+    const recentlyPlayed = [...visible]
+      .filter((game) => game.lastPlayedAt)
+      .sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
+    const byProvider = (provider: Game['provider']) =>
+      visible.filter((game) => game.provider === provider)
+
+    return [
+      {
+        title: 'Recently Played',
+        group: 'orbit-recent',
+        games: recentlyPlayed,
+        showPlaytime: true,
+      },
+      {
+        title: 'Switch Games',
+        group: 'orbit-switch',
+        games: byProvider('astris'),
+      },
+      {
+        title: 'Game Hub',
+        group: 'orbit-gamehub',
+        games: byProvider('gamehub'),
+      },
+      {
+        title: 'Steam Games',
+        group: 'orbit-steam',
+        games: byProvider('steam'),
+      },
+    ].filter((row) => row.games.length > 0)
   }, [games])
 
-  const { selectGame, launchGame } = createHomeGameHandlers(
+  const { selectGame, activateGame } = createHomeGameHandlers(
     activeSession,
     setHero,
     onPlay,
     onStop,
+    heroGame.id,
   )
+
+  const [rowSelection, setRowSelection] = useState<Record<string, string>>({})
+
+  const rowSelectedId = (rowGroup: string, rowGames: Game[]) => {
+    const stored = rowSelection[rowGroup]
+    if (stored && rowGames.some((game) => game.id === stored)) return stored
+    return rowGames[0]?.id ?? ''
+  }
+
+  const selectRowGame = (rowGroup: string, game: Game) => {
+    setRowSelection((prev) => ({ ...prev, [rowGroup]: game.id }))
+    selectGame(game)
+  }
+
+  const activateRowGame = (rowGroup: string, game: Game) => {
+    setRowSelection((prev) => ({ ...prev, [rowGroup]: game.id }))
+    activateGame(game)
+  }
 
   return (
     <div className="orbit-home relative min-h-screen overflow-x-hidden pb-20">
@@ -641,45 +824,57 @@ function OrbitHome({
           </div>
         </section>
 
-        <section className="overflow-visible pt-10">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-white/40">
-            Recent Games
-          </p>
-          <div className="orbit-recent-row scrollbar-none -mx-2 flex gap-4 overflow-x-auto px-2 pb-4 pt-5">
-            {recentGames.map((game, index) => {
-              const cover = gameTileImage(game.artwork, 'portrait')
-              const selected = heroGame.id === game.id
-              return (
-                <Focusable
-                  key={game.id}
-                  focusId={`orbit-recent-${game.id}`}
-                  group="orbit-recent"
-                  order={index}
-                  noScale
-                  noRing
-                  onFocusSelect={() => selectGame(game)}
-                  onClick={() => launchGame(game)}
-                  className={clsx(
-                    'orbit-game-card h-[248px] w-[156px] shrink-0 rounded-xl bg-transparent',
-                    selected && 'orbit-game-card-selected',
-                  )}
-                >
-                  <div
-                    className="h-full w-full overflow-hidden rounded-xl bg-cover bg-center ring-1 ring-white/10"
-                    style={{
-                      backgroundImage: cover ? `url(${cover})` : placeholderGradient(game.id),
-                    }}
-                  />
-                </Focusable>
-              )
-            })}
-          </div>
+        {homeRows.map((row, rowIndex) => {
+          const selectedId = rowSelectedId(row.group, row.games)
+          const selectedInRow = row.games.find((game) => game.id === selectedId)
 
-          <p className="mt-4 flex items-center gap-2 text-sm text-white/50">
-            <Gamepad2 className="h-3.5 w-3.5" />
-            Last two weeks · {formatPlaytime(heroGame.totalPlaytimeSeconds)}
-          </p>
-        </section>
+          return (
+          <section
+            key={row.group}
+            className={clsx('overflow-visible', rowIndex === 0 ? 'pt-10' : 'mt-10')}
+          >
+            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-white/40">
+              {row.title} ⋅ {row.showPlaytime && selectedInRow ? (
+              <p className="flex items-center gap-2 text-xs text-white/50">
+                <Gamepad2 className="h-3.5 w-3.5" />
+                Last two weeks · {formatPlaytime(selectedInRow.totalPlaytimeSeconds)}
+              </p>
+            ) : null}
+            </p>
+            <div className="orbit-recent-row scrollbar-none -mx-2 flex gap-4 overflow-x-auto px-2 pb-4 pt-5">
+              {row.games.map((game, index) => {
+                const cover = gameTileImage(game.artwork, 'portrait')
+                const selected = selectedId === game.id
+                return (
+                  <Focusable
+                    key={`${row.group}-${game.id}`}
+                    focusId={`${row.group}-${game.id}`}
+                    group={row.group}
+                    order={index}
+                    noScale
+                    noRing
+                    onFocusSelect={() => selectRowGame(row.group, game)}
+                    onClick={() => activateRowGame(row.group, game)}
+                    className={clsx(
+                      'orbit-game-card h-[248px] w-[156px] shrink-0 rounded-xl bg-transparent',
+                      selected && 'orbit-game-card-selected',
+                    )}
+                  >
+                    <div
+                      className="h-full w-full overflow-hidden rounded-xl bg-cover bg-center ring-1 ring-white/10"
+                      style={{
+                        backgroundImage: cover ? `url(${cover})` : placeholderGradient(game.id),
+                      }}
+                    />
+                  </Focusable>
+                )
+              })}
+            </div>
+
+            
+          </section>
+          )
+        })}
       </div>
     </div>
   )
@@ -708,12 +903,24 @@ function OrbitDashboardCell({
   )
 }
 
-function StatPill({ icon, label }: { icon: ReactNode; label: string }) {
+function StatPill({
+  icon,
+  label,
+  imageSrc,
+}: {
+  icon: ReactNode
+  label: string
+  imageSrc: string | null
+}) {
   return (
-    <span className="ps5-hero-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+    <Ps5GlassChip
+      imageSrc={imageSrc}
+      className="rounded-full"
+      contentClassName="inline-flex items-center gap-2 px-4 py-2 text-sm text-white"
+    >
       {icon}
       {label}
-    </span>
+    </Ps5GlassChip>
   )
 }
 

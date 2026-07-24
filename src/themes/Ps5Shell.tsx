@@ -3,7 +3,7 @@ import { clsx } from 'clsx'
 import { Search, Settings } from 'lucide-react'
 import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
-import { glyphFor } from '@/controllers/ControllerGlyphs'
+import { glyphFor, rightStickGlyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -109,6 +109,7 @@ export function Ps5Shell({
             Back
           </span>
           <div className="hidden items-center gap-4 md:flex">
+            <Hint glyph={rightStickGlyphFor(family)} label="Scroll" />
             <Hint glyph={glyphFor(family, 'secondary')} label="Options" />
             <Hint glyph={glyphFor(family, 'menu')} label="Menu" />
           </div>

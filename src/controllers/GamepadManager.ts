@@ -23,9 +23,18 @@ interface ButtonState {
 }
 
 const DEADZONE = 0.45
+const SCROLL_DEADZONE = 0.14
+const SCROLL_SPEED_PX_PER_MS = 0.55
 const INITIAL_REPEAT_MS = 380
 const REPEAT_MS = 140
 const AXIS_COOLDOWN_MS = 180
+
+export interface GamepadScrollEvent {
+  deltaX: number
+  deltaY: number
+}
+
+export type GamepadScrollHandler = (event: GamepadScrollEvent) => void
 
 /**
  * Polls the Gamepad API and emits normalized controller actions.
@@ -35,8 +44,10 @@ export class GamepadManager {
   private rafId: number | null = null
   private running = false
   private handlers = new Set<GamepadEventHandler>()
+  private scrollHandlers = new Set<GamepadScrollHandler>()
   private buttonStates = new Map<string, Map<number, ButtonState>>()
   private axisCooldownUntil = 0
+  private lastTickAt = 0
   private family: ControllerFamily = 'generic'
   private mapping: MappedButtons = mappingForFamily('generic')
   private connectedId: string | null = null
@@ -64,6 +75,11 @@ export class GamepadManager {
   subscribe(handler: GamepadEventHandler): () => void {
     this.handlers.add(handler)
     return () => this.handlers.delete(handler)
+  }
+
+  onScroll(handler: GamepadScrollHandler): () => void {
+    this.scrollHandlers.add(handler)
+    return () => this.scrollHandlers.delete(handler)
   }
 
   onActivity(listener: () => void): () => void {
@@ -101,6 +117,17 @@ export class GamepadManager {
     this.mapping = mappingForFamily(this.family)
   }
 
+  private emitScroll(deltaX: number, deltaY: number) {
+    if (deltaX === 0 && deltaY === 0) return
+    const event: GamepadScrollEvent = { deltaX, deltaY }
+    for (const handler of this.scrollHandlers) {
+      handler(event)
+    }
+    for (const listener of this.activityListeners) {
+      listener()
+    }
+  }
+
   private emit(action: ControllerAction, repeating: boolean) {
     const event: GamepadActionEvent = {
       action,
@@ -127,6 +154,8 @@ export class GamepadManager {
     if (!this.running) return
     const pads = navigator.getGamepads?.() ?? []
     const now = performance.now()
+    const dt = this.lastTickAt > 0 ? Math.min(now - this.lastTickAt, 32) : 16
+    this.lastTickAt = now
 
     for (const pad of pads) {
       if (!pad) continue
@@ -191,9 +220,23 @@ export class GamepadManager {
           this.axisCooldownUntil = now + AXIS_COOLDOWN_MS
         }
       }
+
+      const scrollX = this.scrollAxisValue(pad.axes[2] ?? 0)
+      const scrollY = this.scrollAxisValue(pad.axes[3] ?? 0)
+      if (scrollX !== 0 || scrollY !== 0) {
+        this.emitScroll(scrollX * SCROLL_SPEED_PX_PER_MS * dt, scrollY * SCROLL_SPEED_PX_PER_MS * dt)
+      }
     }
 
     this.rafId = requestAnimationFrame(this.tick)
+  }
+
+  private scrollAxisValue(value: number): number {
+    const abs = Math.abs(value)
+    if (abs < SCROLL_DEADZONE) return 0
+    const normalized = (abs - SCROLL_DEADZONE) / (1 - SCROLL_DEADZONE)
+    const curved = normalized ** 1.35
+    return Math.sign(value) * curved
   }
 
   private axisToAction(x: number, y: number): ControllerAction | null {

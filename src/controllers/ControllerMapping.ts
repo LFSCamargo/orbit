@@ -12,6 +12,7 @@ export type ControllerAction =
   | 'section-prev'
   | 'section-next'
   | 'menu'
+  | 'home'
 
 export interface MappedButtons {
   confirm: number
@@ -21,6 +22,7 @@ export interface MappedButtons {
   sectionPrev: number
   sectionNext: number
   menu: number
+  home: number
   dpadUp: number
   dpadDown: number
   dpadLeft: number
@@ -66,6 +68,7 @@ export function mappingForFamily(family: ControllerFamily): MappedButtons {
     sectionPrev: 4,
     sectionNext: 5,
     menu: 9,
+    home: 16,
     dpadUp: 12,
     dpadDown: 13,
     dpadLeft: 14,
@@ -102,6 +105,8 @@ export function actionFromButton(
       return 'section-next'
     case mapping.menu:
       return 'menu'
+    case mapping.home:
+      return 'home'
     case mapping.dpadUp:
       return 'navigate-up'
     case mapping.dpadDown:

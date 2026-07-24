@@ -103,7 +103,7 @@ export function PlayingScreen({
             layout === 'orbit' ? 'h-36 w-36 rounded-card' : 'square-game-art h-32 w-32 rounded-[1.25rem]'
           }`}
           style={{
-            background: game ? artworkPlaceholder(game.id) : undefined,
+            background: iconSrc ? '#000' : game ? artworkPlaceholder(game.id) : undefined,
           }}
         >
           {iconSrc ? (
