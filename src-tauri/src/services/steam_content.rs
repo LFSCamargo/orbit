@@ -16,17 +16,7 @@ const CYBERPUNK_DEPOT_LABELS: &[(&str, &str)] = &[
     ("2138332", "Phantom Liberty assets"),
 ];
 
-pub fn detect_steam_root() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    [
-        home.join("Library/Application Support/Steam"),
-        PathBuf::from("/Applications/Steam.app/Contents/MacOS"),
-        home.join(".steam/steam"),
-        home.join(".local/share/Steam"),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
-}
+pub use crate::utils::steam_paths::detect_steam_root;
 
 pub fn steam_content_for_app(
     steam_root: &Path,

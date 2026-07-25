@@ -15,5 +15,7 @@ export interface HomeContentInventory {
 export type GameContentMap = Record<string, GameContentSummary>
 
 export function toContentMap(inventory: HomeContentInventory): GameContentMap {
-  return Object.fromEntries(inventory.summaries.map((summary) => [summary.gameId, summary]))
+  return Object.fromEntries(
+    inventory.summaries.map((summary) => [summary.gameId, summary]),
+  )
 }

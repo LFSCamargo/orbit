@@ -78,6 +78,10 @@ export async function showOrbitWindow(): Promise<void> {
   return run('show_orbit_window')
 }
 
+export async function quitOrbit(): Promise<void> {
+  return run('quit_orbit')
+}
+
 export async function detectImporters(): Promise<ImporterStatus[]> {
   return run<ImporterStatus[]>('detect_importers')
 }
@@ -114,6 +118,40 @@ export async function scanGamehubFolder(folder?: string): Promise<ScanResult> {
 
 export async function importGamePath(path: string): Promise<ScanResult> {
   return run<ScanResult>('import_game_path', { path })
+}
+
+export interface EnrichGameResult {
+  enriched: boolean
+  message: string
+}
+
+export async function enrichGameMetadata(gameId: string): Promise<EnrichGameResult> {
+  return run<EnrichGameResult>('enrich_game_metadata', { gameId })
+}
+
+export async function enrichGamesMetadata(
+  gameIds: string[],
+): Promise<{ enriched: number }> {
+  return run<{ enriched: number }>('enrich_games_metadata', { gameIds })
+}
+
+export interface MetadataCacheStats {
+  gameCount: number
+  dbPath: string
+}
+
+export async function getMetadataCacheStats(): Promise<MetadataCacheStats> {
+  return run<MetadataCacheStats>('get_metadata_cache_stats')
+}
+
+export interface MetadataApiTestResult {
+  thegamesdbOk: boolean
+  steamgriddbOk: boolean
+  message: string
+}
+
+export async function testMetadataApiKeys(): Promise<MetadataApiTestResult> {
+  return run<MetadataApiTestResult>('test_metadata_api_keys')
 }
 
 export async function getSetting<T = unknown>(key: string): Promise<T | null> {

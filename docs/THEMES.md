@@ -54,46 +54,46 @@ Save as `my-living-room.json` in the themes folder.
 
 Every color is **space-separated RGB channels without commas** (same format CSS uses for `rgb(r g b / alpha)`):
 
-| Token | Used for |
-| --- | --- |
-| `canvas` | App background |
-| `surface` | Inputs / nested surfaces |
-| `panel` | Cards and glass panels |
-| `foreground` | Primary text |
-| `muted` | Secondary text |
-| `accent` | Primary CTA / highlights |
-| `focus` | Controller focus ring |
-| `border` | Subtle borders |
+| Token        | Used for                 |
+| ------------ | ------------------------ |
+| `canvas`     | App background           |
+| `surface`    | Inputs / nested surfaces |
+| `panel`      | Cards and glass panels   |
+| `foreground` | Primary text             |
+| `muted`      | Secondary text           |
+| `accent`     | Primary CTA / highlights |
+| `focus`      | Controller focus ring    |
+| `border`     | Subtle borders           |
 
 Tip: keep contrast high for TV / couch distance. Accent should stay readable on both canvas and panel.
 
 ## Optional fields
 
-| Field | Purpose |
-| --- | --- |
-| `fonts.display` / `fonts.body` | Font family names (load the font yourself if it is not DM Sans) |
-| `radius` | Large panel corner radius |
-| `cardRadius` | Smaller card radius |
-| `blur` | Backdrop blur for panels |
-| `backgroundStyle` | `radial` · `ps5` · `switch` |
-| `layout` | Changes the complete app layout and navigation: `orbit` · `ps5` · `switch` |
-| `motion.duration` / `motion.easing` | Global transition feel |
+| Field                               | Purpose                                                                    |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `fonts.display` / `fonts.body`      | Font family names (load the font yourself if it is not DM Sans)            |
+| `radius`                            | Large panel corner radius                                                  |
+| `cardRadius`                        | Smaller card radius                                                        |
+| `blur`                              | Backdrop blur for panels                                                   |
+| `backgroundStyle`                   | `radial` · `ps5` · `switch`                                                |
+| `layout`                            | Changes the complete app layout and navigation: `orbit` · `ps5` · `switch` |
+| `motion.duration` / `motion.easing` | Global transition feel                                                     |
 
 ## Built-in themes
 
 Orbit ships with:
 
-1. **Orbit Default** — cinematic dark launcher  
-2. **PlayStation 5** — immersive artwork, circular tiles, glass panels  
-3. **Switch 2** — bright home screen with square tiles and bottom dock  
+1. **Orbit Default** — cinematic dark launcher
+2. **PlayStation 5** — immersive artwork, circular tiles, glass panels
+3. **Switch 2** — bright home screen with square tiles and bottom dock
 
 Custom themes override a built-in theme **only if they reuse the same `id`**. Prefer unique ids like `house-neon-01`.
 
 ## Sharing themes with friends
 
-1. Zip one or more `.json` theme files.  
-2. Friends unpack them into their Orbit `themes/` folder.  
-3. Open Settings → **Reload custom themes**.  
+1. Zip one or more `.json` theme files.
+2. Friends unpack them into their Orbit `themes/` folder.
+3. Open Settings → **Reload custom themes**.
 4. Focus a theme card with the controller and press Confirm.
 
 No code changes required — themes are data.

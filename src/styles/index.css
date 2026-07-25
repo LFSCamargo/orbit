@@ -60,6 +60,39 @@
 }
 
 @layer components {
+  /* Transparent square icons (SteamGridDB) need a solid tile backdrop. */
+  .square-game-art {
+    background-color: #000;
+  }
+
+  .library-square-grid {
+    display: grid;
+    gap: 1rem;
+    align-items: start;
+    justify-content: start;
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fill, var(--library-square-size));
+  }
+
+  .library-square-grid-ps5 {
+    --library-square-size: 7.75rem;
+  }
+
+  .library-square-grid-switch {
+    --library-square-size: 9rem;
+  }
+
+  .library-square-grid-orbit {
+    --library-square-size: 8.5rem;
+  }
+
+  html[data-layout='ps5'] .ps5-card .square-game-art,
+  html[data-layout='switch'] .switch-card .square-game-art {
+    width: 100%;
+    max-width: var(--library-square-size, 100%);
+    aspect-ratio: 1 / 1;
+  }
+
   .orbit-panel {
     border-radius: var(--orbit-radius);
     background: rgb(var(--orbit-panel) / 0.72);
@@ -125,6 +158,27 @@
     display: none;
   }
 
+  html[data-layout='orbit'],
+  html[data-layout='orbit'] body,
+  html[data-layout='orbit'] #root {
+    height: 100%;
+    overflow: hidden;
+    background: rgb(var(--orbit-canvas));
+    color: rgb(var(--orbit-foreground));
+  }
+
+  html[data-layout='orbit'] .orbit-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    background: rgb(var(--orbit-canvas));
+    color: rgb(var(--orbit-foreground));
+  }
+
+  html[data-layout='orbit'] .orbit-main {
+    -webkit-overflow-scrolling: touch;
+    background: rgb(var(--orbit-canvas));
+  }
+
   html[data-bg='ps5'] .theme-bg::before {
     background:
       radial-gradient(ellipse 80% 50% at 20% 0%, rgb(70 140 255 / 0.28), transparent 60%),
@@ -140,16 +194,17 @@
       radial-gradient(circle at 12% 18%, rgb(255 0 60 / 0.12), transparent 32%),
       radial-gradient(circle at 88% 12%, rgb(0 212 255 / 0.1), transparent 34%),
       linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent 55%);
-    }
+  }
 
   /* PS5: unified shell, flat panels, white focus rings. */
   html[data-layout='ps5'] {
-    --ps5-bg: #0a1628;
+    --ps5-bg: #070f1c;
     --ps5-panel: #0c1829;
     --ps5-surface: #122038;
     --ps5-ink: #ecf2ff;
     --ps5-muted: #96aac8;
     --ps5-border: rgb(255 255 255 / 0.1);
+    --ps5-accent: rgb(70 150 255);
   }
 
   html[data-layout='ps5'],
@@ -187,45 +242,112 @@
     box-shadow: 0 0 0 2px white;
   }
 
-  html[data-layout='ps5'] .ps5-main .orbit-focusable[data-focused='true']:not(.ps5-card):not(.ps5-tile),
+  html[data-layout='ps5']
+    .ps5-main
+    .orbit-focusable[data-focused='true']:not(.ps5-card):not(.ps5-tile),
   html[data-layout='ps5'] .ps5-topbar .orbit-focusable[data-focused='true']:not(.ps5-nav),
   html[data-layout='ps5'] .ps5-home-actions .orbit-focusable[data-focused='true'],
   html[data-layout='ps5'] .ps5-footer .orbit-focusable[data-focused='true'] {
     box-shadow: 0 0 0 2px white;
   }
 
-  html[data-layout='ps5'] .ps5-tile[data-focused='true'] > div,
+  html[data-layout='ps5'] .ps5-tile[data-focused='true'] > .ps5-tile-art,
   html[data-layout='ps5'] .ps5-card[data-focused='true'] > .square-game-art {
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 0.18),
       0 0 0 3px white;
-    transform: scale(1.04);
   }
 
-  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected > .square-game-art {
+  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected > .ps5-tile-art {
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 0.18),
       0 0 0 2px rgb(255 255 255 / 0.55);
   }
 
-  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected[data-focused='true'] > .square-game-art {
+  html[data-layout='ps5']
+    .ps5-tile.ps5-tile-selected[data-focused='true']
+    > .ps5-tile-art {
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 0.18),
       0 0 0 3px white;
+  }
+
+  html[data-layout='ps5'] .ps5-game-row {
+    --ps5-tile-sm: 4.5rem;
+    --ps5-tile-lg: 7.75rem;
+    --ps5-tile-gap: 0.75rem;
+    --ps5-title-gap: 0.625rem;
+    /* Under the next tile: past selected width + row gap. */
+    --ps5-title-left: calc(
+      (var(--ps5-selected-index, 0) * (var(--ps5-tile-sm) + var(--ps5-tile-gap))) +
+        (var(--ps5-title-under-next, 1) * (var(--ps5-tile-lg) + var(--ps5-tile-gap)))
+    );
+    overflow: visible;
+  }
+
+  html[data-layout='ps5'] .ps5-game-row-track {
+    min-height: calc(var(--ps5-tile-lg) + 0.5rem);
+    padding: 0.35rem 2rem 0.35rem 0.35rem;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  html[data-layout='ps5'] .ps5-tile {
+    width: var(--ps5-tile-sm);
+    background: transparent;
+    transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected {
+    width: var(--ps5-tile-lg);
+  }
+
+  html[data-layout='ps5'] .ps5-tile-art {
+    width: 100%;
+    height: var(--ps5-tile-sm);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+    transition:
+      height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.22s ease;
+  }
+
+  html[data-layout='ps5'] .ps5-tile.ps5-tile-selected > .ps5-tile-art {
+    height: var(--ps5-tile-lg);
+  }
+
+  html[data-layout='ps5'] .ps5-tile-title-slot {
+    position: relative;
+    height: 2rem;
+    margin-top: var(--ps5-title-gap);
+  }
+
+  html[data-layout='ps5'] .ps5-tile-title {
+    position: absolute;
+    left: var(--ps5-title-left, 0px);
+    top: -3.25rem;
+    max-width: min(22rem, 56vw);
+    font-size: 1.375rem;
+    line-height: 1.25;
+    color: #ffffff;
+    pointer-events: none;
+    transition: left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* Last tile: measured --ps5-title-left pins to the cover's left edge. */
+  html[data-layout='ps5'] .ps5-tile-title.ps5-tile-title-last {
+    left: var(--ps5-title-left, 0px);
   }
 
   html[data-layout='ps5'] .ps5-card[data-focused='true'] > p {
     color: var(--ps5-ink);
   }
 
-  html[data-layout='ps5'] .ps5-card,
-  html[data-layout='ps5'] .ps5-tile {
+  html[data-layout='ps5'] .ps5-card {
     background: transparent;
   }
 
   html[data-layout='ps5'] .square-game-art {
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: box-shadow 0.22s ease;
   }
 
   html[data-layout='ps5'] .ps5-dashboard-glass {
@@ -234,7 +356,9 @@
     transition: none;
   }
 
-  html[data-layout='ps5'] .native-glass-panel[data-glass-variant='ps5'] .native-glass-tint {
+  html[data-layout='ps5']
+    .native-glass-panel[data-glass-variant='ps5']
+    .native-glass-tint {
     background:
       linear-gradient(
         180deg,
@@ -251,7 +375,7 @@
     transition: none;
   }
 
-  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-title {
+  html[data-layout='ps5'] .ps5-home .ps5-hero-title {
     color: #ffffff;
   }
 
@@ -264,45 +388,34 @@
     color: rgb(255 255 255 / 0.8);
   }
 
-  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-more {
-    background: rgb(255 255 255 / 0.15);
-    color: #ffffff;
+  html[data-layout='ps5'] .ps5-glass-chip {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
   }
 
-  html[data-layout='ps5'] .ps5-hero-zone .ps5-hero-pill {
-    background: rgb(0 0 0 / 0.35);
-    color: #ffffff;
+  html[data-layout='ps5'] .ps5-glass-chip .native-glass-tint {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 0.14) 0%,
+        rgb(255 255 255 / 0.04) 28%,
+        transparent 42%
+      ),
+      linear-gradient(180deg, rgb(18 32 56 / 0.42) 0%, rgb(10 22 40 / 0.58) 100%);
   }
 
-  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-title {
-    color: var(--ps5-bg);
+  html[data-layout='ps5'] .ps5-glass-chip .orbit-focusable {
+    background: transparent;
+    border-radius: inherit;
   }
 
-  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-description {
-    color: rgb(10 22 40 / 0.72);
+  html[data-layout='ps5'] .ps5-glass-chip .orbit-focusable[data-focused='true'] {
+    box-shadow: none;
   }
 
-  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-eyebrow {
-    background: rgb(10 22 40 / 0.12);
-    color: rgb(10 22 40 / 0.78);
-  }
-
-  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-more {
-    background: rgb(10 22 40 / 0.12);
-    color: var(--ps5-bg);
-  }
-
-  html[data-layout='ps5'] .ps5-home[data-hero-tone='light'] .ps5-hero-zone .ps5-hero-pill {
-    background: rgb(10 22 40 / 0.12);
-    color: var(--ps5-bg);
-  }
-
-  /* White rings disappear on light heroes — flip to dark in the hero zone only. */
-  html[data-layout='ps5']
-    .ps5-home[data-hero-tone='light']
-    .ps5-hero-zone
-    .orbit-focusable[data-focused='true'] {
-    box-shadow: 0 0 0 2px var(--ps5-bg);
+  html[data-layout='ps5'] .ps5-glass-chip:has(.orbit-focusable[data-focused='true']) {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      0 0 0 2px white;
   }
 
   html[data-layout='ps5'] .ps5-dashboard-glass .ps5-hero-card-value {
@@ -385,16 +498,32 @@
     overflow-x: clip;
   }
 
-  html[data-layout='switch'] .switch-main .orbit-focusable[data-focused='true'],
+  html[data-layout='switch']
+    .switch-main
+    .orbit-focusable[data-focused='true']:not(.switch-card):not(.switch-tile),
   html[data-layout='switch'] .switch-topbar .orbit-focusable[data-focused='true'],
   html[data-layout='switch'] .switch-home-actions .orbit-focusable[data-focused='true'],
   html[data-layout='switch'] .switch-nav .orbit-focusable[data-focused='true'] {
     box-shadow: 0 0 0 3px var(--switch-cyan);
   }
 
-  html[data-layout='switch'] .switch-tile[data-focused='true'] > div,
-  html[data-layout='switch'] .switch-card[data-focused='true'] > div:first-child {
+  html[data-layout='switch'] .switch-tile[data-focused='true'] > div {
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+
+  html[data-layout='switch'] .switch-card[data-focused='true'] > .square-game-art {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.18),
+      0 0 0 3px white;
+  }
+
+  html[data-layout='switch'] .switch-card[data-focused='true'] > p {
+    color: var(--switch-ink);
+  }
+
+  html[data-layout='switch'] .switch-card {
+    background: transparent;
+    box-shadow: none;
   }
 
   html[data-layout='switch'] .switch-tile.orbit-focusable {
@@ -408,9 +537,11 @@
 
   html[data-layout='switch'] .square-game-art {
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+    transition: box-shadow 0.22s ease;
   }
 
-  html[data-layout='switch'] .switch-tile-selected.orbit-focusable:not([data-focused='true']) {
+  html[data-layout='switch']
+    .switch-tile-selected.orbit-focusable:not([data-focused='true']) {
     box-shadow: 0 0 0 3px rgb(255 255 255 / 0.28);
   }
 
@@ -555,7 +686,9 @@
     backdrop-filter: blur(20px) saturate(125%);
   }
 
-  html[data-layout='orbit'] .native-glass-panel[data-glass-variant='orbit'] .native-glass-tint {
+  html[data-layout='orbit']
+    .native-glass-panel[data-glass-variant='orbit']
+    .native-glass-tint {
     background:
       linear-gradient(
         180deg,
@@ -605,7 +738,8 @@
   }
 
   .orbit-transition {
-    transition-property: transform, opacity, background-color, box-shadow, color, border-color;
+    transition-property:
+      transform, opacity, background-color, box-shadow, color, border-color;
     transition-duration: var(--orbit-motion-duration);
     transition-timing-function: var(--orbit-motion-easing);
   }
@@ -628,8 +762,12 @@ html[data-layout='orbit'] .nav-surface .orbit-focusable[data-focused='true'] {
   border-radius: 0.75rem;
 }
 
-html[data-layout='orbit'] .orbit-home .orbit-focusable[data-focused='true']:not(.orbit-game-card),
-html[data-layout='orbit'] .orbit-route .orbit-focusable[data-focused='true']:not(.orbit-library-card):not(.orbit-game-card) {
+html[data-layout='orbit']
+  .orbit-home
+  .orbit-focusable[data-focused='true']:not(.orbit-game-card),
+html[data-layout='orbit']
+  .orbit-route
+  .orbit-focusable[data-focused='true']:not(.orbit-library-card):not(.orbit-game-card) {
   box-shadow: 0 0 0 2px rgb(255 255 255 / 0.92);
 }
 

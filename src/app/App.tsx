@@ -1,15 +1,16 @@
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AppShell } from '@/components/layout/AppShell'
+import { HomeMenuModal } from '@/components/home/HomeMenuModal'
 import { useControllerNavigation } from '@/controllers/useController'
-import { AddGamePage } from '@/features/imports/AddGamePage'
-import { GameDetailsPage } from '@/features/game-details/GameDetailsPage'
-import { GameEditPage } from '@/features/game-details/GameEditPage'
-import { HomePage } from '@/features/home/HomePage'
-import { LibraryPage } from '@/features/library/LibraryPage'
-import { SearchPage } from '@/features/search/SearchPage'
-import { SettingsPage } from '@/features/settings/SettingsPage'
-import { SwitchLibraryPage } from '@/features/switch-library/SwitchLibraryPage'
+import { AddGamePage } from '@/modules/imports/AddGamePage'
+import { GameDetailsPage } from '@/modules/game-details/GameDetailsPage'
+import { GameEditPage } from '@/modules/game-details/GameEditPage'
+import { HomePage } from '@/modules/home/HomePage'
+import { LibraryPage } from '@/modules/library/LibraryPage'
+import { SearchPage } from '@/modules/search/SearchPage'
+import { SettingsPage } from '@/modules/settings/SettingsPage'
+import { SwitchLibraryPage } from '@/modules/switch-library/SwitchLibraryPage'
 import { useCursorAutoHide } from '@/hooks/useCursorAutoHide'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { useActiveSessionQuery } from '@/hooks/useGames'
@@ -27,6 +28,7 @@ const pageTransition = {
 
 export function App() {
   const screen = useUiStore((s) => s.screen)
+  const homeMenuOpen = useUiStore((s) => s.homeMenuOpen)
   const layout = useThemeLayout()
   const { family } = useControllerNavigation()
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
@@ -40,31 +42,39 @@ export function App() {
   }, [activeSession, setActiveSession])
 
   return (
-    <AppShell family={family}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={screen}
-          initial={pageTransition.initial}
-          animate={pageTransition.animate}
-          exit={pageTransition.exit}
-          transition={pageTransition.transition}
-          className={
-            layout === 'switch' || layout === 'ps5'
-              ? 'flex min-h-full flex-1 flex-col'
-              : undefined
-          }
-          data-screen={screen}
-        >
-          {screen === 'home' && <HomePage />}
-          {screen === 'library' && <LibraryPage />}
-          {screen === 'search' && <SearchPage />}
-          {screen === 'game-details' && <GameDetailsPage />}
-          {screen === 'game-edit' && <GameEditPage />}
-          {screen === 'add-game' && <AddGamePage />}
-          {screen === 'settings' && <SettingsPage />}
-          {screen === 'switch-library' && <SwitchLibraryPage />}
-        </motion.div>
-      </AnimatePresence>
-    </AppShell>
+    <>
+      <div
+        className={homeMenuOpen ? 'pointer-events-none select-none' : undefined}
+        aria-hidden={homeMenuOpen}
+      >
+        <AppShell family={family}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={screen}
+              initial={pageTransition.initial}
+              animate={pageTransition.animate}
+              exit={pageTransition.exit}
+              transition={pageTransition.transition}
+              className={
+                layout === 'switch' || layout === 'ps5'
+                  ? 'flex min-h-full flex-1 flex-col'
+                  : undefined
+              }
+              data-screen={screen}
+            >
+              {screen === 'home' && <HomePage />}
+              {screen === 'library' && <LibraryPage />}
+              {screen === 'search' && <SearchPage />}
+              {screen === 'game-details' && <GameDetailsPage />}
+              {screen === 'game-edit' && <GameEditPage />}
+              {screen === 'add-game' && <AddGamePage />}
+              {screen === 'settings' && <SettingsPage />}
+              {screen === 'switch-library' && <SwitchLibraryPage />}
+            </motion.div>
+          </AnimatePresence>
+        </AppShell>
+      </div>
+      <HomeMenuModal family={family} />
+    </>
   )
 }

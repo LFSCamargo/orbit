@@ -23,13 +23,13 @@ function applyCssVars(theme: ThemeDefinition) {
   root.style.setProperty('--orbit-accent', colors.accent)
   root.style.setProperty('--orbit-focus', colors.focus)
   root.style.setProperty('--orbit-border', colors.border)
+  if (theme.layout === 'ps5') {
+    root.style.setProperty('--ps5-accent', `rgb(${colors.accent.replace(/\s+/g, ', ')})`)
+  }
   root.style.setProperty('--orbit-radius', theme.radius ?? '1.25rem')
   root.style.setProperty('--orbit-card-radius', theme.cardRadius ?? '1rem')
   root.style.setProperty('--orbit-blur', theme.blur ?? '24px')
-  root.style.setProperty(
-    '--orbit-motion-duration',
-    theme.motion?.duration ?? '0.35s',
-  )
+  root.style.setProperty('--orbit-motion-duration', theme.motion?.duration ?? '0.35s')
   root.style.setProperty(
     '--orbit-motion-easing',
     theme.motion?.easing ?? 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -47,7 +47,8 @@ function applyCssVars(theme: ThemeDefinition) {
   const canvasParts = colors.canvas.split(/\s+/).map(Number)
   const luminance =
     canvasParts.length === 3
-      ? (0.2126 * canvasParts[0] + 0.7152 * canvasParts[1] + 0.0722 * canvasParts[2]) / 255
+      ? (0.2126 * canvasParts[0] + 0.7152 * canvasParts[1] + 0.0722 * canvasParts[2]) /
+        255
       : 0.05
   root.style.colorScheme = luminance > 0.55 ? 'light' : 'dark'
 }

@@ -18,3 +18,9 @@ export function mediaSrc(path?: string | null): string | undefined {
     return path
   }
 }
+
+/** Quote a CSS `url(...)` value so asset/data paths with special characters stay valid. */
+export function cssUrl(image: string): string {
+  const safe = image.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return `url("${safe}")`
+}

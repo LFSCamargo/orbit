@@ -45,7 +45,7 @@ Do not open PRs for:
 - ROM downloads, decryption, or keys management
 - Bundling or distributing emulators
 - Steam account authentication or cloud sync
-- Automatic artwork scraping pipelines (RAWG search in Settings is the supported path)
+- Automatic enrichment without user API keys for SteamGridDB artwork (Steam Store text still works keyless; RAWG/SteamGridDB keys live in Settings)
 
 See [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) for the full product boundary.
 
@@ -55,11 +55,11 @@ See [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) for the full product boundary.
 
 ### Pick the right dev mode
 
-| Change type | Dev command |
-| ----------- | ----------- |
-| Rust, SQLite, importers, launch | `yarn tauri:dev` |
-| React UI, themes, focus system | `yarn dev` for speed, then `yarn tauri:dev` before PR |
-| E2E specs | `yarn test:e2e` (uses preview + mock API) |
+| Change type                     | Dev command                                           |
+| ------------------------------- | ----------------------------------------------------- |
+| Rust, SQLite, importers, launch | `yarn tauri:dev`                                      |
+| React UI, themes, focus system  | `yarn dev` for speed, then `yarn tauri:dev` before PR |
+| E2E specs                       | `yarn test:e2e` (uses preview + mock API)             |
 
 ### Code organization
 
@@ -78,11 +78,11 @@ Guidelines:
 
 ### Tests
 
-| Layer | When required | Command |
-| ----- | ------------- | ------- |
-| Rust | Any `src-tauri/` logic change | `yarn test:rust` |
-| E2E | Navigation, themes, focus, new screens | `yarn test:e2e` |
-| Typecheck | All TS/TSX changes | `yarn typecheck` |
+| Layer     | When required                          | Command          |
+| --------- | -------------------------------------- | ---------------- |
+| Rust      | Any `src-tauri/` logic change          | `yarn test:rust` |
+| E2E       | Navigation, themes, focus, new screens | `yarn test:e2e`  |
+| Typecheck | All TS/TSX changes                     | `yarn typecheck` |
 
 Bug fixes should include a regression test when practical. See [`.cursor/rules/test-driven.mdc`](.cursor/rules/test-driven.mdc).
 
@@ -115,13 +115,13 @@ Security-sensitive changes (paths, launch, SQL): review [`.cursor/rules/security
 
 Update docs in the **same PR** when you change behavior not already described:
 
-| Change | Update |
-| ------ | ------ |
-| New screen or flow | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/FRONTEND.mdc](docs/FRONTEND.mdc) |
-| New Tauri command | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/TAURI.mdc](docs/TAURI.mdc), `src/lib/tauri.ts` |
-| New theme field | [docs/UI.mdc](docs/UI.mdc), [docs/THEMES.md](docs/THEMES.md) |
-| New script or dev workflow | [docs/PROJECT.mdc](docs/PROJECT.mdc), [RUNNING.md](RUNNING.md) |
-| Folder structure change | Matching doc tree + [README.md](README.md) if top-level |
+| Change                     | Update                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
+| New screen or flow         | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/FRONTEND.mdc](docs/FRONTEND.mdc)               |
+| New Tauri command          | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/TAURI.mdc](docs/TAURI.mdc), `src/lib/tauri.ts` |
+| New theme field            | [docs/UI.mdc](docs/UI.mdc), [docs/THEMES.md](docs/THEMES.md)                                     |
+| New script or dev workflow | [docs/PROJECT.mdc](docs/PROJECT.mdc), [RUNNING.md](RUNNING.md)                                   |
+| Folder structure change    | Matching doc tree + [README.md](README.md) if top-level                                          |
 
 See [`.cursor/rules/docs-sync.mdc`](.cursor/rules/docs-sync.mdc).
 

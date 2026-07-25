@@ -6,7 +6,7 @@ use crate::importers::{
     import_manual_path, AstrisImporter, GameHubImporter, GameImporter, NativeAppImporter,
     SteamImporter,
 };
-use crate::services::LibrarySyncService;
+use crate::services::{LibrarySyncService, MetadataEnrichmentService};
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -22,6 +22,7 @@ pub struct ImporterStatus {
 #[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub imported: usize,
+    pub enriched: usize,
     pub provider: String,
 }
 
@@ -67,12 +68,7 @@ pub async fn scan_steam_library(state: State<'_, AppState>) -> Result<ScanResult
         .discover_games()
         .await
         .map_err(|err| err.to_string())?;
-    let imported = LibrarySyncService::upsert_imported(&state.repo, &games)
-        .map_err(|err| err.to_string())?;
-    Ok(ScanResult {
-        imported,
-        provider: "steam".into(),
-    })
+    finalize_scan(&state, games, "steam").await
 }
 
 #[tauri::command]
@@ -85,12 +81,7 @@ pub async fn scan_astris_folder(
         .discover_games()
         .await
         .map_err(|err| err.to_string())?;
-    let imported = LibrarySyncService::upsert_imported(&state.repo, &games)
-        .map_err(|err| err.to_string())?;
-    Ok(ScanResult {
-        imported,
-        provider: "astris".into(),
-    })
+    finalize_scan(&state, games, "astris").await
 }
 
 #[tauri::command]
@@ -100,12 +91,7 @@ pub async fn scan_native_apps(state: State<'_, AppState>) -> Result<ScanResult, 
         .discover_games()
         .await
         .map_err(|err| err.to_string())?;
-    let imported = LibrarySyncService::upsert_imported(&state.repo, &games)
-        .map_err(|err| err.to_string())?;
-    Ok(ScanResult {
-        imported,
-        provider: "native".into(),
-    })
+    finalize_scan(&state, games, "native").await
 }
 
 #[tauri::command]
@@ -121,12 +107,7 @@ pub async fn scan_gamehub_folder(
         .discover_games()
         .await
         .map_err(|err| err.to_string())?;
-    let imported = LibrarySyncService::upsert_imported(&state.repo, &games)
-        .map_err(|err| err.to_string())?;
-    Ok(ScanResult {
-        imported,
-        provider: "gamehub".into(),
-    })
+    finalize_scan(&state, games, "gamehub").await
 }
 
 #[tauri::command]
@@ -135,10 +116,35 @@ pub async fn import_game_path(
     path: String,
 ) -> Result<ScanResult, String> {
     let game = import_manual_path(PathBuf::from(path).as_path()).map_err(|err| err.to_string())?;
-    let imported = LibrarySyncService::upsert_imported(&state.repo, &[game])
+    finalize_scan(&state, vec![game], "manual").await
+}
+
+async fn finalize_scan(
+    state: &State<'_, AppState>,
+    games: Vec<crate::models::ImportedGame>,
+    provider: &str,
+) -> Result<ScanResult, String> {
+    let upsert = LibrarySyncService::upsert_imported(&state.repo, &games)
         .map_err(|err| err.to_string())?;
+
+    let mut enriched = 0usize;
+    if !upsert.new_game_ids.is_empty() && MetadataEnrichmentService::auto_enrich_enabled(&state.repo)
+    {
+        enriched = MetadataEnrichmentService::enrich_games(
+            &state.repo,
+            &state.metadata_cache,
+            &upsert.new_game_ids,
+        )
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("[orbit] auto-enrich after {provider} import failed: {err}");
+            0
+        });
+    }
+
     Ok(ScanResult {
-        imported,
-        provider: "manual".into(),
+        imported: upsert.imported,
+        enriched,
+        provider: provider.into(),
     })
 }

@@ -1,14 +1,17 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::database::migrations::run_migrations;
 use crate::models::{
-    Achievement, CreateGameRequest, Game, GameArtwork, GameOverrides, GamePlatform, GameProvider,
-    GameSession, ImportedGame, LaunchConfiguration, SessionStopReason, UpdateGameRequest,
+    CreateGameRequest, Game, GameArtwork, GameOverrides, GamePlatform, GameProvider, GameSession,
+    ImportedGame, LaunchConfiguration, SessionStopReason, UpdateGameRequest, UpsertResult,
 };
+use crate::services::artwork::{is_heavy_base64_data_url, materialize_heavy_artwork};
+use crate::services::metadata_merge::{is_placeholder_description, merge_artwork};
 
 pub struct GameRepository {
     conn: Mutex<Connection>,
@@ -49,8 +52,20 @@ impl GameRepository {
         )?;
         let rows = stmt.query_map([], map_game_row)?;
         let mut games: Vec<Game> = rows.filter_map(|row| row.ok()).collect();
+        let mut overrides = load_all_overrides(&conn)?;
         for game in &mut games {
-            apply_overrides(&conn, game)?;
+            if let Some(over) = overrides.get_mut(&game.id) {
+                // Overrides can still hold legacy inline base64 — spill before applying.
+                if materialize_override_artwork(&game.id, over) {
+                    persist_override_json(&conn, &game.id, over)?;
+                }
+                apply_override_values(game, over);
+            }
+            if materialize_heavy_artwork(&game.id, &mut game.artwork) {
+                persist_artwork_json(&conn, &game.id, &game.artwork)?;
+            }
+            // Safety net: never send multi-MB data URLs over IPC for list views.
+            lighten_artwork(&mut game.artwork);
         }
         Ok(games)
     }
@@ -71,30 +86,35 @@ impl GameRepository {
         Ok(game)
     }
 
-    pub fn upsert_imported(&self, imported: &[ImportedGame]) -> Result<usize> {
+    pub fn upsert_imported(&self, imported: &[ImportedGame]) -> Result<UpsertResult> {
         let conn = self.conn.lock().unwrap();
         let mut upserted = 0usize;
+        let mut new_game_ids = Vec::new();
         let now = chrono::Utc::now().to_rfc3339();
+        // O(n) preload: one query for existing rows instead of N SELECTs by stable_key.
+        let mut existing_by_key = load_existing_by_stable_key(&conn)?;
 
         for game in imported {
-            let existing: Option<(String, Option<String>)> = conn
-                .query_row(
-                    "SELECT id, description FROM games WHERE stable_key = ?1",
-                    params![game.stable_key],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .ok();
-
             let launch_json = serde_json::to_string(&game.launch_config)?;
-            let artwork_json = serde_json::to_string(&game.artwork)?;
             let achievements_json = serde_json::to_string(&game.achievements)?;
 
-            if let Some((id, existing_description)) = existing {
-                // Preserve user description overrides when already set via overrides table;
-                // still refresh importer metadata / playtime / size / achievements.
-                let description = existing_description
-                    .filter(|d| !d.is_empty())
-                    .or_else(|| game.description.clone());
+            if let Some((id, existing_description, existing_artwork_json, _existing_title)) =
+                existing_by_key.remove(&game.stable_key)
+            {
+                let existing_artwork: GameArtwork =
+                    serde_json::from_str(&existing_artwork_json).unwrap_or_default();
+                let mut artwork = merge_artwork(&existing_artwork, &game.artwork);
+                materialize_heavy_artwork(&id, &mut artwork);
+                let artwork_json = serde_json::to_string(&artwork)?;
+
+                // Keep enriched / user descriptions; only replace empty or placeholder text.
+                let description = if is_placeholder_description(existing_description.as_deref()) {
+                    game.description
+                        .clone()
+                        .or(existing_description)
+                } else {
+                    existing_description
+                };
 
                 conn.execute(
                     "UPDATE games
@@ -130,6 +150,9 @@ impl GameRepository {
                 )?;
             } else {
                 let id = Uuid::new_v4().to_string();
+                let mut artwork = game.artwork.clone();
+                materialize_heavy_artwork(&id, &mut artwork);
+                let artwork_json = serde_json::to_string(&artwork)?;
                 conn.execute(
                     "INSERT INTO games (
                         id, stable_key, title, sort_title, provider, platform, source_id,
@@ -154,18 +177,33 @@ impl GameRepository {
                         achievements_json,
                     ],
                 )?;
+                // Track newly inserted keys so duplicate keys in the same batch update, not re-insert.
+                existing_by_key.insert(
+                    game.stable_key.clone(),
+                    (
+                        id.clone(),
+                        game.description.clone(),
+                        artwork_json,
+                        game.title.clone(),
+                    ),
+                );
+                new_game_ids.push(id);
             }
             upserted += 1;
         }
 
-        Ok(upserted)
+        Ok(UpsertResult {
+            imported: upserted,
+            new_game_ids,
+        })
     }
 
     pub fn create_game(&self, request: CreateGameRequest) -> Result<Game> {
         let id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let sort_title = request.title.to_lowercase();
-        let artwork = request.artwork.unwrap_or_default();
+        let mut artwork = request.artwork.unwrap_or_default();
+        materialize_heavy_artwork(&id, &mut artwork);
         let launch_json = serde_json::to_string(&request.launch_config)?;
         let artwork_json = serde_json::to_string(&artwork)?;
         let stable_key = format!("manual:{id}");
@@ -218,7 +256,8 @@ impl GameRepository {
         let title = request.title.unwrap_or(existing.title);
         let sort_title = title.to_lowercase();
         let description = request.description.or(existing.description);
-        let artwork = request.artwork.unwrap_or(existing.artwork);
+        let mut artwork = request.artwork.unwrap_or(existing.artwork);
+        materialize_heavy_artwork(game_id, &mut artwork);
         let launch_config_changed = request.launch_config.is_some();
         let launch_config = request
             .launch_config
@@ -396,52 +435,6 @@ impl GameRepository {
         }
         Ok(())
     }
-
-    fn seed_mock_games_if_empty(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        let count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM games", [], |row| row.get(0))?;
-        if count > 0 {
-            return Ok(());
-        }
-
-        let now = chrono::Utc::now().to_rfc3339();
-        let mocks = mock_games(&now);
-        for game in mocks {
-            let launch_json = serde_json::to_string(&game.launch_config)?;
-            let artwork_json = serde_json::to_string(&game.artwork)?;
-            let achievements_json = serde_json::to_string(&game.achievements)?;
-            let stable_key = format!("{}:{}", game.provider.as_str(), game.id);
-            conn.execute(
-                "INSERT INTO games (
-                    id, stable_key, title, sort_title, provider, platform, source_id,
-                    launch_config_json, artwork_json, favorite, hidden, date_added,
-                    last_played_at, total_playtime_seconds, description,
-                    install_size_bytes, achievements_json
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
-                params![
-                    game.id,
-                    stable_key,
-                    game.title,
-                    game.sort_title,
-                    game.provider.as_str(),
-                    game.platform.as_str(),
-                    game.source_id,
-                    launch_json,
-                    artwork_json,
-                    game.favorite as i64,
-                    game.hidden as i64,
-                    game.date_added,
-                    game.last_played_at,
-                    game.total_playtime_seconds,
-                    game.description,
-                    game.install_size_bytes,
-                    achievements_json,
-                ],
-            )?;
-        }
-        Ok(())
-    }
 }
 
 fn apply_overrides(conn: &Connection, game: &mut Game) -> Result<()> {
@@ -454,25 +447,121 @@ fn apply_overrides(conn: &Connection, game: &mut Game) -> Result<()> {
         return Ok(());
     };
     let overrides: GameOverrides = serde_json::from_str(&json)?;
-    if let Some(title) = overrides.title {
+    apply_override_values(game, &overrides);
+    Ok(())
+}
+
+fn apply_override_values(game: &mut Game, overrides: &GameOverrides) {
+    if let Some(title) = overrides.title.clone() {
         game.sort_title = title.to_lowercase();
         game.title = title;
     }
     if overrides.description.is_some() {
-        game.description = overrides.description;
+        game.description = overrides.description.clone();
     }
     if overrides.cover.is_some() {
-        game.artwork.cover = overrides.cover;
+        game.artwork.cover = overrides.cover.clone();
     }
     if overrides.hero.is_some() {
-        game.artwork.hero = overrides.hero;
+        game.artwork.hero = overrides.hero.clone();
     }
     if overrides.logo.is_some() {
-        game.artwork.logo = overrides.logo;
+        game.artwork.logo = overrides.logo.clone();
     }
     if overrides.icon.is_some() {
-        game.artwork.icon = overrides.icon;
+        game.artwork.icon = overrides.icon.clone();
     }
+}
+
+fn load_all_overrides(conn: &Connection) -> Result<HashMap<String, GameOverrides>> {
+    let mut stmt = conn.prepare("SELECT game_id, override_json FROM user_overrides")?;
+    let rows = stmt.query_map([], |row| {
+        let game_id: String = row.get(0)?;
+        let json: String = row.get(1)?;
+        Ok((game_id, json))
+    })?;
+    let mut map = HashMap::new();
+    for row in rows {
+        let (game_id, json) = row?;
+        if let Ok(overrides) = serde_json::from_str::<GameOverrides>(&json) {
+            map.insert(game_id, overrides);
+        }
+    }
+    Ok(map)
+}
+
+type ExistingGameRow = (String, Option<String>, String, String);
+
+fn load_existing_by_stable_key(conn: &Connection) -> Result<HashMap<String, ExistingGameRow>> {
+    let mut stmt =
+        conn.prepare("SELECT stable_key, id, description, artwork_json, title FROM games")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            (
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+            ),
+        ))
+    })?;
+    let mut map = HashMap::new();
+    for row in rows {
+        let (stable_key, existing) = row?;
+        map.insert(stable_key, existing);
+    }
+    Ok(map)
+}
+
+fn lighten_artwork_slot(slot: Option<String>) -> Option<String> {
+    match slot {
+        Some(value) if is_heavy_base64_data_url(&value) => None,
+        other => other,
+    }
+}
+
+/// Drop huge inline base64 artwork from list payloads; keep file paths and small refs.
+fn lighten_artwork(artwork: &mut GameArtwork) {
+    artwork.cover = lighten_artwork_slot(artwork.cover.take());
+    artwork.hero = lighten_artwork_slot(artwork.hero.take());
+    artwork.logo = lighten_artwork_slot(artwork.logo.take());
+    artwork.icon = lighten_artwork_slot(artwork.icon.take());
+}
+
+fn materialize_override_artwork(game_id: &str, overrides: &mut GameOverrides) -> bool {
+    let mut artwork = GameArtwork {
+        cover: overrides.cover.clone(),
+        hero: overrides.hero.clone(),
+        logo: overrides.logo.clone(),
+        icon: overrides.icon.clone(),
+    };
+    if !materialize_heavy_artwork(game_id, &mut artwork) {
+        return false;
+    }
+    overrides.cover = artwork.cover;
+    overrides.hero = artwork.hero;
+    overrides.logo = artwork.logo;
+    overrides.icon = artwork.icon;
+    true
+}
+
+fn persist_artwork_json(conn: &Connection, game_id: &str, artwork: &GameArtwork) -> Result<()> {
+    let artwork_json = serde_json::to_string(artwork)?;
+    conn.execute(
+        "UPDATE games SET artwork_json = ?1 WHERE id = ?2",
+        params![artwork_json, game_id],
+    )?;
+    Ok(())
+}
+
+fn persist_override_json(conn: &Connection, game_id: &str, overrides: &GameOverrides) -> Result<()> {
+    let override_json = serde_json::to_string(overrides)?;
+    conn.execute(
+        "INSERT INTO user_overrides (game_id, override_json) VALUES (?1, ?2)
+         ON CONFLICT(game_id) DO UPDATE SET override_json = excluded.override_json",
+        params![game_id, override_json],
+    )?;
     Ok(())
 }
 
@@ -522,166 +611,23 @@ fn map_game_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Game> {
     })
 }
 
-fn mock_games(now: &str) -> Vec<Game> {
-    vec![
-        Game {
-            id: "mock-astris-zelda".into(),
-            title: "The Legend of Zelda: Tears of the Kingdom".into(),
-            sort_title: "legend of zelda tears of the kingdom".into(),
-            description: Some(
-                "An epic adventure across the vast lands and skies of Hyrule.".into(),
-            ),
-            provider: GameProvider::Astris,
-            platform: GamePlatform::NintendoSwitch,
-            source_id: Some("0100F2C0115B6000".into()),
-            launch_config: LaunchConfiguration::OpenUrl {
-                url: "https://www.nintendo.com/us/store/products/the-legend-of-zelda-tears-of-the-kingdom-switch/".into(),
-            },
-            artwork: GameArtwork::default(),
-            favorite: true,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: Some(now.to_string()),
-            total_playtime_seconds: 42_300,
-            install_size_bytes: Some(16_000_000_000),
-            achievements: Vec::new(),
-        },
-        Game {
-            id: "mock-astris-mario".into(),
-            title: "Super Mario Odyssey".into(),
-            sort_title: "super mario odyssey".into(),
-            description: Some("Join Mario on a massive, globe-trotting 3D adventure.".into()),
-            provider: GameProvider::Astris,
-            platform: GamePlatform::NintendoSwitch,
-            source_id: Some("0100000000010000".into()),
-            launch_config: LaunchConfiguration::OpenUrl {
-                url: "https://www.nintendo.com/us/store/products/super-mario-odyssey-switch/".into(),
-            },
-            artwork: GameArtwork::default(),
-            favorite: false,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: None,
-            total_playtime_seconds: 0,
-            install_size_bytes: Some(5_700_000_000),
-            achievements: Vec::new(),
-        },
-        Game {
-            id: "mock-steam-hades".into(),
-            title: "Hades".into(),
-            sort_title: "hades".into(),
-            description: Some(
-                "Defy the god of the dead as you hack and slash out of the Underworld.".into(),
-            ),
-            provider: GameProvider::Steam,
-            platform: GamePlatform::Macos,
-            source_id: Some("1145360".into()),
-            launch_config: LaunchConfiguration::Steam {
-                app_id: "1145360".into(),
-            },
-            artwork: GameArtwork::default(),
-            favorite: true,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: Some(now.to_string()),
-            total_playtime_seconds: 18_600,
-            install_size_bytes: Some(15_000_000_000),
-            achievements: vec![
-                Achievement {
-                    id: "escaped".into(),
-                    name: "The first escape".into(),
-                    description: Some("Escape the Underworld.".into()),
-                    unlocked: true,
-                    unlocked_at: Some(now.to_string()),
-                    icon: None,
-                },
-                Achievement {
-                    id: "weapon-master".into(),
-                    name: "Weapon Master".into(),
-                    description: Some("Clear with every weapon.".into()),
-                    unlocked: false,
-                    unlocked_at: None,
-                    icon: None,
-                },
-            ],
-        },
-        Game {
-            id: "mock-steam-celeste".into(),
-            title: "Celeste".into(),
-            sort_title: "celeste".into(),
-            description: Some(
-                "Help Madeline survive her inner demons on her journey to the top of Celeste Mountain."
-                    .into(),
-            ),
-            provider: GameProvider::Steam,
-            platform: GamePlatform::Macos,
-            source_id: Some("504230".into()),
-            launch_config: LaunchConfiguration::Steam {
-                app_id: "504230".into(),
-            },
-            artwork: GameArtwork::default(),
-            favorite: false,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: None,
-            total_playtime_seconds: 7_200,
-            install_size_bytes: Some(1_200_000_000),
-            achievements: vec![Achievement {
-                id: "summit".into(),
-                name: "Summit".into(),
-                description: Some("Climb to the top.".into()),
-                unlocked: true,
-                unlocked_at: Some(now.to_string()),
-                icon: None,
-            }],
-        },
-        Game {
-            id: "mock-native-chess".into(),
-            title: "Chess".into(),
-            sort_title: "chess".into(),
-            description: Some("Classic Apple Chess.".into()),
-            provider: GameProvider::Native,
-            platform: GamePlatform::Macos,
-            source_id: Some("com.apple.Chess".into()),
-            launch_config: LaunchConfiguration::OpenApplication {
-                application_path: "/System/Applications/Chess.app".into(),
-                arguments: None,
-            },
-            artwork: GameArtwork::default(),
-            favorite: false,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: Some(now.to_string()),
-            total_playtime_seconds: 1_200,
-            install_size_bytes: Some(50_000_000),
-            achievements: Vec::new(),
-        },
-        Game {
-            id: "mock-gamehub-sample".into(),
-            title: "GameHub Sample".into(),
-            sort_title: "gamehub sample".into(),
-            description: Some("Sample Windows executable mapped through GameHub.".into()),
-            provider: GameProvider::Gamehub,
-            platform: GamePlatform::Macos,
-            source_id: Some("/Users/me/Applications/GameHub Sample.app".into()),
-            launch_config: LaunchConfiguration::Gamehub {
-                gamehub_app_path: "/Applications/GameHub.app".into(),
-                shortcut_app_path: "/Users/me/Applications/GameHub Sample.app".into(),
-            },
-            artwork: GameArtwork::default(),
-            favorite: false,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: None,
-            total_playtime_seconds: 0,
-            install_size_bytes: Some(2_000_000_000),
-            achievements: Vec::new(),
-        },
-        Game {
-            id: "mock-manual-orbit-demo".into(),
-            title: "Orbit Demo".into(),
-            sort_title: "orbit demo".into(),
-            description: Some("A manually curated Orbit demo entry.".into()),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn heavy_data_url() -> String {
+        format!(
+            "data:image/png;base64,{}",
+            "A".repeat(crate::services::artwork::MAX_INLINE_ARTWORK_CHARS + 64)
+        )
+    }
+
+    fn sample_imported(stable_key: &str, title: &str) -> ImportedGame {
+        ImportedGame {
+            stable_key: stable_key.into(),
+            title: title.into(),
+            sort_title: title.to_lowercase(),
+            description: Some("desc".into()),
             provider: GameProvider::Manual,
             platform: GamePlatform::Macos,
             source_id: None,
@@ -689,13 +635,321 @@ fn mock_games(now: &str) -> Vec<Game> {
                 url: "https://example.com".into(),
             },
             artwork: GameArtwork::default(),
-            favorite: true,
-            hidden: false,
-            date_added: now.to_string(),
-            last_played_at: None,
-            total_playtime_seconds: 300,
-            install_size_bytes: Some(120_000_000),
-            achievements: Vec::new(),
-        },
-    ]
+            total_playtime_seconds: 0,
+            install_size_bytes: None,
+            achievements: vec![],
+        }
+    }
+
+    #[test]
+    fn list_games_materializes_heavy_base64_to_cache_paths() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let heavy = heavy_data_url();
+        let path = "/tmp/orbit-cache/cover.png".to_string();
+
+        let game = repo
+            .create_game(CreateGameRequest {
+                title: "Portal".into(),
+                description: None,
+                provider: GameProvider::Manual,
+                platform: GamePlatform::Macos,
+                launch_config: LaunchConfiguration::OpenUrl {
+                    url: "https://example.com".into(),
+                },
+                artwork: Some(GameArtwork {
+                    cover: Some(heavy.clone()),
+                    hero: Some(path.clone()),
+                    logo: None,
+                    icon: Some(heavy.clone()),
+                }),
+                install_size_bytes: None,
+            })
+            .expect("create");
+
+        let listed = repo.list_games().expect("list");
+        assert_eq!(listed.len(), 1);
+        let listed_cover = listed[0].artwork.cover.as_deref().expect("cover path");
+        let listed_icon = listed[0].artwork.icon.as_deref().expect("icon path");
+        assert!(!listed_cover.starts_with("data:"));
+        assert!(!listed_icon.starts_with("data:"));
+        assert!(std::path::Path::new(listed_cover).is_file());
+        assert!(std::path::Path::new(listed_icon).is_file());
+        assert_eq!(listed[0].artwork.hero.as_deref(), Some(path.as_str()));
+
+        let detail = repo.get_game(&game.id).expect("get").expect("exists");
+        assert_eq!(detail.artwork.cover.as_deref(), Some(listed_cover));
+        assert_eq!(detail.artwork.hero.as_deref(), Some(path.as_str()));
+        assert_eq!(detail.artwork.icon.as_deref(), Some(listed_icon));
+
+        if let Some(parent) = std::path::Path::new(listed_cover).parent() {
+            let _ = std::fs::remove_dir_all(parent);
+        }
+    }
+
+    #[test]
+    fn list_games_applies_batched_overrides() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let a = repo
+            .create_game(CreateGameRequest {
+                title: "Alpha".into(),
+                description: Some("base".into()),
+                provider: GameProvider::Manual,
+                platform: GamePlatform::Macos,
+                launch_config: LaunchConfiguration::OpenUrl {
+                    url: "https://example.com/a".into(),
+                },
+                artwork: None,
+                install_size_bytes: None,
+            })
+            .expect("create a");
+        let b = repo
+            .create_game(CreateGameRequest {
+                title: "Beta".into(),
+                description: None,
+                provider: GameProvider::Manual,
+                platform: GamePlatform::Macos,
+                launch_config: LaunchConfiguration::OpenUrl {
+                    url: "https://example.com/b".into(),
+                },
+                artwork: None,
+                install_size_bytes: None,
+            })
+            .expect("create b");
+
+        {
+            let conn = repo.conn.lock().unwrap();
+            let override_a = serde_json::to_string(&GameOverrides {
+                title: Some("Alpha Renamed".into()),
+                description: Some("overridden".into()),
+                cover: Some("/cache/a.png".into()),
+                ..Default::default()
+            })
+            .unwrap();
+            let override_b = serde_json::to_string(&GameOverrides {
+                title: Some("Beta Renamed".into()),
+                ..Default::default()
+            })
+            .unwrap();
+            conn.execute(
+                "INSERT INTO user_overrides (game_id, override_json) VALUES (?1, ?2)",
+                params![a.id, override_a],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO user_overrides (game_id, override_json) VALUES (?1, ?2)",
+                params![b.id, override_b],
+            )
+            .unwrap();
+        }
+
+        let listed = repo.list_games().expect("list");
+        let by_id: HashMap<_, _> = listed.into_iter().map(|g| (g.id.clone(), g)).collect();
+        assert_eq!(by_id[&a.id].title, "Alpha Renamed");
+        assert_eq!(by_id[&a.id].description.as_deref(), Some("overridden"));
+        assert_eq!(by_id[&a.id].artwork.cover.as_deref(), Some("/cache/a.png"));
+        assert_eq!(by_id[&b.id].title, "Beta Renamed");
+    }
+
+    #[test]
+    fn upsert_imported_batches_existing_stable_keys() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let first = sample_imported("manual:one", "One");
+        let second = sample_imported("manual:two", "Two");
+
+        let insert = repo.upsert_imported(&[first.clone(), second.clone()]).expect("insert");
+        assert_eq!(insert.imported, 2);
+        assert_eq!(insert.new_game_ids.len(), 2);
+
+        let mut updated_one = first;
+        updated_one.title = "One Updated".into();
+        updated_one.sort_title = "one updated".into();
+        updated_one.description = Some("new desc".into());
+
+        let update = repo
+            .upsert_imported(&[updated_one, sample_imported("manual:three", "Three")])
+            .expect("update");
+        assert_eq!(update.imported, 2);
+        assert_eq!(update.new_game_ids.len(), 1);
+
+        let games = repo.list_games().expect("list");
+        assert_eq!(games.len(), 3);
+        let one = games.iter().find(|g| g.title == "One Updated").expect("updated title");
+        // Non-placeholder existing description is preserved.
+        assert_eq!(one.description.as_deref(), Some("desc"));
+    }
+
+    #[test]
+    fn lighten_artwork_keeps_small_data_urls() {
+        let mut artwork = GameArtwork {
+            cover: Some("data:image/png;base64,abc".into()),
+            hero: Some(heavy_data_url()),
+            logo: Some("/path/logo.png".into()),
+            icon: None,
+        };
+        lighten_artwork(&mut artwork);
+        assert_eq!(artwork.cover.as_deref(), Some("data:image/png;base64,abc"));
+        assert!(artwork.hero.is_none());
+        assert_eq!(artwork.logo.as_deref(), Some("/path/logo.png"));
+    }
+
+    fn sample_create(title: &str) -> CreateGameRequest {
+        CreateGameRequest {
+            title: title.into(),
+            description: Some(format!("{title} desc")),
+            provider: GameProvider::Manual,
+            platform: GamePlatform::Macos,
+            launch_config: LaunchConfiguration::OpenUrl {
+                url: format!("https://example.com/{title}"),
+            },
+            artwork: None,
+            install_size_bytes: None,
+        }
+    }
+
+    #[test]
+    fn create_get_update_delete_game_round_trip() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let created = repo.create_game(sample_create("Celeste")).expect("create");
+        assert_eq!(created.title, "Celeste");
+        assert_eq!(created.sort_title, "celeste");
+        assert!(!created.favorite);
+        assert!(!created.hidden);
+        assert_eq!(created.total_playtime_seconds, 0);
+
+        let fetched = repo
+            .get_game(&created.id)
+            .expect("get")
+            .expect("exists");
+        assert_eq!(fetched.id, created.id);
+        assert_eq!(fetched.description.as_deref(), Some("Celeste desc"));
+
+        let updated = repo
+            .update_game(
+                &created.id,
+                UpdateGameRequest {
+                    title: Some("Celeste Remastered".into()),
+                    description: Some("updated desc".into()),
+                    artwork: Some(GameArtwork {
+                        cover: Some("/covers/celeste.png".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .expect("update");
+        assert_eq!(updated.title, "Celeste Remastered");
+        assert_eq!(updated.sort_title, "celeste remastered");
+        assert_eq!(updated.description.as_deref(), Some("updated desc"));
+        assert_eq!(
+            updated.artwork.cover.as_deref(),
+            Some("/covers/celeste.png")
+        );
+
+        repo.delete_game(&created.id).expect("delete");
+        assert!(repo.get_game(&created.id).expect("get after delete").is_none());
+        assert!(repo.delete_game(&created.id).is_err());
+    }
+
+    #[test]
+    fn toggle_favorite_and_set_hidden() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let game = repo.create_game(sample_create("Hades")).expect("create");
+        assert!(!game.favorite);
+        assert!(!game.hidden);
+
+        let favorited = repo.toggle_favorite(&game.id).expect("favorite on");
+        assert!(favorited.favorite);
+        let unfavorited = repo.toggle_favorite(&game.id).expect("favorite off");
+        assert!(!unfavorited.favorite);
+
+        let hidden = repo.set_hidden(&game.id, true).expect("hide");
+        assert!(hidden.hidden);
+        let shown = repo.set_hidden(&game.id, false).expect("unhide");
+        assert!(!shown.hidden);
+    }
+
+    #[test]
+    fn record_play_session_updates_total_playtime() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let game = repo.create_game(sample_create("Hollow Knight")).expect("create");
+        assert_eq!(game.total_playtime_seconds, 0);
+        assert!(game.last_played_at.is_none());
+
+        let session = GameSession {
+            id: Uuid::new_v4().to_string(),
+            game_id: game.id.clone(),
+            provider: GameProvider::Manual,
+            pid: Some(4242),
+            started_at: "2026-01-01T10:00:00Z".into(),
+            ended_at: None,
+            exit_code: None,
+            stop_reason: None,
+            duration_seconds: None,
+        };
+        repo.record_play_start(&session).expect("start");
+
+        let ended = GameSession {
+            ended_at: Some("2026-01-01T10:05:00Z".into()),
+            exit_code: Some(0),
+            stop_reason: Some(SessionStopReason::ProcessExited),
+            duration_seconds: Some(300),
+            ..session
+        };
+        repo.record_play_end(&ended).expect("end");
+
+        let after = repo.get_game(&game.id).expect("get").expect("exists");
+        assert_eq!(after.total_playtime_seconds, 300);
+        assert_eq!(after.last_played_at.as_deref(), Some("2026-01-01T10:05:00Z"));
+
+        let second = GameSession {
+            id: Uuid::new_v4().to_string(),
+            game_id: game.id.clone(),
+            provider: GameProvider::Manual,
+            pid: None,
+            started_at: "2026-01-02T10:00:00Z".into(),
+            ended_at: Some("2026-01-02T10:02:00Z".into()),
+            exit_code: Some(0),
+            stop_reason: Some(SessionStopReason::UserStopped),
+            duration_seconds: Some(120),
+        };
+        repo.record_play_start(&second).expect("start 2");
+        repo.record_play_end(&second).expect("end 2");
+
+        let after_second = repo.get_game(&game.id).expect("get").expect("exists");
+        assert_eq!(after_second.total_playtime_seconds, 420);
+        assert_eq!(
+            after_second.last_played_at.as_deref(),
+            Some("2026-01-02T10:02:00Z")
+        );
+    }
+
+    #[test]
+    fn clear_library_removes_all_games() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let a = repo.create_game(sample_create("A")).expect("create a");
+        let b = repo.create_game(sample_create("B")).expect("create b");
+        repo.toggle_favorite(&a.id).expect("favorite");
+
+        let session = GameSession {
+            id: Uuid::new_v4().to_string(),
+            game_id: b.id.clone(),
+            provider: GameProvider::Manual,
+            pid: None,
+            started_at: "2026-01-01T00:00:00Z".into(),
+            ended_at: None,
+            exit_code: None,
+            stop_reason: None,
+            duration_seconds: None,
+        };
+        repo.record_play_start(&session).expect("session");
+
+        let deleted = repo.clear_library().expect("clear");
+        assert_eq!(deleted, 2);
+        assert!(repo.list_games().expect("list").is_empty());
+        assert!(repo.get_game(&a.id).expect("get a").is_none());
+        assert!(repo.get_game(&b.id).expect("get b").is_none());
+
+        let deleted_again = repo.clear_library().expect("clear empty");
+        assert_eq!(deleted_again, 0);
+    }
 }

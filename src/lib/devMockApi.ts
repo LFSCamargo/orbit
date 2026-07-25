@@ -96,13 +96,18 @@ let activeSession: GameSession | null = null
 const settings = new Map<string, unknown>([
   ['themeId', 'orbit'],
   ['rawgApiKey', ''],
+  ['theGamesDbApiKey', ''],
+  ['steamGridDbApiKey', ''],
 ])
 
 export function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
-export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+export async function mockInvoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
   switch (cmd) {
     case 'list_games':
       return games.filter((g) => !g.hidden) as T
@@ -121,6 +126,48 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
       settings.set(key, args?.value)
       return undefined as T
     }
+    case 'pick_open_path':
+      return null as T
+    case 'enrich_game_metadata': {
+      const gameId = args?.gameId as string
+      games = games.map((g) =>
+        g.id === gameId
+          ? {
+              ...g,
+              description:
+                g.description && !g.description.startsWith('Imported')
+                  ? g.description
+                  : 'An open-world adventure enriched for Orbit.',
+              artwork: {
+                ...g.artwork,
+                cover:
+                  g.artwork.cover ??
+                  'https://images.igdb.com/igdb/image/upload/t_cover_big/co2rpf.jpg',
+                hero:
+                  g.artwork.hero ??
+                  'https://images.igdb.com/igdb/image/upload/t_1080p/co2rpf.jpg',
+              },
+            }
+          : g,
+      )
+      return {
+        enriched: true,
+        message: 'Updated TheGamesDB metadata · SteamGridDB artwork',
+      } as T
+    }
+    case 'enrich_games_metadata':
+      return { enriched: (args?.gameIds as string[] | undefined)?.length ?? 0 } as T
+    case 'get_metadata_cache_stats':
+      return {
+        gameCount: 12,
+        dbPath: '/mock/metadata.sqlite',
+      } as T
+    case 'test_metadata_api_keys':
+      return {
+        thegamesdbOk: true,
+        steamgriddbOk: true,
+        message: 'TheGamesDB connected · SteamGridDB connected',
+      } as T
     case 'list_custom_themes':
       return [] as T
     case 'detect_importers':
@@ -130,9 +177,7 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
       ] as T
     case 'toggle_favorite': {
       const gameId = args?.gameId as string
-      games = games.map((g) =>
-        g.id === gameId ? { ...g, favorite: !g.favorite } : g,
-      )
+      games = games.map((g) => (g.id === gameId ? { ...g, favorite: !g.favorite } : g))
       return games.find((g) => g.id === gameId)! as T
     }
     case 'set_game_hidden': {
@@ -183,6 +228,9 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>)
     case 'set_window_fullscreen':
     case 'hide_orbit_window':
     case 'show_orbit_window':
+      return undefined as T
+    case 'quit_orbit':
+      console.info('[devMockApi] quit_orbit')
       return undefined as T
     default:
       console.warn(`[devMockApi] Unhandled command: ${cmd}`)

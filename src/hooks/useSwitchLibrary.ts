@@ -1,8 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import {
-  scanSwitchLibraryFolder,
-  scanSwitchLibraryFromLibrary,
-} from '@/lib/tauri'
+import { scanSwitchLibraryFolder, scanSwitchLibraryFromLibrary } from '@/lib/tauri'
 import type { SwitchContentKind } from '@/types/switch'
 
 export function useSwitchLibraryScan() {

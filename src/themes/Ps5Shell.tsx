@@ -3,7 +3,7 @@ import { clsx } from 'clsx'
 import { Search, Settings } from 'lucide-react'
 import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
-import { glyphFor } from '@/controllers/ControllerGlyphs'
+import { glyphFor, rightStickGlyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -58,7 +58,7 @@ export function Ps5Shell({
                     'ps5-nav rounded-lg px-3 py-1.5 text-lg transition-colors',
                     active
                       ? 'font-semibold text-[var(--ps5-ink)]'
-                      : 'font-normal text-[var(--ps5-muted)]/50 hover:text-[var(--ps5-muted)]',
+                      : 'text-[var(--ps5-muted)]/50 font-normal hover:text-[var(--ps5-muted)]',
                   )}
                 >
                   {item.label}
@@ -96,7 +96,7 @@ export function Ps5Shell({
         </div>
       </header>
 
-      <main className="ps5-main min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-[var(--ps5-bg)]">
+      <main className="ps5-main min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-[var(--ps5-bg)]">
         <div className="flex min-h-full flex-col">{children}</div>
       </main>
 
@@ -109,6 +109,7 @@ export function Ps5Shell({
             Back
           </span>
           <div className="hidden items-center gap-4 md:flex">
+            <Hint glyph={rightStickGlyphFor(family)} label="Scroll" />
             <Hint glyph={glyphFor(family, 'secondary')} label="Options" />
             <Hint glyph={glyphFor(family, 'menu')} label="Menu" />
           </div>

@@ -1,9 +1,12 @@
+import { memo } from 'react'
 import { clsx } from 'clsx'
 import { Heart } from 'lucide-react'
 import type { Game } from '@/types/game'
 import { gameTileImage } from '@/lib/artwork'
 import { Focusable } from '@/components/focus/Focusable'
+import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { placeholderGradient } from '@/lib/format'
+import { cssUrl } from '@/lib/media'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 
 interface GameCardProps {
@@ -13,12 +16,13 @@ interface GameCardProps {
   order: number
   variant?: 'portrait' | 'square'
   className?: string
-  onSelect: () => void
+  /** Prefer a stable parent handler `(id) => …` so memo skips re-renders. */
+  onSelect: (gameId: string) => void
   onFocusSelect?: () => void
-  onOpen: () => void
+  onOpen: (gameId: string) => void
 }
 
-export function GameCard({
+function GameCardComponent({
   game,
   focusId,
   group,
@@ -32,6 +36,14 @@ export function GameCard({
   const image = gameTileImage(game.artwork, variant)
   const isSquare = variant === 'square'
   const layout = useThemeLayout()
+  const tileImage = image
+  const tilePlaceholder = placeholderGradient(game.id)
+  const squareArtFit = game.artwork.icon ? 'contain' : 'cover'
+
+  const handleActivate = () => {
+    onSelect(game.id)
+    onOpen(game.id)
+  }
 
   if (layout === 'switch') {
     return (
@@ -40,20 +52,19 @@ export function GameCard({
         group={group}
         order={order}
         noScale
+        noRing
         onFocusSelect={onFocusSelect}
-        onClick={() => {
-          onSelect()
-          onOpen()
-        }}
-        className={clsx('switch-card shrink-0 text-left', className ?? 'w-36')}
+        onClick={handleActivate}
+        className={clsx('switch-card w-full shrink-0 text-left', className)}
       >
-        <div
-          className="square-game-art aspect-square overflow-hidden rounded-[18px] bg-cover bg-center"
-          style={{
-            backgroundImage: image ? `url(${image})` : placeholderGradient(game.id),
-          }}
+        <SquareGameArt
+          image={tileImage}
+          placeholder={tilePlaceholder}
+          fit={squareArtFit}
+          roundedClassName="rounded-[18px]"
+          className="aspect-square w-full"
         />
-        <p className="mt-2 line-clamp-2 text-center text-xs font-semibold leading-snug text-[var(--switch-muted)]">
+        <p className="mt-2 line-clamp-2 min-h-8 text-center text-xs font-semibold leading-snug text-[var(--switch-muted)]">
           {game.title}
         </p>
       </Focusable>
@@ -69,19 +80,17 @@ export function GameCard({
         noScale
         noRing
         onFocusSelect={onFocusSelect}
-        onClick={() => {
-          onSelect()
-          onOpen()
-        }}
-        className={clsx('ps5-card shrink-0 text-left', className ?? 'w-36')}
+        onClick={handleActivate}
+        className={clsx('ps5-card w-full shrink-0 text-left', className)}
       >
-        <div
-          className="square-game-art aspect-square overflow-hidden rounded-xl bg-cover bg-center"
-          style={{
-            backgroundImage: image ? `url(${image})` : placeholderGradient(game.id),
-          }}
+        <SquareGameArt
+          image={tileImage}
+          placeholder={tilePlaceholder}
+          fit={squareArtFit}
+          roundedClassName="rounded-xl"
+          className="aspect-square w-full"
         />
-        <p className="mt-2 line-clamp-2 text-center text-xs font-semibold leading-snug text-[var(--ps5-muted)]">
+        <p className="mt-2 line-clamp-2 min-h-8 text-center text-xs font-semibold leading-snug text-[var(--ps5-muted)]">
           {game.title}
         </p>
       </Focusable>
@@ -96,38 +105,45 @@ export function GameCard({
       noScale
       noRing
       onFocusSelect={onFocusSelect}
-      onClick={() => {
-        onSelect()
-        onOpen()
-      }}
+      onClick={handleActivate}
       className={clsx(
-        'orbit-library-card shrink-0 rounded-card text-left orbit-transition',
+        'orbit-library-card orbit-transition shrink-0 rounded-card text-left',
         className ?? 'w-[11.5rem]',
       )}
     >
-      <div className="overflow-hidden rounded-card bg-orbit-panel/50">
-        <div
-          className={`relative w-full overflow-hidden ${isSquare ? 'aspect-square' : 'aspect-[3/4]'}`}
-          style={{
-            backgroundImage: image ? `url(${image})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundColor: image ? undefined : 'rgb(var(--orbit-panel))',
-          }}
-        >
-          {!image && (
-            <div className="flex h-full items-end p-3">
-              <span className="font-display text-lg font-semibold leading-tight text-orbit-foreground">
-                {game.title}
-              </span>
-            </div>
-          )}
-          {game.favorite && (
-            <span className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 backdrop-blur-md">
-              <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" />
-            </span>
-          )}
-        </div>
+      <div className="relative overflow-hidden rounded-card bg-orbit-panel/50">
+        {isSquare ? (
+          <SquareGameArt
+            image={tileImage}
+            placeholder={tilePlaceholder}
+            fit={squareArtFit}
+            roundedClassName="rounded-none"
+            className="aspect-square w-full"
+          />
+        ) : (
+          <div
+            className="relative aspect-[3/4] w-full overflow-hidden"
+            style={{
+              backgroundImage: tileImage ? cssUrl(tileImage) : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundColor: tileImage ? undefined : 'rgb(var(--orbit-panel))',
+            }}
+          >
+            {!tileImage && (
+              <div className="flex h-full items-end p-3">
+                <span className="font-display text-lg font-semibold leading-tight text-orbit-foreground">
+                  {game.title}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        {game.favorite && (
+          <span className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 backdrop-blur-md">
+            <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" />
+          </span>
+        )}
         <div className="min-h-[4.6rem] px-3 py-2.5">
           <p className="line-clamp-2 font-medium leading-snug text-orbit-foreground">
             {game.title}
@@ -140,3 +156,6 @@ export function GameCard({
     </Focusable>
   )
 }
+
+/** Memoized so library/search grids skip re-renders when sibling cards update. */
+export const GameCard = memo(GameCardComponent)

@@ -22,13 +22,15 @@ part of the definition of done (see `.cursor/rules/quality-gating.mdc`).
   Run: `yarn run test:rust`.
 - **Frontend (React)** Playwright E2E in `e2e/` for screens, controller navigation, themes,
   imports, and critical user flows. Run: `yarn run test:e2e`.
-- **Pure TS helpers (`src/lib/`)** prefer unit tests when Vitest is added; until then,
-  cover via E2E or Rust-side tests for shared logic.
+- **Pure TS helpers (`src/lib/`, themes, module libs)** Vitest + Testing Library unit tests
+  under `src/**/__tests__/` or colocated `*.test.ts(x)`. Run: `yarn run test:unit`
+  (watch: `yarn run test:unit:watch`).
 
 ## Coverage expectations
 
-- New/changed business logic must be covered by tests (Rust unit or Playwright E2E).
+- New/changed business logic must be covered by tests (Rust unit, Vitest, or Playwright E2E).
 - Bug fixes must include a regression test.
+- Pure helpers and formatters should prefer Vitest over E2E when practical.
 - Critical paths (launch session, library import, theme switching, controller focus)
   require E2E or Rust tests.
 - UI-only polish may skip new tests if E2E already covers the flow — do not delete coverage.

@@ -13,18 +13,17 @@ test.describe('PS5 hero contrast', () => {
     await bootWithTheme(page, 'ps5')
   })
 
-  test('reverses hero-zone text on light artwork', async ({ page }) => {
+  test('keeps light hero copy even on bright artwork', async ({ page }) => {
     await page.locator('[data-focus-id="ps5-tile-mock-requiem"]').click()
-    await expect(page.getByRole('heading', { name: 'Resident Evil Requiem' })).toBeVisible()
-    await expect(page.locator('.ps5-home')).toHaveAttribute('data-hero-tone', 'light', {
-      timeout: 10_000,
-    })
+    await expect(
+      page.getByRole('heading', { name: 'Resident Evil Requiem' }),
+    ).toBeVisible()
 
     const title = page.locator('.ps5-hero-title')
-    await expect(title).toHaveCSS('color', 'rgb(10, 22, 40)')
+    await expect(title).toHaveCSS('color', 'rgb(255, 255, 255)')
 
     const description = page.locator('.ps5-hero-description')
-    await expect(description).toHaveCSS('color', 'rgba(10, 22, 40, 0.72)')
+    await expect(description).toHaveCSS('color', 'rgba(255, 255, 255, 0.7)')
 
     const cardLabel = page.locator('.ps5-hero-card-label').first()
     await expect(cardLabel).toHaveCSS('color', 'rgba(255, 255, 255, 0.55)')
@@ -36,6 +35,94 @@ test.describe('PS5 hero contrast', () => {
 
     const title = page.locator('.ps5-hero-title')
     await expect(title).toHaveCSS('color', 'rgb(255, 255, 255)')
+  })
+
+  test('places selected game title under the next tile', async ({ page }) => {
+    const selected = page.locator(
+      '[data-focus-id^="ps5-tile-"][data-ps5-tile="selected"]',
+    )
+    await expect(selected).toBeVisible()
+    await page.waitForTimeout(350)
+
+    const title = page.locator('.ps5-tile-title')
+    await expect(title).toBeVisible()
+
+    const geometry = await page.evaluate(() => {
+      const selectedEl = document.querySelector(
+        '[data-focus-id^="ps5-tile-"][data-ps5-tile="selected"]',
+      ) as HTMLElement | null
+      const titleEl = document.querySelector('.ps5-tile-title') as HTMLElement | null
+      if (!selectedEl || !titleEl) return null
+
+      const tiles = [
+        ...document.querySelectorAll('[data-focus-id^="ps5-tile-"]'),
+      ] as HTMLElement[]
+      const index = tiles.indexOf(selectedEl)
+      const nextEl = tiles[index + 1]
+      if (!nextEl) return null
+
+      const selectedRect = selectedEl.getBoundingClientRect()
+      const nextArt =
+        (nextEl.querySelector('.ps5-tile-art') as HTMLElement | null) ?? nextEl
+      const nextRect = nextArt.getBoundingClientRect()
+      const titleRect = titleEl.getBoundingClientRect()
+
+      return {
+        titleLeft: titleRect.left,
+        nextLeft: nextRect.left,
+        titleTop: titleRect.top,
+        nextBottom: nextRect.bottom,
+        selectedRight: selectedRect.right,
+        selectedBottom: selectedRect.bottom,
+      }
+    })
+
+    expect(geometry).not.toBeNull()
+    // Under the next tile: to the right of the selected cover, aligned with next art.
+    expect(geometry!.titleLeft).toBeGreaterThan(geometry!.selectedRight - 8)
+    expect(Math.abs(geometry!.titleLeft - geometry!.nextLeft)).toBeLessThan(8)
+    expect(Math.abs(geometry!.titleTop - geometry!.nextBottom)).toBeLessThan(16)
+    expect(geometry!.titleTop).toBeLessThan(geometry!.selectedBottom)
+  })
+
+  test('places last-tile title on the left edge of the selected cover', async ({
+    page,
+  }) => {
+    const tiles = page.locator('[data-focus-id^="ps5-tile-"]')
+    const count = await tiles.count()
+    expect(count).toBeGreaterThan(1)
+
+    await tiles.nth(count - 1).click()
+    await expect(page.locator('.ps5-game-row')).toHaveAttribute(
+      'data-ps5-title-mode',
+      'last',
+    )
+    await expect(page.locator('.ps5-tile-title-last')).toBeVisible()
+
+    await page.waitForTimeout(350)
+
+    const geometry = await page.evaluate(() => {
+      const selectedEl = document.querySelector(
+        '[data-focus-id^="ps5-tile-"][data-ps5-tile="selected"]',
+      ) as HTMLElement | null
+      const titleEl = document.querySelector('.ps5-tile-title') as HTMLElement | null
+      if (!selectedEl || !titleEl) return null
+
+      const art = selectedEl.querySelector('.ps5-tile-art') as HTMLElement | null
+      const artRect = (art ?? selectedEl).getBoundingClientRect()
+      const titleRect = titleEl.getBoundingClientRect()
+
+      return {
+        titleLeft: titleRect.left,
+        artLeft: artRect.left,
+        artRight: artRect.right,
+      }
+    })
+
+    expect(geometry).not.toBeNull()
+    // Last item: label aligns to the left side of the focused cover (not out in empty space).
+    expect(Math.abs(geometry!.titleLeft - geometry!.artLeft)).toBeLessThan(6)
+    expect(geometry!.titleLeft).toBeLessThan(geometry!.artRight - 40)
   })
 })
 

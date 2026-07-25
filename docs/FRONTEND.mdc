@@ -46,20 +46,21 @@ Themes and visual language: [docs/UI.mdc](UI.mdc).
 - **Cursor auto-hide:** hides after controller activity (`useCursorAutoHide`).
 - **Focus rings:** `[data-focused="true"]` styling driven by `FocusManager` + `Focusable`.
 - **No direct launch:** never spawn processes from TS — always `launchGame()` via Tauri.
+- **Library grid:** `GameCard` is `React.memo`'d with stable store handlers; full window virtualization is intentionally skipped so FocusManager spatial nav keeps all grid nodes mounted.
 
 ## Screen map
 
 Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
 
-| Screen | Component | Feature folder |
+| Screen | Component | Module folder |
 | ------ | --------- | -------------- |
-| Home | `HomePage` / theme shells | `features/home/`, `themes/` |
-| Library | `LibraryPage` | `features/library/` |
-| Search | `SearchPage` | `features/search/` |
-| Game details | `GameDetailsPage` | `features/game-details/` |
-| Edit | `GameEditPage` | `features/game-details/` |
-| Add game | `AddGamePage` | `features/imports/` |
-| Settings | `SettingsPage` | `features/settings/` |
+| Home | `HomePage` / theme shells | `modules/home/`, `themes/` |
+| Library | `LibraryPage` | `modules/library/` |
+| Search | `SearchPage` | `modules/search/` |
+| Game details | `GameDetailsPage` | `modules/game-details/` |
+| Edit | `GameEditPage` | `modules/game-details/` — Fetch metadata & artwork |
+| Add game | `AddGamePage` | `modules/imports/` |
+| Settings | `SettingsPage` | `modules/settings/` — TheGamesDB/SteamGridDB keys, auto-enrich |
 
 Theme layouts swap the home experience:
 
@@ -71,39 +72,52 @@ Theme layouts swap the home experience:
 
 ## Module pattern
 
-Each feature is self-contained under `src/features/<name>/`. Shared UI lives in `src/components/`.
+Each module is self-contained under `src/modules/<name>/` with colocated components and hooks.
+Shared cross-module UI lives in `src/components/`.
 
 ```
 src/
   app/
     App.tsx                # Screen router + motion wrapper
     providers.tsx          # QueryClient + theme init
-  features/
+  modules/
     home/
       HomePage.tsx
-      ThemeHome.tsx        # Orbit layout home
+      ThemeHome.tsx        # Layout dispatcher
+      components/          # OrbitHome, Ps5Home, SwitchHome (colocated)
+      hooks/
     library/
       LibraryPage.tsx
+      lib/
     search/
       SearchPage.tsx
     game-details/
       GameDetailsPage.tsx
       GameEditPage.tsx
+      components/          # DetailsHero, MetaGrid, AchievementList
     imports/
       AddGamePage.tsx
       ImportsPage.tsx
+      hooks/               # useImportScan (shared Steam/Astris/native/GameHub scan)
     settings/
       SettingsPage.tsx
+      components/          # ThemeSettings, ApiKeySettings, LibrarySettings
+    session/
+      PlayingScreen.tsx
+    switch-library/
+      SwitchLibraryPage.tsx
+      components/
   components/
     layout/
       AppShell.tsx         # Shell chrome + nav
       NavBar.tsx
     home/
       NativeGlassPanel.tsx # Frosted glass hero panel
+    data/
+      StatCard.tsx         # Reusable label / value / detail card
     game/
       GameCard.tsx
-      GameCarousel.tsx
-      GameHero.tsx
+      SquareGameArt.tsx
       ProviderBadge.tsx
     focus/
       Focusable.tsx        # Focusable wrapper
@@ -120,7 +134,6 @@ src/
     useController.ts       # Hook wiring actions → UI store
   hooks/
     useGames.ts            # TanStack Query wrappers
-    useHeroBlur.ts
     useHeroTone.ts
     useModalFocus.ts
     useCursorAutoHide.ts
@@ -133,11 +146,13 @@ src/
   themes/
     types.ts               # ThemeDefinition, BUILT_IN_THEMES
     useThemeLayout.ts
+    tokens.ts              # Shared themed class tokens
     Ps5Shell.tsx
     SwitchShell.tsx
     ThemePage.tsx
   lib/
     tauri.ts               # Typed invoke wrappers
+    dialog.ts              # Native open panel (pick_open_path; avoids macOS NSOpenPanel panic)
     devMockApi.ts          # Browser dev mocks
     navigation.ts          # Screen helpers
     artwork.ts / artworkApi.ts
@@ -151,8 +166,9 @@ src/
 
 | File | Allowed contents |
 | ---- | ---------------- |
-| `features/*/*.tsx` | Single page/screen |
-| `components/*/*.tsx` | Single reusable component |
+| `modules/*/*.tsx` | Single page/screen |
+| `modules/*/components/*.tsx` | Module-specific colocated UI |
+| `components/*/*.tsx` | Single reusable cross-module component |
 | `hooks/*.ts` | Single hook |
 | `stores/*.store.ts` | Single Zustand store |
 | `app/App.tsx` | Screen switch + providers only |

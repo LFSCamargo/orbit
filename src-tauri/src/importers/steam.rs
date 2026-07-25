@@ -8,6 +8,7 @@ use crate::models::{
     Achievement, GameArtwork, GamePlatform, GameProvider, ImportedGame, LaunchConfiguration,
 };
 use crate::utils::size::path_size_bytes;
+use crate::utils::steam_paths::detect_steam_root;
 
 pub struct SteamImporter {
     steam_root: Option<PathBuf>,
@@ -85,24 +86,16 @@ impl GameImporter for SteamImporter {
     }
 }
 
-fn detect_steam_root() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    let candidates = [
-        home.join("Library/Application Support/Steam"),
-        PathBuf::from("/Applications/Steam.app/Contents/MacOS"),
-        home.join(".steam/steam"),
-        home.join(".local/share/Steam"),
-    ];
-    candidates.into_iter().find(|path| path.exists())
-}
-
 fn parse_library_folders(path: &Path) -> Result<Vec<PathBuf>, ImportError> {
     let content = fs::read_to_string(path)?;
+    Ok(parse_library_folder_paths(&content))
+}
+
+fn parse_library_folder_paths(content: &str) -> Vec<PathBuf> {
     let re = Regex::new(r#""path"\s+"([^"]+)""#).unwrap();
-    Ok(re
-        .captures_iter(&content)
+    re.captures_iter(content)
         .filter_map(|capture| capture.get(1).map(|m| PathBuf::from(m.as_str())))
-        .collect())
+        .collect()
 }
 
 fn parse_appmanifest(content: &str, steamapps: &Path) -> Option<ImportedGame> {
@@ -156,7 +149,7 @@ fn local_steam_artwork(steamapps: &Path, app_id: &str) -> GameArtwork {
         library_cache.join(format!("{app_id}_library_capsule.jpg")),
     ]
     .into_iter()
-    .find(|path| path.exists())
+    .find(|path| path.is_file())
     .map(|path| path.to_string_lossy().to_string());
 
     let hero = [
@@ -164,7 +157,7 @@ fn local_steam_artwork(steamapps: &Path, app_id: &str) -> GameArtwork {
         library_cache.join(format!("{app_id}_hero.jpg")),
     ]
     .into_iter()
-    .find(|path| path.exists())
+    .find(|path| path.is_file())
     .map(|path| path.to_string_lossy().to_string());
 
     let logo = library_cache
@@ -401,4 +394,133 @@ fn map_achievement(value: &serde_json::Value, app_id: &str, index: usize) -> Opt
         unlocked_at,
         icon,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const LIBRARY_FOLDERS_VDF: &str = r#"
+"libraryfolders"
+{
+	"0"
+	{
+		"path"		"/Users/demo/Library/Application Support/Steam"
+		"label"		""
+		"contentid"		"123"
+		"totalsize"		"0"
+		"apps"
+		{
+			"570"		"123456"
+		}
+	}
+	"1"
+	{
+		"path"		"/Volumes/Games/SteamLibrary"
+		"label"		"SSD"
+	}
+}
+"#;
+
+    const APPMANIFEST_ACF: &str = r#"
+"AppState"
+{
+	"appid"		"570"
+	"Universe"		"1"
+	"name"		"Dota 2"
+	"StateFlags"		"4"
+	"installdir"		"dota 2 beta"
+	"SizeOnDisk"		"25000000000"
+	"BytesToDownload"		"0"
+}
+"#;
+
+    #[test]
+    fn parse_library_folder_paths_from_vdf_snippet() {
+        let paths = parse_library_folder_paths(LIBRARY_FOLDERS_VDF);
+        assert_eq!(
+            paths,
+            vec![
+                PathBuf::from("/Users/demo/Library/Application Support/Steam"),
+                PathBuf::from("/Volumes/Games/SteamLibrary"),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_appmanifest_extracts_stable_key_and_title() {
+        let steamapps = Path::new("/tmp/steamapps");
+        let game = parse_appmanifest(APPMANIFEST_ACF, steamapps).expect("manifest");
+        assert_eq!(game.stable_key, "steam:570");
+        assert_eq!(game.title, "Dota 2");
+        assert_eq!(game.sort_title, "dota 2");
+        assert_eq!(game.source_id.as_deref(), Some("570"));
+        assert_eq!(game.provider, GameProvider::Steam);
+        assert_eq!(game.install_size_bytes, Some(25_000_000_000));
+        assert_eq!(
+            game.launch_config,
+            LaunchConfiguration::Steam {
+                app_id: "570".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn vdf_value_reads_quoted_keys() {
+        assert_eq!(vdf_value(APPMANIFEST_ACF, "appid").as_deref(), Some("570"));
+        assert_eq!(vdf_value(APPMANIFEST_ACF, "name").as_deref(), Some("Dota 2"));
+        assert_eq!(
+            vdf_value(APPMANIFEST_ACF, "installdir").as_deref(),
+            Some("dota 2 beta")
+        );
+        assert!(vdf_value(APPMANIFEST_ACF, "missing").is_none());
+    }
+
+    #[test]
+    fn parse_appmanifest_falls_back_title_when_name_missing() {
+        let content = r#"
+"AppState"
+{
+	"appid"		"12345"
+}
+"#;
+        let game = parse_appmanifest(content, Path::new("/tmp/steamapps")).expect("manifest");
+        assert_eq!(game.stable_key, "steam:12345");
+        assert_eq!(game.title, "Steam App 12345");
+        assert_eq!(game.source_id.as_deref(), Some("12345"));
+    }
+
+    #[test]
+    fn parse_playtimes_from_localconfig_minutes_to_seconds() {
+        let content = r#"
+"UserLocalConfigStore"
+{
+	"Software"
+	{
+		"Valve"
+		{
+			"Steam"
+			{
+				"apps"
+				{
+					"570"
+					{
+						"Playtime"		"42"
+						"LastPlayed"		"1700000000"
+					}
+					"440"
+					{
+						"Playtime"		"10"
+					}
+				}
+			}
+		}
+	}
+}
+"#;
+        let mut map = std::collections::HashMap::new();
+        parse_playtimes_from_localconfig(content, &mut map);
+        assert_eq!(map.get("570"), Some(&2520));
+        assert_eq!(map.get("440"), Some(&600));
+    }
 }

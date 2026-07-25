@@ -16,23 +16,23 @@ Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesyste
 
 ## Platform
 
-| Target | Status |
-| ------ | ------ |
-| macOS (Apple Silicon) | Primary |
-| macOS (Intel) | Best-effort |
-| Linux / Windows | Not targeted in v1 |
+| Target                | Status             |
+| --------------------- | ------------------ |
+| macOS (Apple Silicon) | Primary            |
+| macOS (Intel)         | Best-effort        |
+| Linux / Windows       | Not targeted in v1 |
 
 ## Tech stack
 
-| Layer | Stack |
-| ----- | ----- |
-| Shell | Tauri 2 + Rust |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS |
-| State | Zustand, TanStack Query |
-| Motion | Framer Motion |
-| Database | SQLite (`rusqlite`) |
-| Input | Browser Gamepad API + custom spatial focus |
-| E2E | Playwright |
+| Layer    | Stack                                      |
+| -------- | ------------------------------------------ |
+| Shell    | Tauri 2 + Rust                             |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS   |
+| State    | Zustand, TanStack Query                    |
+| Motion   | Framer Motion                              |
+| Database | SQLite (`rusqlite`)                        |
+| Input    | Browser Gamepad API + custom spatial focus |
+| E2E      | Playwright                                 |
 
 ## Quick start
 
@@ -90,17 +90,17 @@ Changelog: **[CHANGELOG.md](CHANGELOG.md)**
 
 ## Documentation
 
-| Doc | Contents |
-| --- | -------- |
-| [RUNNING.md](RUNNING.md) | Local setup, dev modes, tests, app data paths, troubleshooting |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute, quality gates, PR expectations |
-| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
-| [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) | Product scope, screens, Tauri commands, data model |
-| [docs/PROJECT.mdc](docs/PROJECT.mdc) | Repo layout, scripts, tooling |
-| [docs/TAURI.mdc](docs/TAURI.mdc) | Rust backend, importers, launch flow |
-| [docs/FRONTEND.mdc](docs/FRONTEND.mdc) | React screens, controller system |
-| [docs/UI.mdc](docs/UI.mdc) | Design tokens, components, theme system |
-| [docs/THEMES.md](docs/THEMES.md) | Authoring custom JSON themes |
+| Doc                                        | Contents                                                       |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| [RUNNING.md](RUNNING.md)                   | Local setup, dev modes, tests, app data paths, troubleshooting |
+| [CONTRIBUTING.md](CONTRIBUTING.md)         | How to contribute, quality gates, PR expectations              |
+| [CHANGELOG.md](CHANGELOG.md)               | Version history and release notes                              |
+| [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) | Product scope, screens, Tauri commands, data model             |
+| [docs/PROJECT.mdc](docs/PROJECT.mdc)       | Repo layout, scripts, tooling                                  |
+| [docs/TAURI.mdc](docs/TAURI.mdc)           | Rust backend, importers, launch flow                           |
+| [docs/FRONTEND.mdc](docs/FRONTEND.mdc)     | React screens, controller system                               |
+| [docs/UI.mdc](docs/UI.mdc)                 | Design tokens, components, theme system                        |
+| [docs/THEMES.md](docs/THEMES.md)           | Authoring custom JSON themes                                   |
 
 ## Themes
 
@@ -114,15 +114,15 @@ See [docs/THEMES.md](docs/THEMES.md) for the schema and [docs/examples/arcade-ne
 
 ## Controller mapping
 
-| Input | Action |
-| ----- | ------ |
-| D-pad / left stick | Navigate |
-| A / Cross | Select |
-| B / Circle | Back |
-| X / Square | Edit properties |
-| Y / Triangle | Add game |
-| L1 / R1 | Switch sections |
-| Menu / Options | Settings |
+| Input              | Action          |
+| ------------------ | --------------- |
+| D-pad / left stick | Navigate        |
+| A / Cross          | Select          |
+| B / Circle         | Back            |
+| X / Square         | Edit properties |
+| Y / Triangle       | Add game        |
+| L1 / R1            | Switch sections |
+| Menu / Options     | Settings        |
 
 Keyboard: arrows, Enter, Escape, `F` (edit), `C` (add), `[` `]`, `M`.
 
@@ -141,4 +141,4 @@ Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, qua
 
 ## Out of scope
 
-ROM downloads/decryption, keys management, emulator distribution, automatic online artwork scraping (manual search + optional RAWG key only), Steam account auth, cloud sync, social features.
+ROM downloads/decryption, keys management, emulator distribution, Steam account auth, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).

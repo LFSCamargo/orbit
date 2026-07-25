@@ -64,7 +64,7 @@ impl GamePlatform {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum LaunchConfiguration {
     OpenFile {
@@ -165,6 +165,13 @@ pub struct GameOverrides {
     pub hero: Option<String>,
     pub logo: Option<String>,
     pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertResult {
+    pub imported: usize,
+    pub new_game_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

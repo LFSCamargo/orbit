@@ -1,14 +1,11 @@
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/lib/dialog'
 import { ImagePlus, Search, Trash2 } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ArtworkSlot } from '@/lib/artwork'
 import { artworkPreview } from '@/lib/artwork'
 import { readArtworkFromPath } from '@/lib/artworkApi'
 
-const SLOT_META: Record<
-  ArtworkSlot,
-  { label: string; hint: string; aspect: string }
-> = {
+const SLOT_META: Record<ArtworkSlot, { label: string; hint: string; aspect: string }> = {
   cover: {
     label: 'Portrait cover',
     hint: '3:4 box art for library rows',
@@ -43,7 +40,11 @@ export function ArtworkSlotPicker({
 }: ArtworkSlotPickerProps) {
   const meta = SLOT_META[slot]
   const preview = artworkPreview(
-    { cover: slot === 'cover' ? value : undefined, hero: slot === 'hero' ? value : undefined, icon: slot === 'icon' ? value : undefined },
+    {
+      cover: slot === 'cover' ? value : undefined,
+      hero: slot === 'hero' ? value : undefined,
+      icon: slot === 'icon' ? value : undefined,
+    },
     slot,
   )
 

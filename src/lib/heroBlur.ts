@@ -2,11 +2,7 @@ const CACHE_LIMIT = 16
 const blurCache = new Map<string, string>()
 
 function shouldUseCrossOrigin(url: string): boolean {
-  if (
-    url.startsWith('data:') ||
-    url.startsWith('blob:') ||
-    url.startsWith('asset:')
-  ) {
+  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('asset:')) {
     return false
   }
 

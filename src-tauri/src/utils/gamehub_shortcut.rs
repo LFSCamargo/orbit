@@ -1,3 +1,4 @@
+use anyhow::{bail, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -104,6 +105,48 @@ fn parse_deep_link(content: &str) -> Option<String> {
         }
     }
     None
+}
+
+pub fn read_bundle_executable(app_path: &Path) -> Option<String> {
+    read_plist_value(app_path, "CFBundleExecutable")
+}
+
+/// Resolve the main GameHub binary inside a `.app` bundle.
+pub fn resolve_gamehub_executable(gamehub_app: &Path) -> Result<PathBuf> {
+    let macos_dir = gamehub_app.join("Contents/MacOS");
+    if let Some(name) = read_bundle_executable(gamehub_app) {
+        let candidate = macos_dir.join(&name);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+
+    for fallback in ["GameHub", "GameHub-Test"] {
+        let candidate = macos_dir.join(fallback);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+
+    bail!(
+        "Could not find GameHub executable in {}",
+        gamehub_app.display()
+    )
+}
+
+pub fn deep_link_from_shortcut(shortcut_app: &Path) -> Result<String> {
+    let info = inspect_gamehub_shortcut(shortcut_app).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Not a GameHub shortcut: {}",
+            shortcut_app.display()
+        )
+    })?;
+    info.deep_link.ok_or_else(|| {
+        anyhow::anyhow!(
+            "GameHub shortcut is missing a gamehub:// deep link: {}",
+            shortcut_app.display()
+        )
+    })
 }
 
 fn read_bundle_identifier(path: &Path) -> Option<String> {

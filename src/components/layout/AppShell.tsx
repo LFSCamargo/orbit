@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavBar } from './NavBar'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
-import { PlayingScreen } from '@/features/session/PlayingScreen'
+import { PlayingScreen } from '@/modules/session/PlayingScreen'
 import { useSessionStore } from '@/stores/session.store'
 import { Ps5Shell } from '@/themes/Ps5Shell'
 import { SwitchShell } from '@/themes/SwitchShell'
@@ -30,10 +30,12 @@ export function AppShell({
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-orbit-canvas font-body text-orbit-foreground orbit-transition">
+    <div className="orbit-shell orbit-transition relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-orbit-canvas font-body text-orbit-foreground">
       <div className="theme-bg" />
       <NavBar family={family} />
-      <main className="relative z-10 pt-[5.5rem]">{children}</main>
+      <main className="orbit-main relative z-10 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pt-[5.5rem]">
+        {children}
+      </main>
     </div>
   )
 }

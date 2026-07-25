@@ -68,7 +68,10 @@ export function formatDlcCount(count: number): string {
 
 const HOME_DLC_NAME_LIMIT = 3
 
-export function formatDlcNamesPreview(names: string[], limit = HOME_DLC_NAME_LIMIT): string {
+export function formatDlcNamesPreview(
+  names: string[],
+  limit = HOME_DLC_NAME_LIMIT,
+): string {
   if (names.length === 0) return ''
   const shown = names.slice(0, limit)
   const preview = shown.join(' · ')

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
-import { glyphFor } from '@/controllers/ControllerGlyphs'
+import { glyphFor, rightStickGlyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { resolveNavScreen } from '@/lib/navigation'
 import { useUiStore } from '@/stores/ui.store'
@@ -26,9 +26,24 @@ const NAV_ITEMS: Array<{
   activeTint: string
 }> = [
   { id: 'home', icon: Home, tint: 'text-[#ff4d6d]', activeTint: 'text-[#ff4d6d]' },
-  { id: 'library', icon: LayoutGrid, tint: 'text-[#ffb340]', activeTint: 'text-[#ffb340]' },
-  { id: 'search', icon: Search, tint: 'text-[#5ac8fa]', activeTint: 'text-[var(--switch-cyan)]' },
-  { id: 'settings', icon: Settings, tint: 'text-[var(--switch-muted)]', activeTint: 'text-[var(--switch-ink)]' },
+  {
+    id: 'library',
+    icon: LayoutGrid,
+    tint: 'text-[#ffb340]',
+    activeTint: 'text-[#ffb340]',
+  },
+  {
+    id: 'search',
+    icon: Search,
+    tint: 'text-[#5ac8fa]',
+    activeTint: 'text-[var(--switch-cyan)]',
+  },
+  {
+    id: 'settings',
+    icon: Settings,
+    tint: 'text-[var(--switch-muted)]',
+    activeTint: 'text-[var(--switch-ink)]',
+  },
 ]
 
 export function SwitchShell({
@@ -76,13 +91,21 @@ export function SwitchShell({
 
           <div className="flex items-center gap-3 text-sm font-medium text-[var(--switch-ink)]">
             <span>{now}</span>
-            <Wifi className="h-4 w-4 stroke-[var(--switch-muted)]" strokeWidth={2.2} aria-hidden />
-            <BatteryMedium className="h-4 w-4 stroke-[var(--switch-muted)]" strokeWidth={2.2} aria-hidden />
+            <Wifi
+              className="h-4 w-4 stroke-[var(--switch-muted)]"
+              strokeWidth={2.2}
+              aria-hidden
+            />
+            <BatteryMedium
+              className="h-4 w-4 stroke-[var(--switch-muted)]"
+              strokeWidth={2.2}
+              aria-hidden
+            />
           </div>
         </div>
       </header>
 
-      <main className="switch-main min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+      <main className="switch-main min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         <div className="flex min-h-full flex-col">{children}</div>
       </main>
 
@@ -124,6 +147,12 @@ export function SwitchShell({
         <div className="flex items-center justify-between border-t border-[var(--switch-border)] pt-3 text-xs text-[var(--switch-muted)]">
           <Tablet className="h-4 w-4" strokeWidth={2} aria-hidden />
           <div className="flex items-center gap-5">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold text-[var(--switch-ink)]">
+                {rightStickGlyphFor(family)}
+              </span>
+              Scroll
+            </span>
             <span className="inline-flex items-center gap-1.5">
               <Minus className="h-3.5 w-3.5" strokeWidth={2.5} />
               <span>/</span>

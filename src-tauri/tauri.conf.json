@@ -28,14 +28,13 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": [
-          "**"
-        ]
+        "scope": ["**"]
       }
     }
   },
   "bundle": {
     "active": true,
+    "category": "public.app-category.games",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

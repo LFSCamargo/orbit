@@ -3,7 +3,7 @@ import type { AppScreen } from '@/types/game'
 import { Focusable } from '@/components/focus/Focusable'
 import { resolveNavScreen } from '@/lib/navigation'
 import { useUiStore } from '@/stores/ui.store'
-import { glyphFor } from '@/controllers/ControllerGlyphs'
+import { glyphFor, rightStickGlyphFor } from '@/controllers/ControllerGlyphs'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 
@@ -22,7 +22,7 @@ export function NavBar({ family }: { family: ControllerFamily }) {
 
   return (
     <header className="app-navbar pointer-events-none fixed inset-x-0 top-0 z-50 flex items-center justify-between px-10 py-4">
-      <div className="nav-surface pointer-events-auto flex items-center gap-6 overflow-visible rounded-2xl bg-black/35 px-4 py-3 backdrop-blur-panel ring-1 ring-white/10">
+      <div className="nav-surface pointer-events-auto flex items-center gap-6 overflow-visible rounded-2xl bg-black/35 px-4 py-3 ring-1 ring-white/10 backdrop-blur-panel">
         <div className="nav-brand font-display text-xl font-semibold tracking-[0.18em] text-white">
           {layout === 'ps5' ? 'Games' : 'ORBIT'}
         </div>
@@ -49,12 +49,13 @@ export function NavBar({ family }: { family: ControllerFamily }) {
         </nav>
       </div>
 
-      <div className="nav-hints pointer-events-none hidden items-center gap-3 overflow-visible rounded-2xl bg-black/30 px-4 py-2 text-xs text-white/70 backdrop-blur-panel ring-1 ring-white/10 md:flex">
+      <div className="nav-hints pointer-events-none hidden items-center gap-3 overflow-visible rounded-2xl bg-black/30 px-4 py-2 text-xs text-white/70 ring-1 ring-white/10 backdrop-blur-panel md:flex">
         <Hint glyph={glyphFor(family, 'confirm')} label="Select" />
         <Hint glyph={glyphFor(family, 'back')} label="Back" />
         <Hint glyph={glyphFor(family, 'secondary')} label="Edit" />
         <Hint glyph={glyphFor(family, 'context')} label="Add" />
         <Hint glyph={glyphFor(family, 'section-next')} label="Section" />
+        <Hint glyph={rightStickGlyphFor(family)} label="Scroll" />
         <Hint glyph={glyphFor(family, 'menu')} label="Menu" />
       </div>
     </header>

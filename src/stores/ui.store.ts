@@ -11,6 +11,7 @@ interface UiState {
   lastControllerActivityAt: number
   libraryFilters: LibraryFilters
   importToast: string | null
+  homeMenuOpen: boolean
   setScreen: (screen: AppScreen) => void
   openGameDetails: (gameId: string) => void
   openGameEdit: (gameId: string) => void
@@ -23,6 +24,9 @@ interface UiState {
   markMouseActivity: () => void
   setLibraryFilters: (patch: Partial<LibraryFilters>) => void
   setImportToast: (message: string | null) => void
+  openHomeMenu: () => void
+  closeHomeMenu: () => void
+  toggleHomeMenu: () => void
 }
 
 const defaultFilters: LibraryFilters = {
@@ -44,6 +48,7 @@ export const useUiStore = create<UiState>((set) => ({
   lastControllerActivityAt: 0,
   libraryFilters: defaultFilters,
   importToast: null,
+  homeMenuOpen: false,
   setScreen: (screen) =>
     set((state) => ({
       previousScreen: state.screen,
@@ -85,4 +90,7 @@ export const useUiStore = create<UiState>((set) => ({
       libraryFilters: { ...state.libraryFilters, ...patch },
     })),
   setImportToast: (message) => set({ importToast: message }),
+  openHomeMenu: () => set({ homeMenuOpen: true }),
+  closeHomeMenu: () => set({ homeMenuOpen: false }),
+  toggleHomeMenu: () => set((state) => ({ homeMenuOpen: !state.homeMenuOpen })),
 }))
