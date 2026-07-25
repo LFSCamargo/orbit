@@ -224,7 +224,7 @@ Theme `motion.duration` / `motion.easing` override global CSS transition tokens.
 
 ## Artwork conventions
 
-Game artwork stored as Base64 in SQLite (`artwork_json`):
+Game artwork is stored as filesystem paths under `artwork-cache/` when possible (http(s) URLs and small inline Base64 remain valid in `artwork_json`):
 
 | Slot | Key | Typical use |
 | ---- | --- | ----------- |
@@ -232,6 +232,8 @@ Game artwork stored as Base64 in SQLite (`artwork_json`):
 | Hero | `hero` | Landscape background |
 | Logo | `logo` | Title treatment overlay |
 | Icon | `icon` | Small grid thumbnail |
+
+Heavy inline Base64 is spilled to cache on save / library list so home and library tiles keep images without multi-MB IPC payloads.
 
 Hero tone derived from artwork via `useHeroTone` for adaptive scrims.
 

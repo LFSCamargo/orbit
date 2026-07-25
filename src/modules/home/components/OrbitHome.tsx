@@ -22,7 +22,7 @@ import {
   placeholderGradient,
   providerLabel,
 } from '@/lib/format'
-import { mediaSrc } from '@/lib/media'
+import { cssUrl, mediaSrc } from '@/lib/media'
 import { useUiStore } from '@/stores/ui.store'
 import type { Game } from '@/types/game'
 import {
@@ -276,7 +276,7 @@ export function OrbitHome({
                         className="h-full w-full overflow-hidden rounded-xl bg-cover bg-center ring-1 ring-white/10"
                         style={{
                           backgroundImage: cover
-                            ? `url(${cover})`
+                            ? cssUrl(cover)
                             : placeholderGradient(game.id),
                         }}
                       />

@@ -16,6 +16,7 @@ import {
   placeholderGradient,
   providerLabel,
 } from '@/lib/format'
+import { cssUrl } from '@/lib/media'
 import { useUiStore } from '@/stores/ui.store'
 import {
   createHomeGameHandlers,
@@ -79,7 +80,7 @@ export function SwitchHome({
           data-has-landscape={heroLandscape ? 'true' : 'false'}
           style={{
             backgroundImage: heroLandscape
-              ? `url(${heroLandscape})`
+              ? cssUrl(heroLandscape)
               : placeholderGradient(heroGame.id),
           }}
         />

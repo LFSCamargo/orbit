@@ -6,6 +6,7 @@ import { gameTileImage } from '@/lib/artwork'
 import { Focusable } from '@/components/focus/Focusable'
 import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { placeholderGradient } from '@/lib/format'
+import { cssUrl } from '@/lib/media'
 import { useThemeLayout } from '@/themes/useThemeLayout'
 
 interface GameCardProps {
@@ -123,7 +124,7 @@ function GameCardComponent({
           <div
             className="relative aspect-[3/4] w-full overflow-hidden"
             style={{
-              backgroundImage: tileImage ? `url(${tileImage})` : undefined,
+              backgroundImage: tileImage ? cssUrl(tileImage) : undefined,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               backgroundColor: tileImage ? undefined : 'rgb(var(--orbit-panel))',

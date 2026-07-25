@@ -2,9 +2,14 @@ use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use image::{imageops, ImageFormat, Rgba, RgbaImage};
 
+use crate::models::GameArtwork;
 use crate::utils::paths::artwork_cache_dir;
+
+/// Inline `data:image/...` payloads larger than this are spilled to `artwork-cache/`.
+pub const MAX_INLINE_ARTWORK_CHARS: usize = 2048;
 
 /// Returns true for http(s) URLs, data URLs, or local paths that point to a regular file.
 pub fn is_usable_artwork_reference(value: &str) -> bool {
@@ -141,6 +146,55 @@ pub fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+pub fn is_heavy_base64_data_url(value: &str) -> bool {
+    value.starts_with("data:image/") && value.len() > MAX_INLINE_ARTWORK_CHARS
+}
+
+/// Decode a `data:image/...;base64,...` URL into raw bytes + mime type.
+pub fn decode_data_url(value: &str) -> Option<(Vec<u8>, String)> {
+    let rest = value.trim().strip_prefix("data:")?;
+    let (meta, data) = rest.split_once(',')?;
+    let mut parts = meta.split(';');
+    let mime = parts.next()?.trim();
+    if !mime.starts_with("image/") {
+        return None;
+    }
+    let is_base64 = meta.split(';').any(|part| part.trim() == "base64");
+    if !is_base64 {
+        return None;
+    }
+    let bytes = STANDARD.decode(data.trim()).ok()?;
+    Some((bytes, mime.to_string()))
+}
+
+/// Spill heavy inline base64 artwork to `artwork-cache/` and replace slots with file paths.
+/// Returns `true` when any slot changed. Failed slots are left unchanged.
+pub fn materialize_heavy_artwork(game_id: &str, artwork: &mut GameArtwork) -> bool {
+    let mut changed = false;
+    changed |= materialize_slot(game_id, "cover", &mut artwork.cover);
+    changed |= materialize_slot(game_id, "hero", &mut artwork.hero);
+    changed |= materialize_slot(game_id, "logo", &mut artwork.logo);
+    changed |= materialize_slot(game_id, "icon", &mut artwork.icon);
+    changed
+}
+
+fn materialize_slot(game_id: &str, slot: &str, value: &mut Option<String>) -> bool {
+    let Some(raw) = value.as_ref() else {
+        return false;
+    };
+    if !is_heavy_base64_data_url(raw) {
+        return false;
+    }
+    let Some((bytes, mime)) = decode_data_url(raw) else {
+        return false;
+    };
+    let Ok(path) = cache_artwork_bytes(game_id, slot, &bytes, &mime) else {
+        return false;
+    };
+    *value = Some(path_to_string(&path));
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +257,36 @@ mod tests {
         assert_eq!(decoded.get_pixel(1, 1), &Rgba([0, 0, 255, 255]));
         assert!(decoded.get_pixel(0, 1)[3] == 255);
         assert!(decoded.get_pixel(0, 1)[1] > 0);
+    }
+
+    #[test]
+    fn materialize_heavy_data_url_writes_cache_file() {
+        let game_id = format!("materialize-{}", uuid::Uuid::new_v4());
+        let payload = STANDARD.encode(vec![0u8; MAX_INLINE_ARTWORK_CHARS + 64]);
+        let heavy = format!("data:image/png;base64,{payload}");
+        let mut artwork = GameArtwork {
+            cover: Some(heavy),
+            hero: Some("/tmp/existing-hero.png".into()),
+            logo: None,
+            icon: None,
+        };
+
+        assert!(materialize_heavy_artwork(&game_id, &mut artwork));
+        let cover = artwork.cover.expect("cover path");
+        assert!(!cover.starts_with("data:"));
+        assert!(Path::new(&cover).is_file());
+        assert_eq!(artwork.hero.as_deref(), Some("/tmp/existing-hero.png"));
+
+        let _ = fs::remove_dir_all(artwork_cache_dir().join(sanitize_segment(&game_id)));
+    }
+
+    #[test]
+    fn decode_data_url_reads_png_payload() {
+        let bytes = b"\x89PNG\r\n\x1a\n";
+        let encoded = STANDARD.encode(bytes);
+        let (decoded, mime) =
+            decode_data_url(&format!("data:image/png;base64,{encoded}")).expect("decode");
+        assert_eq!(mime, "image/png");
+        assert_eq!(decoded, bytes);
     }
 }

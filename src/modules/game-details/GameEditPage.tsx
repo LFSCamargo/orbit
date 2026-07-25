@@ -125,7 +125,7 @@ export function GameEditPage() {
           launchConfig,
         },
       })
-      setMessage('Saved — artwork stored as Base64 in your local library.')
+      setMessage('Saved — artwork cached locally for your library.')
       openGameDetails(game.id)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -137,7 +137,7 @@ export function GameEditPage() {
   return (
     <ThemePage
       title="Edit properties"
-      subtitle="Customize metadata, launch path, and artwork. Images are embedded in your local database."
+      subtitle="Customize metadata, launch path, and artwork. Large images are stored in the local artwork cache."
     >
       <motion.div
         initial={{ opacity: 0, y: 12 }}

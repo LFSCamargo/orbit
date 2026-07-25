@@ -20,6 +20,10 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+### Fixed
+
+- Home and library tiles show artwork again — heavy Base64 images are spilled to `artwork-cache/` instead of being stripped from `list_games`
+
 ## [0.2.0] - TBD
 
 TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch shell polish, library square tile normalization, and a modules/performance refactor.

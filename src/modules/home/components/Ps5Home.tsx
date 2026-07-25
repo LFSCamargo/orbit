@@ -14,7 +14,7 @@ import {
   placeholderGradient,
   providerLabel,
 } from '@/lib/format'
-import { mediaSrc } from '@/lib/media'
+import { cssUrl, mediaSrc } from '@/lib/media'
 import { useUiStore } from '@/stores/ui.store'
 import {
   createHomeGameHandlers,
@@ -68,7 +68,7 @@ export function Ps5Home({
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: heroBg ? `url(${heroBg})` : placeholderGradient(heroGame.id),
+            backgroundImage: heroBg ? cssUrl(heroBg) : placeholderGradient(heroGame.id),
           }}
         />
         <div className="absolute inset-0 bg-black/45" />

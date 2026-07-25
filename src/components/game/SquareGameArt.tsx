@@ -1,4 +1,5 @@
 import { clsx } from 'clsx'
+import { cssUrl } from '@/lib/media'
 
 interface SquareGameArtProps {
   image?: string
@@ -10,9 +11,7 @@ interface SquareGameArtProps {
 
 function backgroundImageValue(image?: string, placeholder?: string): string | undefined {
   if (image) {
-    // Quote so data: URLs and asset paths with special characters stay valid CSS.
-    const safe = image.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-    return `url("${safe}")`
+    return cssUrl(image)
   }
   return placeholder
 }

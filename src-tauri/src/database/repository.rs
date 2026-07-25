@@ -10,10 +10,8 @@ use crate::models::{
     CreateGameRequest, Game, GameArtwork, GameOverrides, GamePlatform, GameProvider, GameSession,
     ImportedGame, LaunchConfiguration, SessionStopReason, UpdateGameRequest, UpsertResult,
 };
+use crate::services::artwork::{is_heavy_base64_data_url, materialize_heavy_artwork};
 use crate::services::metadata_merge::{is_placeholder_description, merge_artwork};
-
-/// Inline `data:image/...` payloads larger than this are dropped from list responses.
-const MAX_INLINE_ARTWORK_CHARS: usize = 2048;
 
 pub struct GameRepository {
     conn: Mutex<Connection>,
@@ -54,11 +52,19 @@ impl GameRepository {
         )?;
         let rows = stmt.query_map([], map_game_row)?;
         let mut games: Vec<Game> = rows.filter_map(|row| row.ok()).collect();
-        let overrides = load_all_overrides(&conn)?;
+        let mut overrides = load_all_overrides(&conn)?;
         for game in &mut games {
-            if let Some(over) = overrides.get(&game.id) {
+            if let Some(over) = overrides.get_mut(&game.id) {
+                // Overrides can still hold legacy inline base64 — spill before applying.
+                if materialize_override_artwork(&game.id, over) {
+                    persist_override_json(&conn, &game.id, over)?;
+                }
                 apply_override_values(game, over);
             }
+            if materialize_heavy_artwork(&game.id, &mut game.artwork) {
+                persist_artwork_json(&conn, &game.id, &game.artwork)?;
+            }
+            // Safety net: never send multi-MB data URLs over IPC for list views.
             lighten_artwork(&mut game.artwork);
         }
         Ok(games)
@@ -97,7 +103,8 @@ impl GameRepository {
             {
                 let existing_artwork: GameArtwork =
                     serde_json::from_str(&existing_artwork_json).unwrap_or_default();
-                let artwork = merge_artwork(&existing_artwork, &game.artwork);
+                let mut artwork = merge_artwork(&existing_artwork, &game.artwork);
+                materialize_heavy_artwork(&id, &mut artwork);
                 let artwork_json = serde_json::to_string(&artwork)?;
 
                 // Keep enriched / user descriptions; only replace empty or placeholder text.
@@ -143,7 +150,9 @@ impl GameRepository {
                 )?;
             } else {
                 let id = Uuid::new_v4().to_string();
-                let artwork_json = serde_json::to_string(&game.artwork)?;
+                let mut artwork = game.artwork.clone();
+                materialize_heavy_artwork(&id, &mut artwork);
+                let artwork_json = serde_json::to_string(&artwork)?;
                 conn.execute(
                     "INSERT INTO games (
                         id, stable_key, title, sort_title, provider, platform, source_id,
@@ -193,7 +202,8 @@ impl GameRepository {
         let id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let sort_title = request.title.to_lowercase();
-        let artwork = request.artwork.unwrap_or_default();
+        let mut artwork = request.artwork.unwrap_or_default();
+        materialize_heavy_artwork(&id, &mut artwork);
         let launch_json = serde_json::to_string(&request.launch_config)?;
         let artwork_json = serde_json::to_string(&artwork)?;
         let stable_key = format!("manual:{id}");
@@ -246,7 +256,8 @@ impl GameRepository {
         let title = request.title.unwrap_or(existing.title);
         let sort_title = title.to_lowercase();
         let description = request.description.or(existing.description);
-        let artwork = request.artwork.unwrap_or(existing.artwork);
+        let mut artwork = request.artwork.unwrap_or(existing.artwork);
+        materialize_heavy_artwork(game_id, &mut artwork);
         let launch_config_changed = request.launch_config.is_some();
         let launch_config = request
             .launch_config
@@ -503,10 +514,6 @@ fn load_existing_by_stable_key(conn: &Connection) -> Result<HashMap<String, Exis
     Ok(map)
 }
 
-fn is_heavy_base64_data_url(value: &str) -> bool {
-    value.starts_with("data:image/") && value.len() > MAX_INLINE_ARTWORK_CHARS
-}
-
 fn lighten_artwork_slot(slot: Option<String>) -> Option<String> {
     match slot {
         Some(value) if is_heavy_base64_data_url(&value) => None,
@@ -520,6 +527,42 @@ fn lighten_artwork(artwork: &mut GameArtwork) {
     artwork.hero = lighten_artwork_slot(artwork.hero.take());
     artwork.logo = lighten_artwork_slot(artwork.logo.take());
     artwork.icon = lighten_artwork_slot(artwork.icon.take());
+}
+
+fn materialize_override_artwork(game_id: &str, overrides: &mut GameOverrides) -> bool {
+    let mut artwork = GameArtwork {
+        cover: overrides.cover.clone(),
+        hero: overrides.hero.clone(),
+        logo: overrides.logo.clone(),
+        icon: overrides.icon.clone(),
+    };
+    if !materialize_heavy_artwork(game_id, &mut artwork) {
+        return false;
+    }
+    overrides.cover = artwork.cover;
+    overrides.hero = artwork.hero;
+    overrides.logo = artwork.logo;
+    overrides.icon = artwork.icon;
+    true
+}
+
+fn persist_artwork_json(conn: &Connection, game_id: &str, artwork: &GameArtwork) -> Result<()> {
+    let artwork_json = serde_json::to_string(artwork)?;
+    conn.execute(
+        "UPDATE games SET artwork_json = ?1 WHERE id = ?2",
+        params![artwork_json, game_id],
+    )?;
+    Ok(())
+}
+
+fn persist_override_json(conn: &Connection, game_id: &str, overrides: &GameOverrides) -> Result<()> {
+    let override_json = serde_json::to_string(overrides)?;
+    conn.execute(
+        "INSERT INTO user_overrides (game_id, override_json) VALUES (?1, ?2)
+         ON CONFLICT(game_id) DO UPDATE SET override_json = excluded.override_json",
+        params![game_id, override_json],
+    )?;
+    Ok(())
 }
 
 fn install_size_for_launch(config: &LaunchConfiguration) -> Option<i64> {
@@ -573,7 +616,10 @@ mod tests {
     use super::*;
 
     fn heavy_data_url() -> String {
-        format!("data:image/png;base64,{}", "A".repeat(MAX_INLINE_ARTWORK_CHARS + 64))
+        format!(
+            "data:image/png;base64,{}",
+            "A".repeat(crate::services::artwork::MAX_INLINE_ARTWORK_CHARS + 64)
+        )
     }
 
     fn sample_imported(stable_key: &str, title: &str) -> ImportedGame {
@@ -596,7 +642,7 @@ mod tests {
     }
 
     #[test]
-    fn list_games_strips_heavy_base64_but_keeps_paths() {
+    fn list_games_materializes_heavy_base64_to_cache_paths() {
         let repo = GameRepository::open_in_memory().expect("db");
         let heavy = heavy_data_url();
         let path = "/tmp/orbit-cache/cover.png".to_string();
@@ -622,14 +668,22 @@ mod tests {
 
         let listed = repo.list_games().expect("list");
         assert_eq!(listed.len(), 1);
-        assert!(listed[0].artwork.cover.is_none());
+        let listed_cover = listed[0].artwork.cover.as_deref().expect("cover path");
+        let listed_icon = listed[0].artwork.icon.as_deref().expect("icon path");
+        assert!(!listed_cover.starts_with("data:"));
+        assert!(!listed_icon.starts_with("data:"));
+        assert!(std::path::Path::new(listed_cover).is_file());
+        assert!(std::path::Path::new(listed_icon).is_file());
         assert_eq!(listed[0].artwork.hero.as_deref(), Some(path.as_str()));
-        assert!(listed[0].artwork.icon.is_none());
 
         let detail = repo.get_game(&game.id).expect("get").expect("exists");
-        assert_eq!(detail.artwork.cover.as_deref(), Some(heavy.as_str()));
+        assert_eq!(detail.artwork.cover.as_deref(), Some(listed_cover));
         assert_eq!(detail.artwork.hero.as_deref(), Some(path.as_str()));
-        assert_eq!(detail.artwork.icon.as_deref(), Some(heavy.as_str()));
+        assert_eq!(detail.artwork.icon.as_deref(), Some(listed_icon));
+
+        if let Some(parent) = std::path::Path::new(listed_cover).parent() {
+            let _ = std::fs::remove_dir_all(parent);
+        }
     }
 
     #[test]

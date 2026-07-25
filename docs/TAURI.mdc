@@ -152,7 +152,7 @@ Migrations in `database/migrations.rs` — applied sequentially via `schema_migr
 - **settings** — key/value JSON blobs
 - **import_sources** — provider + path registry
 
-`list_games` returns artwork-light rows (drops huge inline `data:image/...` base64; keeps file paths) and applies user overrides from a single batched query. `get_game` returns full artwork. `upsert_imported` preloads existing `stable_key` rows once instead of per-item SELECTs.
+`list_games` returns artwork-light rows (spills huge inline `data:image/...` base64 into `artwork-cache/` file paths on read/write; keeps http(s) and existing paths) and applies user overrides from a single batched query. `get_game` returns full artwork references. `upsert_imported` preloads existing `stable_key` rows once instead of per-item SELECTs.
 
 `stable_key` prevents duplicate imports across rescans.
 
