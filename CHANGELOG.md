@@ -20,11 +20,7 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
-### Fixed
-
-- Home and library tiles show artwork again — heavy Base64 images are spilled to `artwork-cache/` instead of being stripped from `list_games`
-
-## [0.2.0] - TBD
+## [0.2.0] - 2026-07-25
 
 TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch shell polish, library square tile normalization, and a modules/performance refactor.
 
@@ -66,6 +62,7 @@ TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch
 
 ### Fixed
 
+- Home and library tiles show artwork again — heavy Base64 images are spilled to `artwork-cache/` instead of being stripped from `list_games`
 - TheGamesDB lookup and JSON parsing for titles like DmC: Devil May Cry
 - Artwork cache write failures when a path pointed at a directory (`EISDIR`)
 - Steam importer skips directory paths masquerading as artwork files
