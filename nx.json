@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/__tests__/**/*",
+      "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.test.tsx",
+      "!{projectRoot}/e2e/**/*"
+    ],
+    "rust": ["{projectRoot}/src-tauri/**/*", "!{projectRoot}/src-tauri/target/**/*"],
+    "sharedGlobals": ["{workspaceRoot}/package.json", "{workspaceRoot}/yarn.lock"]
+  },
+  "targetDefaults": {
+    "build": {
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/dist", "{projectRoot}/.next"],
+      "cache": true
+    },
+    "typecheck": {
+      "inputs": ["default"],
+      "cache": true
+    },
+    "test:unit": {
+      "inputs": ["default"],
+      "cache": true
+    },
+    "test:rust": {
+      "inputs": ["rust"],
+      "cache": true
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "dev": {
+      "continuous": true
+    },
+    "tauri:dev": {
+      "continuous": true
+    }
+  },
+  "analytics": false
+}

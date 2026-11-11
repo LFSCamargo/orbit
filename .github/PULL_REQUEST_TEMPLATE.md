@@ -10,7 +10,8 @@
 
 - [ ] `yarn run format:check`
 - [ ] `yarn run typecheck`
-- [ ] `yarn run test:rust` (if `src-tauri/` touched)
+- [ ] `yarn run test:unit`
+- [ ] `yarn run test:rust` (if `apps/desktop/src-tauri/` touched)
 - [ ] `yarn run build`
 - [ ] `yarn run test:e2e` (if UI/navigation/themes touched)
 - [ ] Manual: controller navigation / launch flow (if applicable)

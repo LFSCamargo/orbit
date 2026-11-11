@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --orbit-canvas: 5 7 12;
+  --orbit-surface: 12 16 24;
+  --orbit-panel: 18 24 34;
+  --orbit-foreground: 244 246 250;
+  --orbit-muted: 148 160 178;
+  --orbit-accent: 120 196 255;
+  --orbit-focus: 180 220 255;
+  --orbit-border: 42 52 68;
+  --orbit-radius: 1.25rem;
+  --orbit-card-radius: 1rem;
+  --orbit-blur: 24px;
+  --orbit-motion-duration: 0.35s;
+  --orbit-motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
+  --orbit-font-display: 'DM Sans', system-ui, sans-serif;
+  --orbit-font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+@layer base {
+  /* Controller-first UI — keep scrolling, hide scrollbar chrome everywhere. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--orbit-font-body);
+    background: rgb(var(--orbit-canvas));
+    color: rgb(var(--orbit-foreground));
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color var(--orbit-motion-duration) var(--orbit-motion-easing),
+      color var(--orbit-motion-duration) var(--orbit-motion-easing);
+  }
+
+  ::selection {
+    background: rgb(var(--orbit-accent) / 0.35);
+  }
+}
+
+@layer components {
+  /* Transparent square icons (SteamGridDB) need a solid tile backdrop. */
+  .square-game-art {
+    background-color: #000;
+  }
+
+  .orbit-panel {
+    border-radius: var(--orbit-radius);
+  }
+
+  .orbit-card {
+    border-radius: var(--orbit-card-radius);
+  }
+}
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .orbit-transition {
+    transition-property:
+      transform, opacity, background-color, box-shadow, color, border-color;
+    transition-duration: var(--orbit-motion-duration);
+    transition-timing-function: var(--orbit-motion-easing);
+  }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}

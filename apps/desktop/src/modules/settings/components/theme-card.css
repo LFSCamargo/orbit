@@ -1,0 +1,66 @@
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-width: 0;
+}
+.theme-card-artwork {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 80% 10%, rgb(var(--orbit-accent) / 0.2), transparent 75%),
+    rgb(var(--orbit-surface));
+}
+.theme-card-hero {
+  position: absolute;
+  inset: 0;
+}
+.theme-card-artwork-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.08));
+  pointer-events: none;
+}
+.theme-card-logo {
+  position: absolute;
+  inset: 15% 10%;
+}
+.theme-card-artwork > .theme-brand {
+  position: absolute;
+  inset: 16px;
+}
+.theme-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+}
+.theme-card-title {
+  min-height: 2.75em;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.375;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.theme-card-swatches {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.theme-card-status {
+  min-height: 15px;
+  margin-top: auto;
+  padding-top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--orbit-accent));
+}

@@ -1,0 +1,59 @@
+.artwork-image {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+}
+.artwork-image > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.artwork-image[data-fit='contain'] > img {
+  object-fit: contain;
+}
+.artwork-image[data-state='ready'] > img {
+  opacity: 1;
+}
+.artwork-image[data-state='error'] > img {
+  visibility: hidden;
+}
+.artwork-skeleton {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: rgb(var(--orbit-foreground) / 0.055);
+}
+.artwork-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 15%,
+    rgb(255 255 255 / 0.11) 48%,
+    transparent 80%
+  );
+  animation: artwork-shimmer 1.5s ease-in-out infinite;
+  transform: translateX(-100%);
+}
+@keyframes artwork-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .artwork-skeleton::after {
+    animation: none;
+    transform: none;
+    opacity: 0.35;
+  }
+  .artwork-image > img {
+    transition: none;
+  }
+}

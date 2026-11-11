@@ -1,0 +1,89 @@
+.macos-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.macos-hero-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 35%;
+}
+
+.macos-hero-layer[data-layer='active'] {
+  animation: orbit-backdrop-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.macos-hero-layer[data-layer='leaving'] {
+  animation: orbit-backdrop-leave 220ms ease-out both;
+}
+
+.macos-hero-backdrop[data-has-image='true']::before,
+.macos-hero-backdrop[data-has-image='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  transition: opacity 260ms ease;
+}
+
+.macos-hero-backdrop::before {
+  background: linear-gradient(
+    0deg,
+    rgb(var(--orbit-canvas) / 0.92),
+    rgb(var(--orbit-canvas) / 0.45)
+  );
+}
+
+.macos-hero-backdrop::after {
+  opacity: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--orbit-canvas) / 0.86),
+      rgb(var(--orbit-canvas) / 0.34) 42%,
+      transparent 78%
+    ),
+    linear-gradient(
+      0deg,
+      rgb(var(--orbit-canvas)),
+      rgb(var(--orbit-canvas) / 0.75) 20%,
+      rgb(var(--orbit-canvas) / 0.13) 62%,
+      transparent
+    );
+}
+
+.macos-shell[data-console-home='true'] .macos-hero-backdrop::before {
+  opacity: 0;
+}
+
+.macos-shell[data-console-home='true'] .macos-hero-backdrop::after {
+  opacity: 1;
+}
+
+.macos-shell:has(.macos-hero-layer) .macos-wallpaper span {
+  animation-play-state: paused;
+}
+
+@keyframes orbit-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes orbit-backdrop-leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 6rem;
+}
+
+body {
+  @apply bg-orbit-canvas font-sans text-orbit-foreground antialiased;
+}
+
+::selection {
+  @apply bg-orange-500 text-zinc-950;
+}
+
+:focus-visible {
+  @apply outline-none ring-2 ring-orbit-focus ring-offset-2 ring-offset-orbit-canvas;
+}
+
+.orbit-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.docs-prose h2 {
+  @apply mt-16 scroll-mt-28 text-3xl font-medium tracking-[-0.035em] text-orbit-foreground;
+}
+
+.docs-prose h3 {
+  @apply mt-8 text-xl font-medium text-orbit-foreground;
+}
+
+.docs-prose p,
+.docs-prose li {
+  @apply mt-4 text-sm leading-7 text-orbit-muted;
+}
+
+.docs-prose ul,
+.docs-prose ol {
+  @apply mt-4 space-y-2 pl-5;
+}
+
+.docs-prose ul {
+  @apply list-disc;
+}
+
+.docs-prose ol {
+  @apply list-decimal;
+}
+
+.docs-prose strong {
+  @apply font-medium text-orbit-foreground;
+}
+
+.docs-prose a {
+  @apply text-orbit-accent hover:text-orbit-focus;
+}
+
+.docs-prose code {
+  @apply rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-xs text-orange-200;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

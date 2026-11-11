@@ -58,14 +58,21 @@ function run(cmd, cwd = root) {
   execSync(cmd, { cwd, stdio: 'inherit' })
 }
 
+const desktop = join(root, 'apps/desktop')
+const landing = join(root, 'apps/landing')
+
 const projectPaths = [
-  join(root, 'src-tauri/target'),
+  join(desktop, 'src-tauri/target'),
   join(root, 'node_modules'),
-  join(root, 'dist'),
-  join(root, 'test-results'),
-  join(root, 'playwright-report'),
+  join(desktop, 'node_modules'),
+  join(landing, 'node_modules'),
+  join(desktop, 'dist'),
+  join(desktop, 'test-results'),
+  join(desktop, 'playwright-report'),
+  join(desktop, 'playwright/.cache'),
+  join(landing, '.next'),
+  join(root, '.nx/cache'),
   join(root, 'release'),
-  join(root, 'playwright/.cache'),
 ]
 
 const appSupport = join(homedir(), 'Library/Application Support/Orbit')
@@ -119,10 +126,10 @@ if (!clean) {
 
 console.log('\nCleaning project artifacts…')
 
-const targetDir = join(root, 'src-tauri/target')
-if (existsSync(join(root, 'src-tauri/Cargo.toml'))) {
+const targetDir = join(desktop, 'src-tauri/target')
+if (existsSync(join(desktop, 'src-tauri/Cargo.toml'))) {
   try {
-    run('cargo clean --manifest-path src-tauri/Cargo.toml')
+    run('cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml')
   } catch {
     console.warn('  cargo clean failed (continuing with directory removal)')
   }

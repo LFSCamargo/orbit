@@ -8,6 +8,7 @@ cd "$ROOT"
 ARCH=""
 SKIP_TESTS=false
 SKIP_TYPECHECK=false
+INSTALL=false
 
 usage() {
   cat <<'EOF'
@@ -19,6 +20,7 @@ Options:
   --arch <aarch64|x86_64|universal|native>  Rust target (default: native)
   --skip-tests                              Skip yarn test:rust
   --skip-typecheck                          Skip yarn typecheck
+  --install                                 Mount the produced DMG and copy Orbit.app to /Applications
   -h, --help                                Show this help
 
 Output (under release/<version>/):
@@ -30,6 +32,7 @@ Examples:
   scripts/release-macos.sh
   scripts/release-macos.sh --arch universal
   scripts/release-macos.sh --arch aarch64 --skip-tests
+  scripts/release-macos.sh --install
 EOF
 }
 
@@ -45,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-typecheck)
       SKIP_TYPECHECK=true
+      shift
+      ;;
+    --install)
+      INSTALL=true
       shift
       ;;
     -h | --help)
@@ -96,6 +103,42 @@ arch_label() {
   esac
 }
 
+install_to_applications() {
+  local dmg="$1"
+  if [[ ! -f "$dmg" ]]; then
+    echo "error: cannot install — DMG not found: $dmg" >&2
+    return 1
+  fi
+
+  local mountpoint
+  mountpoint="$(mktemp -d)"
+
+  cleanup_mount() {
+    if hdiutil info 2>/dev/null | grep -q "$mountpoint"; then
+      hdiutil detach "$mountpoint" -quiet || true
+    fi
+    rm -rf "$mountpoint"
+  }
+  trap cleanup_mount EXIT
+
+  echo "==> Mounting DMG"
+  hdiutil attach "$dmg" -mountpoint "$mountpoint" -nobrowse -quiet
+  echo "    mounted at $mountpoint"
+
+  echo "==> Installing Orbit to /Applications"
+  if [[ -d "/Applications/Orbit.app" ]]; then
+    echo "    removing existing /Applications/Orbit.app"
+    rm -rf "/Applications/Orbit.app"
+  fi
+  ditto "$mountpoint/Orbit.app" "/Applications/Orbit.app"
+  echo "    installed /Applications/Orbit.app"
+
+  echo "==> Unmounting DMG"
+  hdiutil detach "$mountpoint" -quiet
+  trap - EXIT
+  rm -rf "$mountpoint"
+}
+
 if [[ -z "$ARCH" || "$ARCH" == "native" ]]; then
   TARGET="$(resolve_native_arch)"
 elif [[ "$ARCH" == "aarch64" ]]; then
@@ -110,10 +153,10 @@ else
 fi
 
 LABEL="$(arch_label "$TARGET")"
-VERSION="$(node -p "require('./package.json').version")"
-PRODUCT_NAME="$(node -p "require('./src-tauri/tauri.conf.json').productName")"
+DESKTOP_DIR="$ROOT/apps/desktop"
+VERSION="$(node -p "require('./apps/desktop/package.json').version")"
 OUT_DIR="$ROOT/release/$VERSION"
-BUNDLE_DIR="$ROOT/src-tauri/target/$TARGET/release/bundle"
+BUNDLE_DIR="$DESKTOP_DIR/src-tauri/target/$TARGET/release/bundle"
 
 echo "==> Orbit macOS release"
 echo "    version: $VERSION"
@@ -134,7 +177,7 @@ if [[ "$SKIP_TESTS" != true ]]; then
 fi
 
 echo "==> Tauri build"
-yarn run tauri build -- --target "$TARGET"
+yarn workspace @orbit/desktop tauri build --target "$TARGET"
 echo
 
 mkdir -p "$OUT_DIR"
@@ -169,6 +212,15 @@ fi
 
 if [[ "$DMG_COUNT" -eq 0 ]]; then
   echo "    (no .dmg produced — .app archive is the primary artifact)"
+fi
+
+if [[ "$INSTALL" == true ]]; then
+  if [[ "$DMG_COUNT" -eq 0 ]]; then
+    echo "error: --install requires a DMG artifact" >&2
+    exit 1
+  fi
+  echo
+  install_to_applications "$DMG_DEST"
 fi
 
 echo

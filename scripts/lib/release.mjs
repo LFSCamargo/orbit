@@ -5,6 +5,8 @@ export const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([\w.+-]+))?$/
 
 export const DEFAULT_GITHUB_REPO = 'LFSCamargo/orbit'
 
+export const DESKTOP_DIR = 'apps/desktop'
+
 export function parseSemver(version) {
   const match = version.match(SEMVER_RE)
   if (!match) return null
@@ -49,7 +51,7 @@ export function bumpSemver(current, kind) {
 }
 
 export function readVersion(root) {
-  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  const pkg = JSON.parse(readFileSync(join(root, DESKTOP_DIR, 'package.json'), 'utf8'))
   return pkg.version
 }
 
@@ -58,20 +60,22 @@ export function syncVersion(root, version) {
     throw new Error(`Invalid semver: ${version}`)
   }
 
-  const pkgPath = join(root, 'package.json')
+  const desktop = join(root, DESKTOP_DIR)
+
+  const pkgPath = join(desktop, 'package.json')
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
   pkg.version = version
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
 
-  const tauriPath = join(root, 'src-tauri/tauri.conf.json')
+  const tauriPath = join(desktop, 'src-tauri/tauri.conf.json')
   const tauri = JSON.parse(readFileSync(tauriPath, 'utf8'))
   tauri.version = version
   writeFileSync(tauriPath, `${JSON.stringify(tauri, null, 2)}\n`)
 
-  const cargoPath = join(root, 'src-tauri/Cargo.toml')
+  const cargoPath = join(desktop, 'src-tauri/Cargo.toml')
   const cargo = readFileSync(cargoPath, 'utf8')
   if (!/^version = "[^"]+"/m.test(cargo)) {
-    throw new Error('Could not find version field in src-tauri/Cargo.toml')
+    throw new Error(`Could not find version field in ${DESKTOP_DIR}/src-tauri/Cargo.toml`)
   }
   writeFileSync(cargoPath, cargo.replace(/^version = "[^"]+"/m, `version = "${version}"`))
 

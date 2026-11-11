@@ -63,7 +63,7 @@ jobs:
         run: node scripts/sync-version.mjs "${{ steps.tag.outputs.version }}"
 
       - name: Typecheck
-        run: yarn typecheck
+        run: yarn nx run desktop:typecheck
 
       - name: Rust tests
         run: yarn test:rust

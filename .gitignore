@@ -7,6 +7,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Yarn
+.yarn/*
+!.yarn/releases
+.pnp.*
+
 node_modules
 dist
 dist-ssr
@@ -24,16 +29,31 @@ dist-ssr
 *.sw?
 
 # Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.playwright-mcp/
+
+# Python tooling
+__pycache__/
 
 # Release artifacts
 /release/
 
 # Rust / Tauri
-src-tauri/target/
+apps/desktop/src-tauri/target/
+
+# Next.js
+.next/
+.next-dev/
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+
+# Nx
+.nx/cache
+.nx/workspace-data
 # Environment variables
 .env
 .env.local

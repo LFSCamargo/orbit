@@ -1,0 +1,55 @@
+/* Image logos for game themes; Orbit remains the plain product wordmark. */
+.theme-brand {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(34vw, 420px);
+  min-height: 44px;
+  color: white;
+  line-height: 1;
+  white-space: nowrap;
+}
+.theme-brand[data-brand='orbit'] {
+  font-size: 36px;
+  letter-spacing: 0.1em;
+}
+.theme-brand[data-brand='image'] img {
+  display: block;
+  max-width: 100%;
+  height: 64px;
+  width: auto;
+  max-height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 18px #0007);
+}
+.theme-orbit-mark {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  color: #ffffff59;
+}
+@media (max-width: 900px) {
+  .theme-brand {
+    max-width: 24vw;
+  }
+  .theme-brand[data-brand='orbit'] {
+    font-size: 16px;
+  }
+  .theme-brand[data-brand='image'] img {
+    height: 36px;
+    max-height: 36px;
+  }
+}
+.theme-brand.theme-brand-preview[data-brand] {
+  max-width: 100%;
+  min-height: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  white-space: normal;
+}
+.theme-brand.theme-brand-preview[data-brand='orbit'] {
+  font-size: 22px;
+}
+.theme-brand.theme-brand-preview[data-brand='image'] img {
+  height: 48px;
+  max-height: 48px;
+}

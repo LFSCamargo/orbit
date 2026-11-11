@@ -1,0 +1,15 @@
+/* Inset outlines survive clipped glass panels and do not compete with surface shadows. */
+.orbit-focusable:focus-visible,
+html[data-navigation-input='controller']
+  .orbit-focusable[data-focused='true']:not(:disabled) {
+  outline: 3px solid rgb(var(--orbit-focus));
+  outline-offset: -3px;
+}
+
+@media (forced-colors: active) {
+  .orbit-focusable:focus-visible,
+  html[data-navigation-input='controller']
+    .orbit-focusable[data-focused='true']:not(:disabled) {
+    outline-color: Highlight;
+  }
+}

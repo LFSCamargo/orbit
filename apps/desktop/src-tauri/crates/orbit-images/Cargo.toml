@@ -1,0 +1,10 @@
+[package]
+name = "orbit-images"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+wgpu = { version = "30", default-features = false, features = ["std", "metal", "dx12", "vulkan", "wgsl"] }
+pollster = "0.4"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
