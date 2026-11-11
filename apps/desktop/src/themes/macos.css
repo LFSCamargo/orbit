@@ -473,16 +473,19 @@
     0 0 0 3px #ffffff30,
     0 14px 32px #0004;
 }
-/* The whole tile scales up on focus (Focusable's scale transform) so the
-   outline selector, which lives on the same element, always tracks the card.
-   Only the glow decoration is animated on the artwork itself. */
+/* The whole tile scales up on focus (Focusable's scale transform); the
+   artwork glow is the visible focus indicator for these tiles. */
 .macos-game-tile[data-focused='true'] .square-game-art {
   box-shadow:
     0 0 0 3px #ffffff80,
     0 18px 35px #0004;
 }
+/* Drop the generic outline ring on tiles only: it wraps the caption text
+   below the artwork and is partly covered by the artwork itself. Other
+   focusable controls keep their accessible navigation ring. */
 .macos-game-tile:focus-visible,
 .macos-game-tile[data-focused='true'] {
+  outline: none !important;
   box-shadow: none !important;
   --tw-ring-shadow: none;
   --tw-ring-offset-shadow: none;
