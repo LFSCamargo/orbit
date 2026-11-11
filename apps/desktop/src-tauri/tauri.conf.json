@@ -31,9 +31,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": [
-          "**"
-        ]
+        "scope": ["**"]
       }
     }
   },
@@ -48,9 +46,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "assets/bundled-themes"
-    ],
+    "resources": ["assets/bundled-themes"],
     "macOS": {
       "minimumSystemVersion": "12.0"
     }
