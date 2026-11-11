@@ -1,132 +1,81 @@
-# Creating Orbit Themes
+# Liquid Glass and SteamGridDB themes
 
-Design system reference: [docs/UI.mdc](UI.mdc). Command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
+Orbit has one interface look: **Liquid Glass**. Game themes change the logo and background. The default Liquid Glass palette matches the Orbit landing page: a dark grayscale canvas with warm orange accents and yellow focus rings. Saved custom themes can also override every color.
 
-Orbit themes are plain JSON files. Drop them into your themes folder and they appear in **Settings → Interface theme**.
+## Choose a game theme
 
-## Themes folder
+Select a game under **Game themes**. Orbit applies its bundled logo, wallpaper,
+and colors immediately. These themes work offline in the desktop app and browser
+preview, including after restart.
 
-On macOS the folder is created automatically:
+## Make your own
 
-```text
-~/Library/Application Support/Orbit/themes/
-```
+1. Open **Theme studio** and enter a theme name and the exact **Game title**.
+2. Choose **Choose logo** for SteamGridDB artwork or **Choose background** to browse SteamGridDB, TheGamesDB, RAWG, and Wikimedia. Providers that require an API key use the keys from Settings.
+3. Customize colors under **Custom colors**, or pick a **Suggested palette**. You can also choose **Extract from image** to generate a palette from any cover or hero on your machine.
+4. Save as your theme. Saved themes can be edited or deleted in the studio.
 
-You can also open Settings and use **Reload custom themes** after adding files. The active path is shown under the Custom theme card.
+The logo appears in the header, with a small Orbit signature in the footer. The chosen hero is the background on Home, game details, and other screens. The plain Liquid Glass choice retains the original selected-game artwork behavior.
 
-## Minimal theme
+## Compatibility and files
 
-```json
-{
-  "id": "my-living-room",
-  "name": "My Living Room",
-  "description": "Warm couch-night palette for our house.",
-  "author": "You",
-  "fonts": {
-    "display": "DM Sans",
-    "body": "DM Sans"
-  },
-  "colors": {
-    "canvas": "12 10 16",
-    "surface": "22 18 28",
-    "panel": "32 26 40",
-    "foreground": "245 240 250",
-    "muted": "160 150 170",
-    "accent": "255 140 90",
-    "focus": "255 190 140",
-    "border": "60 50 72"
-  },
-  "radius": "1.25rem",
-  "cardRadius": "1rem",
-  "blur": "24px",
-  "backgroundStyle": "radial",
-  "layout": "orbit",
-  "motion": {
-    "duration": "0.35s",
-    "easing": "cubic-bezier(0.22, 1, 0.36, 1)"
-  }
-}
-```
+Saved `ps5`, `switch-2`, `orbit`, `macos`, `steam-big-picture`, `aurora`, `ember`, `sakura`, and `graphite` selections resolve to Liquid Glass. These are not selectable looks.
 
-Save as `my-living-room.json` in the themes folder.
+Custom files remain in `~/Library/Application Support/Orbit/themes/*.json`; they are not deleted or rewritten by migration. Legacy radius, font, motion, `logoText`, and `logoStyle` fields remain readable for file compatibility, but the shell always uses the Liquid Glass look and does not render text game logos. Color fields are honored when a custom theme sets them. Existing custom artwork remains available; new studio images use the picker’s approved providers. Save updates a custom file only when requested.
 
-## Color format
+Opening Themes reuses the catalog loaded at startup. Use **Reload custom themes**
+after editing files externally. Native loading runs on a worker with a 128-theme,
+64 MB input budget and a 512-entry directory scan limit; each file remains capped
+at 20 MB. Symlinks are skipped. Inline artwork becomes cached display files and
+small thumbnails before metadata crosses IPC, keeping base64 blobs out of React.
+The optional `preview` paths exist only in the runtime catalog and are never a
+portable theme JSON field. Legacy GIF originals remain animated in the shell;
+their grid cards use a static placeholder.
 
-Every color is **space-separated RGB channels without commas** (same format CSS uses for `rgb(r g b / alpha)`):
+Theme JSON keeps the existing `id`, `name`, `colors`, and optional `branding` shape. `colors` is an object of space-separated RGB triplets (`"R G B"`) for `canvas`, `surface`, `panel`, `foreground`, `muted`, `accent`, `focus`, and `border`. IDs written by the studio begin with `custom-`. Relevant branding fields:
 
-| Token        | Used for                 |
-| ------------ | ------------------------ |
-| `canvas`     | App background           |
-| `surface`    | Inputs / nested surfaces |
-| `panel`      | Cards and glass panels   |
-| `foreground` | Primary text             |
-| `muted`      | Secondary text           |
-| `accent`     | Primary CTA / highlights |
-| `focus`      | Controller focus ring    |
-| `border`     | Subtle borders           |
+| Field                   | Meaning                                  |
+| ----------------------- | ---------------------------------------- |
+| `logoImage`             | Inline raster logo or bundled reference  |
+| `wallpaper`             | Inline raster hero or bundled reference  |
+| `artworkQuery`          | Exact SteamGridDB game title             |
+| `tagline`               | Optional existing footer text            |
+| `logoText`, `logoStyle` | Legacy data; not rendered as a game logo |
 
-Tip: keep contrast high for TV / couch distance. Accent should stay readable on both canvas and panel.
+The illustrative [example JSON](examples/arcade-neon.json) retains the compatible schema; use the studio to add actual artwork. The backend rejects invalid theme IDs and colors and strips remote/SVG branding images. Theme Studio preserves bundled artwork in saved copies using references such as `orbit-bundled:cyberpunk-2077:hero`. Custom JSON remains an advanced compatibility format, not an alternate layout API.
 
-## Optional fields
+## Rendering
 
-| Field                               | Purpose                                                                    |
-| ----------------------------------- | -------------------------------------------------------------------------- |
-| `fonts.display` / `fonts.body`      | Font family names (load the font yourself if it is not DM Sans)            |
-| `radius`                            | Large panel corner radius                                                  |
-| `cardRadius`                        | Smaller card radius                                                        |
-| `blur`                              | Backdrop blur for panels                                                   |
-| `backgroundStyle`                   | `radial` · `ps5` · `switch`                                                |
-| `layout`                            | Changes the complete app layout and navigation: `orbit` · `ps5` · `switch` |
-| `motion.duration` / `motion.easing` | Global transition feel                                                     |
+The shared surface in `apps/desktop/src/components/ui/liquid-glass.tsx` uses restrained compositor blur and subtle edges. Rust prepares a small shared grain texture for desktop sessions. Browser preview uses the same material styling. Reduced transparency and high contrast use opaque panels. Controller focus and navigation continue through the existing shared shell.
 
-## Built-in themes
+## Offline built-in artwork
 
-Orbit ships with:
+All eight built-in game themes ship with optimized WebP logos and heroes in
+`apps/desktop/src-tauri/assets/bundled-themes/`. Vite packages these same files for
+browser development and builds; Tauri prefers WebP, with PNG/JPG support for older bundles.
+Theme cards show local artwork before selection. No key or network is needed to
+display bundled themes. To refresh artwork, configure the ignored root `.env`
+with `STEAMGRIDDB_API_KEY` and run
+`node --env-file=.env scripts/bundle-theme-artwork.mjs`.
 
-1. **Orbit Default** — cinematic dark launcher
-2. **PlayStation 5** — immersive artwork, circular tiles, glass panels
-3. **Switch 2** — bright home screen with square tiles and bottom dock
+Theme card previews use fixed frames with cropped backgrounds and contained logos.
+Desktop preparation uses a Rust GPU worker with CPU fallback and disk caching.
+Packaged previews are available immediately without starting native preparation.
+A shimmer appears while preparation or decoding is pending. Reduced Motion uses
+a static placeholder. Full-resolution originals remain available for the shell
+wallpaper. After refreshing bundled artwork, run `yarn optimize:themes` to regenerate the display images and compact WebP previews. `bundle:themes` runs this step automatically.
 
-Custom themes override a built-in theme **only if they reuse the same `id`**. Prefer unique ids like `house-neon-01`.
+Display logos are cropped to their visible alpha bounds and fit within 1024×512.
+Bundled wallpapers use high-quality WebP and retain their source resolution up to
+3840×2160 without changing aspect ratio. Card previews use their own smaller WebP
+files. Downloaded and newly saved custom artwork receives the same dimension
+limits on a Rust worker; transparent images preserve alpha. Existing compact JPEG
+and WebP inputs are retained to avoid repeated lossy encoding.
 
-## Sharing themes with friends
+The offline optimizer needs the `cwebp` build tool. It keeps a recovery copy of
+replaced artwork in the system temporary directory and makes no changes when
+the bundle is already optimized.
 
-1. Zip one or more `.json` theme files.
-2. Friends unpack them into their Orbit `themes/` folder.
-3. Open Settings → **Reload custom themes**.
-4. Focus a theme card with the controller and press Confirm.
-
-No code changes required — themes are data.
-
-## Controller notes
-
-Theme cards are fully focusable. Use D-pad / stick to move, Confirm to apply. Theme choice is stored in Orbit settings and restored on next launch.
-
-## Example: arcade neon
-
-```json
-{
-  "id": "arcade-neon",
-  "name": "Arcade Neon",
-  "description": "High-energy neon for late-night sessions.",
-  "author": "Orbit Community",
-  "colors": {
-    "canvas": "6 4 18",
-    "surface": "16 10 34",
-    "panel": "28 16 52",
-    "foreground": "250 246 255",
-    "muted": "170 150 200",
-    "accent": "0 255 200",
-    "focus": "255 80 200",
-    "border": "70 40 110"
-  },
-  "radius": "0.85rem",
-  "cardRadius": "0.65rem",
-  "backgroundStyle": "radial",
-  "layout": "orbit",
-  "motion": {
-    "duration": "0.26s",
-    "easing": "cubic-bezier(0.2, 0.9, 0.2, 1)"
-  }
-}
-```
+Preparation scales linearly with decoded pixel count, with bounded image dimensions
+and a fixed number of artwork slots per theme. Shipped card previews bypass full
+image decoding and GPU initialization; custom image processing runs off the UI thread.

@@ -4,6 +4,8 @@ alwaysApply: true
 
 # Frontend (React)
 
+> Paths below are relative to `apps/desktop/`. The landing site is documented in [LANDING.md](LANDING.md).
+
 React + TypeScript UI for the Orbit desktop launcher. Runs inside Tauri webview (production)
 or Vite dev server with mock Tauri API (browser dev).
 
@@ -54,21 +56,15 @@ Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
 
 | Screen | Component | Module folder |
 | ------ | --------- | -------------- |
-| Home | `HomePage` / theme shells | `modules/home/`, `themes/` |
+| Home | `HomePage` → `MacosHome` | `modules/home/`, `themes/` |
 | Library | `LibraryPage` | `modules/library/` |
 | Search | `SearchPage` | `modules/search/` |
 | Game details | `GameDetailsPage` | `modules/game-details/` |
 | Edit | `GameEditPage` | `modules/game-details/` — Fetch metadata & artwork |
 | Add game | `AddGamePage` | `modules/imports/` |
-| Settings | `SettingsPage` | `modules/settings/` — TheGamesDB/SteamGridDB keys, auto-enrich |
+| Settings | `SettingsPage` | `modules/settings/` — themes + theme studio, TheGamesDB/SteamGridDB keys, auto-enrich |
 
-Theme layouts swap the home experience:
-
-- `layout: 'orbit'` → `ThemeHome` (default rows + hero)
-- `layout: 'ps5'` → `Ps5Shell`
-- `layout: 'switch'` → `SwitchShell`
-
-`useThemeLayout()` in `themes/useThemeLayout.ts` resolves active layout from theme store.
+Every theme renders the single Liquid Glass shell (`themes/MacosShell.tsx`) with its original styling. Game themes change the actual SteamGridDB image logo and hero background, not the palette or layout. `theme.store.ts` loads both assets on explicit game-theme selection and guards against stale asynchronous results. Errors leave the previous selection active. Retired platform/color IDs resolve to Liquid Glass. Custom files remain readable, with legacy text logos suppressed. `useActiveTheme()` (`hooks/useActiveTheme.ts`) returns the active `ThemeDefinition`. `focusRestoreId(screen, gameId)` and `screenEntryFocusId(screen)` in `lib/navigation.ts` resolve controller focus targets for the shell.
 
 ## Module pattern
 
@@ -82,12 +78,14 @@ src/
     providers.tsx          # QueryClient + theme init
   modules/
     home/
+      lib/                 # Shared Home hero selection
       HomePage.tsx
-      ThemeHome.tsx        # Layout dispatcher
-      components/          # OrbitHome, Ps5Home, SwitchHome (colocated)
+      ThemeHome.tsx        # Renders MacosHome
+      components/          # MacosHome (colocated)
       hooks/
     library/
       LibraryPage.tsx
+      components/          # Shared collection grid and connected game cards
       lib/
     search/
       SearchPage.tsx
@@ -95,13 +93,15 @@ src/
       GameDetailsPage.tsx
       GameEditPage.tsx
       components/          # DetailsHero, MetaGrid, AchievementList
+      hooks/               # useRandomArtwork (Random SteamGridDB per slot)
     imports/
       AddGamePage.tsx
       ImportsPage.tsx
       hooks/               # useImportScan (shared Steam/Astris/native/GameHub scan)
     settings/
       SettingsPage.tsx
-      components/          # ThemeSettings, ApiKeySettings, LibrarySettings
+      components/          # ThemeSettings, ThemeCard, ThemeStudio, ApiKeySettings, LibrarySettings
+      hooks/               # useThemeStudio and streamed useThemePreviews
     session/
       PlayingScreen.tsx
     switch-library/
@@ -109,10 +109,13 @@ src/
       components/
   components/
     layout/
-      AppShell.tsx         # Shell chrome + nav
-      NavBar.tsx
+      AppShell.tsx         # PlayingScreen during a session, otherwise MacosShell
     home/
-      NativeGlassPanel.tsx # Frosted glass hero panel
+      HomeMenuModal.tsx    # Orbit quick menu
+    ui/
+      liquid-glass.tsx     # Portable glass surface
+      liquid-glass.css     # Lightweight material and accessibility fallbacks
+      GlassMaterialBootstrap.tsx # Shared Rust-generated texture
     data/
       StatCard.tsx         # Reusable label / value / detail card
     game/
@@ -121,6 +124,7 @@ src/
       ProviderBadge.tsx
     focus/
       Focusable.tsx        # Focusable wrapper
+      focus-ring.css       # Shared inset controller and keyboard outlines
     artwork/
       ArtworkSlotPicker.tsx
       ImageSearchModal.tsx
@@ -132,31 +136,36 @@ src/
     FocusManager.ts        # Spatial focus graph
     ControllerGlyphs.ts    # Platform-specific button icons
     useController.ts       # Hook wiring actions → UI store
+    useNavigationInput.ts  # Root input modality for rings, including portals
   hooks/
     useGames.ts            # TanStack Query wrappers
     useHeroTone.ts
     useModalFocus.ts
     useCursorAutoHide.ts
     useFullscreen.ts
+    useActiveTheme.ts      # Active ThemeDefinition from the theme store
     useSessionEvents.ts    # Listen for session start/stop
   stores/
     ui.store.ts            # Screen stack, filters, hero selection
-    theme.store.ts         # Active theme id + custom themes
+    theme.store.ts         # Active theme, custom themes, save/delete studio themes
     session.store.ts       # Active game session
   themes/
-    types.ts               # ThemeDefinition, BUILT_IN_THEMES
-    useThemeLayout.ts
-    tokens.ts              # Shared themed class tokens
-    Ps5Shell.tsx
-    SwitchShell.tsx
+    types.ts               # ThemeDefinition, ThemeBranding
+    catalog.ts             # BUILT_IN_THEMES (color + game), DEFAULT_THEME_ID, legacy id migration
+    studio.ts              # Theme studio draft → ThemeDefinition
+    MacosShell.tsx         # Liquid Glass shell
+    ThemeBrand.tsx         # Header logo + ORBIT footer mark
     ThemePage.tsx
+    macos.css / brand.css
   lib/
     tauri.ts               # Typed invoke wrappers
     dialog.ts              # Native open panel (pick_open_path; avoids macOS NSOpenPanel panic)
     devMockApi.ts          # Browser dev mocks
     navigation.ts          # Screen helpers
+    themeColors.ts         # RGB ↔ hex, focus derivation, custom- theme ids
     artwork.ts / artworkApi.ts
     format.ts / media.ts / heroBlur.ts / heroTone.ts
+    backdropImage.ts / backdropLighting.ts
   types/
     game.ts                # Game, Session, filters, AppScreen
   styles/
@@ -215,7 +224,7 @@ yarn dev          # or yarn tauri:dev
 yarn test:e2e
 ```
 
-Primary spec: `e2e/orbit-ui-flow.spec.ts` — home hero, glass panel, focus order, theme shells.
+Home artwork, contrast, and route regressions live in `e2e/home-backdrop.spec.ts` and `e2e/macos-theme.spec.ts`.
 
 ### Typecheck
 
@@ -234,3 +243,40 @@ Add Playwright coverage for new screens and controller flows. Bug fixes should i
 | `yarn test:e2e:ui` | Debug Playwright interactively |
 
 Browser dev sets theme via `localStorage.setItem('orbit.themeId', 'orbit')` in E2E boot helper.
+
+
+Library offers All games, Orbit, and Connected views. Search starts with the full
+collection and filters imported titles and cached GameHub titles by title or source.
+Connected cards show GameHub status and keep provider actions separate from launching
+an imported game. The shared GameHub query refreshes the visible download status.
+
+`useBackdropTransition` keeps at most two backdrop layers in the shell. The browser decodes the incoming image before showing it, ignores late results after selection changes, and caches up to 24 lighting samples. Local artwork can use the Rust lighting command. The webview compositor runs the fades.
+
+
+Glass surfaces share the material loaded by `GlassMaterialBootstrap`. They use
+compositor blur with a Rust-generated texture and do not allocate canvas maps or
+subscribe to panel geometry. Browser preview uses the same CSS without the native
+grain texture. Translucent cards, buttons, badges, and fields use the same shared material through `orbit-panel` and `orbit-glass-control`.
+
+Keyboard routing lives in `controllers/keyboard.ts`. Backspace has no navigation binding. Global navigation shortcuts yield to input, textarea, select, editable-content, textbox and combobox contexts, consumed events, composition, and system modifier combinations. Escape remains Back outside editing contexts. Dialogs handle Escape locally and preserve IME composition.
+
+
+Theme cards use `ThemeCardArtwork` with a fixed 2:1 header. Backgrounds cover the
+frame; logos remain contained within an inset box. Native sessions use one
+streaming thumbnail batch, cached across navigation by TanStack Query. Browser
+preview uses the packaged thumbnails generated with the same renderer.
+`ArtworkImage` requests asynchronous decoding, keeps a shimmer until decoding
+completes, fades the image in, handles errors, and ignores stale decode callbacks.
+Reduced Motion disables shimmer and fade. No image decode or resize loop runs in
+React rendering.
+
+`useNavigationInput` mirrors input modality onto the document root in O(1) without
+rerendering every card. Shared inset outlines cover spatial focus across routes
+and body portals. Pointer movement, rather than layout-induced mouse enter,
+switches back to pointer navigation.
+
+Theme settings reuse the hydrated catalog and packaged previews. Native custom
+entries provide runtime-only thumbnail paths; grids never need embedded image
+blobs. Preview caches are separate from portable theme JSON. Concurrent catalog
+requests share one promise, including StrictMode bootstrap effects. Theme grouping
+uses a single O(n) map pass instead of copying the growing groups on each item.

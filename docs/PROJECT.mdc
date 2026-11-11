@@ -4,9 +4,14 @@ alwaysApply: true
 
 # Project & Tooling
 
-Single-repo **Tauri 2** desktop app. TypeScript frontend + Rust backend in one workspace.
+**Nx** monorepo on **Yarn 1 workspaces** with two apps:
 
-Related docs: [DESIGN_DOC.mdc](DESIGN_DOC.mdc), [TAURI.mdc](TAURI.mdc), [FRONTEND.mdc](FRONTEND.mdc), [UI.mdc](UI.mdc).
+- `apps/desktop` (`@orbit/desktop`, Nx project `desktop`) — the **Tauri 2** launcher. TypeScript frontend + Rust backend.
+- `apps/landing` (`@orbit/landing`, Nx project `landing`) — the **Next.js** landing site with install guide and versioned downloads. See [LANDING.md](LANDING.md).
+
+Unless a path starts with `apps/`, paths in the desktop docs (DESIGN_DOC, TAURI, FRONTEND, UI, THEMES) are relative to `apps/desktop/`.
+
+Related docs: [DESIGN_DOC.mdc](DESIGN_DOC.mdc), [TAURI.mdc](TAURI.mdc), [FRONTEND.mdc](FRONTEND.mdc), [UI.mdc](UI.mdc), [LANDING.md](LANDING.md).
 
 Root guides: [README.md](../README.md), [RUNNING.md](../RUNNING.md), [CONTRIBUTING.md](../CONTRIBUTING.md).
 
@@ -16,36 +21,54 @@ Root guides: [README.md](../README.md), [RUNNING.md](../RUNNING.md), [CONTRIBUTI
 
 ```
 orbit/
-  src/                     # React frontend (Vite)
-    app/                   # App shell, providers
-    modules/               # Screen-level modules (pages + colocated UI)
-    components/            # Shared UI
-    controllers/           # Gamepad + spatial focus
-    hooks/                 # React hooks
-    stores/                # Zustand state
-    themes/                # Built-in theme definitions + layout hooks
-    lib/                   # Tauri wrappers, formatters, artwork helpers
-    types/                 # Shared TS types
-    styles/                # Global CSS + theme tokens
-  src-tauri/               # Rust backend
-    src/
-      commands/            # Tauri invoke handlers
-      database/            # SQLite migrations + repository
-      importers/           # Platform importers
-      launching/           # Launch + process monitor + sessions
-      models/              # Shared Rust structs
-      services/            # Library sync, artwork
-      utils/               # Paths, filenames, size
-    icons/                 # App icons
-    Cargo.toml
-  e2e/                     # Playwright specs
+  apps/
+    desktop/               # Tauri desktop app (@orbit/desktop)
+      src/                 # React frontend (Vite)
+        app/               # App shell, providers
+        modules/           # Screen-level modules (pages + colocated UI)
+        components/        # Shared UI
+        controllers/       # Gamepad + spatial focus
+        hooks/             # React hooks
+        stores/            # Zustand state
+        themes/            # Built-in theme definitions + layout hooks
+        lib/               # Tauri wrappers, formatters, artwork helpers
+        types/             # Shared TS types
+        styles/            # Global CSS + theme tokens
+      src-tauri/           # Rust backend
+        src/
+          commands/        # Tauri invoke handlers
+          database/        # SQLite migrations + repository
+          importers/       # Platform importers
+          launching/       # Launch + process monitor + sessions
+          models/          # Shared Rust structs
+          services/        # Library sync, artwork
+          utils/           # Paths, filenames, size
+        icons/             # App icons
+        Cargo.toml
+      e2e/                 # Playwright specs
+      package.json         # Desktop deps + version (source of truth for releases)
+      vite.config.ts, vitest.config.ts, playwright.config.ts, tailwind.config.js
+    landing/               # Next.js landing site (@orbit/landing)
+      src/app/             # Routes: /, /install, /download, /download/[version]
+      src/components/      # layout/, home/, download/, install/
+      src/lib/             # GitHub Releases fetch + parsing, formatters
+      public/              # Logo, screenshots
+  scripts/                 # Release, version sync, cleanup, agent skill sync
+  tools/                   # Research helpers (not shipped)
   docs/                    # Design & architecture docs
   .cursor/rules/           # Cursor agent rules
-  package.json
-  vite.config.ts
-  tailwind.config.js
-  playwright.config.ts
+  .cursor/skills/          # Agent skills (source of truth)
+  .claude/skills/          # Copy of .cursor/skills for Claude Code
+  .opencode/skills/        # Copy of .cursor/skills for OpenCode
+  AGENTS.md                # Shared agent instructions (Cursor, Claude Code, OpenCode)
+  CLAUDE.md                # Claude Code entry point → AGENTS.md
+  .mcp.json, opencode.json # MCP servers for Claude Code / OpenCode (mirror .cursor/mcp.json)
+  nx.json                  # Nx task defaults + caching
+  package.json             # Workspaces + root scripts (delegate to Nx)
 ```
+
+Each app's `package.json` scripts are its Nx targets (`yarn nx run desktop:test:rust`,
+`yarn nx run landing:build`, …). `yarn nx show projects` lists them.
 
 ---
 
@@ -61,22 +84,27 @@ orbit/
 
 ## Scripts
 
-| Script | Command | Description |
-| ------ | ------- | ----------- |
-| `dev` | `vite` | Frontend only (mock Tauri API) |
-| `tauri:dev` | `tauri dev` | Full desktop app in development |
-| `tauri:build` | `tauri build` | Release `.app` bundle |
+Root scripts (run from the repo root):
+
+| Script | Runs | Description |
+| ------ | ---- | ----------- |
+| `dev` | `nx run desktop:dev` | Desktop frontend only (mock Tauri API) |
+| `dev:landing` | `nx run landing:dev` | Landing site on `http://localhost:3000` |
+| `tauri:dev` | `nx run desktop:tauri:dev` | Full desktop app in development |
+| `tauri:build` | `nx run desktop:tauri:build` | Release `.app` bundle |
 | `release:macos` | `bash scripts/release-macos.sh` | Build + package macOS artifacts to `release/<version>/` |
 | `monopipeline` | `node scripts/monopipeline.mjs` | Bump version and scaffold CHANGELOG + GitHub release notes |
-| `build` | `tsc --noEmit && vite build` | Typecheck + frontend production build |
-| `typecheck` | `tsc --noEmit` | TypeScript only |
+| `build` | `nx run-many -t build` | Desktop (typecheck + Vite) and landing (Next.js) builds |
+| `build:desktop` / `build:landing` | `nx run <app>:build` | Build one app |
+| `typecheck` | `nx run-many -t typecheck` | TypeScript for both apps |
 | `format` | `prettier --write .` | Format all files |
 | `format:check` | `prettier --check .` | CI-style format gate |
-| `test:rust` | `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
-| `test:unit` | `vitest run` | Frontend unit tests (Vitest + Testing Library) |
-| `test:unit:watch` | `vitest` | Vitest watch mode |
-| `test:e2e` | `playwright test` | Browser E2E (mock API or Tauri webview) |
-| `test:e2e:ui` | `playwright test --ui` | Playwright UI mode |
+| `test:rust` | `nx run desktop:test:rust` | Rust unit tests |
+| `test:unit` | `nx run-many -t test:unit` | Vitest for both apps |
+| `test:e2e` | `nx run desktop:test:e2e` | Desktop Playwright E2E (builds desktop first) |
+| `test:e2e:ui` | `yarn workspace @orbit/desktop test:e2e:ui` | Playwright UI mode |
+| `sync:skills` | `bash scripts/sync-agent-skills.sh` | Copy `.cursor/skills` to `.claude/skills` and `.opencode/skills` |
+| `check:skills` | `bash scripts/sync-agent-skills.sh --check` | Fail if agent skill copies drifted |
 
 Typical dev loop:
 
@@ -113,12 +141,13 @@ Defined in `.cursor/rules/quality-gating.mdc`. Run before declaring work done:
 ```bash
 yarn run format:check
 yarn run typecheck
-yarn run test:unit      # when src/lib/ or unit-tested helpers changed
-yarn run test:rust      # when src-tauri/ changed
+yarn run test:unit      # when src/lib/, landing, or unit-tested helpers changed
+yarn run test:rust      # when apps/desktop/src-tauri/ changed
 yarn run build
-yarn run test:e2e       # when UI/navigation/themes changed
+yarn run test:e2e       # when desktop UI/navigation/themes changed
 ```
 
+Nx caches `build`, `typecheck`, `test:unit`, and `test:rust`, so unchanged apps are skipped.
 Cursor hooks (`.cursor/hooks.json`) run `typecheck` and `test:rust` after file edits.
 
 ---
@@ -129,8 +158,8 @@ Cursor hooks (`.cursor/hooks.json`) run `typecheck` and `test:rust` after file e
 | ---- | ----- | ------ |
 | **Prettier** | All formatted files | Root Prettier config |
 | **prettier-plugin-tailwindcss** | Tailwind class sorting | Enabled in Prettier |
-| **TypeScript** | `src/` | Strict mode via `tsconfig.json` |
-| **Rustfmt / Clippy** | `src-tauri/` | Standard Rust tooling (run manually) |
+| **TypeScript** | `apps/*/src/` | Strict mode via each app's `tsconfig.json` |
+| **Rustfmt / Clippy** | `apps/desktop/src-tauri/` | Standard Rust tooling (run manually) |
 
 Rules:
 
@@ -141,11 +170,11 @@ Rules:
 
 ## Unit testing
 
-Vitest config: `vitest.config.ts` (same `@` → `src` alias as Vite). Setup: `src/test/setup.ts`.
+Each app has its own `vitest.config.ts` (`@` → that app's `src`) and `src/test/setup.ts`.
 
 ```bash
-yarn test:unit
-yarn test:unit:watch
+yarn test:unit                                  # both apps
+yarn workspace @orbit/desktop test:unit:watch   # watch one app
 ```
 
 Prefer Vitest for pure helpers under `src/lib/`, theme tokens, and module filter/sort logic.
@@ -153,7 +182,7 @@ Optional light component tests use Testing Library + jsdom.
 
 ## E2E testing
 
-Playwright config: `playwright.config.ts`. Primary spec: `e2e/orbit-ui-flow.spec.ts`.
+Playwright config: `apps/desktop/playwright.config.ts`. Specs live in `apps/desktop/e2e/`.
 
 - Boots with `localStorage orbit.themeId = orbit` for deterministic home layout.
 - Tests hero scrim, glass dashboard, controller focus, theme shells, library navigation.
@@ -186,6 +215,7 @@ Future CI should mirror local gates:
 yarn install
 yarn tauri:dev                    # desktop dev
 yarn dev                          # frontend-only with mocks
+yarn dev:landing                  # landing site
 yarn run typecheck
 yarn run test:unit
 yarn run test:rust

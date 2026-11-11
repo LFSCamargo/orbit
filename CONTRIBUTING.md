@@ -60,6 +60,7 @@ See [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) for the full product boundary.
 | Rust, SQLite, importers, launch | `yarn tauri:dev`                                      |
 | React UI, themes, focus system  | `yarn dev` for speed, then `yarn tauri:dev` before PR |
 | E2E specs                       | `yarn test:e2e` (uses preview + mock API)             |
+| Landing site                    | `yarn dev:landing`                                    |
 
 ### Code organization
 
@@ -68,19 +69,22 @@ Follow the modular layout documented in:
 - Frontend: [docs/FRONTEND.mdc](docs/FRONTEND.mdc) and [`.cursor/rules/spaghetti-checker.mdc`](.cursor/rules/spaghetti-checker.mdc)
 - Rust: [docs/TAURI.mdc](docs/TAURI.mdc)
 - Themes: [docs/UI.mdc](docs/UI.mdc) and [docs/THEMES.md](docs/THEMES.md)
+- Landing: [docs/LANDING.md](docs/LANDING.md)
 
 Guidelines:
 
 - **One context per file** — one page, component, hook, or command group per file.
 - **Thin Tauri commands** — delegate to services, importers, or `GameRepository`.
-- **No frontend launch logic** — always go through `src/lib/tauri.ts`.
+- **No frontend launch logic** — always go through `apps/desktop/src/lib/tauri.ts`.
+- **Apps stay separate** — `apps/desktop` and `apps/landing` never import from each other.
 - **Match existing style** — Prettier, `@/` imports, Zustand/TanStack Query patterns.
 
 ### Tests
 
 | Layer     | When required                          | Command          |
 | --------- | -------------------------------------- | ---------------- |
-| Rust      | Any `src-tauri/` logic change          | `yarn test:rust` |
+| Rust      | Any `apps/desktop/src-tauri/` change   | `yarn test:rust` |
+| Unit      | Helpers, landing code                  | `yarn test:unit` |
 | E2E       | Navigation, themes, focus, new screens | `yarn test:e2e`  |
 | Typecheck | All TS/TSX changes                     | `yarn typecheck` |
 
@@ -95,7 +99,8 @@ All gates must pass before a PR is ready for review:
 ```bash
 yarn run format:check
 yarn run typecheck
-yarn run test:rust      # if src-tauri/ touched
+yarn run test:unit
+yarn run test:rust      # if apps/desktop/src-tauri/ touched
 yarn run build
 yarn run test:e2e       # if UI/navigation/themes touched
 ```
@@ -115,13 +120,13 @@ Security-sensitive changes (paths, launch, SQL): review [`.cursor/rules/security
 
 Update docs in the **same PR** when you change behavior not already described:
 
-| Change                     | Update                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------ |
-| New screen or flow         | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/FRONTEND.mdc](docs/FRONTEND.mdc)               |
-| New Tauri command          | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/TAURI.mdc](docs/TAURI.mdc), `src/lib/tauri.ts` |
-| New theme field            | [docs/UI.mdc](docs/UI.mdc), [docs/THEMES.md](docs/THEMES.md)                                     |
-| New script or dev workflow | [docs/PROJECT.mdc](docs/PROJECT.mdc), [RUNNING.md](RUNNING.md)                                   |
-| Folder structure change    | Matching doc tree + [README.md](README.md) if top-level                                          |
+| Change                     | Update                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| New screen or flow         | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/FRONTEND.mdc](docs/FRONTEND.mdc)                            |
+| New Tauri command          | [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc), [docs/TAURI.mdc](docs/TAURI.mdc), `apps/desktop/src/lib/tauri.ts` |
+| New theme field            | [docs/UI.mdc](docs/UI.mdc), [docs/THEMES.md](docs/THEMES.md)                                                  |
+| New script or dev workflow | [docs/PROJECT.mdc](docs/PROJECT.mdc), [RUNNING.md](RUNNING.md)                                                |
+| Folder structure change    | Matching doc tree + [README.md](README.md) if top-level                                                       |
 
 See [`.cursor/rules/docs-sync.mdc`](.cursor/rules/docs-sync.mdc).
 

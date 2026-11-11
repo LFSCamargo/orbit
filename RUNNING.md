@@ -33,6 +33,9 @@ yarn tauri:dev
 
 The first `tauri:dev` run compiles Rust dependencies and may take several minutes.
 
+The repo is an Nx monorepo: the desktop app is `apps/desktop` and the landing site is
+`apps/landing`. Run every command below from the repo root; root scripts delegate to Nx.
+
 ---
 
 ## Development modes
@@ -45,11 +48,11 @@ Runs the Tauri shell with hot reload on the Vite dev server and the real SQLite 
 yarn tauri:dev
 ```
 
-| Detail        | Value                                            |
-| ------------- | ------------------------------------------------ |
-| Vite dev URL  | `http://localhost:1420` (from `tauri.conf.json`) |
-| Database      | `~/Library/Application Support/Orbit/orbit.db`   |
-| Custom themes | `~/Library/Application Support/Orbit/themes/`    |
+| Detail        | Value                                                   |
+| ------------- | ------------------------------------------------------- |
+| Vite dev URL  | `http://localhost:1420` (`apps/desktop/vite.config.ts`) |
+| Database      | `~/Library/Application Support/Orbit/orbit.db`          |
+| Custom themes | `~/Library/Application Support/Orbit/themes/`           |
 
 Use this mode when working on importers, launch, SQLite, native dialogs, or window management.
 
@@ -61,9 +64,19 @@ Runs Vite with a mock Tauri API — no Rust compile, no real filesystem access:
 yarn dev
 ```
 
-Open the URL printed by Vite (default `http://localhost:5173`). Mock data comes from `src/lib/devMockApi.ts`.
+Open `http://localhost:1420`. Mock data comes from `apps/desktop/src/lib/devMockApi.ts`.
 
 Use this mode for UI, themes, controller focus, and layout work. Switch to `yarn tauri:dev` before merging anything that touches Tauri commands or importers.
+
+### Landing site
+
+```bash
+yarn dev:landing
+```
+
+Opens the Next.js site on `http://localhost:3000`. Download pages read live data from the
+GitHub Releases API; set `GITHUB_TOKEN` in `apps/landing/.env.local` if you hit the
+unauthenticated rate limit. See [docs/LANDING.md](docs/LANDING.md) for routes and Vercel deploy.
 
 ---
 
@@ -75,7 +88,7 @@ Use this mode for UI, themes, controller focus, and layout work. Switch to `yarn
 yarn tauri:build
 ```
 
-Produces a macOS `.app` bundle under `src-tauri/target/release/bundle/macos/`. A `.dmg` installer is also created when Tauri's bundler succeeds.
+Produces a macOS `.app` bundle under `apps/desktop/src-tauri/target/release/bundle/macos/`. A `.dmg` installer is also created when Tauri's bundler succeeds.
 
 ### Release script (recommended)
 
@@ -85,14 +98,15 @@ Collects versioned artifacts and checksums into `release/<version>/`:
 yarn release:macos
 ```
 
-| Flag               | Description                                               |
-| ------------------ | --------------------------------------------------------- |
-| `--arch native`    | Default — matches the current Mac (`aarch64` or `x86_64`) |
-| `--arch universal` | Universal binary (Apple Silicon + Intel)                  |
-| `--arch aarch64`   | Apple Silicon only                                        |
-| `--arch x86_64`    | Intel only                                                |
-| `--skip-tests`     | Skip `yarn test:rust`                                     |
-| `--skip-typecheck` | Skip `yarn typecheck`                                     |
+| Flag               | Description                                                    |
+| ------------------ | -------------------------------------------------------------- |
+| `--arch native`    | Default — matches the current Mac (`aarch64` or `x86_64`)      |
+| `--arch universal` | Universal binary (Apple Silicon + Intel)                       |
+| `--arch aarch64`   | Apple Silicon only                                             |
+| `--arch x86_64`    | Intel only                                                     |
+| `--skip-tests`     | Skip `yarn test:rust`                                          |
+| `--skip-typecheck` | Skip `yarn typecheck`                                          |
+| `--install`        | Mount the produced DMG and copy `Orbit.app` to `/Applications` |
 
 **Output** (example for v0.1.0 on Apple Silicon):
 
@@ -122,7 +136,7 @@ The workflow syncs the version from the tag, builds on GitHub's `macos-14` runne
 
 ### Frontend unit tests (Vitest)
 
-Required when changing pure helpers under `src/lib/`, theme tokens, or library filter/sort logic:
+Required when changing pure helpers under `apps/desktop/src/lib/`, theme tokens, library filter/sort logic, or the landing site (`apps/landing/src/`):
 
 ```bash
 yarn test:unit
@@ -131,12 +145,13 @@ yarn test:unit
 Watch mode while iterating:
 
 ```bash
-yarn test:unit:watch
+yarn workspace @orbit/desktop test:unit:watch
+yarn workspace @orbit/landing test:unit:watch
 ```
 
 ### Rust unit tests
 
-Required when changing `src-tauri/`:
+Required when changing `apps/desktop/src-tauri/`:
 
 ```bash
 yarn test:rust
@@ -156,13 +171,17 @@ Interactive UI mode:
 yarn test:e2e:ui
 ```
 
-E2E specs:
+E2E specs (in `apps/desktop/e2e/`):
 
-| Spec                         | Covers                                                     |
-| ---------------------------- | ---------------------------------------------------------- |
-| `e2e/orbit-ui-flow.spec.ts`  | Orbit default theme — hero, glass panel, focus, navigation |
-| `e2e/switch-ui-flow.spec.ts` | Switch 2 theme shell                                       |
-| `e2e/ui-flow.spec.ts`        | Shared UI flows                                            |
+| Spec                              | Covers                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `e2e/shell-flow.spec.ts`          | Default Liquid Glass shell — navigation, search, settings, controller focus |
+| `e2e/macos-theme.spec.ts`         | Liquid Glass home, shelf, compact window, reduced motion                    |
+| `e2e/themes.spec.ts`              | Color + game themes, legacy theme migration, theme studio save/delete       |
+| `e2e/game-details.spec.ts`        | Game details controls and achievements                                      |
+| `e2e/session-and-gamehub.spec.ts` | Session quick menu, GameHub manager, compact header logo                    |
+
+`yarn test:e2e` builds the desktop app first (Nx `dependsOn`), then serves it with `vite preview`, so the specs always exercise current code.
 
 Run E2E after changes to navigation, themes, controller focus, or screen layouts.
 
@@ -206,7 +225,7 @@ Orbit has no required `.env` file. Optional settings are configured in the app:
 In browser dev (`yarn dev`), theme id can also be set via `localStorage`:
 
 ```javascript
-localStorage.setItem('orbit.themeId', 'orbit') // orbit | ps5 | switch-2
+localStorage.setItem('orbit.themeId', 'god-of-war') // any built-in or custom theme id
 ```
 
 ---
@@ -235,10 +254,10 @@ Run before opening a PR (see [CONTRIBUTING.md](CONTRIBUTING.md)):
 ```bash
 yarn run format:check
 yarn run typecheck
-yarn run test:unit      # when src/lib/ or unit-tested helpers changed
-yarn run test:rust      # when src-tauri/ changed
+yarn run test:unit      # when src/lib/, landing, or unit-tested helpers changed
+yarn run test:rust      # when apps/desktop/src-tauri/ changed
 yarn run build
-yarn run test:e2e       # when UI/navigation/themes changed
+yarn run test:e2e       # when desktop UI/navigation/themes changed
 ```
 
 Cursor hooks in `.cursor/hooks.json` run `typecheck` and `test:rust` after agent edits.
@@ -253,11 +272,12 @@ Full gate list: [`.cursor/rules/quality-gating.mdc`](.cursor/rules/quality-gatin
 
 - Ensure Rust is installed: `rustc --version`
 - Update toolchain: `rustup update stable`
-- Clean and retry: `cargo clean --manifest-path src-tauri/Cargo.toml`
+- Clean and retry: `cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml`
+- After moving the repo or pulling the monorepo layout, a build error like `failed to read plugin permissions … No such file` means cached build-script output points at the old path. Clean the Tauri crates: `cd apps/desktop/src-tauri && cargo clean -p tauri -p tauri-plugin-dialog -p tauri-plugin-opener -p orbit` (add `--release --target aarch64-apple-darwin` for release builds), or run `yarn clean` for a full reset.
 
 **Disk usage grew while developing**
 
-Rust incremental builds accumulate under `src-tauri/target/` (often **5–15 GB**). This is normal for Tauri projects.
+Rust incremental builds accumulate under `apps/desktop/src-tauri/target/` (often **5–15 GB**). This is normal for Tauri projects.
 
 ```bash
 yarn clean:report   # show what is using space
@@ -271,7 +291,7 @@ See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 
 **Blank window or Vite connection refused**
 
-- Confirm port `1420` is free (configured in `src-tauri/tauri.conf.json`)
+- Confirm port `1420` is free (configured in `apps/desktop/vite.config.ts` and `apps/desktop/src-tauri/tauri.conf.json`)
 - Kill stale Vite processes and restart `yarn tauri:dev`
 
 **Frontend works in browser but not in Tauri**
@@ -307,7 +327,8 @@ See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 yarn install              # Install dependencies
 yarn tauri:dev            # Full desktop dev (recommended)
 yarn dev                  # Frontend-only with mocks
-yarn build                # Typecheck + Vite production build
+yarn dev:landing          # Landing site (Next.js) on :3000
+yarn build                # Desktop + landing production builds (Nx)
 yarn tauri:build          # Release .app bundle
 yarn release:macos        # Package .app + .dmg to release/<version>/
 yarn typecheck            # TypeScript

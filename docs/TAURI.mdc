@@ -4,6 +4,8 @@ alwaysApply: true
 
 # Tauri / Rust Backend
 
+> Paths below are relative to `apps/desktop/`.
+
 Rust layer owns **all I/O**: SQLite, filesystem scans, process launch, and session tracking.
 The React frontend calls Tauri commands via `src/lib/tauri.ts` — it never spawns games directly.
 
@@ -16,7 +18,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 - **Importers:** Discover and import from Steam, Astris, GameHub, macOS apps, manual paths.
 - **Launching:** Resolve `LaunchConfiguration`, spawn process, monitor exit, record playtime.
 - **Sessions:** Track active game PID; block delete/clear while running.
-- **Themes:** Read custom JSON themes from Application Support.
+- **Themes:** List, save, and delete custom JSON themes in Application Support (`services/theme_files.rs`).
 - **Artwork:** Read local image files, fetch URLs, optional RAWG search, SteamGridDB enrichment cache.
 - **Window:** Fullscreen toggle, hide/show Orbit during gameplay.
 
@@ -26,7 +28,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 - **Launch whitelist:** Only launch resolved executables from importer output or validated manual paths — no arbitrary shell from frontend strings.
 - **Parameterized SQL:** All queries in `database/repository.rs` use bound parameters.
 - **No secrets in logs:** Avoid logging full paths with usernames, API keys, or tokens.
-- **Untrusted theme JSON:** Validate shape in Rust before returning to frontend.
+- **Untrusted theme JSON:** `theme_files::sanitize_theme` drops themes with invalid ids (`[a-z0-9-]`, ≤ 48 chars) or non-`R G B` colors, clips text fields, and keeps only inline `data:image/{png,jpeg,webp,gif}` images ≤ 8 MB (no remote URLs, paths, or SVG). Files over 20 MB are skipped. `save_custom_theme` / `delete_custom_theme` only touch `custom-*.json`, so the file path is always built from a validated slug.
 
 ## Tech stack
 
@@ -54,7 +56,11 @@ src-tauri/src/
     session.rs             # launch_game, stop_game, get_active_session
     window.rs              # Fullscreen + hide/show
     importers.rs           # detect + scan commands (+ auto-enrich hook)
-    themes.rs              # Custom theme discovery
+    themes.rs              # list / save / delete custom themes (thin; delegates to theme_files)
+    steam.rs               # Open Steam library or native install dialog
+    theme_previews.rs      # Streaming native GPU thumbnail preparation
+    glass.rs               # Cached native material texture
+    hero.rs                # Selected artwork lighting
     artwork.rs             # Image read/fetch/search
     metadata.rs            # enrich_game_metadata / enrich_games_metadata
   database/
@@ -80,6 +86,7 @@ src-tauri/src/
     mod.rs
     game.rs                # Game, LaunchConfiguration, requests
     session.rs             # GameSession
+    theme.rs               # ThemeDefinition, ThemeBranding
   services/
     mod.rs
     library_sync.rs        # Upsert imported games (stable_key dedup)
@@ -90,9 +97,19 @@ src-tauri/src/
     artwork.rs             # Disk artwork-cache helpers
     http.rs                # Shared reqwest client + fetch_bytes
     public_artwork.rs      # RAWG / Wikimedia search + URL fetch encode
+    artwork_search.rs      # Multi-provider artwork search for the picker grid / random (`logo` slot: SteamGridDB + Steam Store only)
+    steam_store_artwork.rs # Steam Store images for a known app ID
+    import_artwork.rs      # Guarantee every slot has art after import (generated fallback)
+    theme_image_optimization.rs # Bounded custom image preparation
+    theme_previews.rs      # Validated bundle inputs and disk thumbnail cache
+    glass_material.rs      # One-time bounded grain rendering
+    hero_lighting.rs       # Scoped local artwork sampling
+    steam_library.rs       # Steam install handoff and platform check
     steam_content.rs       # Steam depot / DLC inventory helpers
     switch_library.rs      # Switch ROM library grouping
     game_content.rs        # Home content inventory aggregation
+    theme_files.rs         # Theme JSON sanitization + custom theme file I/O
+    theme_catalog.rs       # Worker catalog, cached custom display artwork and previews
   utils/
     mod.rs
     paths.rs               # database_path, artwork_cache_dir, app support dirs
@@ -186,6 +203,16 @@ Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 
 `delete_game` and `clear_library` reject when `sessions.get_active()` matches.
 
+## Window configuration
+
+`src-tauri/tauri.conf.json` configures the main window:
+
+- `fullscreen: true` — launches into fullscreen on macOS.
+- `decorations: true` with `titleBarStyle: "Transparent"` and `hiddenTitle: true` — keeps the native traffic lights but removes the title text and makes the title bar transparent so the Liquid Glass shell blends behind it.
+- `transparent: true` — required for the transparent title bar and lets the webview background show through.
+
+The frontend (`MacosShell.tsx`) sets `data-fullscreen` from the UI store; `macos.css` nudges the header brand right in windowed mode so it does not sit under the traffic lights.
+
 ## Testing
 
 ```bash
@@ -209,3 +236,67 @@ All commands registered in `lib.rs`:
 ```
 
 New commands require: handler in `commands/`, registration in `lib.rs`, wrapper in `src/lib/tauri.ts`, types in `src/types/`.
+
+## SteamGridDB theme artwork
+
+`search_theme_artwork(query, slot)` accepts `logo` or `hero` and returns SteamGridDB hits with `width` and `height`. Theme Studio also uses the non-SteamGridDB artwork search for backgrounds. `fetch_theme_artwork(url, slot)` accepts SteamGridDB for logos and adds TheGamesDB, RAWG, and Wikimedia CDNs for backgrounds. It requires HTTPS, disallows redirects, caps downloads at 25 MB, and bounds decoded dimensions and memory.
+
+Complexity: one bounded exact-title lookup plus one artwork lookup per slot; filtering is O(n) and score ordering O(n log n) for a provider page, with at most 48 returned hits. Only selected assets are downloaded and decoded. No network or decode work runs for each library tile.
+
+
+The Steam install command accepts a canonical positive numeric App ID. It checks
+the matching Steam Store game record for an advertised Mac build before opening
+the Steam client. Steam handles entitlement, compatibility, confirmation, and the
+download. Orbit does not edit store download state.
+
+`src-tauri/crates/orbit-motion` prepares RGB lighting samples from a bounded raster decode on a blocking worker. `get_hero_lighting` accepts a game ID and hero or cover slot. It resolves only inline raster data or canonical files under Orbit’s artwork cache and runs at most one decode at a time. It returns three bytes and does not make network requests. The frontend animates layer opacity without frame-by-frame IPC.
+
+
+`get_glass_material()` returns a cached 64×64 raster texture as a PNG data URL,
+a toolbar blur of 12px, and a panel blur of 8px. It accepts no input, reads no files,
+and uses a blocking worker. Rendering is O(4096) once per process, independent of
+panel size or library size. The frontend fetches the material once per session.
+
+
+## Native image preparation
+
+`src-tauri/crates/orbit-images` owns image bounds, logo alpha cropping, aspect
+ratios, and GPU resizing. wgpu uses Metal, DX12, or Vulkan. Unsupported adapters,
+oversized GPU textures, and failed readback use the CPU resize path. Decoding,
+encoding, and GPU readback all run on a blocking worker, with one batch active at
+a time. A bounded 16-tap shader handles downsampling and transparent edges.
+
+`prepare_theme_previews(onPreview)` accepts a Tauri channel, resolves only the
+eight known bundled themes, canonicalizes source paths, rejects symlinks outside
+the resource root, limits compressed inputs to 25 MB, and bounds decoded memory.
+It streams one result per theme. The channel carries small file paths, while
+cached preview bytes stay in Application Support. Cache identity includes source
+size and modification time. A warm cache skips source decoding and GPU setup.
+
+Heroes are cropped to 2:1 and prepared at 640×320. Logos trim transparent margins
+and fit within 480×320 without upscaling. JPEG heroes and transparent PNG logos
+are atomically cached. Production work is O(source pixels) once per changed
+image, then O(1) metadata checks per cached slot; the batch has exactly 16 slots.
+
+Optimize the complete packaged artwork from the repository root with `yarn optimize:themes`. It stages display-sized logos and wallpapers with `orbit-images`, generates GPU previews, then encodes WebP variants with `cwebp`. The application does not depend on this build-time encoder.
+
+
+Theme artwork downloads are optimized and cached on a blocking worker. Custom
+theme saves normalize inline images and canonical files under Orbit’s artwork
+cache, then save portable image data. External paths are never read by this
+normalization step. Dimension caps reduce logo decode memory; wallpapers keep
+their aspect ratio. Existing compact JPEG/WebP bytes and bundled references
+survive repeated saves without lossy re-encoding. Legacy embedded GIFs retain
+their existing behavior.
+
+Packaged WebP previews take a direct fast path: native theme browsing returns the already optimized files without initializing a GPU, decoding full artwork, or generating a second thumbnail cache. The worker/GPU path remains available for bundles lacking prebuilt previews.
+
+Custom theme catalog loading (`services/theme_catalog.rs`) runs file reads, JSON
+parsing, image materialization, and thumbnail preparation on a blocking worker.
+`list_custom_themes` keeps its array shape and adds a runtime-only `preview` object
+with `themeId`, `logo`, and `hero` paths. Branding contains cached display paths or
+opaque bundle references rather than inline blobs. The original portable files
+are not rewritten. Warm cache reads do not initialize a renderer or decode images.
+Cost is O(total bounded JSON bytes + cold image pixels), plus O(n log n) sorting;
+IPC payloads scale with theme metadata, not artwork bytes. The frontend shares
+concurrent reads and reloads only on startup or the explicit reload action.

@@ -4,6 +4,8 @@ alwaysApply: true
 
 # Design System & Themes
 
+> Paths below are relative to `apps/desktop/`.
+
 Visual language for **Orbit** — cinematic, dark, controller-first, optimized for TV/couch distance.
 Inspired by PS5, Nintendo Switch, and Apple TV launchers.
 
@@ -15,7 +17,7 @@ Example theme: [docs/examples/arcade-neon.json](examples/arcade-neon.json).
 ## Brand
 
 - **Product name:** Orbit
-- **Typography:** DM Sans (display + body) — loaded globally via CSS
+- **Typography:** system font (`-apple-system`) for display + body; game logos are images
 - **Tone:** cinematic dark, glass panels, bold focus rings, minimal chrome
 - **Target:** fullscreen macOS desktop, viewed from couch distance
 
@@ -23,17 +25,28 @@ Example theme: [docs/examples/arcade-neon.json](examples/arcade-neon.json).
 
 ## Theme system
 
-Themes are JSON definitions that drive **colors, radii, motion, background style, and entire layout**.
+Orbit has a single shell and look — **Liquid Glass** (`src/themes/MacosShell.tsx`). Themes change image branding and background only. PS5, Switch 2, and the old color variants are retired; saved IDs resolve to `liquid-glass`. Existing JSON fields remain readable, but runtime colors, radii, fonts, blur, and motion always use Liquid Glass.
 
 ### Built-in themes
 
-Defined in `src/themes/types.ts` (`BUILT_IN_THEMES`):
+Defined in `src/themes/catalog.ts` (`BUILT_IN_THEMES`). `kind` groups them in Settings:
 
-| ID | Name | Layout | Character |
-| -- | ---- | ------ | --------- |
-| `orbit` | Orbit Default | `orbit` | Hero rows + cinematic scrim |
-| `ps5` | PlayStation 5 | `ps5` | Immersive artwork, circular tiles, glass |
-| `switch-2` | Switch 2 | `switch` | Square tiles, bottom dock |
+| Kind | Themes |
+| ---- | ------ |
+| `color` | `liquid-glass` (default) |
+| `game` | `devil-may-cry-5`, `god-of-war`, `cyberpunk-2077`, `zelda-ocarina-of-time`, `gta-v`, `gta-vi`, `zelda-breath-of-the-wild`, `super-mario` |
+
+Game themes use the same packaged logos and backgrounds in the picker and shell, and apply their own palettes. Settings panels span the header width, with narrower side panels framing the scrollable center.
+
+### Branding
+
+- `ThemeBrand` (`src/themes/ThemeBrand.tsx`) renders the header logo: `logoImage` → `<img>`, otherwise the `ORBIT` product wordmark. Legacy text-logo fields are not rendered. Styles live in `src/themes/brand.css`.
+- Branded themes (`isBrandedTheme`) render `OrbitMark` — a small uppercase `ORBIT` centered in the footer. The footer's left text is `branding.tagline`.
+- `branding.wallpaper` is exposed as `--theme-wallpaper`; the shell sets `data-wallpaper="true"` and paints it behind non-home routes. Home gives the selected game’s hero and cover priority. The theme wallpaper appears while browsing other tabs and when the game has no usable artwork.
+
+### Theme studio
+
+`modules/settings/components/ThemeStudio.tsx` edits a name, game query, image logo, background, and palette. `ImageSearchModal` searches SteamGridDB for logos and adds TheGamesDB, RAWG, and Wikimedia results for backgrounds. The Rust boundary filters metadata and validates downloaded images before caching them locally. Theme Studio opens the picker through the root-level `DrawerProvider`, which portals the left-side Liquid Glass drawer to `document.body` above transformed routes.
 
 ### Custom themes
 
@@ -43,7 +56,7 @@ Drop `.json` files into:
 ~/Library/Application Support/Orbit/themes/
 ```
 
-Loaded via Tauri `list_custom_themes`. Reload from **Settings → Reload custom themes**.
+Loaded via Tauri `list_custom_themes`, which sanitizes untrusted JSON (see [docs/TAURI.mdc](TAURI.mdc)). Reload from **Settings → Reload custom themes**.
 
 Custom themes with the same `id` as a built-in theme override the built-in entry.
 
@@ -54,22 +67,24 @@ Custom themes with the same `id` as a built-in theme override the built-in entry
 Colors are **space-separated RGB channels** (no commas) — applied as CSS variables:
 
 ```css
---orbit-canvas: 5 7 12;
+--orbit-canvas: 15 20 38;
 background: rgb(var(--orbit-canvas));
 ```
 
 | Token | CSS variable | Usage |
 | ----- | ------------ | ----- |
-| `canvas` | `--orbit-canvas` | App background |
-| `surface` | `--orbit-surface` | Inputs / nested surfaces |
+| `canvas` | `--orbit-canvas` | App background, artwork scrims |
+| `surface` | `--orbit-surface` | Inputs / nested surfaces, wallpaper gradient |
 | `panel` | `--orbit-panel` | Cards and glass panels |
 | `foreground` | `--orbit-foreground` | Primary text |
 | `muted` | `--orbit-muted` | Secondary text |
-| `accent` | `--orbit-accent` | CTA / highlights |
+| `accent` | `--orbit-accent` | CTA / highlights, wallpaper glow |
 | `focus` | `--orbit-focus` | Controller focus ring |
 | `border` | `--orbit-border` | Subtle borders |
 
-Applied at runtime by `theme.store.ts` when user selects a theme.
+Applied at runtime by `theme.store.ts` when user selects a theme. `macos.css` reads these variables for the wallpaper, hero/detail scrims, and primary button text, using the fixed Liquid Glass palette. Stored legacy palettes are not applied. The store also sets `html[data-theme]`, `html[data-theme-kind]`, and `--theme-wallpaper`.
+
+Liquid Glass retains its original palette: canvas `15 20 38`, surface `28 35 56`, panel `32 42 68`, foreground `246 248 255`, muted `171 186 211`, accent `134 193 255`, focus `189 222 255`, border `73 90 124`. The warm redesign and platform presets were reverted.
 
 ### Theme JSON shape
 
@@ -83,10 +98,17 @@ interface ThemeDefinition {
   colors: ThemeColors
   radius?: string
   cardRadius?: string
+  kind?: 'color' | 'game' | 'custom'
   blur?: string
-  backgroundStyle?: string   // radial | ps5 | switch
-  layout?: 'orbit' | 'ps5' | 'switch'
   motion?: { duration?: string; easing?: string }
+  branding?: {
+    logoText?: string       // legacy, not rendered
+    logoStyle?: 'clean' | 'serif' | 'gothic' | 'glitch' | 'heavy' | 'neon' | 'rounded'
+    logoImage?: string      // inline raster data URL
+    wallpaper?: string      // inline raster data URL
+    tagline?: string
+    artworkQuery?: string
+  }
 }
 ```
 
@@ -98,8 +120,8 @@ See [docs/THEMES.md](THEMES.md) for authoring walkthrough.
 
 | Usage | Font | Notes |
 | ----- | ---- | ----- |
-| Display / titles | DM Sans | Large, bold — hero titles, section headers |
-| Body / metadata | DM Sans | Playtime, provider badges, settings labels |
+| Display / titles | `-apple-system` | Large, bold — hero titles, section headers |
+| Body / metadata | `-apple-system` | Playtime, provider badges, settings labels |
 
 CSS variables: `--orbit-font-display`, `--orbit-font-body`.
 
@@ -109,40 +131,29 @@ CSS variables: `--orbit-font-display`, `--orbit-font-body`.
 
 | Token | CSS variable | Default | Usage |
 | ----- | ------------ | ------- | ----- |
-| Panel radius | `--orbit-radius` | `1.25rem` | Large panels |
-| Card radius | `--orbit-card-radius` | `1rem` | Game cards |
-| Blur | `--orbit-blur` | `24px` | Glass backdrop |
-| Motion duration | `--orbit-motion-duration` | `0.35s` | Transitions |
+| Panel radius | `--orbit-radius` | `1.5rem` | Large panels |
+| Card radius | `--orbit-card-radius` | `1.125rem` | Game cards |
+| Blur | `--orbit-blur` | `28px` | Glass backdrop |
+| Motion duration | `--orbit-motion-duration` | `0.4s` | Transitions |
 | Motion easing | `--orbit-motion-easing` | cubic-bezier | Screen + theme transitions |
 
 ---
 
-## Layout patterns
-
-### Orbit default (`layout: 'orbit'`)
+## Layout
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Hero (landscape art + scrim + glass dash)  │
-├─────────────────────────────────────────────┤
-│  Recent row ──► GameCard GameCard GameCard  │
-│  Library row ─► GameCard GameCard ...       │
+│ Theme logo     [ Play Library Search Set ] + ⤢ │  floating Liquid Glass header
+│                                             │
+│  Hero copy + Jump back in / Details         │  selected game's hero art full-bleed
+│  Your next escape ─► tile tile tile tile    │
+│ tagline            ORBIT          A Select  │  footer (ORBIT mark on branded themes)
 └─────────────────────────────────────────────┘
 ```
 
-- `ThemeHome.tsx` — hero + horizontal rows
-- `NativeGlassPanel` — frosted activity dashboard in hero
-- `.orbit-hero-scrim` — dark gradient over landscape artwork
-
-### PS5 (`layout: 'ps5'`)
-
-- `Ps5Shell.tsx` — circular game tiles, immersive background art
-- Larger radii, blue accent palette
-
-### Switch (`layout: 'switch'`)
-
-- `SwitchShell.tsx` — square tiles, bottom dock navigation
-- Pure black canvas, cyan accent
+- `MacosShell.tsx` — header (`ThemeBrand`, navigation, utilities), wallpaper, routed content, footer
+- `MacosHome.tsx` — feature hero and rounded horizontal shelf. `ShellBackdrop.tsx` keeps the previous artwork visible while the replacement decodes, then crossfades. The header keeps the active theme’s branding.
+- `ThemePage.tsx` — shared content container for non-home routes; page titles and eyebrows are owned by the shell, not duplicated per page
 
 ---
 
@@ -154,14 +165,9 @@ Shared components in `src/components/`:
 
 | Component | Path | Notes |
 | --------- | ---- | ----- |
-| `AppShell` | `layout/AppShell.tsx` | Fullscreen shell, nav chrome, controller glyph hints |
-| `NavBar` | `layout/NavBar.tsx` | Section tabs (home / library / search) |
-
-### Home
-
-| Component | Path | Notes |
-| --------- | ---- | ----- |
-| `NativeGlassPanel` | `home/NativeGlassPanel.tsx` | Frosted glass with `backdrop-filter`; `.native-glass-tint` overlay |
+| `AppShell` | `layout/AppShell.tsx` | Renders `PlayingScreen` during a session, otherwise `MacosShell` |
+| `DrawerProvider` | `layout/DrawerProvider.tsx` | Root-level drawer host; portals overlays above transformed pages |
+| `LiquidGlass` | `ui/liquid-glass.tsx` | Refractive glass with a frosted WebKit fallback. The artwork supplies the tint, with a darker shade over brighter images. |
 
 ### Data
 
@@ -181,8 +187,8 @@ Shared components in `src/components/`:
 
 | Component | Path | Notes |
 | --------- | ---- | ----- |
-| `ArtworkSlotPicker` | `artwork/ArtworkSlotPicker.tsx` | Portrait / landscape / icon slots |
-| `ImageSearchModal` | `artwork/ImageSearchModal.tsx` | RAWG search modal |
+| `ArtworkSlotPicker` | `artwork/ArtworkSlotPicker.tsx` | Portrait / landscape / icon / logo slots |
+| `ImageSearchModal` | `artwork/ImageSearchModal.tsx` | Artwork picker grid across all providers with source filters |
 
 ### Focus & feedback
 
@@ -195,9 +201,14 @@ Shared components in `src/components/`:
 
 ## Focus & controller styling
 
-Global focus styling in `src/styles/index.css`:
+Global navigation rings live in `src/components/focus/focus-ring.css`:
 
-- Focused elements: `[data-focused="true"]` — scale + `--orbit-focus` ring
+- Controller targets use `[data-focused="true"]` under `html[data-navigation-input="controller"]`.
+  Every enabled `Focusable` gets a three-pixel inset `--orbit-focus` outline, including
+  controls with legacy `noRing` decoration and portaled dialogs. It survives clipped panels.
+- Browser `:focus-visible` uses the same ring. Real pointer motion/clicks dismiss
+  controller rings; mouse enter events caused by layout or controller scrolling do
+  not steal focus. Forced colors use the system highlight.
 - Scrollbars hidden globally (controller scroll via focus navigation)
 - `color-scheme: dark` on `:root`
 
@@ -209,14 +220,7 @@ Controller glyph hints rendered by `ControllerGlyphs.ts` based on detected famil
 
 Screen transitions in `App.tsx` (Framer Motion):
 
-```typescript
-const pageTransition = {
-  initial: { opacity: 0, y: 18, filter: 'blur(6px)' },
-  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: -12, filter: 'blur(4px)' },
-  transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] },
-}
-```
+Routes cross-fade (`opacity` only, 0.32s); reduced motion disables the transition.
 
 Theme `motion.duration` / `motion.easing` override global CSS transition tokens.
 
@@ -230,7 +234,7 @@ Game artwork is stored as filesystem paths under `artwork-cache/` when possible 
 | ---- | --- | ----------- |
 | Cover | `cover` | Square / portrait box art |
 | Hero | `hero` | Landscape background |
-| Logo | `logo` | Title treatment overlay |
+| Logo | `logo` | Title treatment overlay; theme studio header logo (SteamGridDB `logos`, Steam Store `logo.png`) |
 | Icon | `icon` | Small grid thumbnail |
 
 Heavy inline Base64 is spilled to cache on save / library list so home and library tiles keep images without multi-MB IPC payloads.
@@ -242,8 +246,45 @@ Hero tone derived from artwork via `useHeroTone` for adaptive scrims.
 ## Rules
 
 1. **Tokens first** — use CSS variables (`rgb(var(--orbit-accent))`) not hardcoded hex in components.
-2. **Theme-aware** — new UI must work across all three layouts (orbit, ps5, switch).
+2. **Theme-aware** — new UI must read palette variables so every color and game theme recolors it.
 3. **Focusable everything** — interactive elements must register with `Focusable` or equivalent.
 4. **Couch contrast** — keep text readable at a distance; test with `--orbit-muted` for secondary copy.
-5. **Glass panels** — use `NativeGlassPanel` or `.native-glass-*` classes; prefer `backdrop-filter` over opaque overlays.
-6. **Document theme fields** — adding JSON theme properties requires updating [docs/THEMES.md](THEMES.md) and `ThemeDefinition` in `src/themes/types.ts`.
+5. **Glass panels** — use `LiquidGlass` or `.macos-panel` / `.orbit-panel`; prefer `backdrop-filter` over opaque overlays.
+6. **Document theme fields** — adding JSON theme properties requires updating [docs/THEMES.md](THEMES.md) and `ThemeDefinition` in `src/themes/types.ts` and `src-tauri/src/models/theme.rs` (plus sanitization in `services/theme_files.rs`).
+
+## Settings viewport layout
+Top-level navigation tabs have no Back button; detail flows retain Back. Settings
+fills the space between shell header and footer with aligned panels. Only the middle
+panel scrolls. Below 1180px the insights panel hides; below 520px tabs form a row
+above the content. Windowed headers reserve titlebar space vertically, preserving logo alignment.
+
+Reduce Motion replaces artwork immediately after it decodes. Reduce Transparency uses opaque glass panels.
+
+
+### Portable glass materials
+
+The shared `LiquidGlass` surface uses 12px toolbar blur and 8px panel blur,
+subtle edge highlights, and the existing artwork-aware tint. Rust renders one
+64×64 PNG grain tile on a blocking worker and caches it for the process. A single
+bootstrap query shares the texture with the shell and portaled drawers.
+All translucent UI surfaces share the same material. Panels and connected-library cards use the 8px panel treatment. Buttons, badges, and translucent text fields use a compact 6px control treatment. Opaque artwork faces and scene-dimming scrims keep their own paint.
+There are no per-panel distortion maps, SVG refraction passes, or resize observers.
+Reduced transparency, increased contrast, and forced colors switch to opaque
+surfaces dynamically. Unsupported blur compositors use a near-opaque fill.
+
+These are shared webview surfaces. Rust prepares their material texture. OS-native
+window materials have platform-specific behavior and do not supply a common
+per-panel API for the three supported desktop webviews.
+
+The `orbit-glass-control` material class preserves semantic HTML controls and tinted selection states. The `orbit-panel` utility uses the same material as `LiquidGlass`. Dialogs, session panels, and quick menus share the texture and accessibility fallbacks.
+
+
+### Image readiness and sizing
+
+`ArtworkImage` reserves its container before loading, decodes asynchronously,
+and crossfades only when ready. Failed images stop shimmering and expose an
+accessible fallback. Theme cards align their 2:1 image regions independently of
+title wrapping or selection state. Logos use containment; heroes use cover.
+Native preview generation trims transparent logo padding before GPU scaling.
+
+Bundled display assets and previews use WebP. Logos are alpha-trimmed and capped at 1024×512; wallpaper resolution is preserved up to 3840×2160. Custom image preparation runs on a Rust worker before download caching or saving.

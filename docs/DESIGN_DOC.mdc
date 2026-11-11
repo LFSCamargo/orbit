@@ -4,8 +4,12 @@ alwaysApply: true
 
 # Design Document
 
-Controller-first desktop game launcher for macOS (Apple Silicon first). Orbit is a modern
-alternative to Pegasus Frontend, inspired by PS5, Nintendo Switch, and Apple TV.
+> The desktop app lives in `apps/desktop/`; paths below are relative to it. The public
+> landing site (`apps/landing/`) is described in [LANDING.md](LANDING.md).
+
+Controller-first desktop game launcher for macOS, Windows, and Linux (macOS Apple Silicon
+first). Orbit is a modern alternative to Pegasus Frontend, inspired by PS5, Nintendo Switch,
+and Apple TV.
 
 Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesystem and
 process logic lives in Rust; the frontend never launches games directly.
@@ -15,7 +19,7 @@ process logic lives in Rust; the frontend never launches games directly.
 - Fullscreen, couch-friendly game library with cinematic screen transitions.
 - Import games from Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, and manual paths.
 - Track playtime, install size, and achievements locally.
-- Customize the entire app layout with built-in themes (PS5, Switch 2, Orbit) or user JSON themes.
+- One restrained glass console look with a Rust-generated material texture and portable compositor surfaces. Built-in game themes bundle logos and heroes. Theme Studio searches SteamGridDB logos and offers backgrounds from configured game artwork providers. Retired platform and color presets resolve to Liquid Glass. Custom artwork selection is explicit. Missing artwork is reported by the picker. Existing custom files remain on disk; the interface uses Liquid Glass styling.
 
 ## Functional requirements
 
@@ -24,6 +28,8 @@ process logic lives in Rust; the frontend never launches games directly.
 - User can open **game details** with playtime, size, achievements, and launch action.
 - User can **add games** via importer scans or manual file pick (Add game journey).
 - User can **edit properties** — title, description, portrait/landscape/square artwork (cached files or small inline refs in SQLite).
+  Each artwork slot offers **Browse images** (a grid of results from SteamGridDB, TheGamesDB, RAWG, Wikimedia and the Steam Store, filterable by source) and **Random SteamGridDB** (applies a random SteamGridDB image for the matched game, avoiding the previous roll). Picks only apply to the draft until Save.
+- Every imported game ends up with artwork in all slots: enrichment runs for new games and for existing games still missing real art; anything still empty gets a reused slot or a generated placeholder that stays eligible for later enrichment. Importer titles are corrected from a matched SteamGridDB / TheGamesDB / Steam Store entry (exact normalized title or Steam app ID only).
 - User can **launch** a game; Orbit tracks the session and playtime.
 - User can **stop** an active game session from the UI.
 - User can sync **Steam** library metadata (playtime, SizeOnDisk, achievements) locally.
@@ -35,7 +41,7 @@ process logic lives in Rust; the frontend never launches games directly.
 
 - **Local-first:** SQLite is the source of truth; no cloud sync in v1.
 - **Controller-first:** spatial focus system; all primary flows reachable without a mouse.
-- **macOS-first:** Apple Silicon target; fullscreen window management via Tauri.
+- **Desktop-first:** macOS Apple Silicon remains the primary release target, with Windows and Linux install paths; fullscreen window management via Tauri.
 - **Safe launch:** Rust validates paths and only launches resolved executables from known importers.
 - **Performance:** avoid unbounded library loads; batch Tauri invokes where possible.
 
@@ -52,13 +58,13 @@ Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts
 
 | Screen | `AppScreen` | Purpose |
 | ------ | ----------- | ------- |
-| Home | `home` | Hero + recent rows; theme-specific layout (Orbit / PS5 / Switch) |
+| Home | `home` | Liquid Glass hero and rounded game shelf over the selected game’s artwork. Artwork crossfades when ready and glass adapts to its lighting. |
 | Library | `library` | Filterable/sortable game grid |
-| Search | `search` | Text search across library |
+| Search | `search` | Browse the collection on empty search and filter imported games and cached GameHub records by title or source |
 | Game details | `game-details` | Metadata, achievements, play/launch |
 | Edit properties | `game-edit` | Title, description, artwork slots, Fetch metadata |
 | Add game | `add-game` | Importer detection, scans, manual import |
-| Settings | `settings` | Theme, SteamGridDB/RAWG keys, auto-enrich, library maintenance |
+| Settings | `settings` | Theme picker + theme studio, SteamGridDB/RAWG keys, auto-enrich, library maintenance |
 
 ### Screen transitions
 
@@ -122,7 +128,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
 | `detect_importers` | — | `ImporterStatus[]` | Steam, Astris, native, GameHub |
-| `scan_steam_library` | — | `ScanResult` | Upserts + optional auto-enrich for new IDs |
+| `scan_steam_library` | — | `ScanResult` | Upserts + optional auto-enrich for new IDs and games missing artwork; all scans guarantee artwork in every slot |
 | `scan_astris_folder` | `folder` | `ScanResult` | User-selected folder |
 | `scan_native_apps` | — | `ScanResult` | macOS `/Applications` |
 | `scan_gamehub_folder` | `folder?` | `ScanResult` | GameHub shortcuts; auto-enrich when Steam app ID present |
@@ -132,11 +138,14 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
-| `list_custom_themes` | — | `ThemeDefinition[]` | From Application Support |
+| `list_custom_themes` | — | `ThemeDefinition[]` | From Application Support; sanitized (invalid themes skipped, unsafe images dropped) |
+| `save_custom_theme` | `theme` | `ThemeDefinition` | Theme studio; id must be `custom-<slug>`; writes `<id>.json` and returns the sanitized theme |
+| `delete_custom_theme` | `id` | `()` | Removes `custom-<slug>.json`; missing files are not an error |
 | `themes_directory` | — | `string` | Path to custom themes folder |
 | `read_artwork_from_path` | `path` | `string` | Base64 image |
 | `fetch_artwork_from_url` | `url` | `string` | Base64 image |
 | `search_public_artwork` | `query` | `ArtworkResult[]` | RAWG (optional key) + Wikimedia |
+| `search_game_artwork` | `query`, `slot` (`cover`/`hero`/`icon`/`logo`), `gameId?`, `source?` (`all`/`steamgriddb`) | `{ hits: ArtworkResult[], warnings: string[] }` | Queries every configured provider independently; per-provider failures become warnings. `steamgriddb` restricts to the exact-matched SteamGridDB game (used by Random) |
 | `enrich_game_metadata` | `gameId` | `{ enriched, message }` | TheGamesDB metadata + SteamGridDB / TheGamesDB artwork |
 | `enrich_games_metadata` | `gameIds` | `{ enriched }` | Batch used after import |
 | `get_metadata_cache_stats` | — | `{ gameCount, dbPath }` | Local metadata cache size |
@@ -192,3 +201,31 @@ graph TD
 - Rust / Tauri: [docs/TAURI.mdc](TAURI.mdc)
 - React frontend: [docs/FRONTEND.mdc](FRONTEND.mdc)
 - Themes & UI: [docs/UI.mdc](UI.mdc)
+
+Library and Search share imported games and GameHub's cached store/download records. Records without an Orbit launch entry stay separate from playable games. Steam install handoff requires a numeric App ID and a Mac build advertised by Steam; Steam verifies eligibility and controls downloads. GameHub manages its own installs.
+
+`open_steam_library()` opens Steam's library. `install_steam_game(appId)` validates the ID and checks Steam Store platform metadata before opening Steam's installation dialog.
+
+### Theme artwork commands
+
+`search_theme_artwork(query, slot)` searches SteamGridDB (`logo` or `hero`) and returns image dimensions. Theme Studio also searches connected game artwork providers for backgrounds. `fetch_theme_artwork(url, slot)` restricts downloads to approved image CDNs and validates the decoded raster before returning a data URL. No upscaling or cover fallback is used for theme backgrounds.
+
+`get_hero_lighting(gameId, slot)` samples locally cached hero or cover art and returns three RGB bytes, or null if a safe local sample is unavailable.
+
+`get_glass_material()` returns one cached, Rust-generated PNG grain tile and bounded blur settings for the shared glass surfaces. Native OS window materials vary by platform. Panels retain shared webview contents and provide opaque accessibility and unsupported-compositor fallbacks.
+
+All translucent UI surfaces share the Liquid Glass material, including controls, fields, dialogs, session panels, and connected-game cards. Backspace edits text and has no navigation binding. Global navigation yields to text editing and IME composition.
+
+`prepare_theme_previews(onPreview)` prepares the eight bundled game themes on a blocking worker. Native GPU resizing uses Metal, DX12, or Vulkan with a CPU fallback. Each completed theme streams small cached preview paths through a Tauri channel. Theme cards reserve a consistent frame with a loading shimmer and preserve the original artwork for theme selection.
+
+Bundled themes ship optimized WebP display images and previews. Theme downloads and saves apply bounded image optimization on a worker while preserving transparency, aspect ratio, existing compact lossy files, and opaque bundle references.
+
+Controller and keyboard navigation share a visible focus ring on every registered
+control, including portaled dialogs. Pointer activity dismisses the controller ring.
+The ring is inset so scroll containers cannot clip it.
+
+`list_custom_themes()` reads and parses a bounded catalog on a worker. Embedded
+artwork is materialized into cached display images and small previews before IPC;
+returned themes carry optional runtime-only `preview` paths. Portable theme JSON
+is preserved. Opening Themes reuses the hydrated catalog; the reload action reads
+external edits explicitly.

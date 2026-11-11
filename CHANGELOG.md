@@ -20,6 +20,49 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+### Added
+
+- **Landing site** (`apps/landing`, Next.js on Vercel) — product overview, install guide (first launch, checksums, update, uninstall), and a download page for every GitHub Release with a version picker, file list, and release notes
+- **Nx monorepo** on Yarn workspaces: the desktop app moved to `apps/desktop`; root scripts (`yarn tauri:dev`, `yarn build`, `yarn test:unit`, …) run through Nx with caching
+
+- **Game themes** — Devil May Cry 5, God of War, Cyberpunk 2077, Zelda: Ocarina of Time Remake, Grand Theft Auto V, Grand Theft Auto VI, Zelda: Breath of the Wild, and Super Mario. The game's wordmark (or a logo you pick) replaces the Orbit logo, with a small ORBIT signature at the bottom of the screen
+- **Color themes** — Aurora, Ember, Sakura, and Graphite alongside the Liquid Glass default
+- **Theme studio** in Settings: rename a theme, change its logo text, tagline, accent, and logo style, pick a logo and wallpaper (file, artwork search, or a game in your library), then save it as your own theme or delete it
+- `save_custom_theme` / `delete_custom_theme` Tauri commands and a `logo` slot for `search_game_artwork` (SteamGridDB logos, Steam Store logo)
+
+### Changed
+
+- Liquid Glass is now the only shell and the default theme; its wallpaper, scrims, and buttons follow the active palette
+- Saved PS5, Switch 2, and Orbit Default theme selections switch to Liquid Glass automatically
+- Custom theme JSON is sanitized on load: invalid ids or colors skip the theme, and only inline raster images are kept. `layout` and `backgroundStyle` are ignored
+
+### Removed
+
+- PS5, Switch 2, and Orbit Default shells, along with their home screens, navigation bar, and styles
+
+## [0.3.0] - 2026-11-09
+
+Artwork picker grid across all providers, random SteamGridDB artwork, and guaranteed artwork + title correction on import.
+
+### Added
+
+- **Browse images** picker on Edit Properties: a grid of artwork from SteamGridDB, TheGamesDB, RAWG, Wikimedia, and the Steam Store, filterable by source, sized per slot (cover, hero, icon)
+- **Random SteamGridDB** button per artwork slot — applies a random image for the matched game without repeating the previous roll
+- `search_game_artwork` Tauri command that queries every configured provider independently and reports per-provider warnings
+- Imported games always get artwork in every slot (reused slot or generated placeholder that stays eligible for later enrichment)
+
+### Changed
+
+- Auto-enrich now also runs for existing games that still lack real artwork, and works without a TheGamesDB key
+- SteamGridDB matching uses the Steam app ID or an exact normalized title; importer titles are corrected from the matched SteamGridDB / TheGamesDB / Steam Store entry
+- TheGamesDB title match threshold raised to avoid matching sequels or similarly named games
+- HTTP requests have connect and total timeouts; provider errors no longer leak request URLs (API keys)
+
+### Fixed
+
+- Downloaded artwork is validated as an image before being cached, so HTML error pages are no longer stored as art
+- A single failed artwork download no longer aborts enrichment for the whole game
+
 ## [0.2.0] - 2026-07-25
 
 TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch shell polish, library square tile normalization, and a modules/performance refactor.
@@ -71,6 +114,7 @@ TheGamesDB + SteamGridDB metadata enrichment, same-monitor launching, PS5/Switch
 
 - Unused `GameHero`, `GameCarousel`, and `useHeroBlur` frontend code
 - Dead `seed_mock_games_if_empty` / `mock_games` repository helpers
+
 ## [0.1.1] - 2026-07-22
 
 Library content inventory on the home hero, smarter Switch and GameHub imports, a playing screen during sessions, and launch-path editing.
@@ -188,6 +232,7 @@ GitHub Releases includes:
 - GameHub importer is experimental
 - Intel Macs: build locally with `yarn release:macos -- --arch x86_64` or `--arch universal`
 
+[0.3.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.3.0
 [0.2.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.2.0
 [0.1.1]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.0

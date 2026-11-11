@@ -4,6 +4,13 @@ Controller-first desktop game launcher for macOS (Apple Silicon first). A modern
 
 Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesystem and process logic lives in Rust — the frontend never launches games directly.
 
+This repo is an **Nx monorepo** (Yarn workspaces) with two apps:
+
+| App                            | What it is                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| [`apps/desktop`](apps/desktop) | The Orbit launcher (Tauri + React + Rust)                                  |
+| [`apps/landing`](apps/landing) | Next.js website: install guide and downloads for every release (on Vercel) |
+
 ## Features
 
 - **Couch-friendly UI** — fullscreen layout, cinematic transitions, spatial focus navigation
@@ -11,7 +18,7 @@ Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesyste
 - **Multi-source imports** — Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, manual paths
 - **Launch & sessions** — Rust-owned process launch, playtime tracking, hide window during play
 - **Edit properties** — title, description, portrait/landscape/icon artwork (Base64 in SQLite)
-- **Themes** — Orbit, PS5, and Switch 2 shells, plus user JSON themes that reshape the whole app
+- **Themes** — one Liquid Glass console shell with color themes, game themes (Devil May Cry 5, God of War, Cyberpunk 2077, Zelda, GTA V / VI, Super Mario), and a theme studio for your own logo and wallpaper
 - **Controller + keyboard** — Gamepad API with Xbox / PlayStation / Nintendo mapping
 
 ## Platform
@@ -38,7 +45,8 @@ Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesyste
 
 ```bash
 yarn install
-yarn tauri:dev
+yarn tauri:dev        # desktop app
+yarn dev:landing      # landing site on http://localhost:3000
 ```
 
 Build a release `.app`:
@@ -101,6 +109,7 @@ Changelog: **[CHANGELOG.md](CHANGELOG.md)**
 | [docs/FRONTEND.mdc](docs/FRONTEND.mdc)     | React screens, controller system                               |
 | [docs/UI.mdc](docs/UI.mdc)                 | Design tokens, components, theme system                        |
 | [docs/THEMES.md](docs/THEMES.md)           | Authoring custom JSON themes                                   |
+| [docs/LANDING.md](docs/LANDING.md)         | Landing site routes, release data, Vercel deploy               |
 
 ## Themes
 
@@ -129,10 +138,12 @@ Keyboard: arrows, Enter, Escape, `F` (edit), `C` (add), `[` `]`, `M`.
 ## Repository layout
 
 ```text
-src/              React frontend (features, controllers, themes)
-src-tauri/src/    Rust backend (commands, importers, SQLite, launch)
-e2e/              Playwright specs
-docs/             Architecture and design docs
+apps/desktop/src/             React frontend (modules, controllers, themes)
+apps/desktop/src-tauri/src/   Rust backend (commands, importers, SQLite, launch)
+apps/desktop/e2e/             Playwright specs
+apps/landing/src/             Next.js landing site (home, install, download)
+scripts/                      Release, version sync, cleanup tooling
+docs/                         Architecture and design docs
 ```
 
 ## Contributing
@@ -142,3 +153,7 @@ Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, qua
 ## Out of scope
 
 ROM downloads/decryption, keys management, emulator distribution, Steam account auth, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).
+
+Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass).
+
+GameHub library, background mode, and installation boundaries: [docs/GAMEHUB.md](docs/GAMEHUB.md).
