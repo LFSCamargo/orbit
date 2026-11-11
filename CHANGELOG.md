@@ -20,6 +20,10 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-11
+
+Nx monorepo, landing site, game and color themes with a theme studio, and home/library focus polish.
+
 ### Added
 
 - **Landing site** (`apps/landing`, Next.js on Vercel) — product overview, install guide (first launch, checksums, update, uninstall), and a download page for every GitHub Release with a version picker, file list, and release notes
@@ -39,6 +43,12 @@ yarn monopipeline bump patch
 ### Removed
 
 - PS5, Switch 2, and Orbit Default shells, along with their home screens, navigation bar, and styles
+
+### Fixed
+
+- Home game tiles: the focus selector now tracks the card — the whole tile scales up on focus instead of only the artwork lifting inside a static selector
+- Library and search game cards scale up on focus, matching the home animation
+- Home game tiles no longer show the generic focus outline ring, which wrapped the caption below the artwork and was partly covered by the artwork itself
 
 ## [0.3.0] - 2026-11-09
 
@@ -232,6 +242,7 @@ GitHub Releases includes:
 - GameHub importer is experimental
 - Intel Macs: build locally with `yarn release:macos -- --arch x86_64` or `--arch universal`
 
+[1.0.0]: https://github.com/LFSCamargo/orbit/releases/tag/v1.0.0
 [0.3.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.3.0
 [0.2.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.2.0
 [0.1.1]: https://github.com/LFSCamargo/orbit/releases/tag/v0.1.1
