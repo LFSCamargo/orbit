@@ -166,7 +166,6 @@ export function MacosHome({
               focusId={`macos-game-${game.id}`}
               group="macos-games"
               order={index}
-              noScale
               onFocusSelect={() => selectGame(game)}
               onClick={() => activateGame(game)}
               aria-label={`${game.title}${game.id === heroGame.id ? ', selected' : ''}`}

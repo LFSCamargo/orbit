@@ -48,7 +48,6 @@ function GameCardComponent({
       focusId={focusId}
       group={group}
       order={order}
-      noScale
       noRing
       onFocusSelect={onFocusSelect}
       onClick={handleActivate}

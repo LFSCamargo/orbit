@@ -5,7 +5,47 @@ import { useUiStore } from '@/stores/ui.store'
 import { Focusable } from '../Focusable'
 import { useNavigationInput } from '@/controllers/useNavigationInput'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  act(() => {
+    focusManager.setFocus(null)
+  })
+})
+
+it('scales up the focused control unless noScale is set', () => {
+  render(
+    <>
+      <Focusable focusId="scale-on" group="test">
+        Scalable
+      </Focusable>
+      <Focusable focusId="scale-off" group="test" noScale>
+        Static
+      </Focusable>
+    </>,
+  )
+  act(() => {
+    focusManager.setFocus('scale-on')
+  })
+  expect(screen.getByText('Scalable').closest('button')).toHaveClass(
+    'scale-[1.03]',
+    'z-10',
+  )
+  expect(screen.getByText('Static').closest('button')).not.toHaveClass(
+    'scale-[1.03]',
+    'z-10',
+  )
+  act(() => {
+    focusManager.setFocus('scale-off')
+  })
+  expect(screen.getByText('Scalable').closest('button')).not.toHaveClass(
+    'scale-[1.03]',
+    'z-10',
+  )
+  expect(screen.getByText('Static').closest('button')).not.toHaveClass(
+    'scale-[1.03]',
+    'z-10',
+  )
+})
 
 it('does not steal controller focus when scrolling moves a control underneath the pointer', () => {
   function Controls() {

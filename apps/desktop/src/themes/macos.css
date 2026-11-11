@@ -464,9 +464,7 @@
   border-radius: var(--shelf-radius);
   border: 1px solid #ffffff28;
   box-shadow: 0 10px 25px #0003;
-  transition:
-    transform 0.3s,
-    box-shadow 0.3s;
+  transition: box-shadow 0.3s;
   aspect-ratio: 1;
 }
 .macos-game-tile[aria-pressed='true'] .square-game-art {
@@ -475,8 +473,10 @@
     0 0 0 3px #ffffff30,
     0 14px 32px #0004;
 }
+/* The whole tile scales up on focus (Focusable's scale transform) so the
+   outline selector, which lives on the same element, always tracks the card.
+   Only the glow decoration is animated on the artwork itself. */
 .macos-game-tile[data-focused='true'] .square-game-art {
-  transform: translateY(-5px);
   box-shadow:
     0 0 0 3px #ffffff80,
     0 18px 35px #0004;
@@ -681,7 +681,7 @@
     transition: none !important;
     scroll-behavior: auto !important;
   }
-  .macos-game-tile[data-focused='true'] .square-game-art {
+  .macos-game-tile[data-focused='true'] {
     transform: none;
   }
 }
