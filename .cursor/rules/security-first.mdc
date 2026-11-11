@@ -50,7 +50,11 @@ avoidable, or session tokens. Remove debug `console.log` / `println!` before mer
 
 ## Agent checklist (run on security-sensitive changes)
 
-When editing `src-tauri/src/commands/`, `importers/`, `launching/`, or `database/`:
+Landing (`apps/landing/`): the GitHub Releases payload is untrusted — validate it in
+`src/lib/releases.ts`, only link downloads on `https://github.com/`, render release notes
+with `react-markdown` (no raw HTML), and keep `GITHUB_TOKEN` server-only (never `NEXT_PUBLIC_`).
+
+When editing `apps/desktop/src-tauri/src/commands/`, `importers/`, `launching/`, or `database/`:
 
 1. **Validate inputs** — paths, IDs, and importer payloads at the Rust boundary.
 2. **Parameterized SQL** — no string-built queries.

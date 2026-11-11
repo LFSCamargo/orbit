@@ -1,0 +1,22 @@
+---
+description: Regression tests required for every reported bug
+alwaysApply: true
+---
+
+# Regression Testing Rule
+
+Every reported bug must get a regression test that fails on the broken behavior and passes after the fix. Do not mark a bug fix complete without that coverage.
+
+## Required coverage
+
+- **Component state bugs** (active tab, selection, focus, stale closures): use Vitest + Testing Library. Exercise the user action and assert both the visible state and the stored state. Include unmount/remount coverage when state must survive navigation.
+- **Overlay and stacking bugs** (drawer, modal, z-index, transformed ancestors): assert that overlay content is hosted at the app root or portaled to `document.body`, remains interactive, and closes cleanly.
+- **Layout and rendering regressions**: prefer Playwright screenshots or assertions for critical screens. Unit tests should cover state and structure; E2E verifies the actual layout.
+- **Rust or data bugs**: add a focused `#[cfg(test)]` regression case.
+
+## Workflow
+
+1. Reproduce the bug in a test before changing implementation when practical.
+2. Fix the smallest root cause; do not weaken the test or mock away the broken behavior.
+3. Keep the regression test beside the affected module under `src/**/__tests__/`.
+4. Run the relevant unit, typecheck, format, Rust, and build gates before stopping.

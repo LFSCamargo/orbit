@@ -23,7 +23,7 @@ if [[ -n "$input" ]]; then
   " 2>/dev/null || true)
 fi
 
-if [[ -n "$file_path" ]] && [[ ! "$file_path" =~ \.(tsx?|jsx?)$ ]] && [[ ! "$file_path" =~ ^src/ ]]; then
+if [[ -n "$file_path" ]] && [[ ! "$file_path" =~ \.(tsx?|jsx?)$ ]] && [[ ! "$file_path" =~ apps/[^/]+/src/ ]]; then
   exit 0
 fi
 

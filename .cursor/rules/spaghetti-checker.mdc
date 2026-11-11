@@ -10,7 +10,23 @@ readability, reviewability, and testability.
 
 ---
 
-## Frontend `src/`
+## Monorepo `apps/`
+
+Orbit is an Nx + Yarn workspaces monorepo. Each app owns its code; nothing imports across apps.
+
+```
+apps/
+  desktop/               # Tauri desktop app (@orbit/desktop, Nx project `desktop`)
+  landing/               # Next.js landing site (@orbit/landing, Nx project `landing`)
+scripts/                 # repo tooling (release, version sync, cleanup, agent skills)
+docs/                    # design + architecture docs
+```
+
+Paths in the desktop sections below are relative to `apps/desktop/`.
+
+---
+
+## Desktop frontend `apps/desktop/src/`
 
 ```
 src/
@@ -23,7 +39,7 @@ src/
   themes/                # built-in theme shells + layout hooks
   lib/                   # pure helpers, Tauri wrappers, formatters
   types/                 # shared TypeScript types
-  e2e/                   # Playwright tests (repo root)
+e2e/                     # Playwright tests (apps/desktop/e2e)
 ```
 
 | File | Allowed contents |
@@ -55,7 +71,7 @@ Cross-module shared UI → `src/components/`. Module-specific UI stays colocated
 
 ---
 
-## Backend `src-tauri/src/`
+## Desktop backend `apps/desktop/src-tauri/src/`
 
 ```
 src-tauri/src/
@@ -91,6 +107,23 @@ Register commands in `lib.rs` via `generate_handler!` — keep `lib.rs` as wirin
 
 ---
 
+## Landing `apps/landing/src/`
+
+```
+src/
+  app/                   # Next.js App Router routes (page.tsx, layout.tsx only)
+  components/<area>/     # one component per .tsx (layout/, home/, download/, install/)
+  lib/                   # pure helpers + GitHub Releases fetch (Vitest in lib/__tests__/)
+```
+
+| File | Allowed contents |
+| ---- | ---------------- |
+| `app/**/page.tsx` | Fetch data + compose components; no inline helpers |
+| `components/*/*.tsx` | Single component (`'use client'` only when interactive) |
+| `lib/*.ts` | Pure, testable helpers; `github.ts` is the only network boundary |
+
+---
+
 ## When to split
 
 Split when a file has **more than one** of: page, component, hook, store, Tauri command
@@ -102,14 +135,15 @@ group, importer, service concern, or adapter.
 
 - **Rust:** unit tests in the same module (`#[cfg(test)]`) or `src-tauri/tests/`.
   Run `yarn run test:rust`.
-- **E2E:** Playwright in `e2e/*.spec.ts`. Run `yarn run test:e2e` for UI/navigation changes.
+- **E2E:** Playwright in `apps/desktop/e2e/*.spec.ts`. Run `yarn run test:e2e` for UI/navigation changes.
+- **Landing:** Vitest in `apps/landing/src/**/__tests__/`. Run `yarn run test:unit`.
 - Prefer adding E2E coverage for new screens and controller flows.
 
 ---
 
 ## Agent checklist (run on every create/modify)
 
-When creating or editing under `src/` or `src-tauri/src/`:
+When creating or editing under `apps/*/src/` or `apps/desktop/src-tauri/src/`:
 
 1. **Match layout** — use the canonical folder tree above.
 2. **Split before merge** — new screen → `modules/`; new command group → `commands/`; new importer → `importers/`.

@@ -17,6 +17,8 @@ part of the definition of done (see `.cursor/rules/quality-gating.mdc`).
 
 ## What to test (by layer)
 
+Desktop paths are relative to `apps/desktop/`.
+
 - **Rust (`src-tauri/`)** `#[cfg(test)]` modules and `cargo test`. Cover filename parsing,
   path utilities, importer detection, repository queries, and migration logic.
   Run: `yarn run test:rust`.
@@ -24,7 +26,10 @@ part of the definition of done (see `.cursor/rules/quality-gating.mdc`).
   imports, and critical user flows. Run: `yarn run test:e2e`.
 - **Pure TS helpers (`src/lib/`, themes, module libs)** Vitest + Testing Library unit tests
   under `src/**/__tests__/` or colocated `*.test.ts(x)`. Run: `yarn run test:unit`
-  (watch: `yarn run test:unit:watch`).
+  (watch: `yarn workspace @orbit/desktop test:unit:watch`).
+- **Landing (`apps/landing/`)** Vitest + Testing Library under `src/**/__tests__/` for release
+  parsing, formatting, and interactive components. Use fixtures — never hit the GitHub API in tests.
+  Run: `yarn run test:unit`.
 
 ## Coverage expectations
 

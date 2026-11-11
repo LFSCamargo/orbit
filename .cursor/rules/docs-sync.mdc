@@ -13,6 +13,7 @@ Project docs describe Orbit's design and user-facing behavior:
 - [docs/FRONTEND.mdc](../../docs/FRONTEND.mdc) — React screens, state, controller system.
 - [docs/UI.mdc](../../docs/UI.mdc) — design tokens, components, theme system.
 - [docs/THEMES.md](../../docs/THEMES.md) — user-facing theme authoring guide.
+- [docs/LANDING.md](../../docs/LANDING.md) — landing site routes, release data, and Vercel deploy.
 - [docs/examples/](../../docs/examples/) — sample theme files.
 - [README.md](../../README.md) — project overview and quick start.
 - [RUNNING.md](../../RUNNING.md) — local setup, dev modes, tests, troubleshooting.

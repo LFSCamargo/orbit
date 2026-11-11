@@ -39,16 +39,17 @@ git diff "$BASE"...HEAD --name-only
 
 ### Step 2: Analyze changes
 
-From commits + diff, identify:
+From commits + diff, identify (desktop paths are under `apps/desktop/`):
 
-| Signal             | Where to look                                                    |
-| ------------------ | ---------------------------------------------------------------- |
-| Feature scope      | `src/modules/`, `src/components/`                                |
-| Tauri / backend    | `src-tauri/src/commands/`, `importers/`, `launching/`            |
-| Themes             | `src/themes/`, `docs/UI.mdc`, `docs/THEMES.md`, `docs/examples/` |
-| Controller / focus | `src/controllers/`                                               |
-| Tests              | `e2e/`, `src-tauri/**` `#[cfg(test)]`                            |
-| Docs               | `docs/*.mdc`, `README.md`                                        |
+| Signal             | Where to look                                                      |
+| ------------------ | ------------------------------------------------------------------ |
+| Feature scope      | `src/modules/`, `src/components/`                                  |
+| Tauri / backend    | `src-tauri/src/commands/`, `importers/`, `launching/`              |
+| Themes             | `src/themes/`, `docs/UI.mdc`, `docs/THEMES.md`, `docs/examples/`   |
+| Controller / focus | `src/controllers/`                                                 |
+| Landing site       | `apps/landing/src/`, `docs/LANDING.md`                             |
+| Tests              | `e2e/`, `src-tauri/**` `#[cfg(test)]`, `apps/landing/**/__tests__` |
+| Docs               | `docs/*.mdc`, `README.md`                                          |
 
 Read key changed files when the diff stat alone is ambiguous.
 

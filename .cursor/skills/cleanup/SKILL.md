@@ -25,8 +25,9 @@ quality gates (see `.cursor/rules/quality-gating.mdc`).
 
 ## Example requests
 
-- "Remove all unused code and strip debug logs in `src/modules/`."
-- "Cleanup dead Rust helpers in `src-tauri/src/utils/`."
+- "Remove all unused code and strip debug logs in `apps/desktop/src/modules/`."
+- "Cleanup dead Rust helpers in `apps/desktop/src-tauri/src/utils/`."
+- "Remove unused components from `apps/landing/src/components/`."
 - "Ensure no leftover debug output before we merge this to main."
 
 ## See Also

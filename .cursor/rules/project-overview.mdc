@@ -11,16 +11,22 @@ and Apple TV — a modern alternative to Pegasus Frontend.
 
 Source of truth: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc).
 
+## Apps (Nx monorepo, Yarn workspaces)
+
+- `apps/desktop` — the Tauri desktop launcher (React + Vite frontend, Rust backend).
+- `apps/landing` — Next.js landing site on Vercel: product overview, install guide, and
+  downloads for every GitHub Release with a version picker.
+
 ## Purpose
 
 - Fullscreen, couch-friendly game library UI with cinematic transitions.
 - Import and launch games from Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, and manual paths.
 - Track playtime, install size, and achievements locally.
-- Customizable themes (PS5, Switch 2, Orbit, user JSON themes).
+- Liquid Glass console shell with color themes, game themes, and user themes (theme studio or JSON).
 
 ## Core mechanics
 
-- **Rust owns I/O.** Filesystem, process launch, SQLite, and importers live in `src-tauri/`.
+- **Rust owns I/O.** Filesystem, process launch, SQLite, and importers live in `apps/desktop/src-tauri/`.
   The frontend never launches games directly — it invokes Tauri commands.
 - **SQLite persistence.** Game metadata and Base64 artwork stored locally with migrations.
 - **Controller-first navigation.** Spatial focus + Gamepad API with keyboard fallback.
@@ -37,6 +43,7 @@ Source of truth: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc).
 - Rust / Tauri: [docs/TAURI.mdc](../../docs/TAURI.mdc)
 - React frontend: [docs/FRONTEND.mdc](../../docs/FRONTEND.mdc)
 - Themes & UI: [docs/UI.mdc](../../docs/UI.mdc), [docs/THEMES.md](../../docs/THEMES.md)
+- Landing site: [docs/LANDING.md](../../docs/LANDING.md)
 
 ## Out of scope
 
