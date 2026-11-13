@@ -280,3 +280,23 @@ entries provide runtime-only thumbnail paths; grids never need embedded image
 blobs. Preview caches are separate from portable theme JSON. Concurrent catalog
 requests share one promise, including StrictMode bootstrap effects. Theme grouping
 uses a single O(n) map pass instead of copying the growing groups on each item.
+
+## Runtime controls
+
+Settings → Compatibility uses `modules/settings/components/RuntimeSettings.tsx`.
+The primary flow is one managed install action with download/install progress,
+online component/version catalog with prereleases and mirror checksums, and
+`CompatibilityGlobalSettings.tsx` for defaults.
+`CompatibilityOverridesEditor.tsx` stores only explicit per-game overrides in the
+shared Wine profile editor. Wine paths and manual registration stay under Advanced
+runtime options. The
+`CompatibilityStatus.supported` system flag gates managed setup independently
+of browser or user-agent checks. `components/runtime/WineProfileEditor.tsx` is
+shared by manual `.exe` import and Edit properties. `types/runtime.ts` mirrors
+Rust's profile, detected runtime, status and setup progress. Game details retains
+Play/Stop and adds cancellation during Windows preparation and bounded diagnostics
+through `RuntimeDiagnostics.tsx`. Browser preview cannot download or execute Wine.
+
+### Settings usability and download feedback
+
+Settings presentation is scoped in `modules/settings/settings.css`. `components/ui/animated-settings-nav.tsx` adapts Aceternity Tabs with Orbit Focusable controls, and `components/ui/switch.tsx` adapts shadcn Switch. `stores/graphics-draft.store.ts` retains an in-memory form draft across navigation; Save calls the existing typed Rust wrapper once, while Discard restores the query result. `modules/settings/hooks/useCompatibilitySetup.ts` retains progress across page unmounts and guards duplicate installations. Complexity: fixed-size graphics comparisons are O(1); catalog rendering is O(total versions), with no per-row I/O or library scans added. No new native command or download trust boundary is introduced.

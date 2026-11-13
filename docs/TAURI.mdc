@@ -300,3 +300,20 @@ are not rewritten. Warm cache reads do not initialize a renderer or decode image
 Cost is O(total bounded JSON bytes + cold image pixels), plus O(n log n) sorting;
 IPC payloads scale with theme metadata, not artwork bytes. The frontend shares
 concurrent reads and reloads only on startup or the explicit reload action.
+
+## Windows runtime orchestration
+
+`src-tauri/src/runtimes/` owns Wine detection, validation, prefix preparation,
+processes and logs. `commands/runtimes.rs` exposes `windows_compatibility`,
+`install_windows_compatibility`, `compatibility_catalog`,
+`compatibility_settings`,
+`update_compatibility_settings`, `detect_runtimes`, `register_wine_runtime` and
+`runtime_diagnostics`. `runtimes/settings.rs` merges SQLite global defaults with
+optional per-game overrides at launch, applies bounded environment/registry
+settings, and rejects unavailable backends. Managed setup reports a Tauri
+`Channel<SetupProgress>`,
+uses the macOS-only `system.supported` contract, verifies the pinned archive, and
+persists the activated path only after a successful probe. `commands/session.rs`
+runs launch/stop off the UI thread and exposes `cancel_game_launch`. The existing
+session events and repository remain the lifecycle/persistence boundary.
+See [RUNTIMES.md](RUNTIMES.md) for paths, ownership, limits and verification.

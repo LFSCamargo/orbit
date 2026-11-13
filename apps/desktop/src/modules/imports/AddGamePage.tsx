@@ -1,3 +1,5 @@
+import { WineProfileEditor } from '@/components/runtime/WineProfileEditor'
+import type { WineProfile } from '@/types/runtime'
 import { useMemo, useState } from 'react'
 import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -78,6 +80,12 @@ export function AddGamePage() {
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [wineProfile, setWineProfile] = useState<WineProfile>({
+    executable: '',
+    runtimePath: '',
+    arguments: [],
+    environment: {},
+  })
 
   const source = useMemo(
     () => SOURCES.find((item) => item.id === sourceId) ?? null,
@@ -121,6 +129,7 @@ export function AddGamePage() {
         return
       }
       setSelectedPath(selected)
+      setWineProfile((p) => ({ ...p, executable: selected }))
 
       if (source.id === 'astris' || source.id === 'gamehub') {
         const outcome = await runScan(source.id, {
@@ -152,7 +161,8 @@ export function AddGamePage() {
         description: description.trim() || undefined,
         provider,
         platform,
-        launchConfig,
+        launchConfig:
+          ext === 'exe' ? { type: 'wine', profile: wineProfile } : launchConfig,
       })
       finish(`Added ${title.trim()}`)
     } catch (error) {
@@ -288,12 +298,22 @@ export function AddGamePage() {
                   className="mt-2 w-full rounded-card border border-orbit-border bg-orbit-surface px-4 py-3 text-orbit-foreground outline-none ring-orbit-focus focus:ring-2"
                 />
               </label>
+              {selectedPath?.toLowerCase().endsWith('.exe') && (
+                <div className="mt-6">
+                  <WineProfileEditor value={wineProfile} onChange={setWineProfile} />
+                </div>
+              )}
               <div className="mt-6 flex flex-wrap gap-3">
                 <Focusable
                   focusId="add-save"
                   group="add-details"
                   order={0}
-                  disabled={busy || !title.trim()}
+                  disabled={
+                    busy ||
+                    !title.trim() ||
+                    (selectedPath?.toLowerCase().endsWith('.exe') &&
+                      !wineProfile.runtimePath)
+                  }
                   onClick={() => void saveManual()}
                   className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
                 >
@@ -382,9 +402,12 @@ function launchFromPath(
   }
   if (ext === 'exe') {
     return {
-      provider: 'gamehub',
+      provider: 'manual',
       platform: 'windows',
-      launchConfig: { type: 'open-file', filePath: path },
+      launchConfig: {
+        type: 'wine',
+        profile: { executable: path, runtimePath: '', arguments: [], environment: {} },
+      },
     }
   }
   return {

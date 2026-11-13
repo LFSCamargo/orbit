@@ -26,10 +26,15 @@ test('translucent panels and controls share Liquid Glass without SVG refraction'
   await page.getByRole('button', { name: 'Search', exact: true }).click()
   await expect(page.getByPlaceholder('Find a game…')).toHaveClass(/orbit-glass-control/)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.locator('.settings-tabs')).toHaveAttribute(
+    'data-glass-surface',
+    'panel',
+  )
   await expect(page.locator('.settings-content')).toHaveAttribute(
     'data-glass-surface',
     'panel',
   )
+  await expect(page.locator('.settings-content')).toHaveCSS('backdrop-filter', /blur/)
   await expect(page.locator('.settings-content svg filter')).toHaveCount(0)
 })
 

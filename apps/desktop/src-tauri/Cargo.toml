@@ -36,7 +36,11 @@ walkdir = "2"
 async-trait = "0.1"
 tokio = { version = "1", features = ["sync", "time", "rt", "macros", "rt-multi-thread"] }
 parking_lot = "0.12"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], default-features = false }
+sha2 = "0.10"
+tar = "0.4"
+xz2 = "0.1"
+flate2 = "1"
 base64 = "0.22"
 urlencoding = "2"
 dotenvy = "0.15"

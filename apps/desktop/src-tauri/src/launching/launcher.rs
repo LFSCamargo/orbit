@@ -16,6 +16,9 @@ use crate::utils::paths::resolve_switch_base_launch_path;
 /// Pure launch decision from config + provider (no process spawn).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LaunchStrategy {
+    Wine {
+        profile: crate::runtimes::WineProfile,
+    },
     SteamUrl {
         url: String,
     },
@@ -54,6 +57,9 @@ pub fn resolve_launch_strategy(
     provider: GameProvider,
 ) -> LaunchStrategy {
     match config {
+        LaunchConfiguration::Wine { profile } => LaunchStrategy::Wine {
+            profile: profile.clone(),
+        },
         LaunchConfiguration::Gamehub {
             gamehub_app_path,
             shortcut_app_path,
@@ -78,6 +84,9 @@ pub fn resolve_launch_strategy(
 
 fn resolve_config_strategy(config: &LaunchConfiguration) -> LaunchStrategy {
     match config {
+        LaunchConfiguration::Wine { profile } => LaunchStrategy::Wine {
+            profile: profile.clone(),
+        },
         LaunchConfiguration::Steam { app_id } => LaunchStrategy::SteamUrl {
             url: format!("steam://rungameid/{app_id}"),
         },
@@ -153,6 +162,7 @@ pub fn launch_configuration(
     provider: GameProvider,
 ) -> Result<()> {
     match config {
+        LaunchConfiguration::Wine { .. } => bail!("Wine requires an owned runtime session"),
         LaunchConfiguration::OpenFile {
             file_path,
             application_path,

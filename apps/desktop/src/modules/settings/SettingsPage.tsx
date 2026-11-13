@@ -1,5 +1,18 @@
+import './settings.css'
+import { AnimatedSettingsNav } from '@/components/ui/animated-settings-nav'
+import { CompatibilityGlobalSettings } from './components/CompatibilityGlobalSettings'
+import { RuntimeSettings } from './components/RuntimeSettings'
 import type { ReactNode } from 'react'
-import { LayoutGrid, Library, Palette, Clock, Plus, Play, ArrowRight } from 'lucide-react'
+import {
+  LayoutGrid,
+  Library,
+  Palette,
+  Clock,
+  Plus,
+  Play,
+  ArrowRight,
+  Monitor,
+} from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
 import { useFullscreen } from '@/hooks/useFullscreen'
@@ -17,6 +30,8 @@ const TABS: { id: SettingsTab; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'general', label: 'General', icon: LayoutGrid },
   { id: 'themes', label: 'Themes', icon: Palette },
   { id: 'library', label: 'Library', icon: Library },
+  { id: 'graphics', label: 'Game graphics', icon: Monitor },
+  { id: 'runtimes', label: 'Compatibility', icon: Play },
 ]
 
 function formatPlaytime(seconds: number): string {
@@ -34,34 +49,29 @@ export function SettingsPage() {
     <ThemePage title="Settings" subtitle="Preferences, themes, and library management.">
       <div className="settings-layout">
         <LiquidGlass className="settings-tabs" radius={24}>
-          <nav aria-label="Settings sections">
-            {TABS.map(({ id, label, icon: Icon }, index) => (
-              <Focusable
-                key={id}
-                focusId={`settings-tab-${id}`}
-                group="settings-nav"
-                order={index}
-                noScale
-                noRing
-                aria-pressed={activeTab === id}
-                onClick={() => setActiveTab(id)}
-                className={`settings-tab orbit-glass-control w-full text-left ${activeTab === id ? 'settings-tab-active' : ''}`}
-              >
-                <Icon size={16} />
-                {label}
-              </Focusable>
-            ))}
-          </nav>
+          <div>
+            <header className="settings-nav-heading">
+              <p>MAKE IT YOURS</p>
+              <h1>Settings</h1>
+            </header>
+            <AnimatedSettingsNav items={TABS} value={activeTab} onChange={setActiveTab} />
+          </div>
+          <p className="settings-nav-caption">Your games. Your setup.</p>
         </LiquidGlass>
 
         <LiquidGlass className="settings-content" radius={24}>
-          <main className="settings-content-scroll" aria-live="polite">
+          <main className="settings-content-scroll">
+            <p className="settings-breadcrumb">
+              SETTINGS / {TABS.find((tab) => tab.id === activeTab)?.label.toUpperCase()}
+            </p>
             {activeTab === 'general' && (
               <div className="settings-view" data-testid="settings-general-view">
                 <section className="settings-panel">
                   <div className="settings-panel-header">
-                    <LayoutGrid size={18} />
-                    <h2>General</h2>
+                    <div className="settings-panel-title">
+                      <LayoutGrid size={20} />
+                      <h2>General</h2>
+                    </div>
                   </div>
                   <SettingsCard>
                     <div className="settings-row">
@@ -87,8 +97,10 @@ export function SettingsPage() {
                 </section>
                 <section className="settings-panel">
                   <div className="settings-panel-header">
-                    <LayoutGrid size={18} />
-                    <h2>Metadata & artwork</h2>
+                    <div className="settings-panel-title">
+                      <LayoutGrid size={20} />
+                      <h2>Metadata & artwork</h2>
+                    </div>
                   </div>
                   <SettingsCard>
                     <ApiKeySettings />
@@ -97,11 +109,28 @@ export function SettingsPage() {
               </div>
             )}
 
+            {activeTab === 'graphics' && (
+              <section className="settings-panel">
+                <div className="settings-panel-header">
+                  <div className="settings-panel-title">
+                    <Monitor size={20} />
+                    <h2>Default game graphics</h2>
+                  </div>
+                  <p>One starting point for all your Windows games.</p>
+                </div>
+                <CompatibilityGlobalSettings />
+              </section>
+            )}
+
+            {activeTab === 'runtimes' && <RuntimeSettings />}
+
             {activeTab === 'themes' && (
               <section className="settings-panel" data-testid="settings-themes-view">
                 <div className="settings-panel-header">
-                  <Palette size={18} />
-                  <h2>Themes</h2>
+                  <div className="settings-panel-title">
+                    <Palette size={20} />
+                    <h2>Themes</h2>
+                  </div>
                 </div>
                 <SettingsCard>
                   <ThemeSettings />
@@ -113,8 +142,10 @@ export function SettingsPage() {
               <div className="settings-view" data-testid="settings-library-view">
                 <section className="settings-panel">
                   <div className="settings-panel-header">
-                    <Library size={18} />
-                    <h2>Library</h2>
+                    <div className="settings-panel-title">
+                      <Library size={20} />
+                      <h2>Library</h2>
+                    </div>
                   </div>
                   <SettingsCard>
                     <ImportsSection />

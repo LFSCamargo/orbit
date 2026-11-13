@@ -1,3 +1,4 @@
+import { useUiStore } from '@/stores/ui.store'
 import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import type { GameSession } from '@/types/game'
@@ -28,7 +29,7 @@ export function useSessionEvents() {
       )
       unlisteners.push(
         await listen<{ message: string }>('game-session-error', (event) => {
-          console.error('Game session error:', event.payload.message)
+          useUiStore.getState().setImportToast(event.payload.message)
           void queryClient.invalidateQueries({ queryKey: ['active-session'] })
         }),
       )

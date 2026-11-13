@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { AppScreen, LibraryFilters } from '@/types/game'
 
-export type SettingsTab = 'general' | 'themes' | 'library'
+export type SettingsTab = 'general' | 'themes' | 'library' | 'runtimes' | 'graphics'
 
 interface UiState {
   screen: AppScreen

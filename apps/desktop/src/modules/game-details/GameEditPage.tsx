@@ -1,3 +1,5 @@
+import { WineProfileEditor } from '@/components/runtime/WineProfileEditor'
+import type { WineProfile } from '@/types/runtime'
 import { useEffect, useState } from 'react'
 import { open } from '@/lib/dialog'
 import { motion } from 'framer-motion'
@@ -33,6 +35,7 @@ export function GameEditPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [launchPath, setLaunchPath] = useState('')
+  const [wineProfile, setWineProfile] = useState<WineProfile | null>(null)
   const [cover, setCover] = useState<string | undefined>()
   const [hero, setHero] = useState<string | undefined>()
   const [icon, setIcon] = useState<string | undefined>()
@@ -42,6 +45,7 @@ export function GameEditPage() {
 
   useEffect(() => {
     if (!game) return
+    setWineProfile(game.launchConfig.type === 'wine' ? game.launchConfig.profile : null)
     setTitle(game.title)
     setDescription(game.description ?? '')
     setLaunchPath(getEditableLaunchPath(game.launchConfig) ?? '')
@@ -143,7 +147,9 @@ export function GameEditPage() {
           title: title.trim() || game.title,
           description: description.trim() || undefined,
           artwork,
-          launchConfig,
+          launchConfig: wineProfile
+            ? { type: 'wine', profile: { ...wineProfile, executable: trimmedPath } }
+            : launchConfig,
         },
       })
       setMessage('Saved — artwork cached locally for your library.')
@@ -225,6 +231,11 @@ export function GameEditPage() {
             </div>
           )}
 
+          {wineProfile && (
+            <div className="orbit-panel rounded-theme p-6">
+              <WineProfileEditor value={wineProfile} onChange={setWineProfile} />
+            </div>
+          )}
           <div className="flex flex-wrap gap-3">
             <Focusable
               focusId="edit-back"

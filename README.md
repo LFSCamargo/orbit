@@ -157,3 +157,12 @@ ROM downloads/decryption, keys management, emulator distribution, Steam account 
 Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass).
 
 GameHub library, background mode, and installation boundaries: [docs/GAMEHUB.md](docs/GAMEHUB.md).
+
+### Windows games through Wine (Phase 1)
+
+Register an installed Wine distribution in **Settings → Runtimes**, then use
+**Add game → Single file** to select a Windows `.exe`. Orbit prepares a dedicated
+environment on first Play and monitors/stops it through the existing session UI.
+Native and emulator workflows are unchanged. Runtime downloads, graphics-layer
+installation and storefront installation are not included in this first slice.
+See [runtime setup and validation](docs/RUNTIMES.md).

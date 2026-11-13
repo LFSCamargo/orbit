@@ -1,3 +1,5 @@
+import { RuntimeDiagnostics } from './components/RuntimeDiagnostics'
+import { cancelGameLaunch } from '@/lib/tauri'
 import { useState } from 'react'
 import {
   ArrowUpRight,
@@ -101,7 +103,9 @@ export function GameDetailsPage() {
               {busy
                 ? running
                   ? 'Finishing…'
-                  : 'Launching…'
+                  : game.launchConfig.type === 'wine'
+                    ? 'Preparing Windows game…'
+                    : 'Launching…'
                 : running
                   ? game.provider === 'gamehub'
                     ? 'End tracking'
@@ -129,6 +133,22 @@ export function GameDetailsPage() {
       </DetailsHero>
       <div className="details-content">
         <MetaGrid game={game} />
+        {game.launchConfig.type === 'wine' && (
+          <>
+            {launch.isPending && (
+              <Focusable
+                focusId="runtime-cancel"
+                group="details-actions"
+                order={11}
+                onClick={() => void cancelGameLaunch()}
+                className="details-secondary orbit-glass-control"
+              >
+                Cancel launch
+              </Focusable>
+            )}
+            <RuntimeDiagnostics gameId={game.id} />
+          </>
+        )}
         {error && (
           <p role="alert" className="details-error orbit-glass-control">
             {String(error)}

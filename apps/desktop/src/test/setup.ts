@@ -4,3 +4,11 @@ import '@testing-library/jest-dom/vitest'
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {}
 }
+
+// Radix measures its hidden form inputs; jsdom has no layout engine.
+class TestResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver = TestResizeObserver

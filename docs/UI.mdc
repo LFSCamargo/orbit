@@ -288,3 +288,15 @@ title wrapping or selection state. Logos use containment; heroes use cover.
 Native preview generation trims transparent logo padding before GPU scaling.
 
 Bundled display assets and previews use WebP. Logos are alpha-trimmed and capped at 1024×512; wallpaper resolution is preserved up to 3840×2160. Custom image preparation runs on a Rust worker before download caching or saving.
+
+## Windows compatibility
+
+The existing Settings rail includes Runtimes. Add game → Single file keeps its
+current steps and shows Wine selection for `.exe` files. Edit properties reuses
+that editor. Advanced arguments/diagnostics stay collapsed by default. Game details
+keeps the existing Play/Stop controls, shows preparation text and cancellation,
+and offers Compatibility diagnostics. See [RUNTIMES.md](RUNTIMES.md).
+
+### Settings usability and download feedback
+
+Settings uses a dedicated, responsive navigation rail and readable content surface. The rail retains restrained LiquidGlass; the main form uses an opaque theme surface. Aceternity's shared-layout active indicator respects reduced motion. shadcn/Radix switches provide labeled keyboard-operable graphics toggles. Game graphics has sectioned controls and a sticky Save/Discard bar; unsaved drafts survive section navigation for the app session. Compatibility lists icon-led component/version rows with installed status and size. Native download events drive determinate transfer progress; preparation and installation are indeterminate. Failures expose retry without reporting a completed install. Unmanaged catalog versions are explicitly browse-only.

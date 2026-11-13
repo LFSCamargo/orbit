@@ -11,6 +11,7 @@ pub fn screen_watcher_process_names(
     provider: GameProvider,
 ) -> Vec<String> {
     match config {
+        LaunchConfiguration::Wine { .. } => Vec::new(),
         LaunchConfiguration::Gamehub { .. } => {
             vec![crate::launching::gamehub_readiness::GAMEHUB_PROCESS_NAME.into()]
         }

@@ -251,3 +251,121 @@ export function prepareThemePreviews(
   channel.onmessage = onPreview
   return run('prepare_theme_previews', { onPreview: channel })
 }
+
+export async function windowsCompatibility(): Promise<
+  import('@/types/runtime').CompatibilityStatus
+> {
+  return run('windows_compatibility')
+}
+
+export async function installWindowsCompatibility(
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<import('@/types/runtime').WineInstallation> {
+  if (!isTauriRuntime()) return run('install_windows_compatibility')
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('install_windows_compatibility', { onProgress: channel })
+}
+
+export async function installComponent(
+  spec: import('@/types/runtime').ComponentSpec,
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<import('@/types/runtime').InstalledComponent> {
+  if (!isTauriRuntime()) return run('install_component', { spec })
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('install_component', { spec, onProgress: channel })
+}
+
+export async function getComponentStatus(): Promise<
+  import('@/types/runtime').InstalledComponent[]
+> {
+  return run('component_status')
+}
+
+export async function getActiveComponents(): Promise<
+  import('@/types/runtime').ActiveComponents
+> {
+  return run('active_components')
+}
+
+export async function setActiveComponent(
+  component: string,
+  version: string,
+): Promise<import('@/types/runtime').ActiveComponents> {
+  return run('set_active_component', { component, version })
+}
+
+export async function getComponentViews(): Promise<Record<string, string>> {
+  return run('component_views')
+}
+
+export async function setComponentView(
+  group: string,
+  key: string,
+): Promise<Record<string, string>> {
+  return run('set_component_view', { group, key })
+}
+
+export async function installGptkViaHomebrew(
+  formula: import('@/types/runtime').GptkFormula,
+  onProgress: (message: string) => void,
+): Promise<import('@/types/runtime').InstalledComponent> {
+  if (!isTauriRuntime()) return run('install_gptk_via_homebrew', { formula })
+  const channel = new Channel<string>()
+  channel.onmessage = onProgress
+  return run('install_gptk_via_homebrew', { formula, onProgress: channel })
+}
+
+export async function installLocalGptkPackage(
+  path: string,
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<import('@/types/runtime').InstalledComponent> {
+  if (!isTauriRuntime()) return run('install_local_gptk_package', { path })
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('install_local_gptk_package', { path, onProgress: channel })
+}
+
+export async function registerComponentPath(
+  id: string,
+  version: string,
+  path: string,
+): Promise<import('@/types/runtime').InstalledComponent> {
+  return run('register_component_path', { id, version, path })
+}
+
+export async function getCompatibilityCatalog(
+  forceRefresh = false,
+): Promise<import('@/types/runtime').CompatibilityCatalog> {
+  return run('compatibility_catalog', { forceRefresh })
+}
+
+export async function getCompatibilitySettings(): Promise<
+  import('@/types/runtime').CompatibilitySettings
+> {
+  return run('compatibility_settings')
+}
+
+export async function updateCompatibilitySettings(
+  settings: import('@/types/runtime').CompatibilitySettings,
+): Promise<import('@/types/runtime').CompatibilitySettings> {
+  return run('update_compatibility_settings', { settings })
+}
+
+export async function detectRuntimes(): Promise<
+  import('@/types/runtime').WineInstallation[]
+> {
+  return run('detect_runtimes')
+}
+export async function registerWineRuntime(
+  path: string,
+): Promise<import('@/types/runtime').WineInstallation> {
+  return run('register_wine_runtime', { path })
+}
+export async function runtimeDiagnostics(gameId: string): Promise<string> {
+  return run('runtime_diagnostics', { gameId })
+}
+export async function cancelGameLaunch(): Promise<void> {
+  return run('cancel_game_launch')
+}

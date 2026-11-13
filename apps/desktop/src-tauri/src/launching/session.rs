@@ -10,22 +10,34 @@ use crate::launching::{
     is_process_running, launch_game, list_process_pids_by_name, terminate_pid, LaunchContext,
 };
 use crate::models::{Game, GameProvider, GameSession, SessionStopReason};
+use crate::runtimes::{RuntimeAdapter, RuntimeProcess};
 use crate::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct SessionManager {
     active: Mutex<Option<TrackedSession>>,
+    launching: AtomicBool,
+    cancel: AtomicBool,
 }
 
 struct TrackedSession {
     session: GameSession,
     preexisting_pids: Vec<u32>,
+    runtime: Option<Box<dyn RuntimeProcess>>,
+    stopping: bool,
 }
 
 impl SessionManager {
     pub fn new() -> Self {
         Self {
             active: Mutex::new(None),
+            launching: AtomicBool::new(false),
+            cancel: AtomicBool::new(false),
         }
+    }
+
+    pub fn is_launching(&self) -> bool {
+        self.launching.load(Ordering::SeqCst)
     }
 
     pub fn get_active(&self) -> Option<GameSession> {
@@ -41,6 +53,21 @@ impl SessionManager {
         repo: &GameRepository,
         game: &Game,
     ) -> Result<GameSession> {
+        if self
+            .launching
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            bail!("A game launch is already in progress");
+        }
+        struct Reservation<'a>(&'a AtomicBool);
+        impl Drop for Reservation<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let _reservation = Reservation(&self.launching);
+        self.cancel.store(false, Ordering::SeqCst);
         if self.active.lock().is_some() {
             bail!("A game session is already active");
         }
@@ -53,16 +80,36 @@ impl SessionManager {
 
         let ctx = LaunchContext::from_app(app);
 
-        if let Err(error) = launch_game(game, &ctx) {
-            let _ = app.emit(
-                "game-session-error",
-                serde_json::json!({ "message": error.to_string() }),
-            );
-            // Do not count failed launches as play sessions.
-            return Err(error);
+        let result = match &game.launch_config {
+            crate::models::LaunchConfiguration::Wine { profile } => {
+                let _ = app.emit("runtime-setup-progress", serde_json::json!({"gameId":game.id,"message":"Preparing Windows environment…"}));
+                let resolved = crate::runtimes::settings::resolve_profile(repo, profile)?;
+                crate::runtimes::wine::WineAdapter
+                    .launch(&resolved, &game.id, &crate::runtimes::root(), &self.cancel)
+                    .map(Some)
+            }
+            _ => launch_game(game, &ctx).map(|_| None),
+        };
+        let mut runtime = match result {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let _ = app.emit(
+                    "game-session-error",
+                    serde_json::json!({ "message": format!("{error:#}") }),
+                );
+                return Err(error);
+            }
+        };
+        if runtime.is_some() && self.cancel.load(Ordering::SeqCst) {
+            if let Some(handle) = runtime.as_mut() {
+                handle.stop()?;
+            }
+            bail!("Launch cancelled");
         }
-
-        let pid = detect_new_pid(&game.provider, &preexisting_pids);
+        let pid = runtime
+            .as_ref()
+            .map(|handle| handle.pid())
+            .or_else(|| detect_new_pid(&game.provider, &preexisting_pids));
 
         let session = GameSession {
             id: Uuid::new_v4().to_string(),
@@ -80,14 +127,20 @@ impl SessionManager {
         *self.active.lock() = Some(TrackedSession {
             session: session.clone(),
             preexisting_pids,
+            runtime,
+            stopping: false,
         });
 
         let _ = app.emit("game-session-started", &session);
-        defer_minimize_orbit(app.clone());
+        defer_minimize_orbit(app.clone(), session.id.clone());
 
         spawn_monitor(app.clone(), session.id.clone());
 
         Ok(session)
+    }
+
+    pub fn cancel_launch(&self) {
+        self.cancel.store(true, Ordering::SeqCst);
     }
 
     pub fn stop_game(
@@ -96,22 +149,43 @@ impl SessionManager {
         repo: &GameRepository,
         session_id: &str,
     ) -> Result<GameSession> {
-        let tracked = {
+        // Move the owned handle out while stopping; do not hold the active-session
+        // mutex during potentially slow Wine shutdown (UI queries need that lock).
+        let (mut runtime, legacy_pid) = {
             let mut guard = self.active.lock();
             let current = guard
-                .as_ref()
+                .as_mut()
                 .ok_or_else(|| anyhow::anyhow!("No active session"))?;
             if current.session.id != session_id {
                 bail!("Session mismatch");
             }
-            guard.take().unwrap()
+            if current.stopping {
+                bail!("Game shutdown is already in progress");
+            }
+            current.stopping = true;
+            let legacy_pid = if current.runtime.is_none() {
+                termination_target(&current.session)
+            } else {
+                None
+            };
+            (current.runtime.take(), legacy_pid)
         };
-
-        // GameHub owns its game processes. Its PID is the shared host, not the
-        // selected game; ending tracking must never kill it or its downloads.
-        if let Some(pid) = termination_target(&tracked.session) {
+        if let Some(handle) = runtime.as_mut() {
+            if let Err(error) = handle.stop() {
+                if let Some(current) = self.active.lock().as_mut() {
+                    current.runtime = runtime;
+                    current.stopping = false;
+                }
+                return Err(error);
+            }
+        } else if let Some(pid) = legacy_pid {
             let _ = terminate_pid(pid);
         }
+        let tracked = self
+            .active
+            .lock()
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("No active session"))?;
 
         let ended = finalize_session(tracked.session, SessionStopReason::UserStopped, None);
         repo.record_play_end(&ended)?;
@@ -120,18 +194,26 @@ impl SessionManager {
         Ok(ended)
     }
 
-    pub fn on_process_exit(&self, app: &AppHandle, repo: &GameRepository, session_id: &str) {
+    pub fn on_process_exit(
+        &self,
+        app: &AppHandle,
+        repo: &GameRepository,
+        session_id: &str,
+        exit_code: Option<i32>,
+    ) {
         let tracked = {
             let mut guard = self.active.lock();
             match guard.as_ref() {
-                Some(current) if current.session.id == session_id => guard.take(),
+                Some(current) if current.session.id == session_id && !current.stopping => {
+                    guard.take()
+                }
                 _ => None,
             }
         };
 
         if let Some(tracked) = tracked {
             let ended =
-                finalize_session(tracked.session, SessionStopReason::ProcessExited, Some(0));
+                finalize_session(tracked.session, SessionStopReason::ProcessExited, exit_code);
             let _ = repo.record_play_end(&ended);
             let _ = app.emit("game-session-ended", &ended);
             show_orbit(app);
@@ -176,9 +258,17 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
         .or_else(|| preexisting.first().copied())
 }
 
-fn defer_minimize_orbit(app: AppHandle) {
+fn defer_minimize_orbit(app: AppHandle, session_id: String) {
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(1600));
+        if !app
+            .state::<AppState>()
+            .sessions
+            .get_active()
+            .is_some_and(|s| s.id == session_id)
+        {
+            return;
+        }
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.minimize();
         }
@@ -205,6 +295,40 @@ fn spawn_monitor(app: AppHandle, session_id: String) {
             break;
         }
 
+        let (stopping, runtime_status) = {
+            let mut guard = state.sessions.active.lock();
+            match guard.as_mut().filter(|t| t.session.id == session_id) {
+                Some(tracked) if !tracked.stopping => (
+                    false,
+                    tracked.runtime.as_mut().map(|runtime| runtime.poll()),
+                ),
+                _ => (true, None),
+            }
+        };
+        if stopping {
+            continue;
+        }
+        if let Some(status) = runtime_status {
+            match status {
+                Ok(Some(code)) => {
+                    state
+                        .sessions
+                        .on_process_exit(&app, &state.repo, &session_id, Some(code));
+                    if code != 0 {
+                        let _ = app.emit("game-session-error", serde_json::json!({"message":format!("Windows game exited with code {code}. Open Compatibility diagnostics for details.")}));
+                    }
+                    break;
+                }
+                Ok(None) => continue,
+                Err(error) => {
+                    let _ = app.emit(
+                        "game-session-error",
+                        serde_json::json!({"message":error.to_string()}),
+                    );
+                    continue;
+                }
+            }
+        }
         let running = match session.pid {
             Some(pid) => is_process_running(pid),
             None => {
@@ -223,7 +347,7 @@ fn spawn_monitor(app: AppHandle, session_id: String) {
         if !running {
             state
                 .sessions
-                .on_process_exit(&app, &state.repo, &session_id);
+                .on_process_exit(&app, &state.repo, &session_id, None);
             break;
         }
     });

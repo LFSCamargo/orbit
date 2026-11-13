@@ -4,33 +4,39 @@ use crate::models::GameSession;
 use crate::AppState;
 
 #[tauri::command]
-pub fn launch_game(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    game_id: String,
-) -> Result<GameSession, String> {
-    let game = state
-        .repo
-        .get_game(&game_id)
-        .map_err(|err| err.to_string())?
-        .ok_or_else(|| "Game not found".to_string())?;
-
-    state
-        .sessions
-        .launch_game(&app, &state.repo, &game)
-        .map_err(|err| err.to_string())
+pub async fn launch_game(app: AppHandle, game_id: String) -> Result<GameSession, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let state = app.state::<AppState>();
+        let game = state
+            .repo
+            .get_game(&game_id)
+            .map_err(|e| e.to_string())?
+            .ok_or("Game not found")?;
+        state
+            .sessions
+            .launch_game(&app, &state.repo, &game)
+            .map_err(|e| format!("{e:#}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
-
 #[tauri::command]
-pub fn stop_game(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    session_id: String,
-) -> Result<GameSession, String> {
-    state
-        .sessions
-        .stop_game(&app, &state.repo, &session_id)
-        .map_err(|err| err.to_string())
+pub async fn stop_game(app: AppHandle, session_id: String) -> Result<GameSession, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let state = app.state::<AppState>();
+        state
+            .sessions
+            .stop_game(&app, &state.repo, &session_id)
+            .map_err(|e| format!("{e:#}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+pub fn cancel_game_launch(state: State<'_, AppState>) {
+    state.sessions.cancel_launch();
 }
 
 #[tauri::command]

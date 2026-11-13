@@ -67,6 +67,9 @@ impl GamePlatform {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum LaunchConfiguration {
+    Wine {
+        profile: crate::runtimes::WineProfile,
+    },
     OpenFile {
         #[serde(rename = "filePath")]
         file_path: String,

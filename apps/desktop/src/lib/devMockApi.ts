@@ -168,6 +168,208 @@ export async function mockInvoke<T>(
       const gameId = args?.gameId as string
       return (games.find((g) => g.id === gameId) ?? null) as T
     }
+    case 'windows_compatibility':
+      return {
+        supported: true,
+        managed: null,
+        package: { version: '11.0.1', downloadBytes: 185_303_032 },
+      } as T
+    case 'install_windows_compatibility':
+      throw new Error('Managed downloads require the Orbit desktop app.')
+    case 'compatibility_catalog':
+      return {
+        fetchedAt: new Date().toISOString(),
+        warnings: [],
+        components: (
+          [
+            ['wine-stable', 'Wine Stable', 'Wine', ['11.0_1', '10.0_3'], true],
+            ['wine-devel', 'Wine Development', 'Wine', ['11.7', '11.6_1'], true],
+            ['wine-staging', 'Wine Staging', 'Wine', ['11.7', '11.6_1'], true],
+            [
+              'dxvk',
+              'DirectX 10/11 graphics',
+              'DXVK-macOS',
+              ['v1.10.3-20230507-repack'],
+              true,
+            ],
+            ['dxmt', 'DirectX 11 graphics', 'DXMT', ['v0.80', 'v0.74', 'v0.73'], true],
+            ['moltenvk', 'Vulkan on Metal', 'MoltenVK', ['v1.4.2', 'v1.4.1-rc1'], true],
+            [
+              'gptk',
+              'DirectX 11/12 graphics',
+              'Apple GPTK',
+              [
+                'Game-Porting-Toolkit-3.0-3',
+                'Game-Porting-Toolkit-3.0-beta4',
+                'Game-Porting-Toolkit-2.1',
+                'Game-Porting-Toolkit-1.1',
+              ],
+              false,
+            ],
+          ] as const
+        ).map(([id, name, technology, versions, downloadable]) => ({
+          id,
+          name,
+          technology,
+          sourceUrl: 'https://github.com',
+          distribution:
+            id === 'gptk'
+              ? 'Community packages · Apple license required'
+              : 'Official builds',
+          downloadable: id === 'gptk' ? true : downloadable,
+          versions:
+            id === 'gptk'
+              ? [
+                  {
+                    version: '1.1 · Apple official via Homebrew',
+                    prerelease: false,
+                    asset: { name: '', url: '', size: 0, sha256: null },
+                    homebrewFormula: {
+                      tap: 'apple/apple',
+                      name: 'game-porting-toolkit',
+                      version: '1.1',
+                      fullName: 'apple/apple/game-porting-toolkit',
+                    },
+                    localPackage: null,
+                  },
+                  ...versions.map((tag) => ({
+                    version: tag,
+                    prerelease: tag.toLowerCase().includes('beta'),
+                    asset: {
+                      name: `${tag.toLowerCase()}.tar.xz`,
+                      url: 'https://github.com',
+                      size: 239_200_808,
+                      sha256: null,
+                    },
+                    homebrewFormula: null,
+                    localPackage: null,
+                  })),
+                  {
+                    version: '4.0 beta 3 · Apple download (evaluation)',
+                    prerelease: true,
+                    asset: {
+                      name: 'Evaluation_environment_for_Windows_games_4.0_beta_3.dmg',
+                      url: '',
+                      size: 26_630_502,
+                      sha256: null,
+                    },
+                    homebrewFormula: null,
+                    localPackage: {
+                      path: '/Users/demo/Downloads/Evaluation_environment_for_Windows_games_4.0_beta_3.dmg',
+                      file: 'Evaluation_environment_for_Windows_games_4.0_beta_3.dmg',
+                      version: '4.0 beta 3',
+                      kind: 'evaluation',
+                      sizeBytes: 26_630_502,
+                      digestVerified: true,
+                    },
+                  },
+                  {
+                    version: '4.0 beta 3 · Apple download (complete)',
+                    prerelease: true,
+                    asset: {
+                      name: 'Game_Porting_Toolkit_4.0_beta_3.dmg',
+                      url: '',
+                      size: 104_666_842,
+                      sha256: null,
+                    },
+                    homebrewFormula: null,
+                    localPackage: {
+                      path: '/Users/demo/Downloads/Game_Porting_Toolkit_4.0_beta_3.dmg',
+                      file: 'Game_Porting_Toolkit_4.0_beta_3.dmg',
+                      version: '4.0 beta 3',
+                      kind: 'complete',
+                      sizeBytes: 104_666_842,
+                      digestVerified: true,
+                    },
+                  },
+                ]
+              : versions.map((version) => ({
+                  version,
+                  prerelease:
+                    version.toLowerCase().includes('beta') || version.includes('rc'),
+                  asset: {
+                    name: `${id}-${version}.tar.gz`,
+                    url: 'https://github.com',
+                    size: 1_000_000,
+                    sha256: null,
+                  },
+                  homebrewFormula: null,
+                  localPackage: null,
+                })),
+        })),
+      } as T
+    case 'install_component':
+      throw new Error('Managed downloads require the Orbit desktop app.')
+    case 'component_status':
+      return [] as T
+    case 'active_components':
+      return {
+        ...(settings.get('windows-compatibility-active-components-v1') ?? {}),
+      } as T
+    case 'set_active_component': {
+      const actives = {
+        ...((settings.get('windows-compatibility-active-components-v1') ?? {}) as Record<
+          string,
+          string
+        >),
+        [String(args?.component)]: String(args?.version),
+      }
+      settings.set('windows-compatibility-active-components-v1', actives)
+      return actives as T
+    }
+    case 'component_views':
+      return {
+        ...((settings.get('windows-compatibility-component-views-v1') ?? {}) as Record<
+          string,
+          string
+        >),
+      } as T
+    case 'set_component_view': {
+      const views = {
+        ...((settings.get('windows-compatibility-component-views-v1') ?? {}) as Record<
+          string,
+          string
+        >),
+        [String(args?.group)]: String(args?.key),
+      }
+      settings.set('windows-compatibility-component-views-v1', views)
+      return views as T
+    }
+    case 'install_gptk_via_homebrew':
+      throw new Error('Homebrew installation requires the Orbit desktop app.')
+    case 'install_local_gptk_package':
+      throw new Error('Local Apple package import requires the Orbit desktop app.')
+    case 'register_component_path':
+      throw new Error('Component registration requires the Orbit desktop app.')
+    case 'compatibility_settings':
+      return (settings.get('windows-compatibility-settings-v1') ?? {
+        graphics: 'auto',
+        synchronization: 'default',
+        retinaMode: false,
+        metalHud: false,
+        avx: false,
+        upscaling: false,
+        upscaleRatio: 0,
+        frameGeneration: false,
+        frameGenerationVsync: false,
+        frameRateLimit: null,
+        dxmtNvidiaExtensions: false,
+        resolution: 'auto',
+        resolutionWidth: 1920,
+        resolutionHeight: 1080,
+      }) as T
+    case 'update_compatibility_settings': {
+      settings.set('windows-compatibility-settings-v1', args?.settings)
+      return args?.settings as T
+    }
+    case 'detect_runtimes':
+      return [] as T
+    case 'register_wine_runtime':
+      throw new Error('Runtime detection requires the Orbit desktop app.')
+    case 'runtime_diagnostics':
+      return 'Runtime logs are available in the Orbit desktop app.' as T
+    case 'cancel_game_launch':
+      return undefined as T
     case 'get_active_session':
       return activeSession as T
     case 'get_setting': {
@@ -257,6 +459,8 @@ export async function mockInvoke<T>(
     case 'launch_game': {
       const gameId = args?.gameId as string
       const game = games.find((g) => g.id === gameId)
+      if (game?.launchConfig.type === 'wine')
+        throw new Error('Windows execution requires the Orbit desktop app.')
       activeSession = {
         id: 'mock-session',
         gameId,

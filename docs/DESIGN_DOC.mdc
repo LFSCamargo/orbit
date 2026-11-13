@@ -21,6 +21,30 @@ process logic lives in Rust; the frontend never launches games directly.
 - Track playtime, install size, and achievements locally.
 - One restrained glass console look with a Rust-generated material texture and portable compositor surfaces. Built-in game themes bundle logos and heroes. Theme Studio searches SteamGridDB logos and offers backgrounds from configured game artwork providers. Retired platform and color presets resolve to Liquid Glass. Custom artwork selection is explicit. Missing artwork is reported by the picker. Existing custom files remain on disk; the interface uses Liquid Glass styling.
 
+## Universal gaming: Phase 1
+
+Extend the existing launcher with a local Windows executable workflow. The first slice
+adds installed Wine detection, per-game isolated environments, a persistent typed Wine
+launch profile, bounded diagnostics, cancellable setup and owned process tracking.
+Native, Steam, GameHub shortcut and Astris paths retain their existing behavior.
+Runtime adapters live separately from library providers; a manually imported Windows
+game is `manual` / `windows`, with a `wine` launch configuration.
+
+Implementation sequence and decisions: [RUNTIMES.md](RUNTIMES.md). Managed setup
+now downloads and verifies the pinned macOS Wine distribution inside Orbit, behind
+a native macOS system flag. CrossOver bottles, D3DMetal/DXVK/DXMT provisioning,
+installers and community profiles remain separately tested slices, not implied by
+a working Wine launch. Apple GPTK requires its authenticated package/license flow;
+the app must not pretend an unauthenticated download is available. Phase 4
+storefront/streaming work remains deferred.
+
+Commands: `windows_compatibility`, `install_windows_compatibility`,
+`detect_runtimes`, `register_wine_runtime`, `runtime_diagnostics`,
+`component_views`, `set_component_view`,
+`cancel_game_launch`; existing `create_game`, `update_game`, `launch_game` and
+`stop_game` carry the rest of the workflow. Settings gains Compatibility; Add game →
+Single file supports `.exe`; Edit properties exposes compatibility controls.
+
 ## Functional requirements
 
 - User can browse a **home** screen with hero artwork and recent-game rows.
@@ -229,3 +253,8 @@ artwork is materialized into cached display images and small previews before IPC
 returned themes carry optional runtime-only `preview` paths. Portable theme JSON
 is preserved. Opening Themes reuses the hydrated catalog; the reload action reads
 external edits explicitly.
+
+### Settings redesign
+Settings separates app preferences, appearance, library, default game graphics, and compatibility downloads. Graphics edits remain a session draft across navigation until explicit Save or Discard; only saved values affect launches. Download progress reflects native events and distinguishes preparation, transfer, verification/install, completion and failure. Version discovery does not imply install capability.
+
+Settings refinement: restore the shared LiquidGlass content surface and use grouped icon-led rows. The compatibility catalog combines DXVK, DXMT and GPTK releases into one mutually exclusive graphics-engine version browser; it does not install or activate a backend. Saved graphics defaults continue to select exactly one backend.

@@ -4,9 +4,13 @@ export function hasEditableLaunchPath(
   config: LaunchConfiguration,
 ): config is Extract<
   LaunchConfiguration,
-  { type: 'open-file' } | { type: 'open-application' } | { type: 'gamehub' }
+  | { type: 'wine' }
+  | { type: 'open-file' }
+  | { type: 'open-application' }
+  | { type: 'gamehub' }
 > {
   return (
+    config.type === 'wine' ||
     config.type === 'open-file' ||
     config.type === 'open-application' ||
     config.type === 'gamehub'
@@ -15,6 +19,7 @@ export function hasEditableLaunchPath(
 
 export function getEditableLaunchPath(config: LaunchConfiguration): string | null {
   if (!hasEditableLaunchPath(config)) return null
+  if (config.type === 'wine') return config.profile.executable
   if (config.type === 'gamehub') return config.shortcutAppPath
   return config.type === 'open-file' ? config.filePath : config.applicationPath
 }
@@ -23,6 +28,8 @@ export function setEditableLaunchPath(
   config: LaunchConfiguration,
   path: string,
 ): LaunchConfiguration {
+  if (config.type === 'wine')
+    return { ...config, profile: { ...config.profile, executable: path } }
   if (config.type === 'open-file') {
     return { ...config, filePath: path, applicationPath: undefined }
   }

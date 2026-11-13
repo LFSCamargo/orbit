@@ -6,6 +6,7 @@ mod importers;
 mod launching;
 mod models;
 mod platform;
+mod runtimes;
 mod services;
 mod utils;
 
@@ -44,6 +45,24 @@ pub fn run() {
             sessions: Arc::new(sessions),
         })
         .invoke_handler(tauri::generate_handler![
+            commands::runtimes::windows_compatibility,
+            commands::runtimes::compatibility_catalog,
+            commands::runtimes::compatibility_settings,
+            commands::runtimes::update_compatibility_settings,
+            commands::runtimes::install_windows_compatibility,
+            commands::runtimes::install_component,
+            commands::runtimes::component_status,
+            commands::runtimes::install_gptk_via_homebrew,
+            commands::runtimes::install_local_gptk_package,
+            commands::runtimes::register_component_path,
+            commands::runtimes::active_components,
+            commands::runtimes::set_active_component,
+            commands::runtimes::component_views,
+            commands::runtimes::set_component_view,
+            commands::runtimes::detect_runtimes,
+            commands::runtimes::register_wine_runtime,
+            commands::runtimes::runtime_diagnostics,
+            commands::session::cancel_game_launch,
             commands::games::list_games,
             commands::games::get_game,
             commands::hero::get_hero_lighting,

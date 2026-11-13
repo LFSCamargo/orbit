@@ -3,6 +3,7 @@ export type GameProvider = 'astris' | 'steam' | 'gamehub' | 'native' | 'manual'
 export type GamePlatform = 'nintendo-switch' | 'macos' | 'windows' | 'linux' | 'unknown'
 
 export type LaunchConfiguration =
+  | { type: 'wine'; profile: import('./runtime').WineProfile }
   | {
       type: 'open-file'
       filePath: string
