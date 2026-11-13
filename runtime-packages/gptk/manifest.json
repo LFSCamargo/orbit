@@ -1,0 +1,39 @@
+{
+  "baseUrl": "https://raw.githubusercontent.com/LFSCamargo/orbit/main/runtime-packages/gptk",
+  "packages": [
+    {
+      "id": "4.0-beta-3",
+      "version": "4.0 beta 3",
+      "kind": "complete-toolkit",
+      "file": "Game_Porting_Toolkit_4.0_beta_3.dmg",
+      "size": 104666842,
+      "sha256": "32ce206597e392267574a6c423ef80b9eab8b3c710d8957f011d2b106393b87b"
+    },
+    {
+      "id": "4.0-beta-3-evaluation",
+      "version": "4.0 beta 3",
+      "kind": "evaluation-environment",
+      "file": "Evaluation_environment_for_Windows_games_4.0_beta_3.dmg",
+      "size": 26630502,
+      "sha256": "afa311da371f5b6dd970b45378a3d3df567cc9e535818f56f9b3f9d4c9537c1d",
+      "licenseDirectory": "licenses/Evaluation_environment_for_Windows_games_4.0_beta_3"
+    },
+    {
+      "id": "3.0",
+      "version": "3.0",
+      "kind": "complete-toolkit",
+      "file": "Game_Porting_Toolkit_3.0.dmg",
+      "size": 93534640,
+      "sha256": "ac8f6eeb2b9e5244d4c8eeb5b69b5cec099b560b143a7e5ef413945fc48b0f8f"
+    },
+    {
+      "id": "3.0-evaluation",
+      "version": "3.0",
+      "kind": "evaluation-environment",
+      "file": "Evaluation_environment_for_Windows_games_3.0.dmg",
+      "size": 25006010,
+      "sha256": "d49395fb07e536804d1da0858590e53f6aa6fab12512e18fd80a74c87f9f063c",
+      "licenseDirectory": "licenses/Evaluation_environment_for_Windows_games_3.0"
+    }
+  ]
+}
