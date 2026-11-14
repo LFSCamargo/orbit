@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "orbit"
-version = "1.0.0"
+version = "1.1.0"
 description = "Orbit — controller-first game launcher"
 authors = ["Orbit"]
 edition = "2021"
@@ -45,6 +45,9 @@ base64 = "0.22"
 urlencoding = "2"
 dotenvy = "0.15"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+rsa = { version = "0.9", default-features = false, features = ["std"] }
+rand = "0.8"
 
 [profile.release]
 codegen-units = 1

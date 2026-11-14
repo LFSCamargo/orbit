@@ -1,0 +1,772 @@
+//! Owned Steam library catalog: titles from GetOwnedGames, original store
+//! artwork URLs, and short descriptions. The access token is never stored.
+
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::services::steam_download::valid_app_id;
+use crate::services::steamgrid;
+
+const OWNED_LIMIT: usize = 2 * 1024 * 1024;
+const TITLE_LIMIT: usize = 200;
+const DESCRIPTION_LIMIT: usize = 1_600;
+const THIN_DESCRIPTION: usize = 80;
+const HYDRATE_CONCURRENCY: usize = 4;
+const FRESHNESS_DAYS: i64 = 7;
+const CDN: &str = "https://cdn.akamai.steamstatic.com/steam/apps";
+const STORE_DETAILS: &str = "https://store.steampowered.com/api/appdetails";
+const PROTONDB_SUMMARIES: &str = "https://www.protondb.com/api/v1/reports/summaries";
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SteamCatalogEntry {
+    pub app_id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub cover_url: Option<String>,
+    #[serde(default)]
+    pub hero_url: Option<String>,
+    #[serde(default)]
+    pub last_hydrated_at: Option<String>,
+    #[serde(default)]
+    pub minimum_requirements: Option<String>,
+    #[serde(default)]
+    pub recommended_requirements: Option<String>,
+    #[serde(default)]
+    pub proton_tier: Option<String>,
+}
+
+impl SteamCatalogEntry {
+    pub fn from_app_id(app_id: &str) -> Option<Self> {
+        valid_app_id(app_id).then(|| Self {
+            title: placeholder_title(app_id),
+            app_id: app_id.to_string(),
+            ..Self::default()
+        })
+    }
+}
+
+pub fn placeholder_title(app_id: &str) -> String {
+    format!("Steam {app_id}")
+}
+
+pub fn is_placeholder_title(title: &str, app_id: &str) -> bool {
+    let trimmed = title.trim();
+    trimmed.is_empty() || trimmed == placeholder_title(app_id)
+}
+
+pub fn is_thin_description(description: Option<&str>) -> bool {
+    crate::services::metadata_merge::is_placeholder_description(description)
+        || description
+            .map(|text| text.trim().chars().count() < THIN_DESCRIPTION)
+            .unwrap_or(true)
+}
+
+pub fn is_stale(entry: &SteamCatalogEntry) -> bool {
+    let Some(stamp) = entry.last_hydrated_at.as_deref() else {
+        return true;
+    };
+    let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(stamp) else {
+        return true;
+    };
+    chrono::Utc::now()
+        .signed_duration_since(parsed.with_timezone(&chrono::Utc))
+        .num_days()
+        >= FRESHNESS_DAYS
+}
+
+pub fn needs_metadata(entry: &SteamCatalogEntry, can_fetch_art: bool) -> bool {
+    is_stale(entry)
+        || is_placeholder_title(&entry.title, &entry.app_id)
+        || is_thin_description(entry.description.as_deref())
+        || (can_fetch_art && !has_square_cover(entry))
+}
+
+fn has_square_cover(entry: &SteamCatalogEntry) -> bool {
+    entry
+        .cover_url
+        .as_deref()
+        .is_some_and(steamgrid::sgdb_cdn_url)
+}
+
+pub fn cover_url(app_id: &str) -> String {
+    format!("{CDN}/{app_id}/library_600x900_2x.jpg")
+}
+
+pub fn hero_url(app_id: &str) -> String {
+    format!("{CDN}/{app_id}/library_hero.jpg")
+}
+
+pub fn parse_owned_games(body: &str) -> Result<Vec<SteamCatalogEntry>, String> {
+    if body.len() > OWNED_LIMIT {
+        return Err("Steam library could not be read".into());
+    }
+    let value: Value =
+        serde_json::from_str(body).map_err(|_| "Steam library could not be read".to_string())?;
+    let Some(games) = value
+        .get("response")
+        .and_then(|response| response.get("games"))
+        .and_then(Value::as_array)
+    else {
+        return Ok(Vec::new());
+    };
+    Ok(games
+        .iter()
+        .filter_map(parse_owned_game)
+        .take(2_000)
+        .collect())
+}
+
+pub fn parse_stored_library(value: Option<Value>) -> Vec<SteamCatalogEntry> {
+    let Some(Value::Array(items)) = value else {
+        return Vec::new();
+    };
+    items
+        .into_iter()
+        .filter_map(parse_stored_item)
+        .take(2_000)
+        .collect()
+}
+
+pub fn serialize_library(entries: &[SteamCatalogEntry]) -> Value {
+    json!(entries)
+}
+
+pub fn merge_owned_ids(existing: &[SteamCatalogEntry], ids: &[String]) -> Vec<SteamCatalogEntry> {
+    let by_id: HashMap<&str, &SteamCatalogEntry> = existing
+        .iter()
+        .map(|entry| (entry.app_id.as_str(), entry))
+        .collect();
+    ids.iter()
+        .filter(|id| valid_app_id(id))
+        .take(2_000)
+        .map(|id| {
+            by_id
+                .get(id.as_str())
+                .copied()
+                .cloned()
+                .unwrap_or_else(|| SteamCatalogEntry {
+                    title: placeholder_title(id),
+                    app_id: id.clone(),
+                    ..SteamCatalogEntry::default()
+                })
+        })
+        .collect()
+}
+
+pub fn hydrate_indices(
+    entries: &[SteamCatalogEntry],
+    installed: &HashSet<String>,
+    favorites: &HashSet<String>,
+    can_fetch_art: bool,
+    force: bool,
+) -> Vec<usize> {
+    let mut chosen = Vec::new();
+    let mut seen = HashSet::new();
+    let mut push = |want_installed: bool, want_favorite: bool| {
+        for (index, entry) in entries.iter().enumerate() {
+            if seen.contains(&index) || !(force || needs_metadata(entry, can_fetch_art)) {
+                continue;
+            }
+            let is_installed = installed.contains(&entry.app_id);
+            let is_favorite = favorites.contains(&entry.app_id);
+            if is_installed != want_installed || (!want_installed && is_favorite != want_favorite) {
+                continue;
+            }
+            chosen.push(index);
+            seen.insert(index);
+        }
+    };
+    push(true, false);
+    push(false, true);
+    push(false, false);
+    chosen
+}
+
+struct StorePayload {
+    title: String,
+    description: Option<String>,
+    minimum: Option<String>,
+    recommended: Option<String>,
+}
+
+pub fn apply_store_details(entry: &mut SteamCatalogEntry, value: &Value) -> bool {
+    let Some(payload) = parse_store_payload(&entry.app_id, value) else {
+        return false;
+    };
+    let mut changed = apply_details(entry, Some(payload.title), payload.description);
+    changed |= apply_requirements(entry, payload.minimum, payload.recommended);
+    changed
+}
+
+pub fn parse_store_details(app_id: &str, value: &Value) -> Option<(String, Option<String>)> {
+    parse_store_payload(app_id, value).map(|payload| (payload.title, payload.description))
+}
+
+fn parse_store_payload(app_id: &str, value: &Value) -> Option<StorePayload> {
+    let entry = value.get(app_id)?;
+    if entry.get("success").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    let data = entry.get("data")?;
+    let title = clean_title(app_id, data.get("name").and_then(Value::as_str)?)?;
+    let description = [
+        "about_the_game",
+        "detailed_description",
+        "short_description",
+    ]
+    .iter()
+    .find_map(|field| {
+        data.get(*field)
+            .and_then(Value::as_str)
+            .and_then(clean_html_description)
+    });
+    let (minimum, recommended) = parse_requirements(data);
+    Some(StorePayload {
+        title,
+        description,
+        minimum,
+        recommended,
+    })
+}
+
+fn parse_requirements(data: &Value) -> (Option<String>, Option<String>) {
+    let mac = requirement_pair(data.get("mac_requirements"));
+    if mac.0.is_some() || mac.1.is_some() {
+        return mac;
+    }
+    requirement_pair(data.get("pc_requirements"))
+}
+
+fn requirement_pair(value: Option<&Value>) -> (Option<String>, Option<String>) {
+    let Some(object) = value.filter(|value| value.is_object()) else {
+        return (None, None);
+    };
+    (
+        object
+            .get("minimum")
+            .and_then(Value::as_str)
+            .and_then(clean_html_description),
+        object
+            .get("recommended")
+            .and_then(Value::as_str)
+            .and_then(clean_html_description),
+    )
+}
+
+fn apply_requirements(
+    entry: &mut SteamCatalogEntry,
+    minimum: Option<String>,
+    recommended: Option<String>,
+) -> bool {
+    let mut changed = false;
+    if entry.minimum_requirements.is_none() {
+        if let Some(text) = minimum {
+            entry.minimum_requirements = Some(text);
+            changed = true;
+        }
+    }
+    if entry.recommended_requirements.is_none() {
+        if let Some(text) = recommended {
+            entry.recommended_requirements = Some(text);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn apply_proton_tier(entry: &mut SteamCatalogEntry, tier: String) -> bool {
+    if entry.proton_tier.as_deref() == Some(tier.as_str()) {
+        return false;
+    }
+    entry.proton_tier = Some(tier);
+    true
+}
+
+pub fn parse_proton_tier(value: &Value) -> Option<String> {
+    let tier = value.get("tier").and_then(Value::as_str)?.to_ascii_lowercase();
+    matches!(
+        tier.as_str(),
+        "platinum" | "gold" | "silver" | "bronze" | "borked" | "pending"
+    )
+    .then_some(tier)
+}
+
+pub fn parse_sgdb_title(app_id: &str, value: &Value) -> Option<String> {
+    if value.get("success").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    clean_title(
+        app_id,
+        value
+            .get("data")
+            .and_then(|data| data.get("name"))
+            .and_then(Value::as_str)?,
+    )
+}
+
+/// Fill missing titles, longer store copy, and square SteamGridDB covers for
+/// every owned title that still needs copy or is older than seven days.
+/// Installed, then favorites, then the rest, in batches of 4.
+pub async fn hydrate(
+    entries: &mut [SteamCatalogEntry],
+    sgdb_key: Option<&str>,
+    installed: &HashSet<String>,
+    favorites: &HashSet<String>,
+    force: bool,
+) -> bool {
+    let can_fetch_art = sgdb_key.is_some();
+    let targets = hydrate_indices(entries, installed, favorites, can_fetch_art, force);
+    if targets.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    let mut sgdb_usable = can_fetch_art;
+    for chunk in targets.chunks(HYDRATE_CONCURRENCY) {
+        let mut set = tokio::task::JoinSet::new();
+        for &index in chunk {
+            let app_id = entries[index].app_id.clone();
+            let key = sgdb_key.map(str::to_string);
+            let need_copy = force
+                || is_placeholder_title(&entries[index].title, &app_id)
+                || is_thin_description(entries[index].description.as_deref());
+            let need_art = sgdb_usable && (force || !has_square_cover(&entries[index]));
+            set.spawn(async move {
+                let store = if need_copy {
+                    Some(fetch_store_catalog(&app_id).await)
+                } else {
+                    None
+                };
+                let proton = if need_copy {
+                    Some(fetch_proton_tier(&app_id).await)
+                } else {
+                    None
+                };
+                let art = if need_art {
+                    match key.as_deref() {
+                        Some(key) => Some(steamgrid::fetch_square_cover(key, &app_id).await),
+                        None => None,
+                    }
+                } else {
+                    None
+                };
+                (index, store, proton, art)
+            });
+        }
+        let mut hits = Vec::with_capacity(chunk.len());
+        while let Some(joined) = set.join_next().await {
+            if let Ok(hit) = joined {
+                hits.push(hit);
+            }
+        }
+        for (index, store, proton, art) in hits {
+            let Some(entry) = entries.get_mut(index) else {
+                continue;
+            };
+            if let Some(Ok(value)) = store {
+                apply_store_details(entry, &value);
+            }
+            if let Some(Ok(tier)) = proton {
+                apply_proton_tier(entry, tier);
+            }
+            match art {
+                Some(Ok(assets)) => {
+                    apply_details(entry, assets.title, None);
+                    if let Some(url) = assets.cover_url {
+                        apply_cover(entry, url);
+                    }
+                }
+                Some(Err(err)) if err.contains("invalid") => sgdb_usable = false,
+                _ => {}
+            }
+            entry.last_hydrated_at = Some(chrono::Utc::now().to_rfc3339());
+            changed = true;
+        }
+    }
+    changed
+}
+
+pub async fn fetch_store_catalog(app_id: &str) -> Result<Value, String> {
+    if !valid_app_id(app_id) {
+        return Err("Invalid Steam app ID".into());
+    }
+    crate::services::http::orbit_client()?
+        .get(STORE_DETAILS)
+        .query(&[("appids", app_id), ("l", "english")])
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await
+        .map_err(|err| err.without_url().to_string())?
+        .error_for_status()
+        .map_err(|err| err.without_url().to_string())?
+        .json()
+        .await
+        .map_err(|err| err.to_string())
+}
+
+async fn fetch_proton_tier(app_id: &str) -> Result<String, String> {
+    if !valid_app_id(app_id) {
+        return Err("Invalid Steam app ID".into());
+    }
+    let value: Value = crate::services::http::orbit_client()?
+        .get(format!("{PROTONDB_SUMMARIES}/{app_id}.json"))
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await
+        .map_err(|err| err.without_url().to_string())?
+        .error_for_status()
+        .map_err(|err| err.without_url().to_string())?
+        .json()
+        .await
+        .map_err(|err| err.to_string())?;
+    parse_proton_tier(&value).ok_or_else(|| "ProtonDB has no summary".into())
+}
+
+fn parse_owned_game(game: &Value) -> Option<SteamCatalogEntry> {
+    let app_id = game.get("appid").and_then(Value::as_u64)?.to_string();
+    if !valid_app_id(&app_id) {
+        return None;
+    }
+    let title = game
+        .get("name")
+        .and_then(Value::as_str)
+        .and_then(|name| clean_title(&app_id, name))
+        .unwrap_or_else(|| placeholder_title(&app_id));
+    Some(SteamCatalogEntry {
+        app_id,
+        title,
+        ..SteamCatalogEntry::default()
+    })
+}
+
+fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
+    match item {
+        Value::String(app_id) => SteamCatalogEntry::from_app_id(&app_id),
+        Value::Number(number) => SteamCatalogEntry::from_app_id(&number.to_string()),
+        Value::Object(_) => {
+            let parsed: SteamCatalogEntry = serde_json::from_value(item).ok()?;
+            let app_id = parsed.app_id;
+            if !valid_app_id(&app_id) {
+                return None;
+            }
+            Some(SteamCatalogEntry {
+                title: clean_title(&app_id, &parsed.title)
+                    .unwrap_or_else(|| placeholder_title(&app_id)),
+                description: parsed
+                    .description
+                    .and_then(|text| clean_html_description(&text)),
+                cover_url: parsed.cover_url.filter(|url| steamgrid::sgdb_cdn_url(url)),
+                hero_url: parsed.hero_url.filter(|url| url.starts_with("https://")),
+                last_hydrated_at: parsed.last_hydrated_at,
+                minimum_requirements: parsed
+                    .minimum_requirements
+                    .and_then(|text| clean_html_description(&text)),
+                recommended_requirements: parsed
+                    .recommended_requirements
+                    .and_then(|text| clean_html_description(&text)),
+                proton_tier: parsed
+                    .proton_tier
+                    .filter(|tier| parse_proton_tier(&json!({ "tier": tier })).is_some()),
+                app_id,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn apply_details(
+    entry: &mut SteamCatalogEntry,
+    title: Option<String>,
+    description: Option<String>,
+) -> bool {
+    let mut changed = false;
+    if let Some(title) = title {
+        if is_placeholder_title(&entry.title, &entry.app_id) && title != entry.title {
+            entry.title = title;
+            changed = true;
+        }
+    }
+    if let Some(description) = description {
+        let incoming = description.chars().count();
+        let current = entry
+            .description
+            .as_deref()
+            .map(|text| text.trim().chars().count())
+            .unwrap_or(0);
+        if is_thin_description(entry.description.as_deref()) && incoming > current {
+            entry.description = Some(description);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn apply_cover(entry: &mut SteamCatalogEntry, url: String) -> bool {
+    if !steamgrid::sgdb_cdn_url(&url) || entry.cover_url.as_deref() == Some(url.as_str()) {
+        return false;
+    }
+    if has_square_cover(entry) {
+        return false;
+    }
+    entry.cover_url = Some(url);
+    true
+}
+
+fn clean_title(app_id: &str, title: &str) -> Option<String> {
+    let trimmed: String = title.trim().chars().take(TITLE_LIMIT).collect();
+    if trimmed.is_empty() || is_placeholder_title(&trimmed, app_id) {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn clean_html_description(text: &str) -> Option<String> {
+    let stripped = strip_html(text);
+    let trimmed: String = stripped.trim().chars().take(DESCRIPTION_LIMIT).collect();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
+fn strip_html(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut in_tag = false;
+    let mut tag = String::new();
+    for character in input.chars() {
+        if character == '<' {
+            in_tag = true;
+            tag.clear();
+            continue;
+        }
+        if character == '>' && in_tag {
+            in_tag = false;
+            let name = tag
+                .trim()
+                .trim_start_matches('/')
+                .split(|c: char| c.is_ascii_whitespace() || c == '/')
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if matches!(
+                name.as_str(),
+                "br" | "p" | "li" | "div" | "h1" | "h2" | "h3"
+            ) {
+                out.push(' ');
+            }
+            continue;
+        }
+        if in_tag {
+            if tag.len() < 32 {
+                tag.push(character);
+            }
+            continue;
+        }
+        out.push(character);
+    }
+    collapse_whitespace(&decode_entities(&out))
+}
+
+fn decode_entities(input: &str) -> String {
+    input
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&rsquo;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+}
+
+fn collapse_whitespace(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut pending_space = false;
+    for character in input.chars() {
+        if character.is_whitespace() {
+            pending_space = true;
+            continue;
+        }
+        if pending_space && !out.is_empty() {
+            out.push(' ');
+        }
+        pending_space = false;
+        out.push(character);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owned_games_keep_steam_titles_from_appinfo() {
+        let games = parse_owned_games(
+            r#"{"response":{"games":[{"appid":550,"name":"Left 4 Dead 2"},{"appid":0},{"name":"skip"},{"appid":730}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(games[0].app_id, "550");
+        assert_eq!(games[0].title, "Left 4 Dead 2");
+        assert_eq!(games[1].app_id, "730");
+        assert_eq!(games[1].title, "Steam 730");
+        assert!(games.iter().all(|game| game.description.is_none()));
+    }
+
+    #[test]
+    fn stored_library_reads_legacy_ids_and_named_objects() {
+        let parsed = parse_stored_library(Some(json!([
+            "550",
+            {"appId": "220", "title": "Half-Life 2", "description": "The right man in the wrong place."},
+            {"appId": "nope", "title": "skip"}
+        ])));
+        assert_eq!(parsed[0].title, "Steam 550");
+        assert_eq!(parsed[1].title, "Half-Life 2");
+        assert_eq!(
+            parsed[1].description.as_deref(),
+            Some("The right man in the wrong place.")
+        );
+        assert_eq!(parsed.len(), 2);
+    }
+
+    #[test]
+    fn merge_keeps_saved_titles_when_local_ids_refresh() {
+        let existing = vec![SteamCatalogEntry {
+            app_id: "550".into(),
+            title: "Left 4 Dead 2".into(),
+            description: Some("Zombies.".into()),
+            cover_url: Some("https://cdn.steamgriddb.com/grid/l4d2.png".into()),
+            ..SteamCatalogEntry::default()
+        }];
+        let merged = merge_owned_ids(&existing, &["550".into(), "8850".into()]);
+        assert_eq!(merged[0].title, "Left 4 Dead 2");
+        assert_eq!(merged[0].description.as_deref(), Some("Zombies."));
+        assert_eq!(
+            merged[0].cover_url.as_deref(),
+            Some("https://cdn.steamgriddb.com/grid/l4d2.png")
+        );
+        assert_eq!(merged[1].title, "Steam 8850");
+    }
+
+    #[test]
+    fn store_details_take_the_official_title_and_short_description() {
+        let value = json!({
+            "550": {
+                "success": true,
+                "data": {
+                    "name": "Left 4 Dead 2",
+                    "short_description": "Too short.",
+                    "about_the_game": "<p>Set in the zombie apocalypse, Left 4 Dead 2 (L4D2) is the highly anticipated sequel to the award-winning Left 4 Dead, the #1 co-op game of 2008.</p><br>You&rsquo;ll play as one of four new survivors."
+                }
+            }
+        });
+        let mut entry = SteamCatalogEntry::from_app_id("550").unwrap();
+        assert!(apply_store_details(&mut entry, &value));
+        assert_eq!(entry.title, "Left 4 Dead 2");
+        assert_eq!(
+            entry.description.as_deref(),
+            Some("Set in the zombie apocalypse, Left 4 Dead 2 (L4D2) is the highly anticipated sequel to the award-winning Left 4 Dead, the #1 co-op game of 2008. You'll play as one of four new survivors.")
+        );
+        assert!(!apply_store_details(&mut entry, &value));
+    }
+
+    #[test]
+    fn store_details_keep_windows_requirements_and_protondb_tiers() {
+        let value = json!({
+            "550": {
+                "success": true,
+                "data": {
+                    "name": "Left 4 Dead 2",
+                    "short_description": "Zombie co-op.",
+                    "about_the_game": "<p>Set in the zombie apocalypse.</p>",
+                    "mac_requirements": [],
+                    "pc_requirements": {
+                        "minimum": "<strong>Minimum:</strong><br><ul><li>OS: Windows 7</li></ul>",
+                        "recommended": "<strong>Recommended:</strong><br>8 GB RAM"
+                    }
+                }
+            }
+        });
+        let mut entry = SteamCatalogEntry::from_app_id("550").unwrap();
+        assert!(apply_store_details(&mut entry, &value));
+        assert_eq!(
+            entry.minimum_requirements.as_deref(),
+            Some("Minimum: OS: Windows 7")
+        );
+        assert_eq!(
+            entry.recommended_requirements.as_deref(),
+            Some("Recommended: 8 GB RAM")
+        );
+        assert_eq!(parse_proton_tier(&json!({ "tier": "gold" })).as_deref(), Some("gold"));
+        assert!(parse_proton_tier(&json!({ "tier": "unknown" })).is_none());
+    }
+
+    #[test]
+    fn importer_placeholders_count_as_thin_even_when_long() {
+        let long = format!(
+            "Imported from GameHub — {}",
+            "/Users/me/GameHub/steamapps/common/a-really-long-game-folder".repeat(4)
+        );
+        assert!(is_thin_description(Some(&long)));
+        assert!(is_thin_description(Some("Imported from GameHub.")));
+        assert!(!is_thin_description(Some(
+            "Set in the zombie apocalypse, Left 4 Dead 2 is the highly anticipated sequel to the award-winning Left 4 Dead."
+        )));
+    }
+
+    #[test]
+    fn hydrate_prefers_installed_then_favorites_and_covers_the_full_catalog() {
+        let mut complete = SteamCatalogEntry {
+            app_id: "730".into(),
+            title: "Counter-Strike 2".into(),
+            description: Some(
+                "Counter-Strike 2 is a tactical team-based shooter with bomb defusal and hostage rescue modes."
+                    .into(),
+            ),
+            cover_url: Some("https://cdn.steamgriddb.com/grid/cs2.png".into()),
+            last_hydrated_at: Some(chrono::Utc::now().to_rfc3339()),
+            ..SteamCatalogEntry::default()
+        };
+        let mut installed_thin = SteamCatalogEntry::from_app_id("570").unwrap();
+        installed_thin.app_id = "570".into();
+        let favorite = SteamCatalogEntry::from_app_id("550").unwrap();
+        let rest: Vec<_> = (0..32)
+            .map(|index| SteamCatalogEntry::from_app_id(&format!("{}", 10_000 + index)).unwrap())
+            .collect();
+        let mut entries = vec![complete.clone(), installed_thin, favorite];
+        entries.extend(rest);
+        complete.last_hydrated_at = Some(chrono::Utc::now().to_rfc3339());
+        let installed = HashSet::from(["570".into(), "730".into()]);
+        let favorites = HashSet::from(["550".into()]);
+        let indices = hydrate_indices(&entries, &installed, &favorites, true, false);
+        assert_eq!(indices[0], 1);
+        assert_eq!(indices[1], 2);
+        assert_eq!(indices.len(), 34);
+        let forced = hydrate_indices(&entries, &installed, &favorites, true, true);
+        assert_eq!(forced.len(), entries.len());
+    }
+
+    #[test]
+    fn original_steam_capsule_urls_use_the_app_id() {
+        assert_eq!(
+            cover_url("550"),
+            "https://cdn.akamai.steamstatic.com/steam/apps/550/library_600x900_2x.jpg"
+        );
+        assert_eq!(
+            hero_url("550"),
+            "https://cdn.akamai.steamstatic.com/steam/apps/550/library_hero.jpg"
+        );
+    }
+
+    #[test]
+    fn sgdb_title_comes_from_the_steam_app_lookup() {
+        let value = json!({"success": true, "data": {"id": 12, "name": "BioShock 2"}});
+        assert_eq!(
+            parse_sgdb_title("8850", &value).as_deref(),
+            Some("BioShock 2")
+        );
+        assert!(parse_sgdb_title("8850", &json!({"success": false})).is_none());
+    }
+}
