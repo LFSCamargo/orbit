@@ -29,34 +29,23 @@ for (const theme of ['liquid-glass', 'cyberpunk-2077']) {
   })
 }
 
-test('GameHub manager filters cached stores and hands installations to GameHub honestly', async ({
+test('Steam library folders discover existing installs from Settings', async ({
   page,
 }) => {
   await page.goto('/')
-  await page.locator('[data-focus-id="macos-nav-library"]').click()
-  await page.locator('[data-focus-id="library-gamehub-manager"]').click()
+  await page.locator('[data-focus-id="macos-nav-settings"]').click()
+  await page.locator('[data-focus-id="settings-tab-library"]').click()
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible()
+  await page
+    .getByLabel('Additional Steam library folder')
+    .fill('/Users/player/SteamLibrary')
+  await page.getByRole('button', { name: 'Add library folder', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Local games & downloads', exact: true }),
+    page.getByText('/Users/player/SteamLibrary', { exact: true }),
   ).toBeVisible()
-  await expect(page.getByText(/Browser preview · sample library/)).toBeVisible()
-  await page.getByLabel('Store', { exact: true }).selectOption('gog')
-  await expect(page.getByRole('heading', { name: 'Sample GOG game' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Portal 2' })).toHaveCount(0)
   await expect(
-    page.getByRole('progressbar', { name: 'Sample GOG game download progress' }),
-  ).toHaveAttribute('value', '42')
-  await page.getByPlaceholder('Search GameHub games…').fill('not present')
-  await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible()
-  await page.getByRole('button', { name: 'Keep running in background' }).click()
-  await expect(
-    page.getByRole('button', { name: 'Disable background mode' }),
+    page.getByRole('status').filter({ hasText: 'Library scan complete' }),
   ).toBeVisible()
-  await page.getByRole('button', { name: 'Install / manage in GameHub' }).click()
-  await expect(
-    page.getByRole('status').filter({ hasText: 'GameHub was opened' }),
-  ).toBeVisible()
-  await page.getByRole('button', { name: 'Sync GameHub shortcuts' }).click()
-  await expect(page.getByRole('status').filter({ hasText: /Synced/ })).toBeVisible()
 })
 
 test('Orbit wordmark stays at top left in compact Liquid Glass', async ({ page }) => {

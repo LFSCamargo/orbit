@@ -1,7 +1,17 @@
 import { create } from 'zustand'
 import type { AppScreen, LibraryFilters } from '@/types/game'
 
-export type SettingsTab = 'general' | 'themes' | 'library' | 'runtimes' | 'graphics'
+export type SettingsTab =
+  'general' | 'themes' | 'library' | 'steam' | 'runtimes' | 'graphics' | 'metadata'
+
+export type SteamLibraryGame = {
+  appId: string
+  title: string
+  description?: string | null
+  coverUrl?: string
+  heroUrl?: string
+  installed?: boolean
+}
 
 interface UiState {
   screen: AppScreen
@@ -13,13 +23,23 @@ interface UiState {
   navigationInput: 'pointer' | 'controller'
   lastControllerActivityAt: number
   libraryFilters: LibraryFilters
+  searchQuery: string
   importToast: string | null
   homeMenuOpen: boolean
   settingsTab: SettingsTab
+  libraryView: 'installed' | 'all' | 'favorites'
+  libraryPlatform: string
+  setLibraryView: (view: 'installed' | 'all' | 'favorites') => void
+  setLibraryPlatform: (platform: string) => void
+  detailsTab: 'overview' | 'settings'
+  setDetailsTab: (tab: 'overview' | 'settings') => void
+  steamGame: SteamLibraryGame | null
   setSettingsTab: (tab: SettingsTab) => void
   setScreen: (screen: AppScreen) => void
   openGameDetails: (gameId: string) => void
+  openSteamGame: (game: SteamLibraryGame) => void
   openGameEdit: (gameId: string) => void
+
   openAddGame: () => void
   setSelectedGameId: (gameId: string | null) => void
   setHeroGameId: (gameId: string | null) => void
@@ -28,6 +48,7 @@ interface UiState {
   markControllerActivity: () => void
   markMouseActivity: () => void
   setLibraryFilters: (patch: Partial<LibraryFilters>) => void
+  setSearchQuery: (query: string) => void
   setImportToast: (message: string | null) => void
   openHomeMenu: () => void
   closeHomeMenu: () => void
@@ -53,9 +74,17 @@ export const useUiStore = create<UiState>((set) => ({
   navigationInput: 'pointer',
   lastControllerActivityAt: 0,
   libraryFilters: defaultFilters,
+  searchQuery: '',
   importToast: null,
   homeMenuOpen: false,
   settingsTab: 'general',
+  libraryView: 'installed',
+  libraryPlatform: 'all',
+  setLibraryView: (libraryView) => set({ libraryView }),
+  setLibraryPlatform: (libraryPlatform) => set({ libraryPlatform }),
+  detailsTab: 'overview',
+  setDetailsTab: (detailsTab) => set({ detailsTab }),
+  steamGame: null,
   setSettingsTab: (settingsTab) => set({ settingsTab }),
   setScreen: (screen) =>
     set((state) => ({
@@ -66,13 +95,24 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({
       previousScreen: state.screen,
       screen: 'game-details',
+      detailsTab: 'overview',
       selectedGameId: gameId,
       heroGameId: gameId,
+      steamGame: null,
+    })),
+  openSteamGame: (steamGame) =>
+    set((state) => ({
+      previousScreen: state.screen,
+      screen: 'game-details',
+      selectedGameId: `steam:${steamGame.appId}`,
+      detailsTab: 'overview',
+      steamGame,
     })),
   openGameEdit: (gameId) =>
     set((state) => ({
       previousScreen: state.screen,
-      screen: 'game-edit',
+      screen: 'game-details',
+      detailsTab: 'settings',
       selectedGameId: gameId,
     })),
   openAddGame: () =>
@@ -100,6 +140,7 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({
       libraryFilters: { ...state.libraryFilters, ...patch },
     })),
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
   setImportToast: (message) => set({ importToast: message }),
   openHomeMenu: () => set({ homeMenuOpen: true }),
   closeHomeMenu: () => set({ homeMenuOpen: false }),

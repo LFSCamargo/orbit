@@ -73,8 +73,12 @@ export function ArtworkSlotPicker({
         <p className="text-xs text-orbit-muted">{meta.hint}</p>
       </div>
       <div
-        className={`${meta.aspect} bg-orbit-surface bg-center bg-no-repeat ${meta.fit === 'contain' ? 'bg-contain' : 'bg-cover'}`}
-        style={preview ? { backgroundImage: `url(${preview})` } : undefined}
+        className="h-[180px] max-h-[280px] w-full bg-orbit-surface bg-center bg-no-repeat"
+        style={{
+          maxHeight: 280,
+          backgroundSize: meta.fit === 'contain' ? 'contain' : 'cover',
+          ...(preview ? { backgroundImage: `url(${preview})` } : {}),
+        }}
       >
         {!preview && (
           <div className="flex h-full items-center justify-center text-sm text-orbit-muted">

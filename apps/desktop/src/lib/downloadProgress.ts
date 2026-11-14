@@ -108,6 +108,25 @@ function megabytes(bytes: number): number {
   return Math.round(bytes / 1_000_000)
 }
 
+export function transferRate(
+  previous: { at: number; bytes: number } | null,
+  next: { at: number; bytes: number },
+): number | null {
+  if (!previous) return null
+  const elapsed = (next.at - previous.at) / 1000
+  if (elapsed < 0.2) return null
+  const delta = next.bytes - previous.bytes
+  if (delta < 0) return null
+  return delta / elapsed
+}
+
+export function formatTransferRate(bytesPerSecond: number | null): string {
+  if (bytesPerSecond === null) return 'Idle'
+  if (bytesPerSecond < 1_000) return `${Math.round(bytesPerSecond)} B/s`
+  if (bytesPerSecond < 1_000_000) return `${(bytesPerSecond / 1_000).toFixed(1)} KB/s`
+  return `${(bytesPerSecond / 1_000_000).toFixed(1)} MB/s`
+}
+
 /** True while any tracked transfer is active; screens use this to block duplicates. */
 export function selectBusy(tasks: Record<string, DownloadTask>): boolean {
   return Object.keys(tasks).length > 0

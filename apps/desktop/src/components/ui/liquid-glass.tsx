@@ -1,7 +1,6 @@
 import type { HTMLAttributes } from 'react'
 import { clsx } from 'clsx'
 import { useReducedTransparency } from '@/hooks/useReducedTransparency'
-import './liquid-glass.css'
 
 export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
   contentClassName?: string

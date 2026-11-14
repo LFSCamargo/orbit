@@ -2,14 +2,11 @@ use anyhow::{bail, Context, Result};
 use std::path::Path;
 use std::process::Command;
 
-use crate::importers::detect_gamehub;
 use crate::launching::context::LaunchContext;
-use crate::launching::gamehub_readiness::{launch_gamehub_with_deep_link, GAMEHUB_PROCESS_NAME};
 use crate::launching::screen_placement::{
     astris_app_path, screen_watcher_process_names, STEAM_PROCESS_NAME,
 };
 use crate::models::{Game, GameProvider, LaunchConfiguration};
-use crate::utils::gamehub_shortcut::deep_link_from_shortcut;
 use crate::utils::macos_apps::is_switch_rom;
 use crate::utils::paths::resolve_switch_base_launch_path;
 
@@ -25,13 +22,8 @@ pub enum LaunchStrategy {
     OpenUrl {
         url: String,
     },
-    GamehubShortcut {
-        gamehub_app_path: String,
-        shortcut_app_path: String,
-    },
-    /// GameHub provider with a non-`gamehub` launch config — remapped at launch time.
-    LegacyGamehub {
-        shortcut_path: String,
+    Unsupported {
+        reason: &'static str,
     },
     OpenApplication {
         application_path: String,
@@ -54,29 +46,14 @@ pub enum LaunchStrategy {
 /// Decide how a game should launch without spawning processes.
 pub fn resolve_launch_strategy(
     config: &LaunchConfiguration,
-    provider: GameProvider,
+    _provider: GameProvider,
 ) -> LaunchStrategy {
     match config {
         LaunchConfiguration::Wine { profile } => LaunchStrategy::Wine {
             profile: profile.clone(),
         },
-        LaunchConfiguration::Gamehub {
-            gamehub_app_path,
-            shortcut_app_path,
-        } => LaunchStrategy::GamehubShortcut {
-            gamehub_app_path: gamehub_app_path.clone(),
-            shortcut_app_path: shortcut_app_path.clone(),
-        },
-        other if provider == GameProvider::Gamehub => match other {
-            LaunchConfiguration::OpenApplication {
-                application_path, ..
-            } => LaunchStrategy::LegacyGamehub {
-                shortcut_path: application_path.clone(),
-            },
-            LaunchConfiguration::OpenFile { file_path, .. } => LaunchStrategy::LegacyGamehub {
-                shortcut_path: file_path.clone(),
-            },
-            _ => resolve_config_strategy(other),
+        LaunchConfiguration::Gamehub { .. } => LaunchStrategy::Unsupported {
+            reason: "GameHub is no longer a launch provider",
         },
         other => resolve_config_strategy(other),
     }
@@ -120,12 +97,8 @@ fn resolve_config_strategy(config: &LaunchConfiguration) -> LaunchStrategy {
             executable: executable.clone(),
             arguments: arguments.clone(),
         },
-        LaunchConfiguration::Gamehub {
-            gamehub_app_path,
-            shortcut_app_path,
-        } => LaunchStrategy::GamehubShortcut {
-            gamehub_app_path: gamehub_app_path.clone(),
-            shortcut_app_path: shortcut_app_path.clone(),
+        LaunchConfiguration::Gamehub { .. } => LaunchStrategy::Unsupported {
+            reason: "GameHub is no longer a launch provider",
         },
     }
 }
@@ -133,12 +106,8 @@ fn resolve_config_strategy(config: &LaunchConfiguration) -> LaunchStrategy {
 pub fn launch_game(game: &Game, ctx: &LaunchContext) -> Result<()> {
     spawn_screen_watchers(game, ctx);
 
-    match &game.launch_config {
-        LaunchConfiguration::Gamehub {
-            gamehub_app_path,
-            shortcut_app_path,
-        } => launch_gamehub_shortcut(gamehub_app_path, shortcut_app_path, ctx)?,
-        _ if game.provider == GameProvider::Gamehub => launch_legacy_gamehub(game, ctx)?,
+    match resolve_launch_strategy(&game.launch_config, game.provider.clone()) {
+        LaunchStrategy::Unsupported { reason } => bail!("{reason}"),
         _ => launch_configuration(&game.launch_config, ctx, game.provider.clone())?,
     }
     Ok(())
@@ -146,7 +115,6 @@ pub fn launch_game(game: &Game, ctx: &LaunchContext) -> Result<()> {
 
 fn spawn_screen_watchers(game: &Game, ctx: &LaunchContext) {
     let names = match game.provider {
-        GameProvider::Gamehub => vec![GAMEHUB_PROCESS_NAME.to_string()],
         GameProvider::Steam => vec![STEAM_PROCESS_NAME.to_string()],
         _ => screen_watcher_process_names(&game.launch_config, game.provider.clone()),
     };
@@ -192,10 +160,9 @@ pub fn launch_configuration(
                 bail!("open-application launching is only implemented for macOS in this MVP");
             }
         }
-        LaunchConfiguration::Gamehub {
-            gamehub_app_path,
-            shortcut_app_path,
-        } => launch_gamehub_shortcut(gamehub_app_path, shortcut_app_path, ctx)?,
+        LaunchConfiguration::Gamehub { .. } => {
+            bail!("GameHub is no longer a launch provider")
+        }
         LaunchConfiguration::OpenUrl { url } => {
             open_url(url)?;
         }
@@ -217,47 +184,6 @@ pub fn launch_configuration(
     }
     let _ = (ctx, provider);
     Ok(())
-}
-
-fn launch_legacy_gamehub(game: &Game, ctx: &LaunchContext) -> Result<()> {
-    match &game.launch_config {
-        LaunchConfiguration::OpenApplication {
-            application_path, ..
-        } => {
-            let gamehub = detect_gamehub()
-                .ok_or_else(|| anyhow::anyhow!("GameHub is not installed in /Applications"))?;
-            launch_gamehub_shortcut(&gamehub.to_string_lossy(), application_path, ctx)
-        }
-        LaunchConfiguration::OpenFile { file_path, .. } => {
-            let gamehub = detect_gamehub()
-                .ok_or_else(|| anyhow::anyhow!("GameHub is not installed in /Applications"))?;
-            launch_gamehub_shortcut(&gamehub.to_string_lossy(), file_path, ctx)
-        }
-        _ => launch_configuration(&game.launch_config, ctx, game.provider.clone()),
-    }
-}
-
-fn launch_gamehub_shortcut(
-    gamehub_app: &str,
-    shortcut_app: &str,
-    ctx: &LaunchContext,
-) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    {
-        let shortcut_path = Path::new(shortcut_app);
-        if !shortcut_path.exists() {
-            bail!("Game shortcut not found at {shortcut_app}");
-        }
-
-        let deep_link = deep_link_from_shortcut(shortcut_path)?;
-        launch_gamehub_with_deep_link(gamehub_app, &deep_link)?;
-        Ok(())
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (gamehub_app, shortcut_app, ctx);
-        bail!("GameHub launching is only implemented for macOS in this MVP");
-    }
 }
 
 fn launch_open_file(file_path: &str, application_path: Option<&str>) -> Result<()> {
@@ -366,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn strategy_gamehub_shortcut() {
+    fn strategy_gamehub_is_unsupported() {
         let strategy = resolve_launch_strategy(
             &LaunchConfiguration::Gamehub {
                 gamehub_app_path: "/Applications/GameHub.app".into(),
@@ -376,26 +302,8 @@ mod tests {
         );
         assert_eq!(
             strategy,
-            LaunchStrategy::GamehubShortcut {
-                gamehub_app_path: "/Applications/GameHub.app".into(),
-                shortcut_app_path: "/Applications/Games/Hades.app".into(),
-            }
-        );
-    }
-
-    #[test]
-    fn strategy_legacy_gamehub_from_open_application() {
-        let strategy = resolve_launch_strategy(
-            &LaunchConfiguration::OpenApplication {
-                application_path: "/Applications/Games/Hades.app".into(),
-                arguments: None,
-            },
-            GameProvider::Gamehub,
-        );
-        assert_eq!(
-            strategy,
-            LaunchStrategy::LegacyGamehub {
-                shortcut_path: "/Applications/Games/Hades.app".into(),
+            LaunchStrategy::Unsupported {
+                reason: "GameHub is no longer a launch provider",
             }
         );
     }

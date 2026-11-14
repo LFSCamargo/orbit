@@ -8,10 +8,8 @@ pub fn is_placeholder_description(value: Option<&str>) -> bool {
     };
 
     let lower = text.to_ascii_lowercase();
-    lower.starts_with("imported from steam library")
+    lower.starts_with("imported from")
         || lower.starts_with("gamehub shortcut")
-        || lower.starts_with("imported from astris")
-        || lower.starts_with("imported from macos")
         || lower.starts_with("manually added")
 }
 
@@ -77,6 +75,10 @@ mod tests {
         )));
         assert!(is_placeholder_description(Some(
             "GameHub shortcut (gamehub://launch/steam/1)."
+        )));
+        assert!(is_placeholder_description(Some("Imported from GameHub.")));
+        assert!(is_placeholder_description(Some(
+            "Imported from Gamehub — /Users/me/GameHub/steamapps/common/GodOfWar/gow.exe"
         )));
         assert!(!is_placeholder_description(Some(
             "An open-world RPG in Night City."

@@ -1,24 +1,27 @@
 import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
-import { homeHero } from './lib/homeHero'
+import { homeHero, homeLaunchId } from './lib/homeHero'
 import { ThemeHome } from './ThemeHome'
 import { Focusable } from '@/components/focus/Focusable'
-import { useGameActions, useGames } from '@/hooks/useGames'
+import { useGameActions } from '@/hooks/useGames'
+import { useLibrary, useLibraryActions } from '@/hooks/useLibrary'
 import { useUiStore } from '@/stores/ui.store'
 import { useSessionStore } from '@/stores/session.store'
 
 export function HomePage() {
-  const { data: games = [], isLoading } = useGames()
-  const { launch, stop, favorite } = useGameActions()
+  const library = useLibrary({ view: 'all', sort: 'recently-played' })
+  const { launch, stop } = useGameActions()
+  const { update } = useLibraryActions()
   const heroGameId = useUiStore((s) => s.heroGameId)
   const openAddGame = useUiStore((s) => s.openAddGame)
   const activeSession = useSessionStore((s) => s.activeSession)
+  const entries = useMemo(
+    () => library.data?.pages.flatMap((page) => page.entries) ?? [],
+    [library.data],
+  )
+  const heroEntry = useMemo(() => homeHero(entries, heroGameId), [entries, heroGameId])
 
-  const visible = useMemo(() => games.filter((game) => !game.hidden), [games])
-
-  const heroGame = useMemo(() => homeHero(games, heroGameId), [games, heroGameId])
-
-  if (isLoading) {
+  if (library.isPending) {
     return (
       <div className="flex flex-1 items-center justify-center text-orbit-muted">
         Loading library…
@@ -26,7 +29,7 @@ export function HomePage() {
     )
   }
 
-  if (!heroGame) {
+  if (!heroEntry) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center text-orbit-foreground">
         <div className="orbit-glass-control flex h-16 w-16 items-center justify-center rounded-full bg-orbit-accent/15 text-orbit-accent">
@@ -53,12 +56,14 @@ export function HomePage() {
 
   return (
     <ThemeHome
-      games={visible}
-      heroGame={heroGame}
+      entries={entries.filter((entry) => !entry.game.hidden)}
+      heroEntry={heroEntry}
       activeSession={activeSession}
-      onPlay={(game) => launch.mutate(game.id)}
+      onPlay={(entry) => launch.mutate(homeLaunchId(entry))}
       onStop={() => activeSession && stop.mutate(activeSession.id)}
-      onFavorite={(game) => favorite.mutate(game.id)}
+      onFavorite={(entry) =>
+        update.mutate({ id: entry.id, patch: { favorite: !entry.game.favorite } })
+      }
     />
   )
 }

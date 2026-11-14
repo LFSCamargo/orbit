@@ -43,8 +43,10 @@ test.describe('macOS Liquid Glass console', () => {
     await page.locator('[data-focus-id="macos-nav-library"]').click()
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
     await page.locator('[data-focus-id="macos-nav-search"]').click()
-    await page.getByPlaceholder('Find a game…').fill('Resident')
-    await expect(page.locator('[data-focus-id="search-game-mock-re4"]')).toBeVisible()
+    await page.getByPlaceholder('Search games…').fill('Resident')
+    await expect(
+      page.locator('[data-focus-id="search-game-steam:2050650"]'),
+    ).toBeVisible()
     await page.locator('[data-focus-id="macos-nav-settings"]').click()
     await page.locator('[data-focus-id="settings-tab-themes"]').click()
     await expect(
@@ -61,21 +63,19 @@ test.describe('macOS Liquid Glass console', () => {
       page.locator('.macos-hero-layer[data-layer="active"]').getAttribute('src')
     await expect.poll(heroImage).toContain('co2rpf')
     const initialArt = await heroImage()
-    await page.locator('[data-focus-id="macos-game-mock-re4"]').hover()
+    await page.locator('[data-focus-id="macos-game-steam:2050650"]').hover()
     await expect(page.locator('#macos-feature-title')).toHaveText('Resident Evil 4')
-    await expect(page.locator('[data-focus-id="macos-game-mock-re4"]')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    await expect(
+      page.locator('[data-focus-id="macos-game-steam:2050650"]'),
+    ).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(heroImage).not.toBe(initialArt)
     await page.locator('[data-focus-id="macos-details"]').click()
     await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
     await page.locator('[data-focus-id="macos-back"]').click()
     await expect(page.locator('[data-screen="home"]')).toBeVisible()
-    await expect(page.locator('[data-focus-id="macos-game-mock-re4"]')).toHaveAttribute(
-      'data-focused',
-      'true',
-    )
+    await expect(
+      page.locator('[data-focus-id="macos-game-steam:2050650"]'),
+    ).toHaveAttribute('data-focused', 'true')
   })
 
   test('keeps glass controls reachable in a compact window with reduced motion', async ({

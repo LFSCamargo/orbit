@@ -29,7 +29,7 @@ export function SquareGameArt({
       className={clsx(
         // Do not force `w-full` here — home carousels pass fixed `h-* w-*` sizes inside
         // flex rows, and `w-full` collapses those tiles to zero width.
-        'square-game-art shrink-0 overflow-hidden bg-center bg-no-repeat',
+        'square-game-art shrink-0 overflow-hidden bg-black bg-center bg-no-repeat',
         fit === 'contain' ? 'bg-contain' : 'bg-cover',
         roundedClassName,
         className,

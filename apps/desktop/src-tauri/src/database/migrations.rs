@@ -83,6 +83,10 @@ const MIGRATIONS: &[&str] = &[
     r#"
     CREATE INDEX IF NOT EXISTS idx_play_sessions_game_id ON play_sessions(game_id);
     "#,
+    r#"CREATE TABLE IF NOT EXISTS library_entry_state (
+        entry_id TEXT PRIMARY KEY NOT NULL,
+        state_json TEXT NOT NULL DEFAULT '{}'
+    );"#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

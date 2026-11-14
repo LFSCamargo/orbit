@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { clsx } from 'clsx'
 import {
   AlertCircle,
   Check,
@@ -26,6 +27,31 @@ import { useComponentInstall } from '../hooks/useComponentInstall'
 import { ComponentVersionPicker, type ComponentVersion } from './ComponentVersionPicker'
 
 const graphicsIds = new Set(['dxvk', 'dxmt', 'gptk'])
+
+const ROW_GROUP = clsx(
+  'settings-row-group overflow-hidden rounded-[18px] border border-orbit-foreground/10',
+  'bg-orbit-foreground/[0.035] shadow-[inset_0_1px_0_rgb(var(--orbit-foreground)/0.035)]',
+)
+
+const COMPAT_ROW = clsx(
+  'compatibility-component grid min-h-[78px] grid-cols-[34px_minmax(0,1fr)_minmax(130px,34%)] items-center gap-3.5 p-4',
+  'even:bg-orbit-foreground/[0.035] hover:bg-orbit-foreground/[0.055]',
+  'max-[700px]:grid-cols-[36px_minmax(0,1fr)]',
+  'max-[700px]:[&>button]:col-start-2 max-[700px]:[&>button]:w-full max-[700px]:[&>button]:text-left',
+)
+
+const COMPONENT_ICON =
+  'compatibility-component-icon grid size-[34px] place-items-center rounded-xl border border-orbit-border bg-orbit-foreground/[0.04] text-orbit-foreground/70'
+
+const SECONDARY_BUTTON = clsx(
+  'settings-secondary-button flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
+  'disabled:cursor-not-allowed disabled:opacity-40',
+)
+
+const PRIMARY_BUTTON = clsx(
+  'settings-primary-button flex items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-orbit-accent px-3.5 py-2.5 text-xs font-semibold text-orbit-canvas',
+  'disabled:cursor-not-allowed disabled:opacity-40',
+)
 
 export function CompatibilityComponents({
   managed,
@@ -93,7 +119,7 @@ export function CompatibilityComponents({
           noScale
           disabled={isFetching}
           onClick={() => void refetch()}
-          className="settings-secondary-button flex items-center gap-2"
+          className={SECONDARY_BUTTON}
         >
           <RefreshCw size={13} className={isFetching ? 'animate-spin' : undefined} />
           Refresh
@@ -115,7 +141,7 @@ export function CompatibilityComponents({
         </p>
       ))}
       {data && (
-        <div className="settings-row-group">
+        <div className={ROW_GROUP}>
           {groups
             .filter((group) => group.components.length)
             .map((group) => (
@@ -247,7 +273,7 @@ function ComponentRow({
 
   if (!savedViews.ready) {
     return (
-      <div className="compatibility-component">
+      <div className={COMPAT_ROW}>
         <p className="text-sm font-medium">{label}</p>
       </div>
     )
@@ -296,8 +322,8 @@ function ComponentRow({
       : 'Install'
 
   return (
-    <div className="compatibility-component">
-      <span className="compatibility-component-icon" aria-hidden="true">
+    <div className={COMPAT_ROW}>
+      <span className={COMPONENT_ICON} aria-hidden="true">
         {id === 'wine' ? <Layers size={18} /> : <Cpu size={18} />}
       </span>
       <div className="min-w-0 flex-1 space-y-2">
@@ -305,7 +331,10 @@ function ComponentRow({
           <p className="text-sm font-medium">{label}</p>
           <p className="mt-1 text-xs leading-relaxed text-orbit-muted">{help}</p>
           {current && (
-            <span className="compatibility-status" data-ready={installed}>
+            <span
+              className="compatibility-status mt-[7px] inline-flex items-center gap-[5px] text-[11px] text-orbit-muted data-[ready=true]:text-[#86d6ab]"
+              data-ready={installed}
+            >
               {installed && <Check size={12} />}
               {installed
                 ? 'Installed · Ready'
@@ -354,7 +383,7 @@ function ComponentRow({
                 installs.dismiss(current.component.id, current.release.version)
               void install()
             }}
-            className="settings-primary-button flex items-center gap-1.5 text-xs"
+            className={PRIMARY_BUTTON}
           >
             {inFlight ? (
               <LoaderCircle size={12} className="animate-spin" />

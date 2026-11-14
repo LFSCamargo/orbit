@@ -18,11 +18,15 @@ pub mod theme_files;
 pub use library_sync::LibrarySyncService;
 pub use metadata_enrichment::MetadataEnrichmentService;
 
-pub mod gamehub_library;
-
 pub mod theme_artwork;
 
+pub mod steam_catalog;
+pub mod steam_credentials;
+pub mod steam_download;
 pub mod steam_library;
+pub mod steam_login;
+pub mod steam_qr;
+pub mod steam_windows;
 
 pub mod hero_lighting;
 
@@ -32,3 +36,9 @@ pub mod theme_previews;
 
 pub mod theme_catalog;
 pub mod theme_image_optimization;
+
+pub mod steam_library_paths;
+
+pub mod library;
+
+pub mod steam_manifest;

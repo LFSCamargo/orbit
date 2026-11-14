@@ -1,3 +1,6 @@
+import { OptionSelect } from '@/components/ui/option-select'
+import { CollapsiblePanel } from '@/components/ui/collapsible-panel'
+import { Terminal } from 'lucide-react'
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { detectRuntimes } from '@/lib/tauri'
@@ -23,7 +26,7 @@ export function WineProfileEditor({
       onChange({ ...value, runtimePath: runtimes[0].path })
   }, [runtimes, value, onChange])
   return (
-    <section className="space-y-4" aria-label="Windows compatibility">
+    <section className="flex flex-col gap-4" aria-label="Windows compatibility">
       <h2 className="font-display text-xl font-semibold">Windows compatibility</h2>
       <p className="text-sm text-orbit-muted">
         Orbit prepares a private Windows environment on first launch. Your game files stay
@@ -31,10 +34,13 @@ export function WineProfileEditor({
       </p>
       <label className="block text-sm text-orbit-muted">
         Compatibility runtime
-        <select
+        <OptionSelect
+          aria-label="Compatibility runtime"
           className={field}
           value={value.runtimePath}
-          onChange={(e) => onChange({ ...value, runtimePath: e.target.value })}
+          onValueChange={(selectedValue) =>
+            onChange({ ...value, runtimePath: selectedValue })
+          }
         >
           <option value="">
             {isPending ? 'Detecting runtimes…' : 'Choose a runtime'}
@@ -49,7 +55,7 @@ export function WineProfileEditor({
               {r.version} — {r.path}
             </option>
           ))}
-        </select>
+        </OptionSelect>
       </label>
       {!isPending && !runtimes.length && (
         <p role="status" className="text-sm text-orbit-muted">
@@ -63,9 +69,12 @@ export function WineProfileEditor({
         value={value.compatibility ?? {}}
         onChange={(compatibility) => onChange({ ...value, compatibility })}
       />
-      <details>
-        <summary className="cursor-pointer text-sm">Advanced launch options</summary>
-        <label className="mt-3 block text-sm text-orbit-muted">
+      <CollapsiblePanel
+        title="Advanced launch options"
+        icon={Terminal}
+        focusId="wine-advanced-launch"
+      >
+        <label className="block text-sm text-orbit-muted">
           Launch arguments (one per line)
           <textarea
             className={field}
@@ -79,27 +88,28 @@ export function WineProfileEditor({
             }
           />
         </label>
-        <p className="mt-2 text-xs text-orbit-muted">
+        <p className="text-xs text-orbit-muted">
           Each line is passed literally, including spaces. Graphics translation uses this
           runtime’s existing defaults; Orbit does not install DirectX components yet.
         </p>
-        <label className="mt-3 block text-sm text-orbit-muted">
+        <label className="block text-sm text-orbit-muted">
           Wine diagnostics
-          <select
+          <OptionSelect
+            aria-label="Wine diagnostics"
             className={field}
             value={value.environment.WINEDEBUG ?? '-all'}
-            onChange={(e) =>
+            onValueChange={(selectedValue) =>
               onChange({
                 ...value,
-                environment: { ...value.environment, WINEDEBUG: e.target.value },
+                environment: { ...value.environment, WINEDEBUG: selectedValue },
               })
             }
           >
             <option value="-all">Quiet</option>
             <option value="err+all,warn+all">Errors and warnings</option>
-          </select>
+          </OptionSelect>
         </label>
-      </details>
+      </CollapsiblePanel>
     </section>
   )
 }

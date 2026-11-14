@@ -33,7 +33,10 @@ export function ThemeStudio({ base }: { base: ThemeDefinition }) {
   }
 
   return (
-    <section className="settings-studio" aria-labelledby="theme-studio-title">
+    <section
+      className="settings-studio border-t border-white/[0.07] pt-5"
+      aria-labelledby="theme-studio-title"
+    >
       <h2 id="theme-studio-title" className="font-display text-xl font-semibold">
         Theme studio
       </h2>

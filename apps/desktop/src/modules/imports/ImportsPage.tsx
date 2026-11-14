@@ -2,16 +2,10 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
 import { useImporters } from '@/hooks/useGames'
-import { GAMEHUB_SETUP_STEPS } from '@/lib/launchConfig'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
 
 const IMPORTERS = [
-  {
-    id: 'steam',
-    title: 'Steam',
-    body: 'Detects Steam libraries, playtime, install size, and local achievements. Launches via steam://rungameid.',
-  },
   {
     id: 'astris',
     title: 'Nintendo Switch (Astris)',
@@ -21,11 +15,6 @@ const IMPORTERS = [
     id: 'native',
     title: 'macOS Applications',
     body: 'Scans /Applications and ~/Applications for likely games using bundle metadata.',
-  },
-  {
-    id: 'gamehub',
-    title: 'GameHub',
-    body: 'Import GameHub shortcuts from /Applications and ~/Applications. Only .app bundles with bundle id com.gamehub.shortcut.* are added.',
   },
   {
     id: 'manual',
@@ -66,8 +55,7 @@ export function ImportsSection() {
         <div>
           <h2 className="font-display text-xl font-semibold">Import games</h2>
           <p className="mt-1 text-sm text-orbit-muted">
-            Bring games into Orbit from Steam, Astris, GameHub, native macOS apps, or a
-            single file.
+            Bring games into Orbit from Astris, native macOS apps, or a single file.
           </p>
         </div>
         <Focusable
@@ -142,13 +130,6 @@ export function ImportsSection() {
                 </span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-orbit-muted">{item.body}</p>
-              {item.id === 'gamehub' && (
-                <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-orbit-muted">
-                  {GAMEHUB_SETUP_STEPS.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              )}
             </Focusable>
           )
         })}

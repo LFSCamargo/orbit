@@ -112,10 +112,6 @@ export async function scanNativeApps(): Promise<ScanResult> {
   return run<ScanResult>('scan_native_apps')
 }
 
-export async function scanGamehubFolder(folder?: string): Promise<ScanResult> {
-  return run<ScanResult>('scan_gamehub_folder', { folder: folder ?? null })
-}
-
 export async function importGamePath(path: string): Promise<ScanResult> {
   return run<ScanResult>('import_game_path', { path })
 }
@@ -186,15 +182,6 @@ export async function themesDirectory(): Promise<string> {
 }
 
 export { isTauriRuntime }
-
-export async function getGameHubLibrary(): Promise<
-  import('@/types/gamehub').GameHubLibrary
-> {
-  return run('get_gamehub_library')
-}
-export async function openGameHub(foreground = false): Promise<void> {
-  return run('open_gamehub', { foreground })
-}
 
 export interface ThemeArtworkHit {
   id: string
@@ -368,4 +355,148 @@ export async function runtimeDiagnostics(gameId: string): Promise<string> {
 }
 export async function cancelGameLaunch(): Promise<void> {
   return run('cancel_game_launch')
+}
+
+export async function steamWindowsStatus(): Promise<
+  import('@/types/steam').SteamWindowsStatus
+> {
+  return run('steam_windows_status')
+}
+
+export async function steamWindowsPreferences(): Promise<
+  import('@/types/steam').SteamWindowsPreferences
+> {
+  return run('steam_windows_preferences')
+}
+
+export async function setSteamWindowsPreferences(
+  preferences: import('@/types/steam').SteamWindowsPreferences,
+): Promise<import('@/types/steam').SteamWindowsPreferences> {
+  return run('set_steam_windows_preferences', { preferences })
+}
+
+export async function steamWindowsLibrary(): Promise<
+  import('@/types/steam').SteamOwnedGame[]
+> {
+  return run('steam_windows_library')
+}
+
+export async function installWindowsSteam(): Promise<void> {
+  return run('install_windows_steam')
+}
+
+export async function openSteamWindowsLogin(): Promise<void> {
+  return run('open_steam_windows_login')
+}
+
+export async function placeSteamWindowsLogin(frame: {
+  x: number
+  y: number
+  width: number
+  height: number
+}): Promise<import('@/types/steam').SteamLoginPlacement> {
+  return run('place_steam_windows_login', frame)
+}
+
+export async function pollSteamWindowsLogin(): Promise<
+  import('@/types/steam').SteamLoginPoll
+> {
+  return run('poll_steam_windows_login')
+}
+
+export async function beginSteamWindowsPassword(
+  accountName: string,
+  password: string,
+): Promise<import('@/types/steam').SteamPasswordStart> {
+  return run('begin_steam_windows_password', { accountName, password })
+}
+
+export async function submitSteamWindowsGuard(
+  clientId: string,
+  steamId: string,
+  code: string,
+  codeType: number,
+): Promise<void> {
+  return run('submit_steam_windows_guard', { clientId, steamId, code, codeType })
+}
+
+export async function startSteamWindowsQr(): Promise<
+  import('@/types/steam').SteamQrStart
+> {
+  return run('start_steam_windows_qr')
+}
+
+export async function pollSteamWindowsQr(
+  clientId: string,
+  requestId: string,
+): Promise<import('@/types/steam').SteamQrPoll> {
+  return run('poll_steam_windows_qr', { clientId, requestId })
+}
+
+export async function connectSteamWindows(): Promise<
+  import('@/types/steam').SteamWindowsStatus
+> {
+  return run('connect_steam_windows')
+}
+
+export async function cancelSteamWindowsSignIn(): Promise<void> {
+  return run('cancel_steam_windows_sign_in')
+}
+
+export async function disconnectSteamWindows(): Promise<
+  import('@/types/steam').SteamWindowsStatus
+> {
+  return run('disconnect_steam_windows')
+}
+
+export async function refreshSteamWindowsLibrary(): Promise<
+  import('@/types/steam').SteamOwnedGame[]
+> {
+  return run('refresh_steam_windows_library')
+}
+
+export async function retrySteamCatalogMetadata(): Promise<
+  import('@/types/steam').SteamOwnedGame[]
+> {
+  return run('retry_steam_catalog_metadata')
+}
+
+export async function downloadSteamWindowsGame(appId: string): Promise<void> {
+  return run('download_steam_windows_game', { appId })
+}
+
+export async function cancelSteamWindowsDownload(): Promise<void> {
+  return run('cancel_steam_windows_download')
+}
+
+export async function playSteamWindowsGame(appId: string): Promise<GameSession> {
+  return run('play_steam_windows_game', { appId })
+}
+
+export function listLibraryEntries(query: import('@/types/library').LibraryQuery) {
+  return run<import('@/types/library').LibraryPageResult>('list_library_entries', {
+    query,
+  })
+}
+export function getLibraryEntry(entryId: string) {
+  return run<import('@/types/library').LibraryEntry | null>('get_library_entry', {
+    entryId,
+  })
+}
+export function updateLibraryEntry(
+  entryId: string,
+  patch: import('@/types/library').LibraryEntryPatch,
+) {
+  return run<void>('update_library_entry', { entryId, patch })
+}
+export function scanSteamInstallations() {
+  return run<ScanResult>('scan_steam_installations')
+}
+
+export function deleteLibraryEntry(entryId: string) {
+  return run<void>('delete_library_entry', { entryId })
+}
+
+export function revealPath(path: string) {
+  return run<void>('reveal_path', { path })
 }

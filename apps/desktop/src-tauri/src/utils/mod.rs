@@ -4,6 +4,7 @@ pub mod gamehub_shortcut;
 pub mod macos_apps;
 pub mod paths;
 pub mod size;
+pub mod steam_account;
 pub mod steam_app_id;
 pub mod steam_paths;
 pub mod switch_scan;

@@ -8,7 +8,7 @@ async function boot(page: Page) {
 
 async function openCyberpunkDetails(page: Page) {
   await page.locator('[data-focus-id="macos-nav-library"]').click()
-  await page.locator('[data-focus-id="library-game-mock-cyberpunk"]').click()
+  await page.locator('[data-focus-id="library-game-steam:1091500"]').click()
   await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
 }
 
@@ -35,8 +35,8 @@ test.describe('Liquid Glass shell flows', () => {
 
   test('search finds games and back returns to search', async ({ page }) => {
     await page.locator('[data-focus-id="macos-nav-search"]').click()
-    await page.getByPlaceholder('Find a game…').fill('Resident')
-    await page.locator('[data-focus-id="search-game-mock-re4"]').click()
+    await page.getByPlaceholder('Search games…').fill('Resident')
+    await page.locator('[data-focus-id="search-game-steam:2050650"]').click()
     await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
     await page.locator('[data-focus-id="macos-back"]').click()
     await expect(page.locator('[data-screen="search"]')).toBeVisible()
@@ -49,8 +49,10 @@ test.describe('Liquid Glass shell flows', () => {
       page.locator('[data-focus-id="settings-theme-liquid-glass"]'),
     ).toBeVisible()
     await page.locator('[data-focus-id="settings-tab-library"]').click()
-    await expect(page.getByRole('heading', { name: 'Import games' })).toBeVisible()
-    await expect(page.locator('[data-focus-id="import-steam"]')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Library', exact: true }),
+    ).toBeVisible()
+    await expect(page.getByLabel('Additional Steam library folder')).toBeVisible()
   })
 
   test('controller section keys cycle every shell route', async ({ page }) => {
@@ -94,14 +96,14 @@ test.describe('Liquid Glass shell flows', () => {
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
     await expect(
-      page.locator('[data-focus-id="library-game-mock-cyberpunk"]'),
+      page.locator('[data-focus-id="library-game-steam:1091500"]'),
     ).toHaveAttribute('data-focused', 'true')
   })
 
   test('edit properties can fetch metadata', async ({ page }) => {
     await openCyberpunkDetails(page)
     await page.locator('[data-focus-id="details-edit"]').click()
-    await expect(page.locator('[data-screen="game-edit"]')).toBeVisible()
+    await expect(page.locator('#details-settings')).toBeVisible()
     await page.locator('[data-focus-id="edit-enrich"]').click()
     await expect(
       page
@@ -115,6 +117,7 @@ test.describe('Liquid Glass shell flows', () => {
   }) => {
     await openCyberpunkDetails(page)
     await page.locator('[data-focus-id="details-edit"]').click()
+    await page.getByRole('tab', { name: 'Artwork', exact: true }).click()
     await page.locator('[data-focus-id="artwork-web-cover"]').click()
     const dialog = page.getByRole('dialog', { name: 'Choose cover artwork' })
     await expect(dialog.getByText('4 images available')).toBeVisible()

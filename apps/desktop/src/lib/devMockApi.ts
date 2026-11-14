@@ -1,7 +1,26 @@
+import { mockLibrary, mockLibraryPage, mockUpdateLibrary } from './devMockLibrary'
+import type { LibraryQuery, LibraryEntryPatch } from '@/types/library'
+import type { SteamOwnedGame } from '@/types/steam'
+import type { SteamWindowsPreferences } from '@/types/steam'
 import { localThemeArtwork } from './bundledArtwork'
 import type { Game, GameSession } from '@/types/game'
 import type { ThemeDefinition } from '@/themes/types'
 import { BUILT_IN_THEMES, DEFAULT_THEME_ID } from '@/themes/catalog'
+
+let steamAccount: string | null = null
+let steamQrPolls = 0
+let steamLoginPolls = 0
+let steamPreferences: SteamWindowsPreferences = { offlineMode: false, verifyFiles: true }
+
+function steamStatus() {
+  return {
+    signedIn: steamAccount !== null,
+    accountName: steamAccount,
+    steamInstalled: false,
+    clientRunning: false,
+    ownedCount: steamAccount ? 2 : 0,
+  }
+}
 
 const LIGHT_HERO_ART =
   'data:image/svg+xml,' +
@@ -112,55 +131,40 @@ export async function mockInvoke<T>(
   args?: Record<string, unknown>,
 ): Promise<T> {
   switch (cmd) {
-    case 'get_gamehub_library':
-      return {
-        available: true,
-        running: true,
-        capturedAt: new Date().toISOString(),
-        directInstallSupported: false,
-        warnings: [],
-        games: [
-          {
-            id: 'steam:400',
-            store: 'steam',
-            title: 'Portal',
-            installed: false,
-            phase: null,
-            percent: null,
-          },
-          {
-            id: 'steam:620',
-            store: 'steam',
-            title: 'Portal 2',
-            installed: true,
-            phase: 'completed',
-            percent: 100,
-          },
-          {
-            id: 'gog:sample',
-            store: 'gog',
-            title: 'Sample GOG game',
-            installed: false,
-            phase: 'downloading',
-            percent: 42,
-          },
-          {
-            id: 'epic:sample',
-            store: 'epic',
-            title: 'Sample Epic game',
-            installed: false,
-            phase: 'paused',
-            percent: 18,
-          },
-        ],
-      } as T
+    case 'list_library_entries':
+    case 'get_library_entry': {
+      const catalog = await mockInvoke<SteamOwnedGame[]>('steam_windows_library')
+      const entries = mockLibrary(games, catalog)
+      return (
+        cmd === 'get_library_entry'
+          ? (entries.find(
+              (e) =>
+                e.id === args?.entryId ||
+                e.installations.some((i) => i.gameId === args?.entryId),
+            ) ?? null)
+          : mockLibraryPage(entries, (args?.query ?? {}) as LibraryQuery)
+      ) as T
+    }
+    case 'update_library_entry':
+      mockUpdateLibrary(String(args?.entryId), args?.patch as LibraryEntryPatch)
+      return undefined as T
+    case 'delete_library_entry': {
+      const catalog = await mockInvoke<SteamOwnedGame[]>('steam_windows_library')
+      const entry = mockLibrary(games, catalog).find((item) => item.id === args?.entryId)
+      if (entry) {
+        const ids = new Set(entry.installations.map((item) => item.gameId))
+        games = games.filter((game) => !ids.has(game.id))
+      }
+      return undefined as T
+    }
+    case 'reveal_path':
+      return undefined as T
+    case 'scan_steam_installations':
+      return { imported: 0, enriched: 0, provider: 'steam' } as T
     case 'scan_steam_library':
       return { imported: 0, enriched: 0, provider: 'steam' } as T
-    case 'scan_gamehub_folder':
-      return { imported: 0, enriched: 0, provider: 'gamehub' } as T
     case 'install_steam_game':
     case 'open_steam_library':
-    case 'open_gamehub':
       return undefined as T
     case 'list_games':
       return games.filter((g) => !g.hidden) as T
@@ -545,6 +549,106 @@ export async function mockInvoke<T>(
     case 'quit_orbit':
       console.info('[devMockApi] quit_orbit')
       return undefined as T
+    case 'steam_windows_status':
+    case 'disconnect_steam_windows': {
+      if (cmd === 'disconnect_steam_windows') steamAccount = null
+      return steamStatus() as T
+    }
+    case 'steam_windows_preferences':
+      return steamPreferences as T
+    case 'set_steam_windows_preferences':
+      steamPreferences = {
+        additionalLibraryPaths:
+          (args?.preferences as SteamWindowsPreferences | undefined)
+            ?.additionalLibraryPaths ?? [],
+        offlineMode: Boolean(
+          (args?.preferences as { offlineMode?: boolean } | undefined)?.offlineMode,
+        ),
+        verifyFiles:
+          (args?.preferences as { verifyFiles?: boolean } | undefined)?.verifyFiles !==
+          false,
+      }
+      return steamPreferences as T
+    case 'open_steam_windows_login':
+      steamLoginPolls = 0
+      return undefined as T
+    case 'place_steam_windows_login':
+      return { placed: true } as T
+    case 'poll_steam_windows_login':
+      steamLoginPolls += 1
+      if (steamLoginPolls < 3) {
+        return { done: false, status: null, libraryError: null } as T
+      }
+      steamAccount = 'orbit_player'
+      return { done: true, status: steamStatus(), libraryError: null } as T
+    case 'begin_steam_windows_password':
+      steamAccount = 'orbit_player'
+      return {
+        clientId: '1',
+        requestId: 'dev-password',
+        intervalSeconds: 2,
+        steamId: '76561198000000000',
+        needsCode: false,
+        codeType: 3,
+      } as T
+    case 'submit_steam_windows_guard':
+      return undefined as T
+    case 'start_steam_windows_qr':
+      steamQrPolls = 0
+      return {
+        qrSvg:
+          '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><rect width="240" height="240" fill="#fff"/><path fill="#000" d="M20 20h80v80H20zm120 0h80v80h-80zM20 140h80v80H20zm40 40h20v20H60zm80-40h20v20h-20zm40 0h20v20h-20zm-40 40h80v20h-80zm0 40h20v20h-20zm40 0h20v20h-20z"/></svg>',
+        clientId: '1',
+        requestId: 'dev-request',
+        intervalSeconds: 2,
+      } as T
+    case 'poll_steam_windows_qr':
+      steamQrPolls += 1
+      if (steamQrPolls < 2) {
+        return { done: false, status: null, libraryError: null } as T
+      }
+      steamAccount = 'orbit_player'
+      return { done: true, status: steamStatus(), libraryError: null } as T
+    case 'connect_steam_windows':
+      steamAccount = 'orbit_player'
+      return steamStatus() as T
+    case 'steam_windows_library':
+    case 'refresh_steam_windows_library':
+    case 'retry_steam_catalog_metadata':
+      return (
+        steamAccount
+          ? [
+              {
+                appId: '570',
+                title: 'Dota 2',
+                description: 'A multiplayer battle arena.',
+                coverUrl:
+                  'https://cdn.akamai.steamstatic.com/steam/apps/570/library_600x900_2x.jpg',
+                heroUrl:
+                  'https://cdn.akamai.steamstatic.com/steam/apps/570/library_hero.jpg',
+                installed: false,
+              },
+              {
+                appId: '730',
+                title: 'Counter-Strike 2',
+                description: null,
+                coverUrl:
+                  'https://cdn.akamai.steamstatic.com/steam/apps/730/library_600x900_2x.jpg',
+                heroUrl:
+                  'https://cdn.akamai.steamstatic.com/steam/apps/730/library_hero.jpg',
+                installed: true,
+              },
+            ]
+          : []
+      ) as T
+    case 'install_windows_steam':
+      return undefined as T
+    case 'cancel_steam_windows_sign_in':
+    case 'cancel_steam_windows_download':
+    case 'download_steam_windows_game':
+      return undefined as T
+    case 'play_steam_windows_game':
+      throw new Error('Playing a Windows Steam game requires the Orbit desktop app.')
     default:
       console.warn(`[devMockApi] Unhandled command: ${cmd}`)
       return null as T

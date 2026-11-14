@@ -13,6 +13,7 @@ vi.mock('@/lib/tauri', () => ({
     .mockResolvedValue([
       { path: '/wine/bin/wine', serverPath: '/wine/bin/wineserver', version: 'wine-10' },
     ]),
+  getComponentStatus: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../hooks/useImportScan', () => ({ useImportScan: () => ({ runScan: vi.fn() }) }))
 afterEach(() => {

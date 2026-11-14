@@ -10,7 +10,6 @@ import {
   launchGame,
   listGames,
   scanAstrisFolder,
-  scanGamehubFolder,
   scanNativeApps,
   scanSteamLibrary,
   setGameHidden,
@@ -57,7 +56,11 @@ export function useGameActions() {
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['games'] })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['games'] }),
+      queryClient.invalidateQueries({ queryKey: ['library'] }),
+      queryClient.invalidateQueries({ queryKey: ['library-entry'] }),
+    ])
     await queryClient.invalidateQueries({ queryKey: ['active-session'] })
   }
 
@@ -124,11 +127,6 @@ export function useGameActions() {
     onSuccess: invalidate,
   })
 
-  const scanGamehub = useMutation({
-    mutationFn: (folder?: string) => scanGamehubFolder(folder),
-    onSuccess: invalidate,
-  })
-
   const importPath = useMutation({
     mutationFn: importGamePath,
     onSuccess: invalidate,
@@ -146,7 +144,6 @@ export function useGameActions() {
     scanSteam,
     scanAstris,
     scanNative,
-    scanGamehub,
     importPath,
   }
 }

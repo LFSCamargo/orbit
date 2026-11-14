@@ -39,6 +39,20 @@ it('does not let a late decode replace the next image state', async () => {
   expect(screen.getByRole('img')).toHaveAttribute('src', '/second.png')
 })
 
+it('uses contain fit when requested so logos stay inside their frame', () => {
+  const { container } = render(<ArtworkImage src="/logo.png" alt="Logo" fit="contain" />)
+  expect(container.firstChild).toHaveClass('[&>img]:object-contain')
+  expect(container.firstChild).not.toHaveClass('[&>img]:object-cover')
+})
+
+it('stays in flow unless the caller positions it absolutely', () => {
+  const { container, rerender } = render(<ArtworkImage src="/logo.png" alt="Logo" />)
+  expect(container.firstChild).toHaveClass('relative')
+  rerender(<ArtworkImage src="/logo.png" alt="Logo" className="absolute inset-0" />)
+  expect(container.firstChild).toHaveClass('absolute')
+  expect(container.firstChild).not.toHaveClass('relative')
+})
+
 it('stops the loading animation and exposes a fallback when an image fails', () => {
   const { container } = render(<ArtworkImage src="/missing.png" alt="Theme logo" />)
   fireEvent.error(screen.getByRole('img'))

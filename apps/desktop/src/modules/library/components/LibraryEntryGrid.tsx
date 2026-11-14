@@ -1,0 +1,91 @@
+import { clsx } from 'clsx'
+import { Heart, HardDrive, Download } from 'lucide-react'
+import { Focusable } from '@/components/focus/Focusable'
+import { SquareGameArt } from '@/components/game/SquareGameArt'
+import { gameTileImage } from '@/lib/artwork'
+import { placeholderGradient } from '@/lib/format'
+import { useUiStore } from '@/stores/ui.store'
+import type { LibraryEntry } from '@/types/library'
+
+export function LibraryEntryGrid({
+  entries,
+  screen = 'library',
+}: {
+  entries: LibraryEntry[]
+  screen?: string
+}) {
+  const open = useUiStore((s) => s.openGameDetails)
+  return (
+    <div
+      className={clsx(
+        'library-entry-grid grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-6 max-[1100px]:grid-cols-[repeat(auto-fill,minmax(165px,1fr))] max-[1100px]:gap-[18px]',
+      )}
+      role="list"
+      aria-label="Games"
+    >
+      {entries.map((entry, order) => {
+        const available = entry.installations.some((i) => i.available)
+        return (
+          <div key={entry.id} role="listitem" className="min-w-0">
+            <Focusable
+              focusId={`${screen}-game-${entry.id}`}
+              group={`${screen}-grid`}
+              order={order}
+              noScale
+              className={clsx(
+                'library-entry-card orbit-panel w-full overflow-hidden rounded-[22px] text-left transition-[background,transform] duration-200',
+                'hover:-translate-y-[3px] hover:bg-[rgb(56_61_72/0.8)]',
+                'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+              )}
+              aria-label={entry.game.title}
+              onClick={() => open(entry.id)}
+            >
+              <div
+                className={clsx(
+                  'library-entry-art relative aspect-square overflow-hidden',
+                )}
+              >
+                <SquareGameArt
+                  image={gameTileImage(entry.game.artwork, 'square')}
+                  placeholder={placeholderGradient(entry.id)}
+                  fit="cover"
+                  roundedClassName="rounded-none"
+                  className="aspect-square w-full"
+                />
+                {entry.game.favorite && (
+                  <span
+                    className={clsx(
+                      'library-favorite absolute right-3 top-3 rounded-full bg-[rgb(20_22_28/0.8)] p-[9px] text-[#ffa2b6] backdrop-blur-[12px]',
+                    )}
+                    aria-label="Favorite"
+                  >
+                    <Heart size={16} fill="currentColor" />
+                  </span>
+                )}
+              </div>
+              <div className={clsx('library-entry-copy min-h-[88px] p-4')}>
+                <h2 className={clsx('truncate text-base font-semibold')}>
+                  {entry.game.title}
+                </h2>
+                <p
+                  className={clsx(
+                    'mt-[7px] flex items-center gap-1.5 text-xs text-orbit-muted',
+                  )}
+                >
+                  {available ? <HardDrive size={14} /> : <Download size={14} />}
+                  {available
+                    ? 'Installed'
+                    : entry.installations.length
+                      ? 'Unavailable'
+                      : 'Not installed'}
+                  {entry.installations.length > 1 &&
+                    ` · ${entry.installations.length} installations`}
+                </p>
+              </div>
+            </Focusable>
+          </div>
+        )
+      })}
+    </div>
+  )
+}

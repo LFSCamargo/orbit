@@ -1,5 +1,8 @@
 # Experimental GameHub bridge investigation
 
+Historical notes from a 2026-11-10 inspection. GameHub is **not** an Orbit
+provider. See [GAMEHUB.md](GAMEHUB.md).
+
 Inspected installed GameHub 0.8.613 on 2026-11-10. Binary SHA-256:
 `fe44b84c0b4e7eaca5da57ae10f576b7bf265c627862a074b088f381e9aaa357`.
 

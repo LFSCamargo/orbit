@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { Check, Download, LoaderCircle, Settings2, ShieldCheck } from 'lucide-react'
+import {
+  Check,
+  Download,
+  LoaderCircle,
+  Settings2,
+  ShieldCheck,
+  SlidersHorizontal,
+} from 'lucide-react'
+import { CollapsiblePanel } from '@/components/ui/collapsible-panel'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { detectRuntimes, registerWineRuntime, windowsCompatibility } from '@/lib/tauri'
 import { open } from '@/lib/dialog'
@@ -50,13 +58,17 @@ export function RuntimeSettings() {
   const ready = Boolean(status?.managed) || setup.complete
 
   return (
-    <section className="settings-panel">
-      <div className="settings-panel-header">
-        <div className="settings-panel-title">
+    <section className="settings-panel scroll-mt-6 [&+.settings-panel]:mt-7 [&+.settings-panel]:pt-2">
+      <div className="settings-panel-header !mb-6 flex !flex-col !items-start !gap-2 !p-0 text-orbit-foreground">
+        <div className="settings-panel-title flex items-center gap-2.5 [&>svg]:shrink-0 [&>svg]:text-orbit-accent">
           <Settings2 size={20} />
-          <h2>Windows compatibility</h2>
+          <h2 className="!m-0 !text-[clamp(22px,2vw,28px)] !font-semibold !normal-case !leading-none !tracking-[-0.035em]">
+            Windows compatibility
+          </h2>
         </div>
-        <p>Everything needed to play Windows games on your Mac.</p>
+        <p className="m-0 text-[13px] font-normal leading-[1.6] text-orbit-muted">
+          Everything needed to play Windows games on your Mac.
+        </p>
       </div>
 
       {compatibility.error ? (
@@ -119,57 +131,57 @@ export function RuntimeSettings() {
               )}
             </div>
 
-            <details className="mt-8 border-t border-orbit-border pt-5">
-              <summary className="cursor-pointer text-sm font-medium">
-                Advanced runtime options
-              </summary>
-              <div className="space-y-4 text-sm">
-                <div>
-                  <h3 className="font-semibold">Existing Wine installations</h3>
-                  <p className="mt-1 text-xs leading-relaxed text-orbit-muted">
-                    Only use this if you already manage Wine yourself. The managed setup
-                    above is recommended for everyone else.
-                  </p>
-                </div>
-                {(runtimes.data ?? []).map((runtime) => (
-                  <div key={runtime.path} className="rounded-card bg-white/[0.03] p-3">
-                    <h4 className="font-medium">{runtime.version}</h4>
-                    <p className="mt-1 break-all text-xs text-orbit-muted">
-                      {runtime.path}
-                    </p>
-                  </div>
-                ))}
-                {status?.supported && !runtimes.data?.length && (
-                  <p className="text-orbit-muted">
-                    {runtimes.isFetching
-                      ? 'Detecting runtimes…'
-                      : 'No Wine runtime detected.'}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-3">
-                  <Focusable
-                    focusId="runtime-register"
-                    group="runtimes"
-                    order={1}
-                    disabled={busy}
-                    onClick={() => void register()}
-                    className="orbit-glass-control rounded-card px-4 py-3"
-                  >
-                    Choose installed Wine
-                  </Focusable>
-                  <Focusable
-                    focusId="runtime-refresh"
-                    group="runtimes"
-                    order={2}
-                    disabled={runtimes.isFetching || busy}
-                    onClick={() => void refresh()}
-                    className="orbit-glass-control rounded-card px-4 py-3"
-                  >
-                    Detect again
-                  </Focusable>
-                </div>
+            <CollapsiblePanel
+              title="Advanced runtime options"
+              icon={SlidersHorizontal}
+              className="mt-8"
+              focusId="runtime-advanced"
+            >
+              <div>
+                <h3 className="font-semibold">Existing Wine installations</h3>
+                <p className="mt-1 text-xs leading-relaxed text-orbit-muted">
+                  Only use this if you already manage Wine yourself. The managed setup
+                  above is recommended for everyone else.
+                </p>
               </div>
-            </details>
+              {(runtimes.data ?? []).map((runtime) => (
+                <div key={runtime.path} className="rounded-card bg-white/[0.03] p-3">
+                  <h4 className="font-medium">{runtime.version}</h4>
+                  <p className="mt-1 break-all text-xs text-orbit-muted">
+                    {runtime.path}
+                  </p>
+                </div>
+              ))}
+              {status?.supported && !runtimes.data?.length && (
+                <p className="text-orbit-muted">
+                  {runtimes.isFetching
+                    ? 'Detecting runtimes…'
+                    : 'No Wine runtime detected.'}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-3">
+                <Focusable
+                  focusId="runtime-register"
+                  group="runtimes"
+                  order={1}
+                  disabled={busy}
+                  onClick={() => void register()}
+                  className="orbit-glass-control rounded-card px-4 py-3"
+                >
+                  Choose installed Wine
+                </Focusable>
+                <Focusable
+                  focusId="runtime-refresh"
+                  group="runtimes"
+                  order={2}
+                  disabled={runtimes.isFetching || busy}
+                  onClick={() => void refresh()}
+                  className="orbit-glass-control rounded-card px-4 py-3"
+                >
+                  Detect again
+                </Focusable>
+              </div>
+            </CollapsiblePanel>
 
             {setup.error && (
               <p

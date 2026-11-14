@@ -169,7 +169,7 @@ export function ImageSearchModal({
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 240 }}
             onClick={(event) => event.stopPropagation()}
-            className="image-search-drawer relative"
+            className="image-search-drawer relative h-dvh max-h-dvh w-[min(960px,100vw)] shadow-[20px_0_60px_rgb(0_0_0/0.45)] max-[640px]:w-screen"
           >
             <LiquidGlass className="flex h-full flex-col overflow-hidden" radius={0}>
               <header className="flex items-start justify-between gap-4 border-b border-orbit-border/60 px-6 py-5">

@@ -10,10 +10,16 @@ mod runtimes;
 mod services;
 mod utils;
 
+use std::process::Child;
 use std::sync::Arc;
+
+use parking_lot::Mutex;
+
+use tauri::{Manager, RunEvent};
 
 use database::{GameRepository, MetadataCacheRepository};
 use launching::SessionManager;
+use services::steam_login;
 use utils::api_keys::init_env;
 use utils::paths::{database_path, metadata_cache_path};
 
@@ -21,6 +27,7 @@ pub struct AppState {
     pub repo: Arc<GameRepository>,
     pub metadata_cache: Arc<MetadataCacheRepository>,
     pub sessions: Arc<SessionManager>,
+    pub steam_login: Mutex<Option<Child>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,6 +50,7 @@ pub fn run() {
             repo: Arc::new(repo),
             metadata_cache: Arc::new(metadata_cache),
             sessions: Arc::new(sessions),
+            steam_login: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             commands::runtimes::windows_compatibility,
@@ -63,6 +71,10 @@ pub fn run() {
             commands::runtimes::register_wine_runtime,
             commands::runtimes::runtime_diagnostics,
             commands::session::cancel_game_launch,
+            commands::library::list_library_entries,
+            commands::library::get_library_entry,
+            commands::library::update_library_entry,
+            commands::library::delete_library_entry,
             commands::games::list_games,
             commands::games::get_game,
             commands::hero::get_hero_lighting,
@@ -76,6 +88,7 @@ pub fn run() {
             commands::games::get_setting,
             commands::games::set_setting,
             commands::dialog::pick_open_path,
+            commands::dialog::reveal_path,
             commands::session::launch_game,
             commands::session::stop_game,
             commands::session::get_active_session,
@@ -84,14 +97,32 @@ pub fn run() {
             commands::window::show_orbit_window,
             commands::window::quit_orbit,
             commands::importers::detect_importers,
-            commands::gamehub::get_gamehub_library,
-            commands::gamehub::open_gamehub,
             commands::steam::open_steam_library,
             commands::steam::install_steam_game,
+            commands::steam_windows::steam_windows_status,
+            commands::steam_windows::steam_windows_preferences,
+            commands::steam_windows::set_steam_windows_preferences,
+            commands::steam_windows::steam_windows_library,
+            commands::steam_windows::begin_steam_windows_password,
+            commands::steam_windows::submit_steam_windows_guard,
+            commands::steam_windows::open_steam_windows_login,
+            commands::steam_windows::place_steam_windows_login,
+            commands::steam_windows::poll_steam_windows_login,
+            commands::steam_windows::start_steam_windows_qr,
+            commands::steam_windows::poll_steam_windows_qr,
+            commands::steam_windows::connect_steam_windows,
+            commands::steam_windows::install_windows_steam,
+            commands::steam_windows::cancel_steam_windows_sign_in,
+            commands::steam_windows::disconnect_steam_windows,
+            commands::steam_windows::refresh_steam_windows_library,
+            commands::steam_windows::retry_steam_catalog_metadata,
+            commands::steam_windows::download_steam_windows_game,
+            commands::steam_windows::cancel_steam_windows_download,
+            commands::steam_windows::play_steam_windows_game,
             commands::importers::scan_steam_library,
             commands::importers::scan_astris_folder,
             commands::importers::scan_native_apps,
-            commands::importers::scan_gamehub_folder,
+            commands::importers::scan_steam_installations,
             commands::importers::import_game_path,
             commands::switch_library::scan_switch_library_folder,
             commands::switch_library::scan_switch_library_from_library,
@@ -114,6 +145,15 @@ pub fn run() {
             commands::metadata::get_metadata_cache_stats,
             commands::metadata::test_metadata_api_keys,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Orbit");
+        .build(tauri::generate_context!())
+        .expect("error while running Orbit")
+        .run(|app, event| {
+            if matches!(event, RunEvent::Exit) {
+                if let Some(state) = app.try_state::<AppState>() {
+                    if let Err(err) = steam_login::close(&state.steam_login) {
+                        eprintln!("Steam sign-in window could not be closed: {err}");
+                    }
+                }
+            }
+        });
 }

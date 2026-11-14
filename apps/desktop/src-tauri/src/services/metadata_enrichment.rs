@@ -4,15 +4,14 @@ use std::time::Duration;
 use chrono::Utc;
 
 use crate::database::{CachedMetadataRow, GameRepository, MetadataCacheRepository};
-use crate::models::{Game, GameArtwork, GameProvider, LaunchConfiguration, UpdateGameRequest};
+use crate::models::{Game, GameArtwork, GameProvider, LaunchConfiguration};
 use crate::services::artwork::{cache_artwork_bytes, mime_from_bytes, path_to_string};
 use crate::services::http::fetch_bytes;
 use crate::services::metadata_merge::is_placeholder_description;
 use crate::services::steamgrid::fetch_matching_assets;
 use crate::services::thegamesdb::{self, TgdbGameDetails};
 use crate::utils::api_keys::{steamgriddb_api_key, thegamesdb_api_key};
-use crate::utils::gamehub_shortcut::inspect_gamehub_shortcut;
-use crate::utils::steam_app_id::{steam_app_id_from_launch, steam_app_id_from_url};
+use crate::utils::steam_app_id::steam_app_id_from_launch;
 
 #[derive(Debug, Clone, Default)]
 pub struct EnrichmentResult {
@@ -35,6 +34,7 @@ impl MetadataEnrichmentService {
             .ok_or_else(|| "Game not found".to_string())?;
 
         let mut notes: Vec<String> = Vec::new();
+        let steam_app_id = resolve_steam_app_id(&game);
         let tgdb_key = thegamesdb_api_key(repo);
         let platform_ids = thegamesdb::platform_ids(&game.provider, &game.platform);
         let tgdb_match = if let Some(key) = tgdb_key.as_deref() {
@@ -51,6 +51,26 @@ impl MetadataEnrichmentService {
         let mut title = game.title.clone();
         let mut description = game.description.clone();
         let mut artwork = game.artwork.clone();
+        if is_placeholder_description(description.as_deref()) {
+            if let Some(app_id) = steam_app_id.as_deref() {
+                match crate::services::steam_catalog::fetch_store_catalog(app_id).await {
+                    Ok(value) => {
+                        if let Some((store_title, store_desc)) =
+                            crate::services::steam_catalog::parse_store_details(app_id, &value)
+                        {
+                            if should_update_title(&game) && store_title != title {
+                                title = store_title;
+                            }
+                            if let Some(text) = store_desc {
+                                description = Some(text);
+                                notes.push("Steam store".into());
+                            }
+                        }
+                    }
+                    Err(_) => notes.push("Steam store unavailable".into()),
+                }
+            }
+        }
         if let Some(details) = &tgdb_match {
             if should_update_title(&game) && details.title != title {
                 title = details.title.clone();
@@ -59,7 +79,6 @@ impl MetadataEnrichmentService {
                 description = details.overview.clone().or(description);
             }
         }
-        let steam_app_id = resolve_steam_app_id(&game);
         if let Some(key) = steamgriddb_api_key(repo) {
             match fetch_matching_assets(&key, &title, steam_app_id.as_deref()).await {
                 Ok(Some((canonical_title, assets))) => {
@@ -133,6 +152,26 @@ impl MetadataEnrichmentService {
                 }
             }
         }
+        if let Some(app_id) = steam_app_id.as_deref() {
+            if needs_steam_square(&game) {
+                artwork.icon = Some(crate::services::steam_catalog::cover_url(app_id));
+                if let Some(key) = steamgriddb_api_key(repo) {
+                    match crate::services::steamgrid::fetch_square_cover(&key, app_id).await {
+                        Ok(square) => {
+                            if let Some(url) = square.cover_url {
+                                if let Some(path) =
+                                    download_steam_square(game_id, app_id, &url).await
+                                {
+                                    artwork.icon = Some(path);
+                                    notes.push("SteamGridDB square (exact Steam AppID)".into());
+                                }
+                            }
+                        }
+                        Err(_) => notes.push("SteamGridDB square unavailable".into()),
+                    }
+                }
+            }
+        }
         // A valid imported/local image can serve as a fallback for another slot.
         crate::services::import_artwork::complete_artwork(game_id, &mut artwork)?;
         let changed = title != game.title
@@ -149,15 +188,11 @@ impl MetadataEnrichmentService {
             });
         }
 
-        repo.update_game(
+        repo.update_fetched_metadata(
             game_id,
-            UpdateGameRequest {
-                title: Some(title.clone()),
-                description: description.clone(),
-                artwork: Some(artwork.clone()),
-                launch_config: None,
-                install_size_bytes: None,
-            },
+            Some(title.clone()),
+            description.clone(),
+            Some(artwork.clone()),
         )
         .map_err(|err| err.to_string())?;
 
@@ -210,6 +245,31 @@ impl MetadataEnrichmentService {
             _ => true,
         }
     }
+}
+
+/// Dedicated cache filename records that automatic square art used the exact AppID.
+pub fn needs_steam_square(game: &Game) -> bool {
+    let Some(app_id) = resolve_steam_app_id(game) else {
+        return false;
+    };
+    !game.artwork.icon.as_deref().is_some_and(|path| {
+        Path::new(path)
+            .file_stem()
+            .is_some_and(|stem| stem == format!("steam-square-{app_id}").as_str())
+            && Path::new(path).is_file()
+    })
+}
+
+async fn download_steam_square(game_id: &str, app_id: &str, url: &str) -> Option<String> {
+    let bytes = fetch_bytes(url).await.ok()?;
+    let image = image::load_from_memory(&bytes).ok()?;
+    if image.width() != image.height() || ![512, 1024].contains(&image.width()) {
+        return None;
+    }
+    let mime = mime_from_bytes(&bytes, url);
+    cache_artwork_bytes(game_id, &format!("steam-square-{app_id}"), &bytes, &mime)
+        .ok()
+        .map(|path| path_to_string(&path))
 }
 
 async fn resolve_tgdb_match(
@@ -296,32 +356,29 @@ pub(crate) fn resolve_steam_app_id(game: &Game) -> Option<String> {
         return Some(id);
     }
 
-    if let LaunchConfiguration::Gamehub {
-        shortcut_app_path, ..
-    } = &game.launch_config
+    if game.provider != GameProvider::Steam
+        && !(matches!(game.provider, GameProvider::Gamehub | GameProvider::Manual)
+            && matches!(game.launch_config, LaunchConfiguration::Wine { .. }))
     {
-        if let Some(info) = inspect_gamehub_shortcut(Path::new(shortcut_app_path)) {
-            if let Some(link) = info.deep_link.as_deref() {
-                return steam_app_id_from_url(link);
-            }
-        }
-    }
-
-    if game.provider != GameProvider::Steam {
         return None;
     }
     game.source_id
         .as_deref()
-        .filter(|id| id.chars().all(|c| c.is_ascii_digit()))
+        .filter(|id| crate::services::steam_download::valid_app_id(id))
         .map(str::to_string)
 }
 
 fn should_update_title(game: &Game) -> bool {
     match game.provider {
-        GameProvider::Gamehub | GameProvider::Astris | GameProvider::Manual => true,
-        GameProvider::Steam => {
+        GameProvider::Astris | GameProvider::Manual => true,
+        GameProvider::Steam | GameProvider::Gamehub => {
             let lower = game.title.trim().to_ascii_lowercase();
-            lower.is_empty() || lower.starts_with("steam app ")
+            lower.is_empty()
+                || lower.starts_with("steam app ")
+                || game
+                    .source_id
+                    .as_deref()
+                    .is_some_and(|id| crate::services::steam_catalog::is_placeholder_title(&game.title, id))
         }
         _ => false,
     }
@@ -421,6 +478,18 @@ fn artwork_changed(before: &GameArtwork, after: &GameArtwork) -> bool {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+    #[test]
+    fn gamehub_windows_manifest_identity_is_used_for_exact_steam_artwork() {
+        let game: Game = serde_json::from_value(serde_json::json!({
+            "id": "windows-gow", "title": "GodOfWar", "sortTitle": "godofwar",
+            "provider": "gamehub", "platform": "windows", "sourceId": "1593500",
+            "launchConfig": {"type": "wine", "profile": {"executable": "/games/GoW.exe", "runtimePath": "/wine", "arguments": [], "environment": {}}},
+            "artwork": {}, "favorite": false, "hidden": false, "dateAdded": "2026-11-14",
+            "totalPlaytimeSeconds": 0, "achievements": []
+        })).unwrap();
+        assert_eq!(resolve_steam_app_id(&game).as_deref(), Some("1593500"));
+    }
+
     #[test]
     fn never_treats_numeric_emulator_identity_as_steam() {
         let mut game: Game = serde_json::from_value(serde_json::json!({

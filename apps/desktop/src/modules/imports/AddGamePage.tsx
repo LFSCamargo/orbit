@@ -1,10 +1,11 @@
 import { WineProfileEditor } from '@/components/runtime/WineProfileEditor'
 import type { WineProfile } from '@/types/runtime'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive, Joystick } from 'lucide-react'
+import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { focusManager } from '@/controllers/FocusManager'
 import { useGameActions } from '@/hooks/useGames'
 import { backTarget } from '@/lib/navigation'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
@@ -22,31 +23,13 @@ const SOURCES: Array<{
   extensions: string[]
   folder?: boolean
   autoSteam?: boolean
-  autoGamehub?: boolean
 }> = [
-  {
-    id: 'steam',
-    title: 'Steam',
-    body: 'Scan your Steam library. Playtime, size, and achievements are detected automatically.',
-    provider: 'steam',
-    extensions: [],
-    autoSteam: true,
-  },
   {
     id: 'astris',
     title: 'Astris (.nsp / .xci)',
     body: 'Pick a folder of Nintendo Switch dumps. Orbit parses filenames only.',
     provider: 'astris',
     extensions: ['nsp', 'xci'],
-    folder: true,
-  },
-  {
-    id: 'gamehub',
-    title: 'GameHub shortcuts',
-    body: 'Scan /Applications and ~/Applications for GameHub shortcuts (bundle id com.gamehub.shortcut.*). Create each shortcut in GameHub first.',
-    provider: 'gamehub',
-    extensions: ['app'],
-    autoGamehub: true,
     folder: true,
   },
   {
@@ -91,6 +74,21 @@ export function AddGamePage() {
     () => SOURCES.find((item) => item.id === sourceId) ?? null,
     [sourceId],
   )
+  useEffect(() => {
+    if (step !== 'source') return
+    let attempts = 0
+    let frame = 0
+    const focusSource = () => {
+      if (document.querySelector('[data-screen="add-game"] [data-focused="true"]')) return
+      if (focusManager.hasNode('add-source-astris')) {
+        focusManager.setFocus('add-source-astris')
+        return
+      }
+      if (++attempts < 30) frame = requestAnimationFrame(focusSource)
+    }
+    frame = requestAnimationFrame(focusSource)
+    return () => cancelAnimationFrame(frame)
+  }, [step])
 
   const runAutoImport = async (id: string) => {
     setBusy(true)
@@ -131,7 +129,7 @@ export function AddGamePage() {
       setSelectedPath(selected)
       setWineProfile((p) => ({ ...p, executable: selected }))
 
-      if (source.id === 'astris' || source.id === 'gamehub') {
+      if (source.id === 'astris') {
         const outcome = await runScan(source.id, {
           folder: selected,
           messageStyle: 'imported',
@@ -181,7 +179,7 @@ export function AddGamePage() {
   return (
     <ThemePage
       title="Add game"
-      subtitle="Controller-friendly import for Steam, Astris, GameHub, and local files."
+      subtitle="Controller-friendly import for Astris, macOS apps, and local files."
     >
       <div className="mb-8">
         <Focusable
@@ -216,7 +214,7 @@ export function AddGamePage() {
                   disabled={busy}
                   onClick={() => {
                     setSourceId(item.id)
-                    if (item.autoSteam || item.id === 'native' || item.autoGamehub) {
+                    if (item.autoSteam || item.id === 'native') {
                       void runAutoImport(item.id)
                     } else {
                       setStep('path')
@@ -225,9 +223,7 @@ export function AddGamePage() {
                   className="orbit-panel rounded-theme p-6 text-left"
                 >
                   <div className="orbit-glass-control mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-orbit-accent/15 text-orbit-accent">
-                    {item.id === 'steam' ? (
-                      <Joystick className="h-5 w-5" />
-                    ) : item.id === 'astris' ? (
+                    {item.id === 'astris' ? (
                       <Gamepad2 className="h-5 w-5" />
                     ) : (
                       <HardDrive className="h-5 w-5" />

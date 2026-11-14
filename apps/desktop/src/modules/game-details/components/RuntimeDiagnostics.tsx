@@ -19,7 +19,7 @@ export function RuntimeDiagnostics({ gameId }: { gameId: string }) {
       <h2 className="text-lg font-semibold">Windows compatibility</h2>
       <p className="my-2 text-sm text-orbit-muted">
         A dedicated Wine environment is prepared on first Play. Configure the runtime and
-        arguments in Edit properties.
+        arguments above.
       </p>
       <Focusable
         focusId="runtime-diagnostics"
@@ -27,7 +27,7 @@ export function RuntimeDiagnostics({ gameId }: { gameId: string }) {
         order={12}
         disabled={busy}
         onClick={() => void load()}
-        className="orbit-glass-control rounded-card px-4 py-2"
+        className="orbit-glass-control rounded-card px-4 py-2 disabled:cursor-wait disabled:opacity-40"
       >
         {busy ? 'Reading…' : 'Compatibility diagnostics'}
       </Focusable>

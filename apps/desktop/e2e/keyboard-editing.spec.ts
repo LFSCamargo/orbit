@@ -5,7 +5,7 @@ test('search text accepts shortcut letters, brackets, deletion, and caret naviga
 }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Search', exact: true }).click()
-  const input = page.getByPlaceholder('Find a game…')
+  const input = page.getByPlaceholder('Search games…')
   await input.fill('game')
   await input.press('Backspace')
   await expect(input).toHaveValue('gam')
@@ -22,7 +22,7 @@ test('search text accepts shortcut letters, brackets, deletion, and caret naviga
   await input.press('Escape')
   await expect(page.locator('[data-screen="search"]')).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByRole('heading', { name: 'Search', exact: true }).click()
+  await page.getByRole('heading', { name: 'Find your next escape.' }).click()
   await page.keyboard.press('Backspace')
   await expect(page.locator('[data-screen="search"]')).toBeVisible()
 })

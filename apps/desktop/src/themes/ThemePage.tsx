@@ -11,5 +11,14 @@ interface ThemePageProps {
 }
 
 export function ThemePage({ children, className }: ThemePageProps) {
-  return <section className={clsx('macos-page', className)}>{children}</section>
+  return (
+    <section
+      className={clsx(
+        'macos-page relative min-w-0 px-[var(--console-gutter)] pt-6',
+        className ?? 'pb-16',
+      )}
+    >
+      {children}
+    </section>
+  )
 }

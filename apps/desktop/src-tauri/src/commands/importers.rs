@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tauri::State;
 
 use crate::importers::{
-    import_manual_path, AstrisImporter, GameHubImporter, GameImporter, NativeAppImporter,
+    import_manual_path, AstrisImporter, SteamWindowsImporter, GameImporter, NativeAppImporter,
     SteamImporter,
 };
 use crate::services::{import_artwork, LibrarySyncService, MetadataEnrichmentService};
@@ -31,7 +31,7 @@ pub struct ScanResult {
 pub async fn detect_importers() -> Result<Vec<ImporterStatus>, String> {
     let steam = SteamImporter::new(None);
     let native = NativeAppImporter::new();
-    let gamehub = GameHubImporter::new();
+    
     let astris = AstrisImporter::new(Vec::new());
 
     Ok(vec![
@@ -52,12 +52,6 @@ pub async fn detect_importers() -> Result<Vec<ImporterStatus>, String> {
             detected: native.detect().await.unwrap_or(false),
             label: "macOS Applications".into(),
             experimental: false,
-        },
-        ImporterStatus {
-            id: "gamehub".into(),
-            detected: gamehub.detect().await.unwrap_or(false),
-            label: "GameHub".into(),
-            experimental: true,
         },
     ])
 }
@@ -96,17 +90,25 @@ pub async fn scan_native_apps(state: State<'_, AppState>) -> Result<ScanResult, 
 }
 
 #[tauri::command]
-pub async fn scan_gamehub_folder(
+pub async fn scan_steam_installations(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
-    folder: Option<String>,
 ) -> Result<ScanResult, String> {
-    let folders = folder.map(|f| vec![PathBuf::from(f)]).unwrap_or_default();
-    let importer = GameHubImporter::new().with_folders(folders);
-    let games = importer
-        .discover_games()
-        .await
-        .map_err(|err| err.to_string())?;
-    finalize_scan(&state, games, "gamehub").await
+    let games = tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let state = app.state::<AppState>();
+        let runtime = crate::services::steam_windows::play_wine_binary(&state.repo).unwrap_or_default();
+        let paths =
+            crate::services::steam_windows::preferences(&state.repo)?.additional_library_paths;
+        SteamWindowsImporter::new()
+            .with_runtime(runtime)
+            .with_library_paths(paths)
+            .imported_games()
+            .map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|_| "Windows game discovery stopped".to_string())??;
+    finalize_scan(&state, games, "steam").await
 }
 
 #[tauri::command]
@@ -133,12 +135,10 @@ async fn finalize_scan(
         .iter()
         .filter(|id| {
             new_ids.contains(id)
-                || state
-                    .repo
-                    .get_game(id)
-                    .ok()
-                    .flatten()
-                    .is_some_and(|game| import_artwork::needs_artwork(&game.artwork))
+                || state.repo.get_game(id).ok().flatten().is_some_and(|game| {
+                    import_artwork::needs_artwork(&game.artwork)
+                        || crate::services::metadata_enrichment::needs_steam_square(&game)
+                })
         })
         .cloned()
         .collect();

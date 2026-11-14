@@ -26,20 +26,26 @@ test.beforeEach(async ({ page }) => {
       touched: false,
       value: 0,
     }))
+    let release: (() => void) | null = null
     Object.defineProperty(navigator, 'getGamepads', {
-      value: () => [
-        { id: 'Xbox test controller', buttons, axes: [0, 0, 0, 0], connected: true },
-      ],
+      value: () => {
+        const sampled = release
+        release = null
+        if (sampled) queueMicrotask(sampled)
+        return [
+          { id: 'Xbox test controller', buttons, axes: [0, 0, 0, 0], connected: true },
+        ]
+      },
     })
     window.addEventListener('test-pad', (event) => {
       if (!(event instanceof CustomEvent)) return
       const button = buttons[Number(event.detail)]
       button.pressed = true
       button.value = 1
-      setTimeout(() => {
+      release = () => {
         button.pressed = false
         button.value = 0
-      }, 65)
+      }
     })
   })
   await page.goto('/')
@@ -66,20 +72,15 @@ test('controller rings cover every page and survive section changes', async ({
   await expectRing(page.locator('[data-screen="game-details"] [data-focused="true"]'))
   await page.locator('[data-focus-id="details-edit"]').hover()
   await pressPad(page, 0)
-  await expect(page.locator('[data-screen="game-edit"]')).toBeVisible()
+  await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
+  await expect(page.locator('#details-settings')).toBeVisible()
   await pressPad(page, 13)
-  await expectRing(page.locator('[data-screen="game-edit"] [data-focused="true"]'))
+  await expectRing(page.locator('[data-screen="game-details"] [data-focused="true"]'))
   await page.locator('[data-focus-id="macos-toolbar-add"]').hover()
   await pressPad(page, 0)
   await expect(page.locator('[data-screen="add-game"]')).toBeVisible()
   await pressPad(page, 13)
   await expectRing(page.locator('[data-screen="add-game"] [data-focused="true"]'))
-  await page.locator('[data-focus-id="macos-nav-library"]').click()
-  await page.locator('[data-focus-id="library-gamehub-manager"]').hover()
-  await pressPad(page, 0)
-  await expect(page.locator('[data-screen="gamehub-library"]')).toBeVisible()
-  await pressPad(page, 13)
-  await expectRing(page.locator('[data-screen="gamehub-library"] [data-focused="true"]'))
   await page.locator('[data-focus-id="macos-nav-settings"]').click()
   await page.locator('[data-focus-id="settings-tab-library"]').click()
   await page.locator('[data-focus-id="imports-switch-library"]').hover()
@@ -111,4 +112,43 @@ test('settings tabs, theme cards, and portaled dialogs retain rings with no brow
   await expect(page.locator('html')).toHaveAttribute('data-navigation-input', 'pointer')
   await pressPad(page, 13)
   await expectRing(dialog.locator('[data-focused="true"]'))
+})
+
+test('controller reaches Steam switches and preserves section navigation', async ({
+  page,
+}) => {
+  await page.locator('[data-focus-id="macos-nav-settings"]').click()
+  await page.locator('[data-focus-id="settings-tab-steam"]').hover()
+  await pressPad(page, 0)
+  const offline = page.getByRole('switch', { name: 'Offline mode' })
+  await expect(offline).toHaveAttribute('data-focus-id', /settings-control-/)
+  await offline.hover()
+  await pressPad(page, 0)
+  await expect(offline).toBeChecked()
+  await expectRing(offline)
+  await pressPad(page, 13)
+  await expectRing(page.getByRole('switch', { name: 'Verify game files' }))
+  await pressPad(page, 14)
+  await expectRing(page.locator('[data-focus-id="settings-tab-steam"]'))
+})
+
+test('controller opens and closes Settings graphics selectors without leaving the page', async ({
+  page,
+}) => {
+  await page.locator('[data-focus-id="macos-nav-settings"]').click()
+  await page.locator('[data-focus-id="settings-tab-graphics"]').hover()
+  await pressPad(page, 0)
+  const graphics = page.getByRole('combobox', { name: 'Default graphics' })
+  await graphics.hover()
+  await pressPad(page, 0)
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await pressPad(page, 13)
+  await pressPad(page, 1)
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await pressPad(page, 0)
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await pressPad(page, 13)
+  await pressPad(page, 0)
+  await expect(graphics).toHaveText('Wine')
+  await expect(page.locator('[data-screen="settings"]')).toBeVisible()
 })

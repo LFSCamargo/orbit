@@ -131,8 +131,6 @@ export type AppScreen =
   | 'library'
   | 'search'
   | 'game-details'
-  | 'game-edit'
   | 'add-game'
   | 'settings'
   | 'switch-library'
-  | 'gamehub-library'

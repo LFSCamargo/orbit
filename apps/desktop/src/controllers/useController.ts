@@ -34,6 +34,26 @@ export function useControllerNavigation() {
 
     const handleAction = (action: ControllerAction) => {
       setFamily(gamepadManager.getFamily())
+      // A portaled Select owns directional input until it closes.
+      const menu = document.querySelector('[role="listbox"]')
+      const menuKeys: Partial<Record<ControllerAction, string>> = {
+        'navigate-up': 'ArrowUp',
+        'navigate-down': 'ArrowDown',
+        confirm: 'Enter',
+        back: 'Escape',
+      }
+      if (
+        menu &&
+        document.activeElement instanceof HTMLElement &&
+        menu.contains(document.activeElement)
+      ) {
+        const key = menuKeys[action]
+        if (key)
+          document.activeElement.dispatchEvent(
+            new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+          )
+        return
+      }
       if (action !== 'section-prev' && action !== 'section-next' && action !== 'menu') {
         cancelScreenFocus()
       }
@@ -52,6 +72,25 @@ export function useControllerNavigation() {
         if (!allowed.includes(action)) return
       }
 
+      if (screen === 'settings') {
+        const focused = focusManager.getFocusedNode()
+        if (action === 'navigate-left' && focused?.element.closest('.settings-content')) {
+          focusManager.setFocus(`settings-tab-${useUiStore.getState().settingsTab}`)
+          return
+        }
+        if (action === 'navigate-right' && focused?.group === 'settings-nav') {
+          const controls = document.querySelectorAll<HTMLElement>(
+            '.settings-content [data-focus-id]',
+          )
+          const first = Array.from(controls).find(
+            (element) =>
+              !element.matches(':disabled') && element.getClientRects().length > 0,
+          )
+          if (first?.dataset.focusId) focusManager.setFocus(first.dataset.focusId)
+          return
+        }
+      }
+
       switch (action) {
         case 'navigate-up':
           focusManager.move('up')
@@ -67,7 +106,17 @@ export function useControllerNavigation() {
           break
         case 'confirm': {
           const node = focusManager.getFocusedNode()
-          node?.element.click()
+          if (node?.element.getAttribute('role') === 'combobox') {
+            node.element.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                bubbles: true,
+                cancelable: true,
+              }),
+            )
+          } else if (node?.element.matches('input, textarea, select'))
+            node.element.focus()
+          else node?.element.click()
           break
         }
         case 'back': {

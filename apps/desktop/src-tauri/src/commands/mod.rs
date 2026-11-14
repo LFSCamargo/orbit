@@ -9,9 +9,8 @@ pub mod switch_library;
 pub mod themes;
 pub mod window;
 
-pub mod gamehub;
-
 pub mod steam;
+pub mod steam_windows;
 
 pub mod hero;
 
@@ -20,3 +19,5 @@ pub mod glass;
 pub mod theme_previews;
 
 pub mod runtimes;
+
+pub mod library;

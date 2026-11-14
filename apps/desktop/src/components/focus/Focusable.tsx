@@ -7,7 +7,6 @@ import {
 } from 'react'
 import { clsx } from 'clsx'
 import { focusManager } from '@/controllers/FocusManager'
-import './focus-ring.css'
 
 interface FocusableProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   focusId: string

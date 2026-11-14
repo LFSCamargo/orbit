@@ -2,6 +2,8 @@ import { beforeEach, expect, it } from 'vitest'
 import {
   downloadPercent,
   downloadStatus,
+  formatTransferRate,
+  transferRate,
   useDownloadStore,
   type DownloadTask,
 } from '@/lib/downloadProgress'
@@ -88,4 +90,14 @@ it('tracks, completes and clears transfers by key', () => {
   useDownloadStore.getState().start({ key: 'b', label: 'B' })
   expect(useDownloadStore.getState().failures.b).toBeUndefined()
   expect(useDownloadStore.getState().failures.a).toBeUndefined()
+})
+
+it('computes a transfer rate only after a stable sample', () => {
+  expect(transferRate(null, { at: 1_000, bytes: 100 })).toBeNull()
+  expect(transferRate({ at: 0, bytes: 0 }, { at: 100, bytes: 5_000 })).toBeNull()
+  expect(transferRate({ at: 0, bytes: 1_000 }, { at: 1_000, bytes: 1_500_000 })).toBe(
+    1_499_000,
+  )
+  expect(formatTransferRate(null)).toBe('Idle')
+  expect(formatTransferRate(1_499_000)).toBe('1.5 MB/s')
 })

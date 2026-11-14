@@ -23,7 +23,7 @@ export function isEditingKeyboardEvent(event: KeyboardEvent): boolean {
     if (!(target instanceof Element)) return false
     if (
       target.closest(
-        'input, textarea, select, [role="textbox"], [role="searchbox"], [role="combobox"]',
+        'input, textarea, select, [role="textbox"], [role="searchbox"], [role="combobox"][aria-expanded="true"]',
       )
     )
       return true

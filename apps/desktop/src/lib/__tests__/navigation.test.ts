@@ -11,7 +11,6 @@ describe('resolveNavScreen', () => {
   it('maps detail and settings sub-screens to their shells', () => {
     expect(resolveNavScreen('game-details')).toBe('library')
     expect(resolveNavScreen('add-game')).toBe('settings')
-    expect(resolveNavScreen('game-edit')).toBe('settings')
     expect(resolveNavScreen('switch-library')).toBe('settings')
   })
 
@@ -24,10 +23,6 @@ describe('resolveNavScreen', () => {
 })
 
 describe('backTarget', () => {
-  it('returns game-details from game-edit', () => {
-    expect(backTarget('game-edit', 'library')).toBe('game-details')
-  })
-
   it('returns settings from add-game and switch-library', () => {
     expect(backTarget('add-game', 'home')).toBe('settings')
     expect(backTarget('switch-library', 'home')).toBe('settings')
@@ -37,7 +32,6 @@ describe('backTarget', () => {
     expect(backTarget('game-details', 'search')).toBe('search')
     expect(backTarget('game-details', 'library')).toBe('library')
     expect(backTarget('game-details', 'game-details')).toBe('library')
-    expect(backTarget('game-details', 'game-edit')).toBe('library')
   })
 
   it('stays on home from home and defaults others to home', () => {

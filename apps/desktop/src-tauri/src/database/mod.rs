@@ -4,3 +4,6 @@ pub mod repository;
 
 pub use metadata_cache::{CachedMetadataRow, MetadataCacheRepository};
 pub use repository::GameRepository;
+
+pub mod library_migration;
+pub mod library_state;

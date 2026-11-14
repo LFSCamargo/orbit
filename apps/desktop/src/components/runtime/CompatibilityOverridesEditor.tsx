@@ -1,3 +1,4 @@
+import { OptionSelect } from '@/components/ui/option-select'
 import { useQuery } from '@tanstack/react-query'
 import { getComponentStatus } from '@/lib/tauri'
 import type { CompatibilityOverrides } from '@/types/runtime'
@@ -34,13 +35,13 @@ export function CompatibilityOverridesEditor({
       <div className="grid gap-4 md:grid-cols-2">
         <label className="text-sm text-orbit-muted">
           Graphics
-          <select
+          <OptionSelect
             aria-label="Game graphics override"
             className={field}
             value={value.graphics ?? ''}
-            onChange={(e) =>
+            onValueChange={(selectedValue) =>
               patch({
-                graphics: (e.target.value ||
+                graphics: (selectedValue ||
                   undefined) as CompatibilityOverrides['graphics'],
               })
             }
@@ -57,17 +58,17 @@ export function CompatibilityOverridesEditor({
             <option value="d3dmetal" disabled={!hasGptk}>
               D3DMetal{!hasGptk ? ' (Apple package required)' : ''}
             </option>
-          </select>
+          </OptionSelect>
         </label>
         <label className="text-sm text-orbit-muted">
           Synchronization
-          <select
+          <OptionSelect
             aria-label="Game synchronization override"
             className={field}
             value={value.synchronization ?? ''}
-            onChange={(e) =>
+            onValueChange={(selectedValue) =>
               patch({
-                synchronization: (e.target.value ||
+                synchronization: (selectedValue ||
                   undefined) as CompatibilityOverrides['synchronization'],
               })
             }
@@ -76,17 +77,17 @@ export function CompatibilityOverridesEditor({
             <option value="default">Default</option>
             <option value="esync">ESync</option>
             <option value="msync">MSync</option>
-          </select>
+          </OptionSelect>
         </label>
         <label className="text-sm text-orbit-muted">
           Display
-          <select
+          <OptionSelect
             aria-label="Game display override"
             className={field}
             value={value.resolution ?? ''}
-            onChange={(e) =>
+            onValueChange={(selectedValue) =>
               patch({
-                resolution: (e.target.value ||
+                resolution: (selectedValue ||
                   undefined) as CompatibilityOverrides['resolution'],
               })
             }
@@ -94,7 +95,7 @@ export function CompatibilityOverridesEditor({
             <option value="">Use global default</option>
             <option value="auto">Automatic</option>
             <option value="custom">Virtual desktop</option>
-          </select>
+          </OptionSelect>
         </label>
         <label className="text-sm text-orbit-muted">
           Frame rate limit
@@ -225,19 +226,19 @@ function BooleanOverride({
   return (
     <label className="text-sm text-orbit-muted">
       {label}
-      <select
+      <OptionSelect
         aria-label={`${label} override`}
         className={field}
         disabled={disabled}
         value={value === undefined ? '' : value ? 'on' : 'off'}
-        onChange={(event) =>
-          onChange(event.target.value === '' ? undefined : event.target.value === 'on')
+        onValueChange={(selectedValue) =>
+          onChange(selectedValue === '' ? undefined : selectedValue === 'on')
         }
       >
         <option value="">Use global default</option>
         <option value="on">On</option>
         <option value="off">Off</option>
-      </select>
+      </OptionSelect>
     </label>
   )
 }

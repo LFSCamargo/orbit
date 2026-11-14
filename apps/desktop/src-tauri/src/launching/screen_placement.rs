@@ -12,9 +12,7 @@ pub fn screen_watcher_process_names(
 ) -> Vec<String> {
     match config {
         LaunchConfiguration::Wine { .. } => Vec::new(),
-        LaunchConfiguration::Gamehub { .. } => {
-            vec![crate::launching::gamehub_readiness::GAMEHUB_PROCESS_NAME.into()]
-        }
+        LaunchConfiguration::Gamehub { .. } => Vec::new(),
         LaunchConfiguration::Steam { .. } => vec![STEAM_PROCESS_NAME.into()],
         LaunchConfiguration::OpenApplication {
             application_path, ..
@@ -40,8 +38,6 @@ pub fn screen_watcher_process_names(
         LaunchConfiguration::OpenUrl { url } => {
             if url.starts_with("steam://") {
                 vec![STEAM_PROCESS_NAME.into()]
-            } else if url.starts_with("gamehub://") {
-                vec![crate::launching::gamehub_readiness::GAMEHUB_PROCESS_NAME.into()]
             } else {
                 Vec::new()
             }
@@ -111,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn watcher_names_for_gamehub_config() {
+    fn watcher_names_for_gamehub_config_are_empty() {
         let names = screen_watcher_process_names(
             &LaunchConfiguration::Gamehub {
                 gamehub_app_path: "/Applications/GameHub.app".into(),
@@ -119,7 +115,7 @@ mod tests {
             },
             GameProvider::Gamehub,
         );
-        assert_eq!(names, vec!["GameHub".to_string()]);
+        assert!(names.is_empty());
     }
 
     #[test]
@@ -150,7 +146,7 @@ mod tests {
             },
             GameProvider::Manual,
         );
-        assert_eq!(gamehub, vec!["GameHub".to_string()]);
+        assert!(gamehub.is_empty());
 
         let other = screen_watcher_process_names(
             &LaunchConfiguration::OpenUrl {

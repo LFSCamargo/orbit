@@ -1,3 +1,6 @@
+import { OptionSelect } from '@/components/ui/option-select'
+import { CollapsiblePanel } from '@/components/ui/collapsible-panel'
+import { clsx } from 'clsx'
 import { useId, useMemo, useState, type ReactNode } from 'react'
 import {
   RotateCcw,
@@ -19,7 +22,43 @@ import type { CompatibilitySettings } from '@/types/runtime'
 import { Switch } from '@/components/ui/switch'
 import { useGraphicsDraft } from '@/stores/graphics-draft.store'
 
-const field = 'settings-row-control text-sm text-orbit-foreground disabled:opacity-50'
+const field = clsx(
+  'settings-row-control w-full min-w-0 rounded-lg !border-0 !bg-transparent !p-2 text-right text-sm text-orbit-foreground/80 !shadow-none',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-orbit-focus disabled:opacity-50',
+)
+
+const ROW_GROUP = clsx(
+  'settings-row-group overflow-hidden rounded-[18px] border border-orbit-foreground/10',
+  'bg-orbit-foreground/[0.035] shadow-[inset_0_1px_0_rgb(var(--orbit-foreground)/0.035)]',
+)
+
+const PREFERENCE_ROW = clsx(
+  'settings-preference-row grid min-h-[78px] grid-cols-[34px_minmax(0,1fr)_minmax(130px,34%)] items-center gap-3.5 p-4',
+  'even:bg-orbit-foreground/[0.035] hover:bg-orbit-foreground/[0.055]',
+  '[&>[role=switch]]:justify-self-end',
+  'max-[700px]:grid-cols-[36px_minmax(0,1fr)]',
+  'max-[700px]:[&>button]:col-start-2 max-[700px]:[&>button]:w-full max-[700px]:[&>button]:text-left',
+  'max-[700px]:[&>.settings-row-control]:col-start-2 max-[700px]:[&>.settings-row-control]:w-full max-[700px]:[&>.settings-row-control]:text-left',
+  'max-[700px]:has-[[role=switch]]:grid-cols-[34px_minmax(0,1fr)_auto]',
+)
+
+const COMPONENT_ICON =
+  'compatibility-component-icon grid size-[34px] place-items-center rounded-xl border border-orbit-border bg-orbit-foreground/[0.04] text-orbit-foreground/70'
+
+const PRIMARY_BUTTON = clsx(
+  'settings-primary-button whitespace-nowrap rounded-[10px] bg-orbit-accent px-3.5 py-2.5 text-xs font-semibold text-orbit-canvas',
+  'disabled:cursor-not-allowed disabled:opacity-40',
+)
+
+const SECONDARY_BUTTON = clsx(
+  'settings-secondary-button whitespace-nowrap rounded-[10px] border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
+  'disabled:cursor-not-allowed disabled:opacity-40',
+)
+
+const SAVE_BAR = clsx(
+  'settings-save-bar sticky bottom-[-1px] z-20 flex items-center justify-between gap-4 rounded-2xl border border-orbit-border bg-orbit-surface p-4 shadow-[0_8px_32px_#0003]',
+  'max-[700px]:flex-col max-[700px]:items-stretch max-[700px]:[&>div:last-child]:justify-end',
+)
 
 const recommended: CompatibilitySettings = {
   graphics: 'auto',
@@ -136,17 +175,17 @@ export function CompatibilityGlobalSettings() {
           title="Graphics & performance"
           description="Change these only if a game has rendering or performance problems."
         >
-          <div className="settings-control-rows">
+          <div className="settings-control-rows contents">
             <Field
               label="Graphics engine"
               help="Select one engine for DirectX games. Automatic uses Wine’s built-in renderer."
             >
-              <select
+              <OptionSelect
                 aria-label="Default graphics"
                 className={field}
                 value={data.graphics}
-                onChange={(e) => {
-                  const graphics = e.target.value as CompatibilitySettings['graphics']
+                onValueChange={(selectedValue) => {
+                  const graphics = selectedValue as CompatibilitySettings['graphics']
                   const clearsTranslation =
                     graphics === 'auto' || graphics === 'wine'
                       ? {
@@ -178,27 +217,27 @@ export function CompatibilityGlobalSettings() {
                 <option value="d3dmetal" disabled={!hasGptk}>
                   D3DMetal{!hasGptk ? ' · Import Apple package first' : ''}
                 </option>
-              </select>
+              </OptionSelect>
             </Field>
             <Field
               label="Synchronization"
               help="Choose how Wine coordinates game threads."
             >
-              <select
+              <OptionSelect
                 aria-label="Default synchronization"
                 className={field}
                 value={data.synchronization}
-                onChange={(e) =>
+                onValueChange={(selectedValue) =>
                   patch({
-                    synchronization: e.target
-                      .value as CompatibilitySettings['synchronization'],
+                    synchronization:
+                      selectedValue as CompatibilitySettings['synchronization'],
                   })
                 }
               >
                 <option value="default">Default · Recommended</option>
                 <option value="esync">ESync</option>
                 <option value="msync">MSync</option>
-              </select>
+              </OptionSelect>
             </Field>
           </div>
         </SettingsGroup>
@@ -211,22 +250,22 @@ export function CompatibilityGlobalSettings() {
             label="Display mode"
             help="Use a virtual desktop if a game has trouble with fullscreen."
           >
-            <select
+            <OptionSelect
               aria-label="Default display mode"
               className={field}
               value={data.resolution}
-              onChange={(e) =>
+              onValueChange={(selectedValue) =>
                 patch({
-                  resolution: e.target.value as CompatibilitySettings['resolution'],
+                  resolution: selectedValue as CompatibilitySettings['resolution'],
                 })
               }
             >
               <option value="auto">Automatic · Recommended</option>
               <option value="custom">Virtual desktop</option>
-            </select>
+            </OptionSelect>
           </Field>
           {data.resolution === 'custom' && (
-            <div className="settings-control-rows">
+            <div className="settings-control-rows contents">
               <Field label="Width">
                 <input
                   aria-label="Default resolution width"
@@ -251,7 +290,7 @@ export function CompatibilityGlobalSettings() {
               </Field>
             </div>
           )}
-          <div className="settings-control-rows">
+          <div className="settings-control-rows contents">
             <Toggle
               label="High Resolution Mode"
               description="Sharper rendering on Retina displays. Turn off if a game scales incorrectly."
@@ -279,17 +318,18 @@ export function CompatibilityGlobalSettings() {
           />
         </SettingsGroup>
 
-        <details className="rounded-card border border-white/10 bg-black/10 p-4">
-          <summary className="cursor-pointer text-sm font-medium">
-            Advanced graphics options
-          </summary>
-          <p className="mt-2 text-xs leading-relaxed text-orbit-muted">
+        <CollapsiblePanel
+          title="Advanced graphics options"
+          icon={SlidersHorizontal}
+          focusId="graphics-advanced"
+        >
+          <p className="text-xs leading-relaxed text-orbit-muted">
             Frame rate, MetalFX, and NVIDIA extensions unlock when DXVK, DXMT, or D3DMetal
             is installed. Turning one on selects the graphics engine that can apply it.
             Upscale ratio and frame generation need a separate frame-generation package,
             which DXMT does not include.
           </p>
-          <div className="settings-control-rows mt-4">
+          <div className="settings-control-rows contents">
             <Field
               label="Frame rate limit"
               help={
@@ -338,7 +378,7 @@ export function CompatibilityGlobalSettings() {
               />
             </Field>
           </div>
-          <div className="settings-control-rows">
+          <div className="settings-control-rows contents">
             <Toggle
               label="MetalFX upscaling"
               description={
@@ -395,9 +435,9 @@ export function CompatibilityGlobalSettings() {
               onChange={(frameGenerationVsync) => patch({ frameGenerationVsync })}
             />
           </div>
-        </details>
+        </CollapsiblePanel>
       </fieldset>
-      <div className="settings-save-bar">
+      <div className={SAVE_BAR}>
         <div>
           <p role={saveError ? 'alert' : 'status'} className="text-sm font-medium">
             {saveError ||
@@ -423,7 +463,7 @@ export function CompatibilityGlobalSettings() {
               setSaveError('')
               setNotice('')
             }}
-            className="settings-secondary-button"
+            className={SECONDARY_BUTTON}
           >
             Discard changes
           </Focusable>
@@ -434,7 +474,7 @@ export function CompatibilityGlobalSettings() {
             order={21}
             noScale
             disabled={!dirty || saving}
-            className="settings-primary-button"
+            className={PRIMARY_BUTTON}
           >
             {saving ? 'Saving…' : 'Save changes'}
           </Focusable>
@@ -454,10 +494,10 @@ function SettingsGroup({
   children: ReactNode
 }) {
   return (
-    <section className="settings-form-section">
-      <h3 className="text-sm font-semibold">{title}</h3>
+    <section className="settings-form-section pt-2">
+      <h3 className="text-base font-semibold">{title}</h3>
       <p className="mb-4 mt-1 text-xs leading-relaxed text-orbit-muted">{description}</p>
-      <div className="settings-row-group">{children}</div>
+      <div className={ROW_GROUP}>{children}</div>
     </section>
   )
 }
@@ -474,8 +514,8 @@ function Field({
   const Icon =
     label === 'Graphics engine' ? Cpu : label === 'Synchronization' ? RefreshCw : Monitor
   return (
-    <label className="settings-preference-row">
-      <span className="compatibility-component-icon" aria-hidden="true">
+    <label className={PREFERENCE_ROW}>
+      <span className={COMPONENT_ICON} aria-hidden="true">
         <Icon size={18} />
       </span>
       <span className="min-w-0">
@@ -506,8 +546,8 @@ function Toggle({
 }) {
   const id = useId()
   return (
-    <div className="settings-preference-row">
-      <span className="compatibility-component-icon" aria-hidden="true">
+    <div className={PREFERENCE_ROW}>
+      <span className={COMPONENT_ICON} aria-hidden="true">
         <SlidersHorizontal size={18} />
       </span>
       <label htmlFor={id} className="min-w-0 cursor-pointer">

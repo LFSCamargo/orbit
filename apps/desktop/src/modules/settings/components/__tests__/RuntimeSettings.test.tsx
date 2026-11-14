@@ -130,6 +130,12 @@ function renderSettings(graphics = false) {
   )
 }
 
+async function chooseSync(option: string) {
+  const trigger = await screen.findByLabelText('Default synchronization')
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('option', { name: option }))
+}
+
 it('offers one managed setup action without exposing implementation technologies', async () => {
   renderSettings()
   const install = await screen.findByRole('button', { name: 'Install compatibility' })
@@ -194,6 +200,12 @@ it('lists component versions and saves global defaults', async () => {
   ).not.toBeInTheDocument()
 })
 
+async function openAdvancedGraphics() {
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Advanced graphics options' }),
+  )
+}
+
 it('releases DXMT frame rate and NVIDIA extensions once DXMT is installed', async () => {
   vi.mocked(getComponentStatus).mockResolvedValue([
     {
@@ -205,6 +217,7 @@ it('releases DXMT frame rate and NVIDIA extensions once DXMT is installed', asyn
     },
   ])
   renderSettings(true)
+  await openAdvancedGraphics()
 
   const limit = await screen.findByLabelText('Default frame rate limit')
   expect(limit).toBeEnabled()
@@ -214,11 +227,12 @@ it('releases DXMT frame rate and NVIDIA extensions once DXMT is installed', asyn
   expect(screen.getByRole('switch', { name: 'Frame generation VSync' })).toBeDisabled()
 
   fireEvent.change(limit, { target: { value: '60' } })
-  expect(screen.getByLabelText('Default graphics')).toHaveValue('dxmt')
+  expect(screen.getByLabelText('Default graphics')).toHaveTextContent('DXMT')
 })
 
 it('keeps DXMT options locked until DXMT is installed', async () => {
   renderSettings(true)
+  await openAdvancedGraphics()
   expect(await screen.findByLabelText('Default frame rate limit')).toBeDisabled()
   expect(screen.getByRole('switch', { name: 'DXMT NVIDIA extensions' })).toBeDisabled()
 })
@@ -226,11 +240,11 @@ it('keeps DXMT options locked until DXMT is installed', async () => {
 it('keeps graphics edits local until Save and supports Discard', async () => {
   renderSettings(true)
   const sync = await screen.findByLabelText('Default synchronization')
-  fireEvent.change(sync, { target: { value: 'msync' } })
+  await chooseSync('MSync')
   expect(updateCompatibilitySettings).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
-  expect(sync).toHaveValue('default')
-  fireEvent.change(sync, { target: { value: 'esync' } })
+  expect(sync).toHaveTextContent('Default · Recommended')
+  await chooseSync('ESync')
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   await waitFor(() =>
     expect(updateCompatibilitySettings).toHaveBeenCalledWith(
@@ -246,10 +260,10 @@ it('retains edits after a save failure so the user can retry', async () => {
   )
   renderSettings(true)
   const sync = await screen.findByLabelText('Default synchronization')
-  fireEvent.change(sync, { target: { value: 'msync' } })
+  await chooseSync('MSync')
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Disk unavailable')
-  expect(sync).toHaveValue('msync')
+  expect(sync).toHaveTextContent('MSync')
   expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled()
 })
 
@@ -272,12 +286,12 @@ it('shows a simple ready state for a managed installation', async () => {
 
 it('preserves an unsaved draft when the graphics page is reopened', async () => {
   const first = renderSettings(true)
-  fireEvent.change(await screen.findByLabelText('Default synchronization'), {
-    target: { value: 'msync' },
-  })
+  await chooseSync('MSync')
   first.unmount()
   renderSettings(true)
-  expect(await screen.findByLabelText('Default synchronization')).toHaveValue('msync')
+  expect(await screen.findByLabelText('Default synchronization')).toHaveTextContent(
+    'MSync',
+  )
   expect(updateCompatibilitySettings).not.toHaveBeenCalled()
 })
 

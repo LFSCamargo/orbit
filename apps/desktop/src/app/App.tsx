@@ -3,11 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { AppShell } from '@/components/layout/AppShell'
 import { HomeMenuModal } from '@/components/home/HomeMenuModal'
 import { useControllerNavigation } from '@/controllers/useController'
-import { GameHubLibraryPage } from '@/modules/gamehub/GameHubLibraryPage'
-import { useGameHubBackground } from '@/hooks/useGameHubBackground'
 import { AddGamePage } from '@/modules/imports/AddGamePage'
 import { GameDetailsPage } from '@/modules/game-details/GameDetailsPage'
-import { GameEditPage } from '@/modules/game-details/GameEditPage'
 import { HomePage } from '@/modules/home/HomePage'
 import { LibraryPage } from '@/modules/library/LibraryPage'
 import { SearchPage } from '@/modules/search/SearchPage'
@@ -17,6 +14,7 @@ import { useCursorAutoHide } from '@/hooks/useCursorAutoHide'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { useActiveSessionQuery } from '@/hooks/useGames'
 import { useSessionEvents } from '@/hooks/useSessionEvents'
+import { useSteamDownloadEvents } from '@/hooks/useSteamDownloadEvents'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -30,9 +28,9 @@ export function App() {
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const { data: activeSession } = useActiveSessionQuery()
   useFullscreen()
-  useGameHubBackground()
   useCursorAutoHide()
   useSessionEvents()
+  useSteamDownloadEvents()
 
   useEffect(() => {
     setActiveSession(activeSession ?? null)
@@ -53,13 +51,16 @@ export function App() {
               exit={{ opacity: 0, transition: { duration: reduceMotion ? 0 : 0.12 } }}
               transition={reduceMotion ? { duration: 0 } : pageTransition}
               data-screen={screen}
+              className={
+                screen === 'settings'
+                  ? 'flex h-full min-h-0 flex-1 flex-col overflow-hidden'
+                  : undefined
+              }
             >
               {screen === 'home' && <HomePage />}
               {screen === 'library' && <LibraryPage />}
-              {screen === 'gamehub-library' && <GameHubLibraryPage />}
               {screen === 'search' && <SearchPage />}
               {screen === 'game-details' && <GameDetailsPage />}
-              {screen === 'game-edit' && <GameEditPage />}
               {screen === 'add-game' && <AddGamePage />}
               {screen === 'settings' && <SettingsPage />}
               {screen === 'switch-library' && <SwitchLibraryPage />}
