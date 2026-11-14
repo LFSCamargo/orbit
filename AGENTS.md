@@ -1,6 +1,6 @@
 # Agent instructions
 
-Cursor, Claude Code, and OpenCode follow this file. Cursor also loads `.cursor/rules/`. Claude Code also loads `CLAUDE.md`. Project skills (`cleanup`, `dev-storage-cleanup`, `fix-ci`, `write-pr-description`) are identical copies under `.cursor/skills/`, `.claude/skills/`, and `.opencode/skills/`. Edit `.cursor/skills/`, then run `yarn sync:skills`. MCP servers live in `.cursor/mcp.json`, `.mcp.json` (Claude Code), and `opencode.json` (OpenCode); keep them in step.
+Cursor, Claude Code, and OpenCode follow this file. Cursor also loads `.cursor/rules/`. Claude Code also loads `CLAUDE.md`. Project skills (`cleanup`, `dev-storage-cleanup`, `fix-ci`, `folder-pattern-manager`, `write-pr-description`) are identical copies under `.cursor/skills/`, `.claude/skills/`, and `.opencode/skills/`. Edit `.cursor/skills/`, then run `yarn sync:skills`. MCP servers live in `.cursor/mcp.json`, `.mcp.json` (Claude Code), and `opencode.json` (OpenCode); keep them in step.
 
 Do not finish work that skipped a required check. Do not commit or push unless the user asked.
 
@@ -48,6 +48,7 @@ After any code, script, or test change, finish all of these before you stop:
 4. **Check security.** Validate and canonicalize paths in Rust, reject `..` traversal, parameterized SQL only, whitelist launch targets, treat user theme JSON and the GitHub Releases payload as untrusted, keep `GITHUB_TOKEN` server-only, no `eval` or `dangerouslySetInnerHTML`, no secrets in source or logs. See `.cursor/rules/security-first.mdc`.
 5. **Run the gates** for what you touched (list below). Never use `@ts-ignore` or `any` to pass, and never skip or delete a failing test. See `.cursor/rules/quality-gating.mdc`.
 6. **Keep docs in sync.** Scope or command contract → `docs/DESIGN_DOC.mdc` first, then `docs/TAURI.mdc`, `docs/FRONTEND.mdc`, or `docs/UI.mdc`. Theme fields → `docs/UI.mdc`, `docs/THEMES.md`, and `docs/examples/`. Landing routes or release parsing → `docs/LANDING.md`. Folder changes → update the trees. See `.cursor/rules/docs-sync.mdc`.
+7. **List anti-pattern violations** in files you touched. Rust: `.cursor/rules/rust-anti-patterns.mdc`. Web: `.cursor/rules/web-anti-patterns.mdc`. End with the violation list, or `None in the touched files.` Call `folder-pattern-manager` when the user asks to organize application folders.
 
 Docs-only edits skip tests when runtime behavior did not change. Still scan for secrets.
 
@@ -71,7 +72,9 @@ yarn check:skills        # agent skill copies match .cursor/skills
 
 ## Out of scope
 
-ROM downloads or decryption, key management, emulator distribution, automatic online artwork scraping, Steam account auth, cloud sync, social features. Do not implement or document them.
+ROM downloads or decryption, key management, emulator distribution, automatic online artwork scraping, an Orbit account, cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, cloud sync, social features. Do not implement or document them.
+
+A local official Steam client for Windows games on macOS is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md). The first slice is implemented there. Do not start a second design. An in-prefix silent Steam client for Steamworks titles is still outstanding.
 
 ## Committing
 

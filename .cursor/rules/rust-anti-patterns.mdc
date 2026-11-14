@@ -1,0 +1,39 @@
+---
+description: Rust anti-pattern checker. When editing apps/desktop/src-tauri, list violations that must be fixed.
+globs: apps/desktop/src-tauri/**/*.rs
+alwaysApply: false
+---
+
+# Rust anti-pattern checker
+
+Before finishing a Rust change, inspect the touched files and list every violation below. Do not hide a violation inside a summary. Fix violations in the code you are already changing. List pre-existing violations in those files and leave them for a separate fix unless the user asked to clean them.
+
+## Violations
+
+- `unwrap` or `expect` outside `main` startup and `#[cfg(test)]`.
+- Blocking file IO, `std::thread::sleep`, or `block_on` inside an async command without `spawn_blocking`.
+- A `Mutex` guard held across `.await`.
+- `Command::new` built from frontend text, or any `sh`/`bash -c` launch.
+- SQL assembled with `format!` or string concatenation.
+- A new `static` process, child, or session owner. Put that state on `AppState`.
+- Cloning a game list, artwork blob, or whole file to satisfy the borrow checker inside a loop.
+- A `commands/*.rs` file that also parses formats, queries SQLite, and supervises processes.
+- `let _ =` on work the user must hear about (launch, download, sign-in, save).
+- `read_to_string`, `read_dir`, or a directory walk with no byte cap, depth cap, or entry cap.
+
+```rust
+// BAD — password-shaped input reaches a shell, and failure is discarded
+let _ = Command::new("sh").arg("-c").arg(user_input).status();
+
+// GOOD — fixed argv, no shell, error returned
+Command::new(steamcmd).args(["+quit"]).status().map_err(|err| err.to_string())?;
+```
+
+## Report
+
+End the Rust work with this list, or `None in the touched files.`
+
+```
+## Rust anti-pattern violations
+- `path:line` — violation — fix
+```
