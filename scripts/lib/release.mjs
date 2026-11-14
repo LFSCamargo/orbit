@@ -179,7 +179,9 @@ ${entry}`,
   }
 
   const lines = content.split('\n')
-  const firstReleaseIdx = lines.findIndex((line) => /^## \[\d]/.test(line))
+  const firstReleaseIdx = lines.findIndex((line) =>
+    /^## \[\d+\.\d+\.\d+\]/.test(line),
+  )
   const insertAt = firstReleaseIdx === -1 ? lines.length : firstReleaseIdx
   const updated = [
     ...lines.slice(0, insertAt),
