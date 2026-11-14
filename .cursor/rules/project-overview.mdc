@@ -20,7 +20,7 @@ Source of truth: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc).
 ## Purpose
 
 - Fullscreen, couch-friendly game library UI with cinematic transitions.
-- Import and launch games from Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, and manual paths.
+- Import and launch games from Steam, Astris (`.nsp`/`.xci`), macOS apps, and manual paths.
 - Track playtime, install size, and achievements locally.
 - Liquid Glass console shell with color themes, game themes, and user themes (theme studio or JSON).
 
@@ -44,8 +44,12 @@ Source of truth: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc).
 - React frontend: [docs/FRONTEND.mdc](../../docs/FRONTEND.mdc)
 - Themes & UI: [docs/UI.mdc](../../docs/UI.mdc), [docs/THEMES.md](../../docs/THEMES.md)
 - Landing site: [docs/LANDING.md](../../docs/LANDING.md)
+- Windows Steam: [docs/STEAM_WINDOWS.md](../../docs/STEAM_WINDOWS.md)
 
 ## Out of scope
 
 ROM downloads/decryption, keys management, emulator distribution, automatic online artwork
-scraping (manual search + optional RAWG key only), Steam account auth, cloud sync, social features.
+scraping (manual search + optional RAWG key only), an Orbit account, cloud Steam login,
+a reimplemented Steam protocol, Steam DRM bypass, cloud sync, social features.
+A local official Steam client for Windows games on macOS is specified in
+[docs/STEAM_WINDOWS.md](../../docs/STEAM_WINDOWS.md).

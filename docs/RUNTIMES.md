@@ -236,9 +236,8 @@ ROM-related GameHub functionality remain outside Orbit's scope.
 
 Orbit already has a provider-neutral library, JSON launch configurations stored in
 SQLite, manual import and artwork editing, Rust launch strategies, session events,
-and controller-aware Play/Stop controls. Native apps, Steam, Astris and GameHub
-shortcuts are implemented. Direct `.exe` imports previously selected GameHub and
-were interpreted as shortcuts; they now select Wine explicitly.
+and controller-aware Play/Stop controls. Native apps, Steam, and Astris
+are implemented. Direct `.exe` imports select Wine explicitly.
 
 The implementation extends those paths without rebuilding screens:
 
@@ -342,8 +341,9 @@ system gating, transactional activation and a simple progress UI. Next: version
 inventory, transactional prefix reset/removal, graphics capabilities and package
 imports, dependency management, structured diagnostic codes and controller options.
 Phase 3 covers installer jobs, automatic recommendations, tested presets and
-onboarding. Phase 4 stays a research backlog (Steam/Epic/GOG, community profiles
-and streaming); managed compatibility remains macOS-only.
+onboarding. Phase 4 stays a research backlog for Epic, GOG, community profiles,
+and streaming. Windows Steam on macOS is specified in [STEAM_WINDOWS.md](STEAM_WINDOWS.md).
+Managed compatibility remains macOS-only.
 
 ## Verification
 

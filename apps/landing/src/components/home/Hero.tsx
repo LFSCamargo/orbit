@@ -10,7 +10,7 @@ export function Hero({ latest }: { latest: Release | undefined }) {
   return (
     <div className="relative overflow-hidden pt-28">
       <Spotlight />
-      <div className="orbit-grid pointer-events-none absolute inset-x-0 top-0 h-[52rem] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[52rem] bg-[linear-gradient(rgb(255_255_255/0.035)_1px,transparent_1px),linear-gradient(90deg,rgb(255_255_255/0.035)_1px,transparent_1px)] bg-[length:64px_64px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
       <div className="pointer-events-none absolute left-1/2 top-0 h-[32rem] w-[60rem] -translate-x-1/2 rounded-full bg-orange-600/10 blur-[140px]" />
 
       <section className="relative mx-auto max-w-7xl px-6 pb-16 pt-12 text-center sm:pb-24 sm:pt-20">

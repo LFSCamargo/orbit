@@ -40,7 +40,7 @@ Game themes use the same packaged logos and backgrounds in the picker and shell,
 
 ### Branding
 
-- `ThemeBrand` (`src/themes/ThemeBrand.tsx`) renders the header logo: `logoImage` → `<img>`, otherwise the `ORBIT` product wordmark. Legacy text-logo fields are not rendered. Styles live in `src/themes/brand.css`.
+- `ThemeBrand` (`src/themes/ThemeBrand.tsx`) renders the header logo: `logoImage` → `<img>`, otherwise the `ORBIT` product wordmark. Legacy text-logo fields are not rendered. Layout uses Tailwind on the component.
 - Branded themes (`isBrandedTheme`) render `OrbitMark` — a small uppercase `ORBIT` centered in the footer. The footer's left text is `branding.tagline`.
 - `branding.wallpaper` is exposed as `--theme-wallpaper`; the shell sets `data-wallpaper="true"` and paints it behind non-home routes. Home gives the selected game’s hero and cover priority. The theme wallpaper appears while browsing other tabs and when the game has no usable artwork.
 
@@ -82,7 +82,7 @@ background: rgb(var(--orbit-canvas));
 | `focus` | `--orbit-focus` | Controller focus ring |
 | `border` | `--orbit-border` | Subtle borders |
 
-Applied at runtime by `theme.store.ts` when user selects a theme. `macos.css` reads these variables for the wallpaper, hero/detail scrims, and primary button text, using the fixed Liquid Glass palette. Stored legacy palettes are not applied. The store also sets `html[data-theme]`, `html[data-theme-kind]`, and `--theme-wallpaper`.
+Applied at runtime by `theme.store.ts` when user selects a theme. Shell, wallpaper, hero/detail scrims, and primary buttons read these variables through Tailwind `orbit-*` utilities, using the fixed Liquid Glass palette. Stored legacy palettes are not applied. The store also sets `html[data-theme]`, `html[data-theme-kind]`, and `--theme-wallpaper`.
 
 Liquid Glass retains its original palette: canvas `15 20 38`, surface `28 35 56`, panel `32 42 68`, foreground `246 248 255`, muted `171 186 211`, accent `134 193 255`, focus `189 222 255`, border `73 90 124`. The warm redesign and platform presets were reverted.
 
@@ -151,7 +151,7 @@ CSS variables: `--orbit-font-display`, `--orbit-font-body`.
 └─────────────────────────────────────────────┘
 ```
 
-- `MacosShell.tsx` — header (`ThemeBrand`, navigation, utilities), wallpaper, routed content, footer
+- `MacosShell.tsx` — header (`ThemeBrand`, navigation, utilities), wallpaper, routed content, footer. **Downloads**, beside Add games, opens a right-hand Liquid Glass sidebar for Steam sign-in, in-progress transfers, and the active transfer rate. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md).
 - `MacosHome.tsx` — feature hero and rounded horizontal shelf. `ShellBackdrop.tsx` keeps the previous artwork visible while the replacement decodes, then crossfades. The header keeps the active theme’s branding.
 - `ThemePage.tsx` — shared content container for non-home routes; page titles and eyebrows are owned by the shell, not duplicated per page
 
@@ -201,7 +201,7 @@ Shared components in `src/components/`:
 
 ## Focus & controller styling
 
-Global navigation rings live in `src/components/focus/focus-ring.css`:
+Global navigation rings live in `src/styles/index.css`:
 
 - Controller targets use `[data-focused="true"]` under `html[data-navigation-input="controller"]`.
   Every enabled `Focusable` gets a three-pixel inset `--orbit-focus` outline, including
@@ -249,7 +249,7 @@ Hero tone derived from artwork via `useHeroTone` for adaptive scrims.
 2. **Theme-aware** — new UI must read palette variables so every color and game theme recolors it.
 3. **Focusable everything** — interactive elements must register with `Focusable` or equivalent.
 4. **Couch contrast** — keep text readable at a distance; test with `--orbit-muted` for secondary copy.
-5. **Glass panels** — use `LiquidGlass` or `.macos-panel` / `.orbit-panel`; prefer `backdrop-filter` over opaque overlays.
+5. **Glass panels** — use `LiquidGlass` or `.orbit-panel`; prefer `backdrop-filter` over opaque overlays. Layout, type, and spacing live as Tailwind classes on the component; tokens stay CSS variables in `styles/index.css`.
 6. **Document theme fields** — adding JSON theme properties requires updating [docs/THEMES.md](THEMES.md) and `ThemeDefinition` in `src/themes/types.ts` and `src-tauri/src/models/theme.rs` (plus sanitization in `services/theme_files.rs`).
 
 ## Settings viewport layout
@@ -299,4 +299,37 @@ and offers Compatibility diagnostics. See [RUNTIMES.md](RUNTIMES.md).
 
 ### Settings usability and download feedback
 
-Settings uses a dedicated, responsive navigation rail and readable content surface. The rail retains restrained LiquidGlass; the main form uses an opaque theme surface. Aceternity's shared-layout active indicator respects reduced motion. shadcn/Radix switches provide labeled keyboard-operable graphics toggles. Game graphics has sectioned controls and a sticky Save/Discard bar; unsaved drafts survive section navigation for the app session. Compatibility lists icon-led component/version rows with installed status and size. Native download events drive determinate transfer progress; preparation and installation are indeterminate. Failures expose retry without reporting a completed install. Unmanaged catalog versions are explicitly browse-only.
+Settings uses a dedicated, responsive navigation rail and readable content surface. The rail includes Steam, with the authorization card and offline-mode and file-verification switches. The rail retains restrained LiquidGlass; the main form uses an opaque theme surface. Aceternity's shared-layout active indicator respects reduced motion. shadcn/Radix switches provide labeled keyboard-operable graphics toggles. Game graphics has sectioned controls and a sticky Save/Discard bar; unsaved drafts survive section navigation for the app session. Compatibility lists icon-led component/version rows with installed status and size. Native download events drive determinate transfer progress; preparation and installation are indeterminate. Failures expose retry without reporting a completed install. Unmanaged catalog versions are explicitly browse-only.
+
+## Interface standards rollout
+
+Library view controls are Installed / All games / Favorites. Initial loads use
+shared skeletons; background refresh keeps the current cards visible with a compact
+status message. Horizontal home shelves hide scrollbar chrome locally while retaining
+scrolling.
+
+Game details prioritize game artwork over theme wallpaper. Overview and Settings
+remain within the same details page; Settings owns General, Artwork, and Launch &
+Compatibility. Save keeps the editor open. The Downloads sidebar contains
+account/network/transfer information and links to Library for owned-game browsing.
+
+Shared Skeleton and Radix-based Select components use Orbit tokens. The remaining
+component migration, controller integration for select menus, navigation guards,
+and native WebKit visual review are still outstanding.
+
+Details and the Library view selector share `TabList`, a Liquid Glass pill matching the header’s
+rounded active segment and neutral highlight. Library search and sort/platform sit in
+their own glass clusters beside that pill (48px couch height), not nested inside one bar.
+Controller focus rings remain separate from the selected state. Editor Save/Discard actions
+flow inline with the form; they have no opaque or sticky footer surface.
+
+Settings → Library accepts additional Steam library roots or a
+folder picker and supports removal. Saved folders update installed-game detection;
+new download destinations are unchanged. Settings form controls participate in
+spatial focus: D-pad moves controls, A activates switches/buttons or focuses text,
+Left returns to the active section and Right enters its first enabled control.
+
+Adding an additional Steam folder now starts a Windows import scan and reports the
+result. Existing configured folders can be rescanned with **Scan installed games**.
+Owned-library badges refresh after the scan. A failed scan keeps the saved folder
+and offers a retry; new downloads retain their existing destination.

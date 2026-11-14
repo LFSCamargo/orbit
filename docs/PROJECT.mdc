@@ -33,7 +33,7 @@ orbit/
         themes/            # Built-in theme definitions + layout hooks
         lib/               # Tauri wrappers, formatters, artwork helpers
         types/             # Shared TS types
-        styles/            # Global CSS + theme tokens
+        styles/            # Tailwind entry: tokens, glass, focus rings
       src-tauri/           # Rust backend
         src/
           commands/        # Tauri invoke handlers

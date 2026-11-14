@@ -30,7 +30,7 @@ For day-to-day commands and troubleshooting, see [RUNNING.md](RUNNING.md). For a
 Good contribution areas:
 
 - UI polish, theme layouts, and controller navigation
-- Importers (Steam, Astris, GameHub, native apps)
+- Importers (Steam, Astris, native apps)
 - Launch reliability and session tracking
 - Playwright E2E coverage for user flows
 - Rust unit tests for path parsing and repository logic
@@ -44,7 +44,10 @@ Do not open PRs for:
 
 - ROM downloads, decryption, or keys management
 - Bundling or distributing emulators
-- Steam account authentication or cloud sync
+- An Orbit account, cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, or cloud sync
+
+The local official Steam client for Windows games on macOS is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md). Do not open a competing design.
+
 - Automatic enrichment without user API keys for SteamGridDB artwork (Steam Store text still works keyless; RAWG/SteamGridDB keys live in Settings)
 
 See [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) for the full product boundary.
@@ -145,7 +148,7 @@ See [`.cursor/rules/docs-sync.mdc`](.cursor/rules/docs-sync.mdc).
 Prefer [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```text
-feat: add GameHub folder scan
+feat: add Steam library folder scan
 fix: restore hero blur on theme switch
 docs: update RUNNING.md troubleshooting
 test: add regression for focus ring on back nav

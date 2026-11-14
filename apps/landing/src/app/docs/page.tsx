@@ -47,7 +47,7 @@ export default function DocsPage() {
         </nav>
       </aside>
 
-      <article className="docs-prose min-w-0 max-w-3xl">
+      <article className="min-w-0 max-w-3xl [&_a]:text-orbit-accent hover:[&_a]:text-orbit-focus [&_code]:rounded [&_code]:bg-white/[0.06] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_code]:text-orange-200 [&_h2]:mt-16 [&_h2]:scroll-mt-28 [&_h2]:text-3xl [&_h2]:font-medium [&_h2]:tracking-[-0.035em] [&_h2]:text-orbit-foreground [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-medium [&_h3]:text-orbit-foreground [&_li]:mt-4 [&_li]:text-sm [&_li]:leading-7 [&_li]:text-orbit-muted [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mt-4 [&_p]:text-sm [&_p]:leading-7 [&_p]:text-orbit-muted [&_strong]:font-medium [&_strong]:text-orbit-foreground [&_ul]:mt-4 [&_ul]:flex [&_ul]:list-disc [&_ul]:flex-col [&_ul]:gap-2 [&_ul]:pl-5">
         <header>
           <p className="!mt-0 font-mono text-xs uppercase tracking-[0.24em] text-orbit-accent">
             Documentation
@@ -94,10 +94,6 @@ export default function DocsPage() {
             <li>
               <strong>Astris:</strong> import supported game files from a folder you
               choose.
-            </li>
-            <li>
-              <strong>GameHub:</strong> browse and import an existing local GameHub
-              library.
             </li>
             <li>
               <strong>Native apps and manual paths:</strong> add games from your computer

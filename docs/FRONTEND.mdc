@@ -18,7 +18,7 @@ Themes and visual language: [docs/UI.mdc](UI.mdc).
 - Manage screen navigation via Zustand (`ui.store.ts`) — no React Router.
 - Invoke all backend operations through `src/lib/tauri.ts`.
 - Implement spatial focus + gamepad navigation (`controllers/`).
-- Cache library data with TanStack Query (`hooks/useGames.ts`).
+- Cache library data with TanStack Query (`hooks/useLibrary.ts`, `hooks/useGames.ts`).
 - Apply user themes (built-in + custom JSON) via CSS variables.
 
 ## Tech stack
@@ -47,6 +47,7 @@ Themes and visual language: [docs/UI.mdc](UI.mdc).
 - **Fullscreen default:** `useFullscreen` requests fullscreen on launch.
 - **Cursor auto-hide:** hides after controller activity (`useCursorAutoHide`).
 - **Focus rings:** `[data-focused="true"]` styling driven by `FocusManager` + `Focusable`.
+- **Tailwind-first:** layout, type, and spacing are Tailwind classes on the component. Keep semantic class names for Playwright and JS selectors. Tokens, Liquid Glass, and controller focus rings stay in `styles/index.css`.
 - **No direct launch:** never spawn processes from TS — always `launchGame()` via Tauri.
 - **Library grid:** `GameCard` is `React.memo`'d with stable store handlers; full window virtualization is intentionally skipped so FocusManager spatial nav keeps all grid nodes mounted.
 
@@ -59,10 +60,9 @@ Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
 | Home | `HomePage` → `MacosHome` | `modules/home/`, `themes/` |
 | Library | `LibraryPage` | `modules/library/` |
 | Search | `SearchPage` | `modules/search/` |
-| Game details | `GameDetailsPage` | `modules/game-details/` |
-| Edit | `GameEditPage` | `modules/game-details/` — Fetch metadata & artwork |
+| Game details | `GameDetailsPage` | `modules/game-details/` — Overview plus Settings (General, Artwork, Launch) |
 | Add game | `AddGamePage` | `modules/imports/` |
-| Settings | `SettingsPage` | `modules/settings/` — themes + theme studio, TheGamesDB/SteamGridDB keys, auto-enrich |
+| Settings | `SettingsPage` | `modules/settings/` — General (including metadata keys), Themes, Library, Steam, Game graphics, Compatibility, plus insights |
 
 Every theme renders the single Liquid Glass shell (`themes/MacosShell.tsx`) with its original styling. Game themes change the actual SteamGridDB image logo and hero background, not the palette or layout. `theme.store.ts` loads both assets on explicit game-theme selection and guards against stale asynchronous results. Errors leave the previous selection active. Retired platform/color IDs resolve to Liquid Glass. Custom files remain readable, with legacy text logos suppressed. `useActiveTheme()` (`hooks/useActiveTheme.ts`) returns the active `ThemeDefinition`. `focusRestoreId(screen, gameId)` and `screenEntryFocusId(screen)` in `lib/navigation.ts` resolve controller focus targets for the shell.
 
@@ -85,23 +85,22 @@ src/
       hooks/
     library/
       LibraryPage.tsx
-      components/          # Shared collection grid and connected game cards
+      components/          # LibraryToolbar, LibraryEntryGrid, SteamGameCard, skeletons
       lib/
     search/
       SearchPage.tsx
     game-details/
       GameDetailsPage.tsx
-      GameEditPage.tsx
-      components/          # DetailsHero, MetaGrid, AchievementList
+      components/          # DetailsHero, DetailsSettings, DetailsPrimaryAction, InstallationPicker, GameMetadataEditor
       hooks/               # useRandomArtwork (Random SteamGridDB per slot)
     imports/
       AddGamePage.tsx
       ImportsPage.tsx
-      hooks/               # useImportScan (shared Steam/Astris/native/GameHub scan)
+      hooks/               # useImportScan (shared Steam/Astris/native scans)
     settings/
       SettingsPage.tsx
-      components/          # ThemeSettings, ThemeCard, ThemeStudio, ApiKeySettings, LibrarySettings
-      hooks/               # useThemeStudio and streamed useThemePreviews
+      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, SettingsInsights
+      hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews
     session/
       PlayingScreen.tsx
     switch-library/
@@ -113,8 +112,9 @@ src/
     home/
       HomeMenuModal.tsx    # Orbit quick menu
     ui/
-      liquid-glass.tsx     # Portable glass surface
-      liquid-glass.css     # Lightweight material and accessibility fallbacks
+      liquid-glass.tsx     # Portable glass surface (material CSS lives in styles/index.css)
+      collapsible.tsx      # shadcn/Radix Collapsible primitive
+      collapsible-panel.tsx # Shared expandable with icon (not native details)
       GlassMaterialBootstrap.tsx # Shared Rust-generated texture
     data/
       StatCard.tsx         # Reusable label / value / detail card
@@ -123,8 +123,7 @@ src/
       SquareGameArt.tsx
       ProviderBadge.tsx
     focus/
-      Focusable.tsx        # Focusable wrapper
-      focus-ring.css       # Shared inset controller and keyboard outlines
+      Focusable.tsx        # Focusable wrapper (inset rings in styles/index.css)
     artwork/
       ArtworkSlotPicker.tsx
       ImageSearchModal.tsx
@@ -138,7 +137,10 @@ src/
     useController.ts       # Hook wiring actions → UI store
     useNavigationInput.ts  # Root input modality for rings, including portals
   hooks/
-    useGames.ts            # TanStack Query wrappers
+    useGames.ts            # TanStack Query wrappers for installed games
+    useLibrary.ts          # Unified LibraryEntry list, detail, and title state
+    useSteamWindows.ts     # Windows Steam status + owned catalog
+    useSteamDownloadEvents.ts
     useHeroTone.ts
     useModalFocus.ts
     useCursorAutoHide.ts
@@ -153,10 +155,9 @@ src/
     types.ts               # ThemeDefinition, ThemeBranding
     catalog.ts             # BUILT_IN_THEMES (color + game), DEFAULT_THEME_ID, legacy id migration
     studio.ts              # Theme studio draft → ThemeDefinition
-    MacosShell.tsx         # Liquid Glass shell
+    MacosShell.tsx         # Liquid Glass shell (Tailwind on the component)
     ThemeBrand.tsx         # Header logo + ORBIT footer mark
     ThemePage.tsx
-    macos.css / brand.css
   lib/
     tauri.ts               # Typed invoke wrappers
     dialog.ts              # Native open panel (pick_open_path; avoids macOS NSOpenPanel panic)
@@ -164,12 +165,13 @@ src/
     navigation.ts          # Screen helpers
     themeColors.ts         # RGB ↔ hex, focus derivation, custom- theme ids
     artwork.ts / artworkApi.ts
+    steamArtwork.ts        # Original Steam CDN cover/hero candidates
     format.ts / media.ts / heroBlur.ts / heroTone.ts
     backdropImage.ts / backdropLighting.ts
   types/
     game.ts                # Game, Session, filters, AppScreen
   styles/
-    index.css              # CSS variables + theme classes
+    index.css              # Tokens, glass material, focus rings, global scrollbar
   main.tsx
 ```
 
@@ -245,10 +247,9 @@ Add Playwright coverage for new screens and controller flows. Bug fixes should i
 Browser dev sets theme via `localStorage.setItem('orbit.themeId', 'orbit')` in E2E boot helper.
 
 
-Library offers All games, Orbit, and Connected views. Search starts with the full
-collection and filters imported titles and cached GameHub titles by title or source.
-Connected cards show GameHub status and keep provider actions separate from launching
-an imported game. The shared GameHub query refreshes the visible download status.
+Library and Search share Installed / All games / Favorites on `LibraryEntry` identity.
+Home uses the same entries. Details is one page for installed, owned-not-installed,
+and unavailable titles.
 
 `useBackdropTransition` keeps at most two backdrop layers in the shell. The browser decodes the incoming image before showing it, ignores late results after selection changes, and caches up to 24 lighting samples. Local artwork can use the Rust lighting command. The webview compositor runs the fades.
 
@@ -284,6 +285,7 @@ uses a single O(n) map pass instead of copying the growing groups on each item.
 ## Runtime controls
 
 Settings → Compatibility uses `modules/settings/components/RuntimeSettings.tsx`.
+Settings → Steam uses `modules/settings/components/SteamSettings.tsx` for authorization, offline mode, and file verification.
 The primary flow is one managed install action with download/install progress,
 online component/version catalog with prereleases and mirror checksums, and
 `CompatibilityGlobalSettings.tsx` for defaults.
@@ -299,4 +301,21 @@ through `RuntimeDiagnostics.tsx`. Browser preview cannot download or execute Win
 
 ### Settings usability and download feedback
 
-Settings presentation is scoped in `modules/settings/settings.css`. `components/ui/animated-settings-nav.tsx` adapts Aceternity Tabs with Orbit Focusable controls, and `components/ui/switch.tsx` adapts shadcn Switch. `stores/graphics-draft.store.ts` retains an in-memory form draft across navigation; Save calls the existing typed Rust wrapper once, while Discard restores the query result. `modules/settings/hooks/useCompatibilitySetup.ts` retains progress across page unmounts and guards duplicate installations. Complexity: fixed-size graphics comparisons are O(1); catalog rendering is O(total versions), with no per-row I/O or library scans added. No new native command or download trust boundary is introduced.
+Settings presentation uses Tailwind on the settings and Steam components, keeping semantic hooks (`settings-layout`, `settings-tabs`, `settings-content`, `settings-content-scroll`, `settings-insights`, `settings-tab`, `image-search-drawer`, `steam-activity-*`) for E2E. `components/ui/animated-settings-nav.tsx` adapts Aceternity Tabs with Orbit Focusable controls, and `components/ui/switch.tsx` adapts shadcn Switch. `stores/graphics-draft.store.ts` retains an in-memory form draft across navigation; Save calls the existing typed Rust wrapper once, while Discard restores the query result. `modules/settings/hooks/useCompatibilitySetup.ts` retains progress across page unmounts and guards duplicate installations. Complexity: fixed-size graphics comparisons are O(1); catalog rendering is O(total versions), with no per-row I/O or library scans added. No new native command or download trust boundary is introduced.
+
+## Interface editors and loading
+
+`GameSettingsPanel` saves only launch configuration through `updateGame` and owns
+an explicit draft initialized per game. `GamePropertiesEditor` owns metadata and
+artwork drafts, keyed by game identity; refetches do not reinitialize these fields.
+`LibrarySkeleton` renders a fixed eight placeholders without registering controller
+focus targets. Runtime option lists use the existing Orbit-styled Radix Select.
+
+Settings owns `useSettingsControllerFocus`, which registers native form controls
+not already registered by shared components. Its observer and focus subscription
+are cleaned up when the page unmounts. Steam folder preference saves invalidate the
+owned-library query so installation badges refresh.
+
+`SteamLibraryFolders` runs Windows import discovery after a successful path save.
+Scan results/errors are displayed separately from preference-save errors, and a
+Scan installed games action retries discovery for already-saved folders.

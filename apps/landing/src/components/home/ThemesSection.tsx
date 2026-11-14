@@ -39,7 +39,7 @@ export function ThemesSection() {
             radius={28}
             className="relative min-h-[26rem] overflow-hidden p-6 sm:p-8"
           >
-            <div className="orbit-grid absolute inset-0 opacity-60" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgb(255_255_255/0.035)_1px,transparent_1px),linear-gradient(90deg,rgb(255_255_255/0.035)_1px,transparent_1px)] bg-[length:64px_64px] opacity-60" />
             <div className="relative flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-6">
               <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-zinc-500">
                 <span>Orbit / Theme studio</span>

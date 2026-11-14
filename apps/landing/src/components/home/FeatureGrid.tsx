@@ -5,7 +5,7 @@ const FEATURES = [
   {
     number: '01',
     title: 'Everything you own, together',
-    body: 'Bring Steam, Astris, GameHub, native apps, and manual game paths into one fast, searchable library. No migrating your collection and no new store.',
+    body: 'Bring Steam, Astris, native apps, and manual game paths into one fast, searchable library. No migrating your collection and no new store.',
     wide: true,
   },
   {
