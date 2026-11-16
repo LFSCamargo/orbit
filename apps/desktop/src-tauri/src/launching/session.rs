@@ -271,6 +271,7 @@ impl SessionManager {
             duration_seconds: None,
         };
 
+        let wine_session = runtime.is_some();
         repo.record_play_start(&session)?;
         *self.active.lock() = Some(TrackedSession {
             session: session.clone(),
@@ -281,7 +282,11 @@ impl SessionManager {
 
         emit_launch_progress(app, &game.id, "running", Some(&game.title));
         let _ = app.emit("game-session-started", &session);
-        defer_minimize_orbit(app.clone(), session.id.clone());
+        if wine_session {
+            focus_game(app.clone(), session.id.clone());
+        } else {
+            defer_minimize_orbit(app.clone(), session.id.clone());
+        }
 
         spawn_monitor(app.clone(), session.id.clone());
 
@@ -407,6 +412,23 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
         .or_else(|| preexisting.first().copied())
 }
 
+/// Wine games: wait for the game's own window, then hide Orbit and activate it.
+fn focus_game(app: AppHandle, session_id: String) {
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::game_focus::focus_game_when_ready(
+        std::time::SystemTime::now(),
+        Duration::from_secs(180),
+        move || {
+            app.state::<AppState>()
+                .sessions
+                .get_active()
+                .is_some_and(|session| session.id == session_id)
+        },
+    );
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, session_id);
+}
+
 fn defer_minimize_orbit(app: AppHandle, session_id: String) {
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(1600));
@@ -425,6 +447,9 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
 }
 
 fn show_orbit(app: &AppHandle) {
+    // Wine sessions hide the whole app (see `focus_game`).
+    #[cfg(target_os = "macos")]
+    let _ = app.show();
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
