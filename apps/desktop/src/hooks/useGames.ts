@@ -18,6 +18,9 @@ import {
   updateGame,
 } from '@/lib/tauri'
 import { useSessionStore } from '@/stores/session.store'
+import { useLaunchStore } from '@/stores/launch.store'
+import { playLibraryEntry } from '@/lib/playLibraryEntry'
+import type { LibraryEntry } from '@/types/library'
 import type { CreateGameRequest, UpdateGameRequest } from '@/types/game'
 
 export function useGames() {
@@ -77,8 +80,42 @@ export function useGameActions() {
 
   const launch = useMutation({
     mutationFn: launchGame,
+    onMutate: (gameId) => {
+      useLaunchStore.getState().begin(gameId)
+    },
+    onError: (error, gameId) => {
+      const launch = useLaunchStore.getState().launch
+      if (launch?.failed) return
+      const message = error instanceof Error ? error.message : String(error)
+      useLaunchStore.getState().fail(gameId, launch?.step ?? 'spawn', message)
+    },
     onSuccess: async (session) => {
       setActiveSession(session)
+      useLaunchStore.getState().clear()
+      await invalidate()
+    },
+  })
+
+  const playEntry = useMutation({
+    mutationFn: playLibraryEntry,
+    onMutate: (entry: LibraryEntry) => {
+      const overlayId = entry.steamAppId
+        ? `steam-windows:${entry.steamAppId}`
+        : entry.game.id
+      useLaunchStore.getState().begin(overlayId)
+    },
+    onError: (error, entry) => {
+      const launch = useLaunchStore.getState().launch
+      if (launch?.failed) return
+      const message = error instanceof Error ? error.message : String(error)
+      const overlayId = entry.steamAppId
+        ? `steam-windows:${entry.steamAppId}`
+        : entry.game.id
+      useLaunchStore.getState().fail(overlayId, launch?.step ?? 'spawn', message)
+    },
+    onSuccess: async (session) => {
+      setActiveSession(session)
+      useLaunchStore.getState().clear()
       await invalidate()
     },
   })
@@ -136,6 +173,7 @@ export function useGameActions() {
     favorite,
     hide,
     launch,
+    playEntry,
     stop,
     create,
     update,

@@ -2,6 +2,7 @@ pub mod app_launch;
 pub mod context;
 pub mod launcher;
 pub mod process_monitor;
+pub mod progress;
 pub mod screen_placement;
 pub mod session;
 

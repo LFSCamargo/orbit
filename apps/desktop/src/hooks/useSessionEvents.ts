@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import type { GameSession } from '@/types/game'
 import { useSessionStore } from '@/stores/session.store'
+import { useLaunchStore } from '@/stores/launch.store'
 import { useQueryClient } from '@tanstack/react-query'
 
 export function useSessionEvents() {
@@ -29,7 +30,14 @@ export function useSessionEvents() {
       )
       unlisteners.push(
         await listen<{ message: string }>('game-session-error', (event) => {
-          useUiStore.getState().setImportToast(event.payload.message)
+          const launch = useLaunchStore.getState().launch
+          if (launch && !launch.failed) {
+            useLaunchStore
+              .getState()
+              .fail(launch.gameId, launch.step, event.payload.message)
+          } else if (!launch) {
+            useUiStore.getState().setImportToast(event.payload.message)
+          }
           void queryClient.invalidateQueries({ queryKey: ['active-session'] })
         }),
       )
