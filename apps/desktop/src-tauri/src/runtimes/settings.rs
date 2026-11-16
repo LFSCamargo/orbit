@@ -219,8 +219,7 @@ impl CompatibilitySettings {
         }
     }
 
-    /// Automatic keeps Wine unless a saved option only works on an installed
-    /// translation backend. An explicit Wine choice stays Wine.
+    /// Automatic prefers GPTK, then DXMT, then DXVK. An explicit Wine choice stays Wine.
     pub fn launch_graphics(
         &self,
         selections: &std::collections::BTreeMap<String, String>,
@@ -238,15 +237,11 @@ impl CompatibilitySettings {
                 self.graphics
             }
             GraphicsBackend::Auto => {
-                let wants_dxmt = has_dxmt
-                    && (self.dxmt_nvidia_extensions
-                        || self.upscaling
-                        || self.frame_rate_limit.is_some());
-                if wants_dxmt {
-                    GraphicsBackend::Dxmt
-                } else if self.upscaling && has_gptk {
+                if has_gptk {
                     GraphicsBackend::D3dmetal
-                } else if self.frame_rate_limit.is_some() && has_dxvk && has_moltenvk {
+                } else if has_dxmt {
+                    GraphicsBackend::Dxmt
+                } else if has_dxvk && has_moltenvk {
                     GraphicsBackend::Dxvk
                 } else {
                     GraphicsBackend::Auto
@@ -295,37 +290,56 @@ impl CompatibilitySettings {
         }
     }
 
+    /// Drop flags that cannot apply to the resolved engine so Play is not
+    /// blocked by a leftover DXMT NVIDIA / MetalFX / frame-rate setting.
+    pub fn sanitize_for_engine(&mut self) {
+        if self.graphics != GraphicsBackend::Dxmt {
+            self.dxmt_nvidia_extensions = false;
+        }
+        if !matches!(
+            self.graphics,
+            GraphicsBackend::Dxmt | GraphicsBackend::D3dmetal
+        ) {
+            self.upscaling = false;
+        }
+        if !matches!(self.graphics, GraphicsBackend::Dxvk | GraphicsBackend::Dxmt) {
+            self.frame_rate_limit = None;
+        }
+        self.frame_generation = false;
+        self.frame_generation_vsync = false;
+    }
+
     /// Registry writes required after prefix creation. Stock Wine documents
-    /// RetinaMode under HKCU\Software\Wine\Mac Driver.
-    pub fn registry_adds(&self) -> Vec<[String; 6]> {
-        let mut operations = vec![[
-            "HKCU\\Software\\Wine\\Mac Driver".into(),
-            "/v".into(),
-            "RetinaMode".into(),
-            "/t".into(),
-            "REG_SZ".into(),
-            if self.retina_mode { "y" } else { "n" }.into(),
-        ]];
+    /// RetinaMode under HKCU\Software\Wine\Mac Driver. `REG ADD` needs `/d` for
+    /// the value data; omitting it is invalid syntax.
+    pub fn registry_adds(&self) -> Vec<[String; 7]> {
+        let mut operations = vec![reg_sz(
+            r"HKCU\Software\Wine\Mac Driver",
+            "RetinaMode",
+            if self.retina_mode { "y" } else { "n" },
+        )];
         if self.resolution == Resolution::Custom {
-            operations.push([
-                "HKCU\\Software\\Wine\\Explorer".into(),
-                "/v".into(),
-                "Desktop".into(),
-                "/t".into(),
-                "REG_SZ".into(),
-                "Orbit".into(),
-            ]);
-            operations.push([
-                "HKCU\\Software\\Wine\\Explorer\\Desktops".into(),
-                "/v".into(),
-                "Orbit".into(),
-                "/t".into(),
-                "REG_SZ".into(),
-                format!("{}x{}", self.resolution_width, self.resolution_height),
-            ]);
+            operations.push(reg_sz(r"HKCU\Software\Wine\Explorer", "Desktop", "Orbit"));
+            operations.push(reg_sz(
+                r"HKCU\Software\Wine\Explorer\Desktops",
+                "Orbit",
+                &format!("{}x{}", self.resolution_width, self.resolution_height),
+            ));
         }
         operations
     }
+}
+
+fn reg_sz(key: &str, name: &str, data: &str) -> [String; 7] {
+    [
+        key.into(),
+        "/v".into(),
+        name.into(),
+        "/t".into(),
+        "REG_SZ".into(),
+        "/d".into(),
+        data.into(),
+    ]
 }
 
 pub fn load_global(repo: &GameRepository) -> Result<CompatibilitySettings> {
@@ -352,6 +366,7 @@ pub fn save_global_in(
     let selections = super::selections::resolve(root, &actives);
     let mut settings = settings.clone();
     settings.graphics = settings.launch_graphics(&selections);
+    settings.sanitize_for_engine();
     settings.validate_launchable(&selections)?;
     repo.set_setting(GLOBAL_SETTINGS_KEY, &serde_json::to_value(settings)?)?;
     Ok(())
@@ -373,6 +388,7 @@ pub fn resolve_profile_in(
     let actives = super::selections::load(repo)?;
     let selections = super::selections::resolve(root, &actives);
     settings.graphics = settings.launch_graphics(&selections);
+    settings.sanitize_for_engine();
     settings.validate_launchable(&selections)?;
     let mut resolved = profile.clone();
     resolved.effective = settings.clone();
@@ -473,6 +489,87 @@ mod tests {
         assert_eq!(wine.launch_graphics(&selections), GraphicsBackend::Wine);
     }
 
+    #[test]
+    fn automatic_graphics_prefers_gptk_then_dxmt_then_dxvk() {
+        let auto = CompatibilitySettings {
+            graphics: GraphicsBackend::Auto,
+            ..Default::default()
+        };
+        let all = BTreeMap::from([
+            ("gptk".into(), "/gptk".into()),
+            ("dxmt".into(), "/dxmt".into()),
+            ("dxvk".into(), "/dxvk".into()),
+            ("moltenvk".into(), "/moltenvk".into()),
+        ]);
+        assert_eq!(auto.launch_graphics(&all), GraphicsBackend::D3dmetal);
+        let dxmt = BTreeMap::from([("dxmt".into(), "/dxmt".into())]);
+        assert_eq!(auto.launch_graphics(&dxmt), GraphicsBackend::Dxmt);
+        let dxvk = BTreeMap::from([
+            ("dxvk".into(), "/dxvk".into()),
+            ("moltenvk".into(), "/moltenvk".into()),
+        ]);
+        assert_eq!(auto.launch_graphics(&dxvk), GraphicsBackend::Dxvk);
+        let explicit = CompatibilitySettings {
+            graphics: GraphicsBackend::Dxmt,
+            ..Default::default()
+        };
+        assert_eq!(explicit.launch_graphics(&all), GraphicsBackend::Dxmt);
+    }
+
+    #[test]
+    fn launch_drops_dxmt_only_options_when_the_engine_is_not_dxmt() {
+        let mut settings = CompatibilitySettings {
+            graphics: GraphicsBackend::Auto,
+            dxmt_nvidia_extensions: true,
+            upscaling: true,
+            frame_rate_limit: Some(60),
+            frame_generation: true,
+            frame_generation_vsync: true,
+            ..Default::default()
+        };
+        let selections = BTreeMap::new();
+        settings.graphics = settings.launch_graphics(&selections);
+        settings.sanitize_for_engine();
+        assert_eq!(settings.graphics, GraphicsBackend::Auto);
+        assert!(!settings.dxmt_nvidia_extensions);
+        assert!(!settings.upscaling);
+        assert!(settings.frame_rate_limit.is_none());
+        assert!(!settings.frame_generation);
+        assert!(!settings.frame_generation_vsync);
+        settings.validate_launchable(&selections).unwrap();
+
+        let mut wine = CompatibilitySettings {
+            graphics: GraphicsBackend::Wine,
+            dxmt_nvidia_extensions: true,
+            ..Default::default()
+        };
+        wine.graphics = wine.launch_graphics(&selections);
+        wine.sanitize_for_engine();
+        assert!(!wine.dxmt_nvidia_extensions);
+        wine.validate_launchable(&selections).unwrap();
+    }
+
+    #[test]
+    fn resolve_profile_ignores_stale_dxmt_nvidia_when_dxmt_is_missing() {
+        let root =
+            std::env::temp_dir().join(format!("orbit-settings-nvidia-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let repo = GameRepository::open(&root.join("library.sqlite")).unwrap();
+        let stale = CompatibilitySettings {
+            graphics: GraphicsBackend::Auto,
+            dxmt_nvidia_extensions: true,
+            ..Default::default()
+        };
+        repo.set_setting(GLOBAL_SETTINGS_KEY, &serde_json::to_value(&stale).unwrap())
+            .unwrap();
+        let resolved = resolve_profile_in(&root, &repo, &WineProfile::default()).unwrap();
+        assert_eq!(resolved.effective.graphics, GraphicsBackend::Auto);
+        assert!(!resolved.effective.dxmt_nvidia_extensions);
+        drop(repo);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn retina_and_custom_resolution_emit_literal_registry_values() {
         let settings = CompatibilitySettings {
             retina_mode: true,
@@ -482,7 +579,9 @@ mod tests {
             ..Default::default()
         };
         let operations = settings.registry_adds();
-        assert_eq!(operations[0][5], "y");
-        assert_eq!(operations[2][5], "2560x1440");
+        assert_eq!(operations[0][5], "/d");
+        assert_eq!(operations[0][6], "y");
+        assert_eq!(operations[2][5], "/d");
+        assert_eq!(operations[2][6], "2560x1440");
     }
 }

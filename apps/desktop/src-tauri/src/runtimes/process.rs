@@ -97,6 +97,16 @@ pub fn base_command(executable: &Path) -> Command {
 
 pub fn command(executable: &Path, prefix: &Path) -> Command {
     let mut cmd = base_command(executable);
-    cmd.env("WINEPREFIX", prefix).env("WINEDEBUG", "-all");
+    cmd.env("WINEPREFIX", prefix)
+        .env("WINEDEBUG", "-all")
+        .env("LANG", "en_US.UTF-8")
+        .env("LC_ALL", "en_US.UTF-8");
+    if let Some(bin) = executable.parent() {
+        let mut path = bin.as_os_str().to_owned();
+        path.push(":/usr/bin:/bin:/usr/sbin:/sbin");
+        cmd.env("PATH", path);
+        cmd.env("WINESERVER", bin.join("wineserver"));
+        cmd.env("WINELOADER", executable);
+    }
     cmd
 }

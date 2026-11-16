@@ -131,6 +131,7 @@ pub fn resolve(root: &Path, actives: &ActiveComponents) -> BTreeMap<String, Stri
     let mut paths = BTreeMap::new();
     for component in [
         "dxvk",
+        "moltenvk",
         "dxmt",
         "gptk",
         "wine-stable",
@@ -210,6 +211,20 @@ mod tests {
     }
 
     #[test]
+    fn dxvk_launch_resolves_its_installed_moltenvk_dependency() {
+        let root = temp_root();
+        write_installed(&root, "dxvk", "1", "2026-11-12T00:00:00Z");
+        write_installed(&root, "moltenvk", "1", "2026-11-12T00:00:00Z");
+        let paths = resolve(&root, &ActiveComponents::new());
+        let settings = super::super::settings::CompatibilitySettings {
+            graphics: super::super::settings::GraphicsBackend::Dxvk,
+            ..Default::default()
+        };
+        settings.validate_launchable(&paths).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn resolve_prefers_the_selection_over_the_newest_install() {
         let root = temp_root();
         fs::create_dir_all(&root).unwrap();
@@ -227,7 +242,6 @@ mod tests {
 
     #[test]
     fn a_selected_component_version_is_the_one_the_launch_profile_resolves() {
-        use crate::runtimes::components::ComponentKind;
         use crate::runtimes::settings::{self, CompatibilitySettings};
         use crate::runtimes::WineProfile;
 

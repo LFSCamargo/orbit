@@ -4,6 +4,7 @@ pub mod components;
 pub mod detection;
 pub mod gptk_local;
 pub mod homebrew;
+pub mod layer;
 pub mod manager;
 pub mod prefix;
 pub mod process;
@@ -36,6 +37,9 @@ pub struct WineProfile {
     /// an existing launch configuration.
     #[serde(skip)]
     pub selections: std::collections::BTreeMap<String, String>,
+    /// Steam Windows play reuses the signed-in prefix. Never persisted.
+    #[serde(skip)]
+    pub shared_prefix: Option<String>,
 }
 impl WineProfile {
     pub fn validate_options(&self) -> Result<()> {

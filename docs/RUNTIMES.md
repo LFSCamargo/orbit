@@ -184,25 +184,29 @@ written back to the game's JSON.
 
 Implemented launch behavior:
 
-- Graphics: Automatic/Wine. Other backends are rejected until their component is
-  installed; a menu selection alone never claims to enable DirectX translation.
+- Graphics: Automatic prefers GPTK (D3DMetal), then DXMT, then DXVK+MoltenVK.
+  An explicit Wine choice stays Wine. Other backends are rejected until their
+  component is installed; a menu selection alone never claims to enable DirectX
+  translation.
 - Synchronization: Default, ESync (`WINEESYNC`), or MSync (`WINEMSYNC`), mutually
   exclusive. Explicit advanced environment values retain highest priority.
 - High Resolution Mode: Wine's documented `HKCU\Software\Wine\Mac Driver`
-  `RetinaMode` value.
+  `RetinaMode` value via `reg add ... /d`.
 - Display: automatic or a bounded virtual-desktop resolution through Wine's
-  `Explorer` / `Explorer\Desktops` registry values.
+  `Explorer` / `Explorer\Desktops` registry values (`reg add` with `/d`).
 - Metal HUD (`MTL_HUD_ENABLED`) and Rosetta AVX (`ROSETTA_ADVERTISE_AVX`).
 - Global save and per-game resolution happen only for new launches, not a running
   session.
 
 Frame rate limit, MetalFX upscaling, and DXMT NVIDIA extensions unlock when
-DXVK, DXMT, or D3DMetal is installed. Saving one while the graphics engine is
-still Automatic selects the installed backend that can apply it. An explicit
-Wine engine stays Wine. Upscale ratio and frame generation stay disabled:
+DXVK, DXMT, or D3DMetal is installed. Automatic launch prefers GPTK, then DXMT,
+then DXVK, and Play sanitizes options that do not apply to that engine. An
+explicit Wine, DXMT, or DXVK choice still wins. Upscale ratio and frame generation stay disabled:
 DXMT has no ratio control, and frame generation needs a GPTK 4 Metal 4 package
 that Orbit does not launch. `validate_launchable` still rejects an option whose
-component or engine is missing.
+component or engine is missing. Play sanitizes leftover DXMT NVIDIA, MetalFX,
+and frame-rate flags that do not apply to the resolved engine instead of
+failing on the first overlay step.
 
 ## CrossOver and GameHub feature audit
 
@@ -290,16 +294,19 @@ slice does not yet manage. Prefer an already installed, self-contained game.
 `launch_config_json` column. Existing variants and rows are unchanged; no SQL
 migration is necessary. Missing profile arguments/environment deserialize to empty
 values. Unknown profile fields are rejected. Profiles store a runtime path; the
-managed environment's marker pins the successfully prepared Wine path/version and
-refuses silent upgrades or switching distributions over an existing prefix.
+managed environment's marker records the Wine path/version that last prepared the
+prefix. Play uses the game's current graphics settings and, for Windows Steam
+titles, the current Steam Wine binary. A leftover prefix is updated in place
+(`wineboot -u`) instead of being deleted when the Wine version changes.
 
 Environment locations are under Orbit's existing application data directory:
 `runtimes/<game-id>/prefix`, `runtime.json`, and `latest.log`. Prefix paths are never
 supplied by the frontend. Symlinks at the managed game/prefix boundary are rejected.
 An interrupted unmarked prefix is not reused. Newly failed initialization is removed
-only after its Wine server stops. Existing prefixes and imported game files are
-never deleted on launch failure or library removal. Reset/removal UI is Phase 2;
-for now retain the original runtime if a version mismatch is reported.
+only after its Wine server stops. Imported game files are never deleted on launch
+failure or library removal. Prefix setup succeeds once `system.reg` exists after
+wineserver settles, even if wineboot's exit code is non-zero. Wine child processes
+use `en_US.UTF-8` and the Wine `bin` directory on `PATH`.
 
 Long-running preparation, detection and stop run on blocking workers, not the UI
 thread. A launch reservation rejects concurrent launches, including during setup.
@@ -392,3 +399,20 @@ On this Apple Silicon Mac, the opt-in test passed using an already installed
 five seconds of live process monitoring, prefix-scoped stop and temporary cleanup
 completed in approximately 37 seconds. This validates the native adapter against a
 real Windows game; it does not certify the graphics backends or full Tauri UI flow.
+
+### Graphics launch failure handling
+
+A graphics setup error aborts launch at the graphics stage and reaches the launch
+overlay. Installed MoltenVK is included in resolved component selections, allowing
+DXVK's dependency validation to succeed. D3DMetal checks the required Windows/Unix
+library pairs, copies its 64-bit DLLs only to `system32`, and supplies the matching
+`redist/lib/wine` (or `lib/wine`) through `WINEDLLPATH`. The prefix DLLs take
+precedence over Wine's own PE graphics libraries; the Unix bridges and framework
+remain together in the installed payload. No 64-bit DLL is copied into `syswow64`.
+
+These checks do not certify game compatibility. A real God of War diagnostic with
+the installed Wine 11.21 and Apple 4.0 beta 3 payload still exited with code 53;
+the loader trace records `SteamAPI_Init()` failing because no Steam instance or
+Steam installation directory exists in that private prefix. Playability is not
+verified. This requires the outstanding official in-prefix Steam client described
+in `STEAM_WINDOWS.md`, including its own authenticated session.

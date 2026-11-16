@@ -28,6 +28,11 @@ fn rejects_prefix_escape_and_symlinks() {
     let root = sandbox();
     assert!(prefix::game_directory(&root, "../outside").is_err());
     assert!(prefix::game_directory(&root, "/outside").is_err());
+    let allowed = root.join("steam-windows/prefix");
+    fs::create_dir_all(&allowed).unwrap();
+    fs::write(allowed.join("system.reg"), b"reg").unwrap();
+    assert!(prefix::accept_shared(&allowed, &allowed).is_ok());
+    assert!(prefix::accept_shared(&root, &allowed).is_err());
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(std::env::temp_dir(), root.join("game")).unwrap();
@@ -153,14 +158,68 @@ fn failed_prefix_setup_is_removed_and_can_be_retried() {
     let log = process::log_file(&dir.join("latest.log")).unwrap();
     assert!(prefix::prepare(&dir, &runtime, &AtomicBool::new(false), &log).is_err());
     assert!(!dir.join("prefix").exists());
-    script(&root.join("wine"), "touch \"$WINEPREFIX/system.reg\"");
+    script(
+        &root.join("wine"),
+        "mkdir -p \"$WINEPREFIX\" && touch \"$WINEPREFIX/system.reg\"",
+    );
     assert!(prefix::prepare(&dir, &runtime, &AtomicBool::new(false), &log).is_ok());
+    fs::write(dir.join("prefix/sentinel"), b"keep").unwrap();
     let other = detection::WineInstallation {
         version: "wine-other".into(),
         ..runtime
     };
-    assert!(prefix::prepare(&dir, &other, &AtomicBool::new(false), &log).is_err());
+    assert!(prefix::prepare(&dir, &other, &AtomicBool::new(false), &log).is_ok());
+    let marker: detection::WineInstallation =
+        serde_json::from_slice(&fs::read(dir.join("runtime.json")).unwrap()).unwrap();
+    assert_eq!(marker.version, "wine-other");
+    assert_eq!(fs::read(dir.join("prefix/sentinel")).unwrap(), b"keep");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+#[cfg(unix)]
+fn prefix_is_ready_when_wineboot_exits_nonzero_but_writes_system_reg() {
+    use std::sync::atomic::AtomicBool;
+    let root = sandbox();
+    script(
+        &root.join("wine"),
+        "mkdir -p \"$WINEPREFIX\" && touch \"$WINEPREFIX/system.reg\"; exit 53",
+    );
+    script(&root.join("wineserver"), "exit 0");
+    let runtime = detection::WineInstallation {
+        path: root.join("wine").to_string_lossy().into_owned(),
+        server_path: root.join("wineserver").to_string_lossy().into_owned(),
+        version: "wine-test".into(),
+    };
+    let dir = prefix::game_directory(&root.join("data"), "game").unwrap();
+    let log = process::log_file(&dir.join("latest.log")).unwrap();
+    assert!(prefix::prepare(&dir, &runtime, &AtomicBool::new(false), &log).is_ok());
     assert!(dir.join("prefix/system.reg").exists());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+#[cfg(unix)]
+fn incomplete_prefix_is_replaced_before_wineboot() {
+    use std::sync::atomic::AtomicBool;
+    let root = sandbox();
+    script(
+        &root.join("wine"),
+        "mkdir -p \"$WINEPREFIX\" && touch \"$WINEPREFIX/system.reg\"",
+    );
+    script(&root.join("wineserver"), "exit 0");
+    let runtime = detection::WineInstallation {
+        path: root.join("wine").to_string_lossy().into_owned(),
+        server_path: root.join("wineserver").to_string_lossy().into_owned(),
+        version: "wine-test".into(),
+    };
+    let dir = prefix::game_directory(&root.join("data"), "game").unwrap();
+    let log = process::log_file(&dir.join("latest.log")).unwrap();
+    fs::create_dir_all(dir.join("prefix")).unwrap();
+    fs::write(dir.join("prefix/stale"), b"x").unwrap();
+    assert!(prefix::prepare(&dir, &runtime, &AtomicBool::new(false), &log).is_ok());
+    assert!(dir.join("prefix/system.reg").exists());
+    assert!(!dir.join("prefix/stale").exists());
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -169,7 +228,7 @@ fn failed_prefix_setup_is_removed_and_can_be_retried() {
 fn lifecycle_tracks_child_exit_code_and_reaps_owned_process() {
     use std::sync::atomic::AtomicBool;
     let root = sandbox();
-    script(&root.join("wine"), "case \"$1\" in --version) echo wine-test;; wineboot) touch \"$WINEPREFIX/system.reg\";; reg) exit 0;; *) echo game-started; exit 7;; esac");
+    script(&root.join("wine"), "case \"$1\" in --version) echo wine-test;; wineboot) mkdir -p \"$WINEPREFIX\" && touch \"$WINEPREFIX/system.reg\";; reg) exit 0;; *) echo game-started; exit 7;; esac");
     script(&root.join("wineserver"), "exit 0");
     let exe = root.join("demo.exe");
     let mut bytes = vec![0; 128];
@@ -203,6 +262,50 @@ fn lifecycle_tracks_child_exit_code_and_reaps_owned_process() {
     assert!(fs::read_to_string(root.join("data/game/latest.log"))
         .unwrap()
         .contains("game-started"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+#[cfg(unix)]
+fn display_settings_pass_reg_data_flag() {
+    let root = sandbox();
+    script(
+        &root.join("wine"),
+        r#"case "$1" in
+--version) echo wine-test;;
+wineboot) mkdir -p "$WINEPREFIX" && touch "$WINEPREFIX/system.reg";;
+reg)
+  d=0
+  for a in "$@"; do [ "$a" = /d ] && d=1; done
+  if [ "$d" -eq 1 ]; then exit 0; fi
+  echo 'reg: Invalid syntax. Type "REG ADD /?" for help.'
+  exit 1
+  ;;
+*) echo game-started; exit 0;;
+esac"#,
+    );
+    script(&root.join("wineserver"), "exit 0");
+    let exe = root.join("demo.exe");
+    let mut bytes = vec![0; 128];
+    bytes[..2].copy_from_slice(b"MZ");
+    bytes[60..64].copy_from_slice(&64u32.to_le_bytes());
+    bytes[64..68].copy_from_slice(b"PE\0\0");
+    fs::write(&exe, bytes).unwrap();
+    let profile = WineProfile {
+        executable: exe.to_string_lossy().into_owned(),
+        runtime_path: root.join("wine").to_string_lossy().into_owned(),
+        ..Default::default()
+    };
+    wine::WineAdapter
+        .launch(
+            &profile,
+            "game",
+            &root.join("data"),
+            &std::sync::atomic::AtomicBool::new(false),
+        )
+        .unwrap()
+        .stop()
+        .unwrap();
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -266,17 +369,35 @@ fn cancellation_reaps_preparation_and_never_creates_a_ready_marker() {
 #[test]
 fn child_environment_does_not_inherit_orbit_credentials() {
     let command = process::command(
-        std::path::Path::new("/wine"),
+        std::path::Path::new("/opt/wine/bin/wine"),
         std::path::Path::new("/private-prefix"),
     );
-    let configured: Vec<_> = command
+    let configured: std::collections::BTreeMap<_, _> = command
         .get_envs()
-        .map(|(key, _)| key.to_string_lossy().into_owned())
+        .filter_map(|(key, value)| {
+            value.map(|value| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+        })
         .collect();
-    assert!(configured.contains(&"WINEPREFIX".into()));
-    assert!(!configured.contains(&"RAWG_API_KEY".into()));
-    assert!(!configured.contains(&"STEAMGRIDDB_API_KEY".into()));
-    assert!(!configured.contains(&"DYLD_INSERT_LIBRARIES".into()));
+    assert_eq!(configured.get("WINEPREFIX").unwrap(), "/private-prefix");
+    assert_eq!(configured.get("LANG").unwrap(), "en_US.UTF-8");
+    assert_eq!(configured.get("LC_ALL").unwrap(), "en_US.UTF-8");
+    assert_eq!(
+        configured.get("PATH").unwrap(),
+        "/opt/wine/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    );
+    assert_eq!(
+        configured.get("WINESERVER").unwrap(),
+        "/opt/wine/bin/wineserver"
+    );
+    assert_eq!(configured.get("WINELOADER").unwrap(), "/opt/wine/bin/wine");
+    assert!(!configured.contains_key("RAWG_API_KEY"));
+    assert!(!configured.contains_key("STEAMGRIDDB_API_KEY"));
+    assert!(!configured.contains_key("DYLD_INSERT_LIBRARIES"));
 }
 
 #[test]
@@ -351,7 +472,7 @@ fn sanitized_child_environment_excludes_inherited_values() {
 #[cfg(unix)]
 fn failed_server_monitor_is_not_reported_as_successful_game_exit() {
     let root = sandbox();
-    script(&root.join("wine"), "case \"$1\" in --version) echo wine-test;; wineboot) touch \"$WINEPREFIX/system.reg\";; reg) exit 0;; *) touch \"$WINEPREFIX/game-started\";; esac");
+    script(&root.join("wine"), "case \"$1\" in --version) echo wine-test;; wineboot) mkdir -p \"$WINEPREFIX\" && touch \"$WINEPREFIX/system.reg\";; reg) exit 0;; *) touch \"$WINEPREFIX/game-started\";; esac");
     script(
         &root.join("wineserver"),
         "if [ \"$1\" = -w ] && [ -f \"$WINEPREFIX/game-started\" ]; then exit 5; fi; exit 0",
@@ -388,5 +509,40 @@ fn failed_server_monitor_is_not_reported_as_successful_game_exit() {
     fs::remove_file(root.join("data/game/prefix/game-started")).unwrap();
     handle.stop().unwrap();
     drop(handle);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+#[cfg(unix)]
+fn broken_graphics_aborts_before_spawning_the_game() {
+    let root = sandbox();
+    script(&root.join("wine"), "case \"$1\" in --version) echo wine-test;; wineboot) mkdir -p \"$WINEPREFIX\" && touch \"$WINEPREFIX/system.reg\";; reg) exit 0;; *) touch \"$WINEPREFIX/game-started\";; esac");
+    script(&root.join("wineserver"), "exit 0");
+    let exe = root.join("demo.exe");
+    let mut bytes = vec![0; 128];
+    bytes[..2].copy_from_slice(b"MZ");
+    bytes[60..64].copy_from_slice(&64u32.to_le_bytes());
+    bytes[64..68].copy_from_slice(b"PE\0\0");
+    fs::write(&exe, bytes).unwrap();
+    let profile = WineProfile {
+        executable: exe.to_string_lossy().into_owned(),
+        runtime_path: root.join("wine").to_string_lossy().into_owned(),
+        effective: settings::CompatibilitySettings {
+            graphics: settings::GraphicsBackend::D3dmetal,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let result = wine::WineAdapter.launch(
+        &profile,
+        "game",
+        &root.join("data"),
+        &std::sync::atomic::AtomicBool::new(false),
+    );
+    assert!(
+        result.is_err(),
+        "An unavailable graphics backend must not launch with Wine defaults"
+    );
+    assert!(!root.join("data/game/prefix/game-started").exists());
     fs::remove_dir_all(root).unwrap();
 }
