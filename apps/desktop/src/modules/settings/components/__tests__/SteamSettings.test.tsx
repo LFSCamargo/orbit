@@ -1,7 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
-import { scanSteamInstallations } from '@/lib/tauri'
+import {
+  installWindowsSteam,
+  scanSteamInstallations,
+  steamWindowsStatus,
+} from '@/lib/tauri'
+import { useDownloadStore } from '@/lib/downloadProgress'
 import { SteamLibraryFolders } from '../SteamLibraryFolders'
 import { SteamSettings } from '../SteamSettings'
 
@@ -13,6 +18,9 @@ vi.mock('@/lib/tauri', () => ({
     accountName: null,
     steamInstalled: false,
     clientRunning: false,
+    clientLoggedIn: false,
+    clientPhase: 'stopped',
+    clientCaption: '',
     ownedCount: 0,
   }),
   steamWindowsLibrary: vi.fn().mockResolvedValue([]),
@@ -22,6 +30,9 @@ vi.mock('@/lib/tauri', () => ({
   }),
   setSteamWindowsPreferences: (preferences: unknown) => save(preferences),
   connectSteamWindows: vi.fn(),
+  openSteamWindowsLogin: vi.fn(),
+  placeSteamWindowsLogin: vi.fn(),
+  pollSteamWindowsLogin: vi.fn(),
   startSteamWindowsQr: vi.fn(),
   pollSteamWindowsQr: vi.fn(),
   beginSteamWindowsPassword: vi.fn(),
@@ -37,7 +48,29 @@ vi.mock('@/lib/tauri', () => ({
 afterEach(() => {
   cleanup()
   save.mockClear()
+  vi.mocked(installWindowsSteam).mockReset()
+  vi.mocked(steamWindowsStatus).mockResolvedValue({
+    signedIn: false,
+    accountName: null,
+    steamInstalled: false,
+    clientRunning: false,
+    clientLoggedIn: false,
+    clientPhase: 'stopped',
+    clientCaption: '',
+    ownedCount: 0,
+  })
+  useDownloadStore.setState({ tasks: {}, failures: {} })
 })
+
+function renderSteam() {
+  return render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <SteamSettings />
+    </QueryClientProvider>,
+  )
+}
 
 it('gives Steam its own authorization section and saves offline mode', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -50,7 +83,9 @@ it('gives Steam its own authorization section and saves offline mode', async () 
   expect(await screen.findByRole('region', { name: 'Steam authorization' })).toBeTruthy()
   expect(screen.getByRole('heading', { name: 'Steam' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Sign in with Steam' })).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Install Steam for Windows' })).toBeTruthy()
+  expect(
+    await screen.findByRole('button', { name: 'Install Steam for Windows' }),
+  ).toBeTruthy()
   expect(screen.queryByLabelText(/password/i)).toBeNull()
 
   fireEvent.click(screen.getByRole('switch', { name: 'Offline mode' }))
@@ -82,4 +117,62 @@ it('saves an additional existing Steam library path', async () => {
   expect(await screen.findByText('/Users/player/GameHub/steamapps/common')).toBeTruthy()
   await waitFor(() => expect(scanSteamInstallations).toHaveBeenCalled())
   expect(await screen.findByText(/Library scan complete/)).toBeTruthy()
+})
+
+it('shows install progress until Steam for Windows is ready', async () => {
+  let finish: (() => void) | undefined
+  vi.mocked(installWindowsSteam).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  renderSteam()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Install Steam for Windows' }),
+  )
+  expect(await screen.findByTestId('download-progress')).toBeVisible()
+  expect(screen.getByText(/Preparing Steam for Windows/)).toBeVisible()
+  expect(
+    screen.getByRole('button', { name: 'Preparing the Steam environment…' }),
+  ).toBeDisabled()
+  await act(async () => finish?.())
+  await waitFor(() =>
+    expect(useDownloadStore.getState().tasks['steam:setup']?.progress?.phase).toBe(
+      'Ready',
+    ),
+  )
+})
+
+it('keeps a Steam install error visible', async () => {
+  vi.mocked(installWindowsSteam).mockRejectedValue(
+    new Error('The Steam compatibility environment could not be created'),
+  )
+  renderSteam()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Install Steam for Windows' }),
+  )
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'The Steam compatibility environment could not be created',
+  )
+})
+
+it('hides install when Steam for Windows is already present', async () => {
+  vi.mocked(steamWindowsStatus).mockResolvedValue({
+    signedIn: true,
+    accountName: 'orbit_player',
+    steamInstalled: true,
+    clientRunning: false,
+    clientLoggedIn: true,
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
+    ownedCount: 4,
+  })
+  renderSteam()
+  expect(await screen.findByRole('region', { name: 'Steam authorization' })).toBeTruthy()
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: /Install Steam for Windows/ }),
+    ).toBeNull(),
+  )
 })

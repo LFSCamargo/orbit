@@ -1,28 +1,22 @@
 import { Gamepad2 } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { SteamWindowsAccount } from '@/components/layout/SteamWindowsAccount'
 import { Focusable } from '@/components/focus/Focusable'
+import { DownloadProgress } from '@/components/ui/download-progress'
 import { Switch } from '@/components/ui/switch'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
-import { installWindowsSteam } from '@/lib/tauri'
 import type { SteamWindowsPreferences } from '@/types/steam'
+import { useSteamWindowsInstall } from '../hooks/useSteamWindowsInstall'
 
 const DEFAULTS: SteamWindowsPreferences = { offlineMode: false, verifyFiles: true }
 
 /** Settings → Steam. Authorization stays separate from download behavior. */
 export function SteamSettings() {
-  const client = useQueryClient()
   const { status, preferences, savePreferences } = useSteamWindows()
   const current = preferences.data ?? DEFAULTS
   const save = (next: SteamWindowsPreferences) => {
     savePreferences.mutate(next)
   }
-  const install = useMutation({
-    mutationFn: installWindowsSteam,
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['steam-windows-status'] })
-    },
-  })
+  const install = useSteamWindowsInstall()
 
   return (
     <div className="settings-view flex flex-col gap-7" data-testid="settings-steam-view">
@@ -35,11 +29,12 @@ export function SteamSettings() {
             </h2>
           </div>
           <p className="m-0 text-[13px] font-normal leading-[1.6] text-orbit-muted">
-            Sign in with the QR code. After that, uninstalled games appear in Library.
+            Sign in with Steam’s own QR code. After that, uninstalled games appear in
+            Library.
           </p>
         </div>
         <div className="settings-card-inner !px-0 !py-5">
-          {!status.data?.steamInstalled && (
+          {status.isSuccess && !status.data.steamInstalled && (
             <div className="mb-4">
               <Focusable
                 focusId="settings-install-wine-steam"
@@ -47,21 +42,26 @@ export function SteamSettings() {
                 order={0}
                 noScale
                 className="steam-activity-button justify-self-start rounded-full bg-[#f7f8fb] px-3.5 py-[9px] text-[13px] font-[680] text-[#12141a] disabled:opacity-55"
-                disabled={install.isPending}
-                onClick={() => install.mutate()}
+                disabled={install.busy}
+                onClick={() => void install.install()}
               >
-                {install.isPending
+                {install.busy
                   ? 'Preparing the Steam environment…'
                   : 'Install Steam for Windows'}
               </Focusable>
               <p className="mt-2 text-sm text-orbit-muted">
-                Sets up a working Windows environment, then opens Steam’s own installer.
+                Installs official Windows Steam in Orbit, including its browser. If that
+                browser is already present, this does nothing. Sign out is the only action
+                that removes it.
               </p>
-              {install.isError && (
+              {install.task && install.task.progress?.phase !== 'Ready' && (
+                <div className="mt-3">
+                  <DownloadProgress task={install.task} />
+                </div>
+              )}
+              {install.error && (
                 <p role="alert" className="mt-2 text-sm text-rose-300">
-                  {install.error instanceof Error
-                    ? install.error.message
-                    : String(install.error)}
+                  {install.error}
                 </p>
               )}
             </div>

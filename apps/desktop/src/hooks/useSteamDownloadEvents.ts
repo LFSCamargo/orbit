@@ -9,20 +9,26 @@ interface SteamDownloadEvent {
   label: string
   done: boolean
   progress?: SetupProgress
+  error?: string
 }
 
-/** Applies native SteamCMD progress to the shared download tracker. */
+/** Applies native SteamCMD / Steam setup progress to the shared download tracker. */
 export function useSteamDownloadEvents() {
   const start = useDownloadStore((state) => state.start)
   const update = useDownloadStore((state) => state.update)
   const finish = useDownloadStore((state) => state.finish)
+  const fail = useDownloadStore((state) => state.fail)
 
   useEffect(() => {
     if (!isTauriRuntime()) return
     let active = true
     let unlisten: (() => void) | undefined
     void listen<SteamDownloadEvent>('steam-download-progress', (event) => {
-      const { key, label, progress, done } = event.payload
+      const { key, label, progress, done, error } = event.payload
+      if (error) {
+        fail(key, error)
+        return
+      }
       if (!useDownloadStore.getState().tasks[key]) start({ key, label })
       if (progress) update(key, progress)
       if (done) finish(key)
@@ -34,5 +40,5 @@ export function useSteamDownloadEvents() {
       active = false
       unlisten?.()
     }
-  }, [finish, start, update])
+  }, [fail, finish, start, update])
 }

@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useDownloadStore } from '@/lib/downloadProgress'
@@ -13,6 +21,9 @@ vi.mock('@/lib/tauri', () => ({
   setSteamWindowsPreferences: vi.fn(async (preferences: unknown) => preferences),
   steamWindowsLibrary: vi.fn(),
   connectSteamWindows: vi.fn(),
+  openSteamWindowsLogin: vi.fn(),
+  placeSteamWindowsLogin: vi.fn(),
+  pollSteamWindowsLogin: vi.fn(),
   startSteamWindowsQr: vi.fn(),
   pollSteamWindowsQr: vi.fn(),
   beginSteamWindowsPassword: vi.fn(),
@@ -27,18 +38,20 @@ vi.mock('@/lib/tauri', () => ({
 
 import {
   connectSteamWindows,
-  pollSteamWindowsQr,
-  startSteamWindowsQr,
+  openSteamWindowsLogin,
+  placeSteamWindowsLogin,
+  pollSteamWindowsLogin,
   steamWindowsLibrary,
   steamWindowsStatus,
 } from '@/lib/tauri'
-import type { SteamQrPoll, SteamQrStart } from '@/types/steam'
+import type { SteamLoginPoll } from '@/types/steam'
 
 const status = vi.mocked(steamWindowsStatus)
 const library = vi.mocked(steamWindowsLibrary)
 const connect = vi.mocked(connectSteamWindows)
-const startQr = vi.mocked(startSteamWindowsQr)
-const pollQr = vi.mocked(pollSteamWindowsQr)
+const openLogin = vi.mocked(openSteamWindowsLogin)
+const placeLogin = vi.mocked(placeSteamWindowsLogin)
+const pollLogin = vi.mocked(pollSteamWindowsLogin)
 
 function deferred<T>() {
   let resolve: (value: T) => void = () => undefined
@@ -68,6 +81,9 @@ beforeEach(() => {
     accountName: null,
     steamInstalled: true,
     clientRunning: false,
+    clientLoggedIn: false,
+    clientPhase: 'stopped',
+    clientCaption: '',
     ownedCount: 0,
   })
   library.mockResolvedValue([])
@@ -76,22 +92,21 @@ beforeEach(() => {
     accountName: 'orbit_player',
     steamInstalled: true,
     clientRunning: false,
+    clientLoggedIn: true,
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
     ownedCount: 1,
   })
-  startQr.mockResolvedValue({
-    qrSvg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
-    clientId: '1',
-    requestId: 'abc',
-    intervalSeconds: 5,
-  })
-  pollQr.mockResolvedValue({
+  openLogin.mockResolvedValue(undefined)
+  placeLogin.mockResolvedValue({ placed: true })
+  pollLogin.mockResolvedValue({
     done: false,
     status: null,
     libraryError: null,
   })
 })
 
-it('docks to the right and signs in with a QR code inside Orbit', async () => {
+it("docks to the right and signs in with Steam's own QR window", async () => {
   library.mockResolvedValue([
     {
       appId: '570',
@@ -113,11 +128,12 @@ it('docks to the right and signs in with a QR code inside Orbit', async () => {
   expect(screen.getByText('Not authorized')).toBeTruthy()
   expect(screen.getByText('Steam client is closed')).toBeTruthy()
 
-  const startGate = deferred<SteamQrStart>()
-  const pollGate = deferred<SteamQrPoll>()
-  startQr.mockImplementation(() => startGate.promise)
-  pollQr.mockImplementation(() => pollGate.promise)
+  const openGate = deferred<void>()
+  const pollGate = deferred<SteamLoginPoll>()
+  openLogin.mockImplementation(() => openGate.promise)
+  pollLogin.mockImplementation(() => pollGate.promise)
 
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in with Steam' }))
   fireEvent.click(screen.getByRole('button', { name: 'Sign in with Steam' }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Sign in to Steam' })
@@ -125,27 +141,24 @@ it('docks to the right and signs in with a QR code inside Orbit', async () => {
   expect(
     within(dialog).getByRole('status', { name: 'Loading Steam sign-in' }),
   ).toBeTruthy()
-  expect(within(dialog).getByRole('button', { name: 'Account' })).toBeTruthy()
+  expect(within(dialog).queryByRole('button', { name: 'Account' })).toBeNull()
+  expect(within(dialog).queryByLabelText(/password/i)).toBeNull()
   expect(connect).not.toHaveBeenCalled()
+  expect(openLogin).toHaveBeenCalledTimes(1)
 
   await act(async () => {
-    startGate.resolve({
-      qrSvg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
-      clientId: '1',
-      requestId: 'abc',
-      intervalSeconds: 5,
-    })
+    openGate.resolve()
   })
 
-  expect(await within(dialog).findByRole('img', { name: 'Steam QR code' })).toBeTruthy()
-  expect(
-    within(dialog).queryByRole('status', { name: 'Loading Steam sign-in' }),
-  ).toBeNull()
-
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Account' }))
-  expect(within(dialog).getByLabelText('Password')).toBeTruthy()
-  fireEvent.click(within(dialog).getByRole('button', { name: 'QR code' }))
-  expect(within(dialog).getByRole('img', { name: 'Steam QR code' })).toBeTruthy()
+  const loginHost = await within(dialog).findByTestId('steam-login-host')
+  expect(loginHost).toHaveStyle({ width: '100%', maxWidth: '840px' })
+  expect(within(dialog).queryByRole('img', { name: 'Steam QR code' })).toBeNull()
+  expect(await within(dialog).findByText(/Steam mobile app/i)).toBeTruthy()
+  await waitFor(() => expect(placeLogin).toHaveBeenCalled())
+  expect(placeLogin.mock.calls[0]?.[0]).toMatchObject({
+    width: 840,
+    height: 520,
+  })
 
   await act(async () => {
     pollGate.resolve({
@@ -155,6 +168,9 @@ it('docks to the right and signs in with a QR code inside Orbit', async () => {
         accountName: 'orbit_player',
         steamInstalled: true,
         clientRunning: false,
+        clientLoggedIn: true,
+        clientPhase: 'ready',
+        clientCaption: 'Steam is ready',
         ownedCount: 1,
       },
       libraryError: null,
@@ -167,6 +183,28 @@ it('docks to the right and signs in with a QR code inside Orbit', async () => {
   expect(screen.queryByText('Dota 2')).toBeNull()
   expect(screen.queryByRole('dialog', { name: 'Sign in to Steam' })).toBeNull()
   expect(connect).not.toHaveBeenCalled()
+})
+
+it("asks for Steam's window when Orbit already has the library snapshot", async () => {
+  status.mockResolvedValue({
+    signedIn: true,
+    accountName: 'orbit_player',
+    steamInstalled: true,
+    clientRunning: false,
+    clientLoggedIn: false,
+    clientPhase: 'stopped',
+    clientCaption: '',
+    ownedCount: 12,
+  })
+  renderSidebar()
+  expect(
+    await screen.findByText(
+      'Orbit has your library. Sign in through Steam’s window so the Windows client matches.',
+    ),
+  ).toBeTruthy()
+  expect(screen.getByText('Not authorized')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Sign in with Steam' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
 })
 
 it('shows a progress bar for an in-progress download', () => {
