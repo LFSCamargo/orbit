@@ -39,6 +39,10 @@ pub struct SteamCatalogEntry {
     pub recommended_requirements: Option<String>,
     #[serde(default)]
     pub proton_tier: Option<String>,
+    #[serde(default)]
+    pub playtime_seconds: i64,
+    #[serde(default)]
+    pub last_played_at: Option<String>,
 }
 
 impl SteamCatalogEntry {
@@ -65,6 +69,33 @@ pub fn is_thin_description(description: Option<&str>) -> bool {
         || description
             .map(|text| text.trim().chars().count() < THIN_DESCRIPTION)
             .unwrap_or(true)
+}
+
+/// Extra-library installs (GameHub folders) are not always in GetOwnedGames.
+/// Hydrate still needs a catalog row so store copy can replace importer stubs.
+pub fn include_installed(
+    mut entries: Vec<SteamCatalogEntry>,
+    installed: &HashSet<String>,
+) -> Vec<SteamCatalogEntry> {
+    let have: HashSet<String> = entries.iter().map(|entry| entry.app_id.clone()).collect();
+    for id in installed {
+        if entries.len() >= 2_000 {
+            break;
+        }
+        if have.contains(id) {
+            continue;
+        }
+        if let Some(entry) = SteamCatalogEntry::from_app_id(id) {
+            entries.push(entry);
+        }
+    }
+    entries
+}
+
+pub fn catalog_needs_hydrate(entries: &[SteamCatalogEntry]) -> bool {
+    entries
+        .iter()
+        .any(|entry| is_placeholder_title(&entry.title, &entry.app_id) || is_stale(entry))
 }
 
 pub fn is_stale(entry: &SteamCatalogEntry) -> bool {
@@ -102,6 +133,28 @@ pub fn hero_url(app_id: &str) -> String {
     format!("{CDN}/{app_id}/library_hero.jpg")
 }
 
+pub fn logo_url(app_id: &str) -> String {
+    format!("{CDN}/{app_id}/logo.png")
+}
+
+pub fn apply_playtimes(
+    entries: &mut [SteamCatalogEntry],
+    records: &std::collections::HashMap<String, crate::utils::steam_playtime::SteamPlayRecord>,
+) {
+    for entry in entries {
+        let Some(record) = records.get(&entry.app_id) else {
+            continue;
+        };
+        if record.seconds > entry.playtime_seconds {
+            entry.playtime_seconds = record.seconds;
+        }
+        entry.last_played_at = crate::utils::steam_playtime::later_stamp(
+            entry.last_played_at.clone(),
+            record.last_played_at.clone(),
+        );
+    }
+}
+
 pub fn parse_owned_games(body: &str) -> Result<Vec<SteamCatalogEntry>, String> {
     if body.len() > OWNED_LIMIT {
         return Err("Steam library could not be read".into());
@@ -113,7 +166,18 @@ pub fn parse_owned_games(body: &str) -> Result<Vec<SteamCatalogEntry>, String> {
         .and_then(|response| response.get("games"))
         .and_then(Value::as_array)
     else {
-        return Ok(Vec::new());
+        return if value
+            .pointer("/response/game_count")
+            .and_then(Value::as_u64)
+            == Some(0)
+        {
+            Ok(Vec::new())
+        } else {
+            Err(
+                "Steam did not return an owned-library snapshot; your saved library was kept"
+                    .into(),
+            )
+        };
     };
     Ok(games
         .iter()
@@ -137,24 +201,70 @@ pub fn serialize_library(entries: &[SteamCatalogEntry]) -> Value {
     json!(entries)
 }
 
+/// Local ticket lists are partial hints. Only an authenticated API snapshot can
+/// authoritatively replace ownership; an empty local cache must not erase it.
 pub fn merge_owned_ids(existing: &[SteamCatalogEntry], ids: &[String]) -> Vec<SteamCatalogEntry> {
-    let by_id: HashMap<&str, &SteamCatalogEntry> = existing
+    let mut merged: Vec<_> = existing.iter().take(2_000).cloned().collect();
+    let mut seen: HashSet<String> = merged.iter().map(|entry| entry.app_id.clone()).collect();
+    for id in ids.iter().take(2_000) {
+        if merged.len() >= 2_000 {
+            break;
+        }
+        if valid_app_id(id) && seen.insert(id.clone()) {
+            if let Some(entry) = SteamCatalogEntry::from_app_id(id) {
+                merged.push(entry);
+            }
+        }
+    }
+    merged
+}
+
+/// Local tickets plus an optional GetOwnedGames payload. An empty or failed
+/// API snapshot must not wipe IDs Steam already wrote to disk.
+pub fn apply_owned_snapshot(
+    existing: &[SteamCatalogEntry],
+    local_ids: &[String],
+    fetched: Option<&[SteamCatalogEntry]>,
+) -> Vec<SteamCatalogEntry> {
+    let with_local = merge_owned_ids(existing, local_ids);
+    let Some(fetched) = fetched.filter(|games| !games.is_empty()) else {
+        return with_local;
+    };
+    let mut merged = merge_api_snapshot(&with_local, fetched.to_vec());
+    let seen: HashSet<String> = merged.iter().map(|entry| entry.app_id.clone()).collect();
+    for entry in with_local {
+        if merged.len() >= 2_000 {
+            break;
+        }
+        if seen.contains(&entry.app_id) {
+            continue;
+        }
+        merged.push(entry);
+    }
+    merged
+}
+
+pub fn merge_api_snapshot(
+    existing: &[SteamCatalogEntry],
+    fetched: Vec<SteamCatalogEntry>,
+) -> Vec<SteamCatalogEntry> {
+    let by_id: HashMap<_, _> = existing
         .iter()
         .map(|entry| (entry.app_id.as_str(), entry))
         .collect();
-    ids.iter()
-        .filter(|id| valid_app_id(id))
-        .take(2_000)
-        .map(|id| {
-            by_id
-                .get(id.as_str())
-                .copied()
-                .cloned()
-                .unwrap_or_else(|| SteamCatalogEntry {
-                    title: placeholder_title(id),
-                    app_id: id.clone(),
-                    ..SteamCatalogEntry::default()
-                })
+    fetched
+        .into_iter()
+        .map(|mut entry| {
+            if let Some(saved) = by_id.get(entry.app_id.as_str()) {
+                entry.description = entry.description.or_else(|| saved.description.clone());
+                entry.cover_url = entry.cover_url.or_else(|| saved.cover_url.clone());
+                entry.hero_url = entry.hero_url.or_else(|| saved.hero_url.clone());
+                entry.last_hydrated_at = saved.last_hydrated_at.clone();
+                entry.minimum_requirements = saved.minimum_requirements.clone();
+                entry.recommended_requirements = saved.recommended_requirements.clone();
+                entry.proton_tier = saved.proton_tier.clone();
+            }
+            entry
         })
         .collect()
 }
@@ -289,7 +399,10 @@ fn apply_proton_tier(entry: &mut SteamCatalogEntry, tier: String) -> bool {
 }
 
 pub fn parse_proton_tier(value: &Value) -> Option<String> {
-    let tier = value.get("tier").and_then(Value::as_str)?.to_ascii_lowercase();
+    let tier = value
+        .get("tier")
+        .and_then(Value::as_str)?
+        .to_ascii_lowercase();
     matches!(
         tier.as_str(),
         "platinum" | "gold" | "silver" | "bronze" | "borked" | "pending"
@@ -440,8 +553,39 @@ fn parse_owned_game(game: &Value) -> Option<SteamCatalogEntry> {
     Some(SteamCatalogEntry {
         app_id,
         title,
+        playtime_seconds: json_minutes(game, "playtime_forever"),
+        last_played_at: json_unix(game, "rtime_last_played")
+            .and_then(crate::utils::steam_playtime::unix_to_rfc3339),
         ..SteamCatalogEntry::default()
     })
+}
+
+fn json_minutes(game: &Value, key: &str) -> i64 {
+    game.get(key)
+        .and_then(Value::as_u64)
+        .or_else(|| {
+            game.get(key)
+                .and_then(Value::as_str)
+                .and_then(|value| value.parse().ok())
+        })
+        .map(|minutes| i64::try_from(minutes).unwrap_or(0).saturating_mul(60))
+        .unwrap_or(0)
+}
+
+fn json_unix(game: &Value, key: &str) -> Option<i64> {
+    game.get(key)
+        .and_then(Value::as_i64)
+        .or_else(|| {
+            game.get(key)
+                .and_then(Value::as_u64)
+                .and_then(|value| i64::try_from(value).ok())
+        })
+        .or_else(|| {
+            game.get(key)
+                .and_then(Value::as_str)
+                .and_then(|value| value.parse().ok())
+        })
+        .filter(|value| *value > 0)
 }
 
 fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
@@ -472,6 +616,10 @@ fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
                 proton_tier: parsed
                     .proton_tier
                     .filter(|tier| parse_proton_tier(&json!({ "tier": tier })).is_some()),
+                playtime_seconds: parsed.playtime_seconds.max(0),
+                last_played_at: parsed
+                    .last_played_at
+                    .filter(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).is_ok()),
                 app_id,
             })
         }
@@ -603,6 +751,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn incomplete_api_responses_cannot_erase_a_saved_library() {
+        for body in [
+            r#"{}"#,
+            r#"{"response":{}}"#,
+            r#"{"response":{"game_count":61}}"#,
+        ] {
+            assert!(parse_owned_games(body).is_err());
+        }
+        assert!(parse_owned_games(r#"{"response":{"game_count":0}}"#)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn api_ownership_refresh_preserves_metadata_but_removes_unowned_games() {
+        let mut gow = SteamCatalogEntry::from_app_id("1593500").unwrap();
+        gow.description = Some("Saved description".into());
+        gow.last_hydrated_at = Some("2026-11-15T00:00:00Z".into());
+        let old = vec![gow.clone(), SteamCatalogEntry::from_app_id("570").unwrap()];
+        let mut fetched = SteamCatalogEntry::from_app_id("1593500").unwrap();
+        fetched.title = "God of War".into();
+        let merged = merge_api_snapshot(&old, vec![fetched]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].title, "God of War");
+        assert_eq!(merged[0].description, gow.description);
+        assert_eq!(merged[0].last_hydrated_at, gow.last_hydrated_at);
+    }
+
+    #[test]
     fn owned_games_keep_steam_titles_from_appinfo() {
         let games = parse_owned_games(
             r#"{"response":{"games":[{"appid":550,"name":"Left 4 Dead 2"},{"appid":0},{"name":"skip"},{"appid":730}]}}"#,
@@ -613,6 +790,21 @@ mod tests {
         assert_eq!(games[1].app_id, "730");
         assert_eq!(games[1].title, "Steam 730");
         assert!(games.iter().all(|game| game.description.is_none()));
+    }
+
+    #[test]
+    fn owned_games_keep_playtime_minutes_and_last_played() {
+        let games = parse_owned_games(
+            r#"{"response":{"games":[{"appid":883710,"name":"Resident Evil 2","playtime_forever":125,"rtime_last_played":1700000000},{"appid":730,"playtime_forever":0,"rtime_last_played":0}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(games[0].playtime_seconds, 7500);
+        assert_eq!(
+            games[0].last_played_at.as_deref(),
+            Some("2023-11-14T22:13:20Z")
+        );
+        assert_eq!(games[1].playtime_seconds, 0);
+        assert_eq!(games[1].last_played_at, None);
     }
 
     #[test]
@@ -632,6 +824,36 @@ mod tests {
     }
 
     #[test]
+    fn stored_library_keeps_playtime_from_owned_games() {
+        let parsed = parse_stored_library(Some(json!([{
+            "appId": "883710",
+            "title": "Resident Evil 2",
+            "playtimeSeconds": 7500,
+            "lastPlayedAt": "2023-11-14T22:13:20Z"
+        }])));
+        assert_eq!(parsed[0].playtime_seconds, 7500);
+        assert_eq!(
+            parsed[0].last_played_at.as_deref(),
+            Some("2023-11-14T22:13:20Z")
+        );
+    }
+
+    #[test]
+    fn local_partial_or_empty_ids_never_erase_the_saved_library() {
+        let saved = vec![SteamCatalogEntry {
+            app_id: "1593500".into(),
+            title: "God of War".into(),
+            ..Default::default()
+        }];
+        assert_eq!(merge_owned_ids(&saved, &[]), saved);
+        let merged = merge_owned_ids(&saved, &["570".into()]);
+        assert!(merged
+            .iter()
+            .any(|game| game.app_id == "1593500" && game.title == "God of War"));
+        assert!(merged.iter().any(|game| game.app_id == "570"));
+    }
+
+    #[test]
     fn merge_keeps_saved_titles_when_local_ids_refresh() {
         let existing = vec![SteamCatalogEntry {
             app_id: "550".into(),
@@ -648,6 +870,34 @@ mod tests {
             Some("https://cdn.steamgriddb.com/grid/l4d2.png")
         );
         assert_eq!(merged[1].title, "Steam 8850");
+    }
+
+    #[test]
+    fn empty_web_library_keeps_local_tickets_and_saved_titles() {
+        let existing = vec![SteamCatalogEntry {
+            app_id: "1593500".into(),
+            title: "God of War".into(),
+            ..SteamCatalogEntry::default()
+        }];
+        let local = vec!["1593500".into(), "883710".into()];
+        let kept = apply_owned_snapshot(&existing, &local, Some(&[]));
+        assert!(kept
+            .iter()
+            .any(|game| game.app_id == "1593500" && game.title == "God of War"));
+        assert!(kept.iter().any(|game| game.app_id == "883710"));
+        let api = vec![SteamCatalogEntry {
+            app_id: "883710".into(),
+            title: "Resident Evil 2".into(),
+            playtime_seconds: 120,
+            ..SteamCatalogEntry::default()
+        }];
+        let merged = apply_owned_snapshot(&existing, &local, Some(&api));
+        assert!(merged
+            .iter()
+            .any(|game| game.app_id == "883710" && game.title == "Resident Evil 2"));
+        assert!(merged
+            .iter()
+            .any(|game| game.app_id == "1593500" && game.title == "God of War"));
     }
 
     #[test]
@@ -699,7 +949,10 @@ mod tests {
             entry.recommended_requirements.as_deref(),
             Some("Recommended: 8 GB RAM")
         );
-        assert_eq!(parse_proton_tier(&json!({ "tier": "gold" })).as_deref(), Some("gold"));
+        assert_eq!(
+            parse_proton_tier(&json!({ "tier": "gold" })).as_deref(),
+            Some("gold")
+        );
         assert!(parse_proton_tier(&json!({ "tier": "unknown" })).is_none());
     }
 
@@ -714,6 +967,22 @@ mod tests {
         assert!(!is_thin_description(Some(
             "Set in the zombie apocalypse, Left 4 Dead 2 is the highly anticipated sequel to the award-winning Left 4 Dead."
         )));
+    }
+
+    #[test]
+    fn placeholder_catalog_needs_store_details() {
+        let placeholders = vec![SteamCatalogEntry::from_app_id("883710").unwrap()];
+        assert!(catalog_needs_hydrate(&placeholders));
+        let mut named = SteamCatalogEntry::from_app_id("1593500").unwrap();
+        named.title = "God of War".into();
+        named.last_hydrated_at = Some(chrono::Utc::now().to_rfc3339());
+        named.description = Some(
+            "From Santa Monica Studio comes the reimagining of God of War, following Kratos and Atreus."
+                .into(),
+        );
+        named.cover_url =
+            Some("https://cdn.akamai.steamstatic.com/steam/apps/1593500/header.jpg".into());
+        assert!(!catalog_needs_hydrate(&[named]));
     }
 
     #[test]
@@ -758,6 +1027,29 @@ mod tests {
             hero_url("550"),
             "https://cdn.akamai.steamstatic.com/steam/apps/550/library_hero.jpg"
         );
+        assert_eq!(
+            logo_url("1593500"),
+            "https://cdn.akamai.steamstatic.com/steam/apps/1593500/logo.png"
+        );
+    }
+
+    #[test]
+    fn include_installed_adds_extra_library_ids_missing_from_owned_catalog() {
+        let owned = SteamCatalogEntry {
+            app_id: "730".into(),
+            title: "Counter-Strike 2".into(),
+            last_hydrated_at: Some(chrono::Utc::now().to_rfc3339()),
+            description: Some(
+                "Counter-Strike 2 is a tactical team-based shooter with bomb defusal and hostage rescue modes."
+                    .into(),
+            ),
+            ..SteamCatalogEntry::default()
+        };
+        let installed = HashSet::from(["730".into(), "447040".into()]);
+        let entries = include_installed(vec![owned], &installed);
+        assert!(entries.iter().any(|entry| entry.app_id == "447040"));
+        assert!(catalog_needs_hydrate(&entries));
+        assert_eq!(entries.len(), 2);
     }
 
     #[test]

@@ -18,14 +18,16 @@ export function DetailsPrimaryAction({
   running,
   sessionId,
   signedIn,
+  clientLoggedIn,
 }: {
   entry: LibraryEntry
   game: Game
   running: boolean
   sessionId: string | null
   signedIn: boolean
+  clientLoggedIn: boolean
 }) {
-  const { launch, stop, update } = useGameActions()
+  const { launch, playEntry, stop, update } = useGameActions()
   const setScreen = useUiStore((state) => state.setScreen)
   const setSettingsTab = useUiStore((state) => state.setSettingsTab)
   const [cancelling, setCancelling] = useState(false)
@@ -37,13 +39,15 @@ export function DetailsPrimaryAction({
   const action = detailsPrimaryAction({
     entry,
     running,
-    launching: launch.isPending,
+    launching: launch.isPending || playEntry.isPending,
     cancelling,
     signedIn,
+    clientLoggedIn,
   })
   const task = entry.steamAppId ? tasks[`steam:${entry.steamAppId}`] : undefined
   const run = async () => {
     setError(null)
+    if (action.kind === 'waiting') return
     if (action.kind === 'cancel') {
       setCancelling(true)
       try {
@@ -60,7 +64,7 @@ export function DetailsPrimaryAction({
       return
     }
     if (action.kind === 'play' && action.gameId) {
-      launch.mutate(action.gameId)
+      playEntry.mutate(entry)
       return
     }
     if (action.kind === 'install' && entry.steamAppId) {
@@ -103,7 +107,7 @@ export function DetailsPrimaryAction({
         group="details-actions"
         order={1}
         noScale
-        disabled={stop.isPending || cancelling}
+        disabled={stop.isPending || cancelling || action.kind === 'waiting'}
         onClick={() => void run()}
         className="details-play flex min-h-12 min-w-[180px] items-center justify-center gap-3 rounded-full bg-[linear-gradient(#fff,#e2ecfc)] px-[26px] text-[13px] font-[650] text-[#15253e] shadow-[0_2px_8px_#0001] hover:brightness-110 disabled:cursor-wait disabled:opacity-40 max-[520px]:px-[22px]"
       >

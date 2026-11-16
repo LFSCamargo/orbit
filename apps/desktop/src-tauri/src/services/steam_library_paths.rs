@@ -1,5 +1,5 @@
 //! Additional user-selected existing Steam libraries. All scans are bounded.
-use crate::services::steam_manifest::{install_from_manifest, SteamInstallIndex, SteamInstall};
+use crate::services::steam_manifest::{install_from_manifest, SteamInstall, SteamInstallIndex};
 use std::path::{Component, Path, PathBuf};
 
 #[cfg(test)]
@@ -136,7 +136,9 @@ pub fn discover(paths: &[String]) -> Vec<SteamInstall> {
                 continue;
             }
             if let Some(install) = install_from_manifest(apps, id, &format!("Steam {id}")) {
-                if seen.insert(install.install_dir.clone()) { result.push(install); }
+                if seen.insert(install.install_dir.clone()) {
+                    result.push(install);
+                }
             }
         }
     }
@@ -145,6 +147,8 @@ pub fn discover(paths: &[String]) -> Vec<SteamInstall> {
 
 pub fn index(paths: &[String]) -> SteamInstallIndex {
     let mut index = SteamInstallIndex::default();
-    for install in discover(paths) { index.by_id.entry(install.app_id.clone()).or_insert(install); }
+    for install in discover(paths) {
+        index.by_id.entry(install.app_id.clone()).or_insert(install);
+    }
     index
 }

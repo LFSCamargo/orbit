@@ -60,6 +60,9 @@ it('opens an uninstalled game and keeps installed games in the All view', async 
     accountName: 'orbit_player',
     steamInstalled: true,
     clientRunning: false,
+    clientLoggedIn: true,
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
     ownedCount: 2,
   })
   library.mockResolvedValue([dota, cs])
@@ -90,6 +93,9 @@ it('shows God of War when the owned list is longer than 30 titles', async () => 
     accountName: 'orbit_player',
     steamInstalled: true,
     clientRunning: false,
+    clientLoggedIn: true,
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
     ownedCount: 40,
   })
   const filler = Array.from({ length: 39 }, (_, index) => ({
@@ -126,6 +132,9 @@ it('shows a loading overlay while the Steam library is fetching', async () => {
     accountName: 'orbit_player',
     steamInstalled: true,
     clientRunning: false,
+    clientLoggedIn: true,
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
     ownedCount: 2,
   })
   library.mockReturnValue(new Promise(() => undefined))

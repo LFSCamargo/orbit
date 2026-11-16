@@ -122,7 +122,7 @@ fn finish_login(
     })
 }
 
-fn fetch_owned_games(access_token: &str) -> Result<Vec<SteamCatalogEntry>, String> {
+pub(super) fn fetch_owned_games(access_token: &str) -> Result<Vec<SteamCatalogEntry>, String> {
     let steam_id = steam_id_from_access_token(access_token)?;
     let response = http_client()?
         .get(OWNED_URL)

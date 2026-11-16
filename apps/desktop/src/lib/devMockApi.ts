@@ -18,6 +18,9 @@ function steamStatus() {
     accountName: steamAccount,
     steamInstalled: false,
     clientRunning: false,
+    clientLoggedIn: steamAccount !== null,
+    clientPhase: steamAccount ? 'ready' : 'stopped',
+    clientCaption: steamAccount ? 'Steam is ready' : '',
     ownedCount: steamAccount ? 2 : 0,
   }
 }

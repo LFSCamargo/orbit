@@ -21,7 +21,11 @@ export function overlayCatalogCopy(
   },
 ) {
   entry.owned = true
-  if (isPlaceholderDescription(entry.game.description) && catalog.description) {
+  if (
+    isPlaceholderDescription(entry.game.description) &&
+    catalog.description &&
+    !isPlaceholderDescription(catalog.description)
+  ) {
     entry.game.description = catalog.description
   }
   const runInfo: LibraryRunInfo = {

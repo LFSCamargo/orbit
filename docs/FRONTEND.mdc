@@ -78,15 +78,16 @@ src/
     providers.tsx          # QueryClient + theme init
   modules/
     home/
-      lib/                 # Shared Home hero selection
+      lib/                 # Hero selection, artwork cache, shelf focus scroll, carousel fade
       HomePage.tsx
       ThemeHome.tsx        # Renders MacosHome
-      components/          # MacosHome (colocated)
-      hooks/
+      components/          # MacosHome, CarouselArtwork (colocated)
+      hooks/               # useHomeHero, useInfiniteCarousel, useFittedTitle, useShelfEdgeFade
     library/
       LibraryPage.tsx
       components/          # LibraryToolbar, LibraryEntryGrid, SteamGameCard, skeletons
-      lib/
+      hooks/               # useLibraryViewportFade
+      lib/                 # libraryFilters, libraryViewportFade, libraryViewportFadeDom
     search/
       SearchPage.tsx
     game-details/
@@ -100,15 +101,18 @@ src/
     settings/
       SettingsPage.tsx
       components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, SettingsInsights
-      hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews
+      hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useSteamWindowsInstall, useCompatibilitySetup
     session/
       PlayingScreen.tsx
+      components/          # LaunchOverlay (hero banner, Steam wordmark, startup caption)
     switch-library/
       SwitchLibraryPage.tsx
       components/
   components/
     layout/
       AppShell.tsx         # PlayingScreen during a session, otherwise MacosShell
+      SteamQrModal.tsx     # Hosts Steam's own 840×520 QR login window over Orbit
+      SteamWindowsAccount.tsx # Settings / Downloads Steam authorization card
     home/
       HomeMenuModal.tsx    # Orbit quick menu
     ui/
@@ -139,7 +143,9 @@ src/
   hooks/
     useGames.ts            # TanStack Query wrappers for installed games
     useLibrary.ts          # Unified LibraryEntry list, detail, and title state
+    useHasFavorites.ts     # Bounded probe for whether the Favorites tab should exist
     useSteamWindows.ts     # Windows Steam status + owned catalog
+    useSteamClientEvents.ts # steam-client phases patch steam-windows-status
     useSteamDownloadEvents.ts
     useHeroTone.ts
     useModalFocus.ts
@@ -147,10 +153,12 @@ src/
     useFullscreen.ts
     useActiveTheme.ts      # Active ThemeDefinition from the theme store
     useSessionEvents.ts    # Listen for session start/stop
+    useLaunchProgress.ts   # Steam Windows / Wine launch overlay events
   stores/
     ui.store.ts            # Screen stack, filters, hero selection
     theme.store.ts         # Active theme, custom themes, save/delete studio themes
     session.store.ts       # Active game session
+    launch.store.ts        # In-flight launch overlay (step, error)
   themes/
     types.ts               # ThemeDefinition, ThemeBranding
     catalog.ts             # BUILT_IN_THEMES (color + game), DEFAULT_THEME_ID, legacy id migration
@@ -167,6 +175,7 @@ src/
     artwork.ts / artworkApi.ts
     steamArtwork.ts        # Original Steam CDN cover/hero candidates
     format.ts / media.ts / heroBlur.ts / heroTone.ts
+    launchProgress.ts      # Steam Windows launch step labels and status
     backdropImage.ts / backdropLighting.ts
   types/
     game.ts                # Game, Session, filters, AppScreen
@@ -247,11 +256,17 @@ Add Playwright coverage for new screens and controller flows. Bug fixes should i
 Browser dev sets theme via `localStorage.setItem('orbit.themeId', 'orbit')` in E2E boot helper.
 
 
-Library and Search share Installed / All games / Favorites on `LibraryEntry` identity.
-Home uses the same entries. Details is one page for installed, owned-not-installed,
-and unavailable titles.
+Library and Search share Installed / All games on `LibraryEntry` identity; Favorites
+is added only when at least one title is marked favorite. Search still hides view tabs.
+Installed is disk copies (including additional Windows Steam library folders). All games
+includes owned titles that are not installed. Home uses the same entries. Details is one
+page for installed, owned-not-installed, and unavailable titles. Windows Steam Play goes
+through `play_steam_windows_game` so the signed-in prefix and logged-on silent Steam
+client are used. Play stays disabled until `clientLoggedIn` (`Waiting for Steam…`),
+then starts the title with `steam.exe -applaunch`. `useSteamClientEvents` patches
+`steam-windows-status`. Stopping the game leaves Steam running. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md).
 
-`useBackdropTransition` keeps at most two backdrop layers in the shell. The browser decodes the incoming image before showing it, ignores late results after selection changes, and caches up to 24 lighting samples. Local artwork can use the Rust lighting command. The webview compositor runs the fades.
+Home copy, header logo, and shell backdrop share `useHomeHero`, which prepends the selected `LibraryEntry` fetch so a title missing from the first library page still paints its own hero. `useBackdropTransition` keeps at most two backdrop layers in the shell. The browser decodes the incoming image before showing it, ignores late results after selection changes, and caches up to 24 lighting samples. Local artwork can use the Rust lighting command. The webview compositor runs the fades.
 
 
 Glass surfaces share the material loaded by `GlassMaterialBootstrap`. They use
@@ -273,7 +288,8 @@ React rendering.
 
 `useNavigationInput` mirrors input modality onto the document root in O(1) without
 rerendering every card. Shared inset outlines cover spatial focus across routes
-and body portals. Pointer movement, rather than layout-induced mouse enter,
+and body portals. Cover tiles (`orbit-art-focus`) move that ring onto the artwork
+so titles sit outside it. Pointer movement, rather than layout-induced mouse enter,
 switches back to pointer navigation.
 
 Theme settings reuse the hydrated catalog and packaged previews. Native custom
@@ -285,7 +301,9 @@ uses a single O(n) map pass instead of copying the growing groups on each item.
 ## Runtime controls
 
 Settings → Compatibility uses `modules/settings/components/RuntimeSettings.tsx`.
-Settings → Steam uses `modules/settings/components/SteamSettings.tsx` for authorization, offline mode, and file verification.
+Settings → Steam uses `modules/settings/components/SteamSettings.tsx` for authorization, offline mode, and file verification. Installing Steam for Windows uses the shared `steam:setup` download task so the progress bar and errors stay visible if the panel unmounts. The Install button stays until `steamwebhelper.exe` is on disk under `cef.win64`, `cef.win7x64`, or `cef.win7`, not merely `steam.exe`.
+
+Details → Settings → Refresh metadata calls `enrich_game_metadata`, which fetches Steam store copy for the known AppID first, then TheGamesDB. Importer stubs such as leftover GameHub install notes are replaced or cleared; catalog overlay never fills an empty field with those stubs.
 The primary flow is one managed install action with download/install progress,
 online component/version catalog with prereleases and mirror checksums, and
 `CompatibilityGlobalSettings.tsx` for defaults.
@@ -319,3 +337,7 @@ owned-library query so installation badges refresh.
 `SteamLibraryFolders` runs Windows import discovery after a successful path save.
 Scan results/errors are displayed separately from preference-save errors, and a
 Scan installed games action retries discovery for already-saved folders.
+
+`useLaunchProgress` restores the launch failure banner on `game-session-ended` with a nonzero exit code and `process-exited` reason, even after `game-session-started` cleared it. It preserves an existing detailed failure, ignores exits from another game while a launch banner is active, and cleans up listeners that resolve after unmount.
+
+SteamQrModal keeps its host mounted while opening, uses useSteamLoginPlacement for bounded native placement, traps Orbit controller focus, and waits for native cancellation before closing. The browser is ready only when placement succeeds. The host is a native-window placeholder, not embedded Steam HTML.

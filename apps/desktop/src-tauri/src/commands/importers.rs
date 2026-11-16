@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use tauri::State;
 
 use crate::importers::{
-    import_manual_path, AstrisImporter, SteamWindowsImporter, GameImporter, NativeAppImporter,
-    SteamImporter,
+    import_manual_path, AstrisImporter, GameImporter, NativeAppImporter, SteamImporter,
+    SteamWindowsImporter,
 };
 use crate::services::{import_artwork, LibrarySyncService, MetadataEnrichmentService};
 use crate::AppState;
@@ -31,7 +31,7 @@ pub struct ScanResult {
 pub async fn detect_importers() -> Result<Vec<ImporterStatus>, String> {
     let steam = SteamImporter::new(None);
     let native = NativeAppImporter::new();
-    
+
     let astris = AstrisImporter::new(Vec::new());
 
     Ok(vec![
@@ -97,7 +97,8 @@ pub async fn scan_steam_installations(
     let games = tauri::async_runtime::spawn_blocking(move || {
         use tauri::Manager;
         let state = app.state::<AppState>();
-        let runtime = crate::services::steam_windows::play_wine_binary(&state.repo).unwrap_or_default();
+        let runtime =
+            crate::services::steam_windows::play_wine_binary(&state.repo).unwrap_or_default();
         let paths =
             crate::services::steam_windows::preferences(&state.repo)?.additional_library_paths;
         SteamWindowsImporter::new()

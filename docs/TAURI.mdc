@@ -105,11 +105,15 @@ src-tauri/src/
     hero_lighting.rs       # Scoped local artwork sampling
     steam_library.rs       # Steam install handoff and platform check
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
-    steam_windows.rs       # Windows Steam prefix, snapshot, download, play
+    steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
+    steam_client.rs        # Silent-client keep-alive + steam-client phase events
+    steam_launch.rs        # steam.exe -applaunch + track the game process
     steam_library_paths.rs # Additional Steam library folders
+    steam_client_library.rs # Wine Steam libraryfolders.vdf + extra-library links
     library.rs             # Canonical LibraryEntry merge
-    steam_qr.rs            # In-app Steam QR + owned catalog fetch
-    steam_credentials.rs   # RSA account sign-in
+    steam_login.rs         # Official Windows Steam QR window hosted over Orbit
+    steam_qr.rs            # Legacy in-app QR catalog fetch (not the sign-in UI)
+    steam_credentials.rs   # Legacy RSA account sign-in (not the sign-in UI)
     steam_content.rs       # Steam depot / DLC inventory helpers
     switch_library.rs      # Switch ROM library grouping
     game_content.rs        # Home content inventory aggregation
@@ -182,20 +186,22 @@ Migrations in `database/migrations.rs` — applied sequentially via `schema_migr
 
 | Importer | ID | Detect | Notes |
 | -------- | -- | ------ | ----- |
-| `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, playtime |
+| `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, localconfig playtime |
 | `AstrisImporter` | `astris` | User folder | `.nsp` / `.xci` Nintendo Switch ROMs |
 | `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles |
 | Manual | `manual` | `import_game_path` | User file picker; Windows `.exe` uses Wine |
+
+The owned Steam catalog from `GetOwnedGames` also carries `playtime_forever` and last played onto Home, Library, and Details. Overlay keeps the larger of Steam minutes and Orbit sessions. Additional Steam library folders contribute installed AppIDs even when they are not in the owned snapshot, so store copy can replace leftover GameHub importer text.
 
 Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 
 ## Launch flow
 
-1. Frontend calls `launch_game(gameId)`.
-2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`.
+1. Frontend calls `launch_game(gameId)` (or `play_steam_windows_game` which upserts then launches).
+2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`, and emits `game-launch-progress` (`resolve` → `runtime` → `steam` → `prefix` → `graphics` → `spawn` → `running`). A failed event keeps the step id and the error so the overlay can show where startup stopped. Steam + Windows Play uses the logged-on silent `steam.exe` in the signed-in prefix, waits until that client is logged on and not verifying, then reuses that prefix instead of a private bottle. Stopping the game leaves Steam running. A timed-out unsigned-in client is stopped. Wine Play drops leftover DXMT NVIDIA, MetalFX, and frame-rate flags that do not apply to the resolved engine instead of aborting on the first overlay step. Automatic graphics prefers GPTK, then DXMT, then DXVK.
 3. `launcher.rs` spawns the appropriate process (Steam URL, open file, open app, custom command).
    Switch `.nsp` / `.xci` launches always resolve to the **base application ROM** in the same folder; updates and DLC are left for the emulator to pick up.
-   **Wine / GPTK** Windows installs use launch type `wine` with Orbit’s Steam Wine binary.
+   **Wine / GPTK** Windows installs use launch type `wine`. Steam + Windows Play overlays the current Steam Wine binary onto that profile, reuses the signed-in Steam prefix, and keeps the game's graphics settings.
    **Steam** titles invoke `steam://rungameid/{appId}` with the same monitor helper targeting
    `Steam`. **Astris** Switch ROMs open via `open -a Astris` when installed; a background watcher
    moves Astris onto Orbit's monitor and fullscreens it. **Native macOS apps** use the `.app`
@@ -330,3 +336,9 @@ folder, reads bounded manifests and rejects install/manifest symlink escapes.
 AppID. Saving an additional folder in Settings invokes this scan and invalidates
 local and owned-library queries. Existing configured folders can be scanned without
 changing preferences.
+
+Steam login placement and cancellation execute on blocking workers. Placement accepts
+only the managed browser PID(s), positions within the webview's screen origin, and
+validates native frames between 640×360 and 840×520. It returns `placed: false` until
+the native window exists; macOS Accessibility/Automation denial is an explicit error.
+Cancel attempts bounded native shutdown and dismisses the UI even if cleanup fails; failures become notifications.

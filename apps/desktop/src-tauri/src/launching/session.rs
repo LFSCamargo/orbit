@@ -6,11 +6,12 @@ use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
 use crate::database::GameRepository;
+use crate::launching::progress::{emit_launch_failed, emit_launch_progress};
 use crate::launching::{
     is_process_running, launch_game, list_process_pids_by_name, terminate_pid, LaunchContext,
 };
-use crate::models::{Game, GameProvider, GameSession, SessionStopReason};
-use crate::runtimes::{RuntimeAdapter, RuntimeProcess};
+use crate::models::{Game, GamePlatform, GameProvider, GameSession, SessionStopReason};
+use crate::runtimes::RuntimeProcess;
 use crate::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -79,23 +80,106 @@ impl SessionManager {
         };
 
         let ctx = LaunchContext::from_app(app);
+        let last_step = Mutex::new("resolve".to_string());
 
         let result = match &game.launch_config {
             crate::models::LaunchConfiguration::Wine { profile } => {
-                let _ = app.emit("runtime-setup-progress", serde_json::json!({"gameId":game.id,"message":"Preparing Windows environment…"}));
-                let resolved = crate::runtimes::settings::resolve_profile(repo, profile)?;
-                crate::runtimes::wine::WineAdapter
-                    .launch(&resolved, &game.id, &crate::runtimes::root(), &self.cancel)
-                    .map(Some)
+                emit_launch_progress(app, &game.id, "resolve");
+                let steam_windows =
+                    game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows;
+                let mut profile = wine_profile_for_play(
+                    game,
+                    profile,
+                    crate::services::steam_windows::play_wine_binary(repo),
+                );
+                if steam_windows {
+                    *last_step.lock() = "steam".to_string();
+                    emit_launch_progress(app, &game.id, "steam");
+                    match crate::services::steam_play::play_prefix() {
+                        Ok(prefix) => {
+                            profile.shared_prefix = Some(prefix.to_string_lossy().into_owned());
+                            let wine = std::path::Path::new(&profile.runtime_path);
+                            let extras = crate::services::steam_windows::preferences(repo)
+                                .map(|prefs| prefs.additional_library_paths)
+                                .unwrap_or_default();
+                            if let Err(error) = crate::services::steam_play::ensure_silent_client(
+                                wine,
+                                &prefix,
+                                &self.cancel,
+                                &extras,
+                            ) {
+                                *last_step.lock() = "steam".to_string();
+                                emit_launch_failed(app, &game.id, "steam", &error);
+                                let _ = app.emit(
+                                    "game-session-error",
+                                    serde_json::json!({ "message": error }),
+                                );
+                                return Err(anyhow::anyhow!(error));
+                            }
+                        }
+                        Err(error) => {
+                            *last_step.lock() = "steam".to_string();
+                            emit_launch_failed(app, &game.id, "steam", &error);
+                            let _ = app.emit(
+                                "game-session-error",
+                                serde_json::json!({ "message": error }),
+                            );
+                            return Err(anyhow::anyhow!(error));
+                        }
+                    }
+                }
+                match crate::runtimes::settings::resolve_profile(repo, &profile) {
+                    Ok(resolved) if steam_windows => {
+                        let app_id = game
+                            .source_id
+                            .clone()
+                            .filter(|id| crate::services::steam_download::valid_app_id(id))
+                            .ok_or_else(|| {
+                                anyhow::anyhow!("This game's Steam id must be a number")
+                            })?;
+                        crate::services::steam_play::start_title(
+                            &resolved,
+                            &game.id,
+                            &app_id,
+                            &self.cancel,
+                            &mut |step| {
+                                *last_step.lock() = step.to_string();
+                                emit_launch_progress(app, &game.id, step);
+                            },
+                        )
+                        .map_err(|error| anyhow::anyhow!(error))
+                    }
+                    Ok(resolved) => crate::runtimes::wine::WineAdapter.launch_with_progress(
+                        &resolved,
+                        &game.id,
+                        &crate::runtimes::root(),
+                        &self.cancel,
+                        &mut |step| {
+                            *last_step.lock() = step.to_string();
+                            emit_launch_progress(app, &game.id, step);
+                        },
+                    ),
+                    Err(error) => {
+                        *last_step.lock() = "graphics".to_string();
+                        Err(error)
+                    }
+                }
+                .map(Some)
             }
-            _ => launch_game(game, &ctx).map(|_| None),
+            _ => {
+                *last_step.lock() = "spawn".to_string();
+                emit_launch_progress(app, &game.id, "spawn");
+                launch_game(game, &ctx).map(|_| None)
+            }
         };
         let mut runtime = match result {
             Ok(runtime) => runtime,
             Err(error) => {
+                let message = format!("{error:#}");
+                emit_launch_failed(app, &game.id, last_step.lock().as_str(), &message);
                 let _ = app.emit(
                     "game-session-error",
-                    serde_json::json!({ "message": format!("{error:#}") }),
+                    serde_json::json!({ "message": message }),
                 );
                 return Err(error);
             }
@@ -104,6 +188,7 @@ impl SessionManager {
             if let Some(handle) = runtime.as_mut() {
                 handle.stop()?;
             }
+            emit_launch_failed(app, &game.id, last_step.lock().as_str(), "Launch cancelled");
             bail!("Launch cancelled");
         }
         let pid = runtime
@@ -131,6 +216,7 @@ impl SessionManager {
             stopping: false,
         });
 
+        emit_launch_progress(app, &game.id, "running");
         let _ = app.emit("game-session-started", &session);
         defer_minimize_orbit(app.clone(), session.id.clone());
 
@@ -315,7 +401,11 @@ fn spawn_monitor(app: AppHandle, session_id: String) {
                         .sessions
                         .on_process_exit(&app, &state.repo, &session_id, Some(code));
                     if code != 0 {
-                        let _ = app.emit("game-session-error", serde_json::json!({"message":format!("Windows game exited with code {code}. Open Compatibility diagnostics for details.")}));
+                        let message = crate::services::steam_play::play_exit_message(code);
+                        let _ = app.emit(
+                            "game-session-error",
+                            serde_json::json!({"message": message}),
+                        );
                     }
                     break;
                 }
@@ -353,6 +443,20 @@ fn spawn_monitor(app: AppHandle, session_id: String) {
     });
 }
 
+fn wine_profile_for_play(
+    game: &Game,
+    profile: &crate::runtimes::WineProfile,
+    steam_wine: Option<std::path::PathBuf>,
+) -> crate::runtimes::WineProfile {
+    let mut profile = profile.clone();
+    if game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows {
+        if let Some(path) = steam_wine {
+            profile.runtime_path = path.to_string_lossy().into_owned();
+        }
+    }
+    profile
+}
+
 /// Shared launchers are not owned game processes.
 fn termination_target(session: &GameSession) -> Option<u32> {
     if session.provider == GameProvider::Gamehub {
@@ -381,5 +485,53 @@ mod shared_host_tests {
         assert_eq!(termination_target(&session), None);
         session.provider = GameProvider::Native;
         assert_eq!(termination_target(&session), Some(12345));
+    }
+
+    #[test]
+    fn steam_windows_play_uses_current_steam_wine() {
+        let game = Game {
+            id: "gow".into(),
+            title: "God of War".into(),
+            sort_title: "god of war".into(),
+            description: None,
+            provider: GameProvider::Steam,
+            platform: GamePlatform::Windows,
+            source_id: Some("1593500".into()),
+            launch_config: crate::models::LaunchConfiguration::Wine {
+                profile: crate::runtimes::WineProfile {
+                    executable: "/Games/GoW.exe".into(),
+                    runtime_path: "/old/wine".into(),
+                    ..Default::default()
+                },
+            },
+            artwork: crate::models::GameArtwork::default(),
+            favorite: false,
+            hidden: false,
+            date_added: String::new(),
+            last_played_at: None,
+            total_playtime_seconds: 0,
+            install_size_bytes: None,
+            achievements: vec![],
+        };
+        let stored = crate::runtimes::WineProfile {
+            executable: "/Games/GoW.exe".into(),
+            runtime_path: "/old/wine".into(),
+            ..Default::default()
+        };
+        let steam = wine_profile_for_play(
+            &game,
+            &stored,
+            Some(std::path::PathBuf::from("/steam/wine-11.21/bin/wine")),
+        );
+        assert_eq!(steam.runtime_path, "/steam/wine-11.21/bin/wine");
+        assert!(steam.shared_prefix.is_none());
+        let mut manual = game.clone();
+        manual.provider = GameProvider::Manual;
+        let kept = wine_profile_for_play(
+            &manual,
+            &stored,
+            Some(std::path::PathBuf::from("/steam/wine")),
+        );
+        assert_eq!(kept.runtime_path, "/old/wine");
     }
 }

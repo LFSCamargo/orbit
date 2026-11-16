@@ -14,7 +14,11 @@ import { useCursorAutoHide } from '@/hooks/useCursorAutoHide'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { useActiveSessionQuery } from '@/hooks/useGames'
 import { useSessionEvents } from '@/hooks/useSessionEvents'
+import { useLaunchProgress } from '@/hooks/useLaunchProgress'
+import { LaunchOverlay } from '@/modules/session/components/LaunchOverlay'
 import { useSteamDownloadEvents } from '@/hooks/useSteamDownloadEvents'
+import { useSteamClientEvents } from '@/hooks/useSteamClientEvents'
+import { useSteamLibraryEvents } from '@/hooks/useSteamLibraryEvents'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -30,7 +34,10 @@ export function App() {
   useFullscreen()
   useCursorAutoHide()
   useSessionEvents()
+  useLaunchProgress()
   useSteamDownloadEvents()
+  useSteamLibraryEvents()
+  useSteamClientEvents()
 
   useEffect(() => {
     setActiveSession(activeSession ?? null)
@@ -54,7 +61,7 @@ export function App() {
               className={
                 screen === 'settings'
                   ? 'flex h-full min-h-0 flex-1 flex-col overflow-hidden'
-                  : undefined
+                  : 'transform-none'
               }
             >
               {screen === 'home' && <HomePage />}
@@ -69,6 +76,7 @@ export function App() {
         </AppShell>
       </div>
       <HomeMenuModal family={family} />
+      {!activeSession && <LaunchOverlay />}
     </>
   )
 }

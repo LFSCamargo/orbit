@@ -1,10 +1,12 @@
 //! One title identity shared by Library, Home, Search and Details.
-use std::collections::HashMap;
-use std::path::Path;
-use serde::{Deserialize, Serialize};
-use crate::models::{Game, GameArtwork, GamePlatform, GameProvider, LaunchConfiguration};
 use super::steam_catalog::{self, SteamCatalogEntry};
-use super::steam_download::valid_app_id;
+use super::steam_download::{find_game_executable, valid_app_id};
+use super::steam_manifest::SteamInstallIndex;
+use crate::database::GameRepository;
+use crate::models::{Game, GameArtwork, GamePlatform, GameProvider, LaunchConfiguration};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +51,14 @@ pub struct EntryState {
 pub fn steam_id(game: &Game) -> Option<String> {
     let id = match &game.launch_config {
         LaunchConfiguration::Steam { app_id } => Some(app_id.as_str()),
-        LaunchConfiguration::Wine { .. } if matches!(game.provider, GameProvider::Steam | GameProvider::Gamehub | GameProvider::Manual) => game.source_id.as_deref(),
+        LaunchConfiguration::Wine { .. }
+            if matches!(
+                game.provider,
+                GameProvider::Steam | GameProvider::Gamehub | GameProvider::Manual
+            ) =>
+        {
+            game.source_id.as_deref()
+        }
         _ => None,
     };
     id.filter(|id| valid_app_id(id)).map(str::to_string)
@@ -59,13 +68,25 @@ fn installation(game: &Game) -> Installation {
     let path = match &game.launch_config {
         LaunchConfiguration::Wine { profile } => Some(profile.executable.clone()),
         LaunchConfiguration::OpenFile { file_path, .. } => Some(file_path.clone()),
-        LaunchConfiguration::OpenApplication { application_path, .. } => Some(application_path.clone()),
+        LaunchConfiguration::OpenApplication {
+            application_path, ..
+        } => Some(application_path.clone()),
         LaunchConfiguration::CustomCommand { executable, .. } => Some(executable.clone()),
         _ => None,
     };
     let available = path.as_ref().is_none_or(|path| Path::new(path).exists());
-    let path = path.map(|path| Path::new(&path).canonicalize().map(|p| p.to_string_lossy().into_owned()).unwrap_or(path));
-    let id = format!("{}:{}:{}", steam_id(game).unwrap_or_else(|| game.id.clone()), game.platform.as_str(), path.as_deref().unwrap_or(&game.id));
+    let path = path.map(|path| {
+        Path::new(&path)
+            .canonicalize()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or(path)
+    });
+    let id = format!(
+        "{}:{}:{}",
+        steam_id(game).unwrap_or_else(|| game.id.clone()),
+        game.platform.as_str(),
+        path.as_deref().unwrap_or(&game.id)
+    );
     let launch_type = match &game.launch_config {
         LaunchConfiguration::Wine { .. } => "wine",
         LaunchConfiguration::Steam { .. } => "steam",
@@ -76,26 +97,55 @@ fn installation(game: &Game) -> Installation {
         LaunchConfiguration::Gamehub { .. } => "gamehub",
     }
     .to_string();
-    Installation { id, game_id: game.id.clone(), platform: game.platform.clone(), path, available, launch_type }
+    Installation {
+        id,
+        game_id: game.id.clone(),
+        platform: game.platform.clone(),
+        path,
+        available,
+        launch_type,
+    }
 }
 
 /// O(n + m) grouping, then O(t log t) deterministic title ordering; no IPC or SQL per title.
 pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEntry> {
     let mut entries: HashMap<String, LibraryEntry> = HashMap::new();
     for game in games {
-        if game.provider == GameProvider::Gamehub { continue; }
+        if game.provider == GameProvider::Gamehub {
+            continue;
+        }
         let app_id = steam_id(&game);
-        let id = app_id.as_ref().map(|id| format!("steam:{id}")).unwrap_or_else(|| game.id.clone());
+        let id = app_id
+            .as_ref()
+            .map(|id| format!("steam:{id}"))
+            .unwrap_or_else(|| game.id.clone());
         let install = installation(&game);
         match entries.get_mut(&id) {
             Some(entry) => {
                 entry.game.favorite |= game.favorite;
                 entry.game.hidden &= game.hidden;
                 entry.game.total_playtime_seconds += game.total_playtime_seconds;
-                if game.last_played_at > entry.game.last_played_at { entry.game.last_played_at = game.last_played_at.clone(); }
-                if !entry.installations.iter().any(|i| i.id == install.id) { entry.installations.push(install); }
+                if game.last_played_at > entry.game.last_played_at {
+                    entry.game.last_played_at = game.last_played_at.clone();
+                }
+                if !entry.installations.iter().any(|i| i.id == install.id) {
+                    entry.installations.push(install);
+                }
             }
-            None => { entries.insert(id.clone(), LibraryEntry { id, game, steam_app_id: app_id, owned: false, installations: vec![install], preferred_installation_id: None, run_info: None }); }
+            None => {
+                entries.insert(
+                    id.clone(),
+                    LibraryEntry {
+                        id,
+                        game,
+                        steam_app_id: app_id,
+                        owned: false,
+                        installations: vec![install],
+                        preferred_installation_id: None,
+                        run_info: None,
+                    },
+                );
+            }
         }
     }
     for item in catalog {
@@ -106,20 +156,63 @@ pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEn
             continue;
         }
         let game = Game {
-            id: id.clone(), title: item.title.clone(), sort_title: item.title.to_lowercase(), description: item.description,
-            provider: GameProvider::Steam, platform: GamePlatform::Windows, source_id: Some(item.app_id.clone()),
-            launch_config: LaunchConfiguration::Steam { app_id: item.app_id.clone() },
-            artwork: GameArtwork { cover: Some(steam_catalog::cover_url(&item.app_id)), hero: Some(item.hero_url.unwrap_or_else(|| steam_catalog::hero_url(&item.app_id))), icon: item.cover_url, logo: None },
-            favorite: false, hidden: false, date_added: String::new(), last_played_at: None,
-            total_playtime_seconds: 0, install_size_bytes: None, achievements: vec![],
+            id: id.clone(),
+            title: item.title.clone(),
+            sort_title: item.title.to_lowercase(),
+            description: item.description,
+            provider: GameProvider::Steam,
+            platform: GamePlatform::Windows,
+            source_id: Some(item.app_id.clone()),
+            launch_config: LaunchConfiguration::Steam {
+                app_id: item.app_id.clone(),
+            },
+            artwork: GameArtwork {
+                cover: Some(steam_catalog::cover_url(&item.app_id)),
+                hero: Some(
+                    item.hero_url
+                        .unwrap_or_else(|| steam_catalog::hero_url(&item.app_id)),
+                ),
+                icon: item.cover_url,
+                logo: Some(steam_catalog::logo_url(&item.app_id)),
+            },
+            favorite: false,
+            hidden: false,
+            date_added: String::new(),
+            last_played_at: item.last_played_at.clone(),
+            total_playtime_seconds: item.playtime_seconds.max(0),
+            install_size_bytes: None,
+            achievements: vec![],
         };
-        entries.insert(id.clone(), LibraryEntry { id, game, steam_app_id: Some(item.app_id), owned: true, installations: vec![], preferred_installation_id: None, run_info: run });
+        entries.insert(
+            id.clone(),
+            LibraryEntry {
+                id,
+                game,
+                steam_app_id: Some(item.app_id),
+                owned: true,
+                installations: vec![],
+                preferred_installation_id: None,
+                run_info: run,
+            },
+        );
     }
     let mut result: Vec<_> = entries.into_values().collect();
     for entry in &mut result {
-        entry.installations.sort_by_key(|i| (!i.available, i.platform != GamePlatform::Macos, i.path.clone(), i.id.clone()));
+        entry.installations.sort_by_key(|i| {
+            (
+                !i.available,
+                i.platform != GamePlatform::Macos,
+                i.path.clone(),
+                i.id.clone(),
+            )
+        });
     }
-    result.sort_by(|a, b| a.game.sort_title.cmp(&b.game.sort_title).then(a.id.cmp(&b.id)));
+    result.sort_by(|a, b| {
+        a.game
+            .sort_title
+            .cmp(&b.game.sort_title)
+            .then(a.id.cmp(&b.id))
+    });
     result
 }
 
@@ -137,11 +230,53 @@ fn run_info(item: &SteamCatalogEntry) -> Option<RunInfo> {
     })
 }
 
+pub fn placeholder_game_ids(games: &[Game]) -> HashSet<String> {
+    games
+        .iter()
+        .filter(|game| {
+            crate::services::metadata_merge::is_placeholder_description(game.description.as_deref())
+        })
+        .map(|game| game.id.clone())
+        .collect()
+}
+
+/// Writes overlayed Steam store copy onto games that still have importer stubs.
+/// O(n) scan; SQLite updates only for those stub rows.
+pub fn persist_overlay_copy(
+    repo: &GameRepository,
+    stub_ids: &HashSet<String>,
+    entries: &[LibraryEntry],
+) -> Result<(), String> {
+    for entry in entries {
+        if !stub_ids.contains(&entry.game.id) {
+            continue;
+        }
+        if crate::services::metadata_merge::is_placeholder_description(
+            entry.game.description.as_deref(),
+        ) {
+            continue;
+        }
+        repo.update_fetched_metadata(
+            &entry.game.id,
+            Some(entry.game.title.clone()),
+            entry.game.description.clone(),
+            None,
+        )
+        .map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
 fn overlay_catalog(entry: &mut LibraryEntry, item: &SteamCatalogEntry, run: Option<RunInfo>) {
     entry.owned = true;
-    if crate::services::metadata_merge::is_placeholder_description(entry.game.description.as_deref())
-    {
-        if let Some(description) = item.description.clone() {
+    if crate::services::metadata_merge::is_placeholder_description(
+        entry.game.description.as_deref(),
+    ) {
+        if let Some(description) = item
+            .description
+            .clone()
+            .filter(|text| !crate::services::metadata_merge::is_placeholder_description(Some(text)))
+        {
             entry.game.description = Some(description);
         }
     }
@@ -152,37 +287,193 @@ fn overlay_catalog(entry: &mut LibraryEntry, item: &SteamCatalogEntry, run: Opti
     if entry.run_info.is_none() {
         entry.run_info = run;
     }
+    if item.playtime_seconds > entry.game.total_playtime_seconds {
+        entry.game.total_playtime_seconds = item.playtime_seconds;
+    }
+    entry.game.last_played_at = crate::utils::steam_playtime::later_stamp(
+        entry.game.last_played_at.clone(),
+        item.last_played_at.clone(),
+    );
+}
+
+/// Mark additional Steam library folders as installed Windows copies.
+/// O(n) over library entries with O(1) install lookups; executable discovery
+/// stays inside its existing 400-entry budget and only runs on index hits.
+pub fn attach_windows_installs(entries: &mut [LibraryEntry], index: &SteamInstallIndex) {
+    for entry in entries {
+        let Some(app_id) = entry.steam_app_id.as_deref() else {
+            continue;
+        };
+        let Some(install) = index.by_id.get(app_id) else {
+            continue;
+        };
+        let Some(exe) = find_game_executable(&install.install_dir) else {
+            continue;
+        };
+        let path = exe
+            .canonicalize()
+            .unwrap_or(exe)
+            .to_string_lossy()
+            .into_owned();
+        if entry
+            .installations
+            .iter()
+            .any(|item| item.path.as_deref() == Some(path.as_str()))
+        {
+            continue;
+        }
+        let game_id = entry
+            .installations
+            .iter()
+            .find(|item| item.launch_type == "wine")
+            .map(|item| item.game_id.clone())
+            .unwrap_or_else(|| entry.game.id.clone());
+        entry.installations.push(Installation {
+            id: format!("{app_id}:windows:{path}"),
+            game_id,
+            platform: GamePlatform::Windows,
+            path: Some(path),
+            available: true,
+            launch_type: "wine".into(),
+        });
+        entry.installations.sort_by_key(|item| {
+            (
+                !item.available,
+                item.platform != GamePlatform::Macos,
+                item.path.clone(),
+                item.id.clone(),
+            )
+        });
+    }
+}
+
+pub fn apply_playtimes(
+    entries: &mut [LibraryEntry],
+    records: &std::collections::HashMap<String, crate::utils::steam_playtime::SteamPlayRecord>,
+) {
+    for entry in entries {
+        let Some(app_id) = entry.steam_app_id.as_deref() else {
+            continue;
+        };
+        let Some(record) = records.get(app_id) else {
+            continue;
+        };
+        if record.seconds > entry.game.total_playtime_seconds {
+            entry.game.total_playtime_seconds = record.seconds;
+        }
+        entry.game.last_played_at = crate::utils::steam_playtime::later_stamp(
+            entry.game.last_played_at.clone(),
+            record.last_played_at.clone(),
+        );
+    }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::{GameArtwork, GamePlatform, GameProvider, LaunchConfiguration};
     fn game(id: &str, source: Option<&str>, platform: GamePlatform) -> Game {
-        Game { id: id.into(), title: "A game".into(), sort_title: "a game".into(),
-            description: None, provider: GameProvider::Steam, platform,
-            source_id: source.map(str::to_string), launch_config: LaunchConfiguration::Steam { app_id: source.unwrap_or("10").into() },
-            artwork: GameArtwork::default(), favorite: false, hidden: false,
-            date_added: "2026-11-14".into(), last_played_at: None, total_playtime_seconds: 0,
-            install_size_bytes: None, achievements: vec![] }
+        Game {
+            id: id.into(),
+            title: "A game".into(),
+            sort_title: "a game".into(),
+            description: None,
+            provider: GameProvider::Steam,
+            platform,
+            source_id: source.map(str::to_string),
+            launch_config: LaunchConfiguration::Steam {
+                app_id: source.unwrap_or("10").into(),
+            },
+            artwork: GameArtwork::default(),
+            favorite: false,
+            hidden: false,
+            date_added: "2026-11-14".into(),
+            last_played_at: None,
+            total_playtime_seconds: 0,
+            install_size_bytes: None,
+            achievements: vec![],
+        }
     }
     #[test]
     fn one_title_keeps_both_installations_and_owned_catalog() {
-        let local = vec![game("mac", Some("10"), GamePlatform::Macos), game("win", Some("10"), GamePlatform::Windows)];
-        let catalog = vec![SteamCatalogEntry::from_app_id("10").unwrap(), SteamCatalogEntry::from_app_id("20").unwrap()];
+        let local = vec![
+            game("mac", Some("10"), GamePlatform::Macos),
+            game("win", Some("10"), GamePlatform::Windows),
+        ];
+        let catalog = vec![
+            SteamCatalogEntry::from_app_id("10").unwrap(),
+            SteamCatalogEntry::from_app_id("20").unwrap(),
+        ];
         let entries = merge(local, catalog);
         assert_eq!(entries.len(), 2);
         let entry = entries.iter().find(|e| e.id == "steam:10").unwrap();
         assert_eq!(entry.installations.len(), 2);
         assert!(entry.owned);
         assert_eq!(entry.game.id, "mac");
+        let catalog_only = entries.iter().find(|e| e.id == "steam:20").unwrap();
+        assert_eq!(
+            catalog_only.game.artwork.logo.as_deref(),
+            Some("https://cdn.akamai.steamstatic.com/steam/apps/20/logo.png")
+        );
     }
     #[test]
     fn equal_titles_never_merge_without_verified_identity() {
         let mut first = game("a", None, GamePlatform::Macos);
-        first.launch_config = LaunchConfiguration::OpenApplication { application_path: "/a.app".into(), arguments: None };
-        let mut second = first.clone(); second.id = "b".into();
+        first.launch_config = LaunchConfiguration::OpenApplication {
+            application_path: "/a.app".into(),
+            arguments: None,
+        };
+        let mut second = first.clone();
+        second.id = "b".into();
         assert_eq!(merge(vec![first, second], vec![]).len(), 2);
     }
+    #[test]
+    fn persist_overlay_copy_replaces_a_gamehub_stub_in_sqlite() {
+        let repo = crate::database::GameRepository::open_in_memory().unwrap();
+        let stored = repo
+            .create_game(crate::models::CreateGameRequest {
+                title: "Watch_Dogs 2".into(),
+                description: Some(
+                    "Imported from a GameHub Steam install (AppID 447040). Play uses Orbit's compatibility layer."
+                        .into(),
+                ),
+                provider: GameProvider::Steam,
+                platform: GamePlatform::Windows,
+                launch_config: LaunchConfiguration::Steam {
+                    app_id: "447040".into(),
+                },
+                artwork: None,
+                install_size_bytes: None,
+            })
+            .unwrap();
+        let stubs = placeholder_game_ids(std::slice::from_ref(&stored));
+        let mut overlayed = stored.clone();
+        overlayed.description = Some(
+            "Play as Marcus Holloway, a brilliant young hacker living in the birthplace of the tech revolution."
+                .into(),
+        );
+        persist_overlay_copy(
+            &repo,
+            &stubs,
+            &[LibraryEntry {
+                id: "steam:447040".into(),
+                game: overlayed,
+                steam_app_id: Some("447040".into()),
+                owned: true,
+                installations: Vec::new(),
+                preferred_installation_id: None,
+                run_info: None,
+            }],
+        )
+        .unwrap();
+        let updated = repo.get_game(&stored.id).unwrap().unwrap();
+        assert!(updated
+            .description
+            .as_deref()
+            .unwrap()
+            .contains("Marcus Holloway"));
+        assert!(!updated.description.as_deref().unwrap().contains("GameHub"));
+    }
+
     #[test]
     fn catalog_copy_replaces_importer_placeholders_and_carries_requirements() {
         let mut local = game("win", Some("10"), GamePlatform::Windows);
@@ -199,7 +490,10 @@ mod tests {
         };
         let entry = merge(vec![local], vec![catalog]).remove(0);
         assert_eq!(entry.game.title, "Portal");
-        assert_eq!(entry.game.description.as_deref(), Some("Think with portals."));
+        assert_eq!(
+            entry.game.description.as_deref(),
+            Some("Think with portals.")
+        );
         let run = entry.run_info.expect("requirements from the Steam catalog");
         assert_eq!(run.minimum.as_deref(), Some("OS: Windows 10"));
         assert_eq!(run.recommended.as_deref(), Some("8 GB RAM"));
@@ -207,11 +501,107 @@ mod tests {
     }
 
     #[test]
+    fn catalog_placeholders_do_not_replace_cleared_copy() {
+        let mut local = game("win", Some("447040"), GamePlatform::Windows);
+        local.description = None;
+        let catalog = SteamCatalogEntry {
+            app_id: "447040".into(),
+            title: "Watch_Dogs 2".into(),
+            description: Some(
+                "Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer."
+                    .into(),
+            ),
+            ..SteamCatalogEntry::default()
+        };
+        let entry = merge(vec![local], vec![catalog]).remove(0);
+        assert!(entry.game.description.is_none());
+    }
+
+    #[test]
+    fn catalog_playtime_fills_never_played_titles_and_keeps_longer_local() {
+        let mut local = game("win", Some("10"), GamePlatform::Windows);
+        local.total_playtime_seconds = 60;
+        let catalog = SteamCatalogEntry {
+            app_id: "10".into(),
+            title: "Portal".into(),
+            playtime_seconds: 3600,
+            last_played_at: Some("2023-11-14T22:13:20Z".into()),
+            ..SteamCatalogEntry::default()
+        };
+        let entry = merge(vec![local], vec![catalog]).remove(0);
+        assert_eq!(entry.game.total_playtime_seconds, 3600);
+        assert_eq!(
+            entry.game.last_played_at.as_deref(),
+            Some("2023-11-14T22:13:20Z")
+        );
+        let mut longer = game("win", Some("20"), GamePlatform::Windows);
+        longer.total_playtime_seconds = 7200;
+        longer.last_played_at = Some("2024-01-01T00:00:00Z".into());
+        let shorter = SteamCatalogEntry {
+            app_id: "20".into(),
+            playtime_seconds: 60,
+            last_played_at: Some("2023-11-14T22:13:20Z".into()),
+            ..SteamCatalogEntry::default()
+        };
+        let kept = merge(vec![longer], vec![shorter]).remove(0);
+        assert_eq!(kept.game.total_playtime_seconds, 7200);
+        assert_eq!(
+            kept.game.last_played_at.as_deref(),
+            Some("2024-01-01T00:00:00Z")
+        );
+        let owned = merge(
+            vec![],
+            vec![SteamCatalogEntry {
+                app_id: "30".into(),
+                title: "Half-Life".into(),
+                playtime_seconds: 480,
+                last_played_at: Some("2023-11-14T22:13:20Z".into()),
+                ..SteamCatalogEntry::default()
+            }],
+        )
+        .remove(0);
+        assert_eq!(owned.game.total_playtime_seconds, 480);
+    }
+
+    #[test]
     fn favorites_merge_and_hidden_requires_all_installations() {
         let mut first = game("a", Some("10"), GamePlatform::Macos);
-        first.hidden = true; first.favorite = true;
+        first.hidden = true;
+        first.favorite = true;
         let second = game("b", Some("10"), GamePlatform::Windows);
         let entry = merge(vec![first, second], vec![]).remove(0);
-        assert!(entry.game.favorite); assert!(!entry.game.hidden);
+        assert!(entry.game.favorite);
+        assert!(!entry.game.hidden);
+    }
+
+    #[test]
+    fn additional_library_installs_show_as_installed_windows_copies() {
+        let root = std::env::temp_dir().join(format!("orbit-attach-{}", uuid::Uuid::new_v4()));
+        let common = root.join("steamapps/common/RE2");
+        std::fs::create_dir_all(&common).unwrap();
+        std::fs::write(common.join("re2.exe"), b"MZ").unwrap();
+        let mut index = SteamInstallIndex::default();
+        index.by_id.insert(
+            "883710".into(),
+            crate::services::steam_manifest::SteamInstall {
+                app_id: "883710".into(),
+                title: "Resident Evil 2".into(),
+                install_dir: common.canonicalize().unwrap(),
+                size_on_disk: None,
+            },
+        );
+        let mut entries = merge(
+            vec![],
+            vec![SteamCatalogEntry::from_app_id("883710").unwrap()],
+        );
+        assert!(entries[0].installations.is_empty());
+        attach_windows_installs(&mut entries, &index);
+        assert_eq!(entries[0].installations.len(), 1);
+        assert!(entries[0].installations[0].available);
+        assert_eq!(entries[0].installations[0].launch_type, "wine");
+        assert_eq!(entries[0].installations[0].platform, GamePlatform::Windows);
+        attach_windows_installs(&mut entries, &index);
+        assert_eq!(entries[0].installations.len(), 1);
+        let _ = std::fs::remove_dir_all(root);
     }
 }

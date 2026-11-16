@@ -35,7 +35,44 @@ describe('catalog copy', () => {
     expect(isPlaceholderDescription('GameHub shortcut (gamehub://launch/steam/1).')).toBe(
       true,
     )
+    expect(
+      isPlaceholderDescription(
+        'Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer.',
+      ),
+    ).toBe(true)
     expect(isPlaceholderDescription('Think with portals.')).toBe(false)
+  })
+
+  it('does not fill an empty description with leftover GameHub importer copy', () => {
+    const entry = overlayCatalogCopy(
+      {
+        id: 'steam:447040',
+        steamAppId: '447040',
+        owned: false,
+        preferredInstallationId: null,
+        installations: [],
+        game: {
+          id: 'local',
+          title: 'Watch_Dogs 2',
+          sortTitle: 'watch_dogs 2',
+          description: '',
+          provider: 'steam',
+          platform: 'windows',
+          launchConfig: { type: 'steam', appId: '447040' },
+          artwork: {},
+          favorite: false,
+          hidden: false,
+          dateAdded: '',
+          totalPlaytimeSeconds: 0,
+          achievements: [],
+        },
+      },
+      {
+        description:
+          'Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer.',
+      },
+    )
+    expect(entry.game.description).toBe('')
   })
 
   it('replaces placeholder descriptions with Steam store copy and requirements', () => {

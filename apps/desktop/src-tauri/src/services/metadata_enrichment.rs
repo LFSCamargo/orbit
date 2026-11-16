@@ -28,6 +28,15 @@ impl MetadataEnrichmentService {
         cache: &MetadataCacheRepository,
         game_id: &str,
     ) -> Result<EnrichmentResult, String> {
+        Self::enrich_game_with(repo, cache, game_id, true).await
+    }
+
+    async fn enrich_game_with(
+        repo: &GameRepository,
+        cache: &MetadataCacheRepository,
+        game_id: &str,
+        replace_copy: bool,
+    ) -> Result<EnrichmentResult, String> {
         let game = repo
             .get_game(game_id)
             .map_err(|err| err.to_string())?
@@ -49,10 +58,9 @@ impl MetadataEnrichmentService {
             None
         };
         let mut title = game.title.clone();
-        let mut description = game.description.clone();
-        let mut artwork = game.artwork.clone();
-        if is_placeholder_description(description.as_deref()) {
-            if let Some(app_id) = steam_app_id.as_deref() {
+        let mut store_description = None;
+        if let Some(app_id) = steam_app_id.as_deref() {
+            if replace_copy || is_placeholder_description(game.description.as_deref()) {
                 match crate::services::steam_catalog::fetch_store_catalog(app_id).await {
                     Ok(value) => {
                         if let Some((store_title, store_desc)) =
@@ -61,8 +69,11 @@ impl MetadataEnrichmentService {
                             if should_update_title(&game) && store_title != title {
                                 title = store_title;
                             }
-                            if let Some(text) = store_desc {
-                                description = Some(text);
+                            store_description = store_desc;
+                            if store_description
+                                .as_deref()
+                                .is_some_and(|text| !is_placeholder_description(Some(text)))
+                            {
                                 notes.push("Steam store".into());
                             }
                         }
@@ -75,10 +86,23 @@ impl MetadataEnrichmentService {
             if should_update_title(&game) && details.title != title {
                 title = details.title.clone();
             }
-            if is_placeholder_description(description.as_deref()) {
-                description = details.overview.clone().or(description);
-            }
         }
+        let mut description = crate::services::metadata_merge::pick_description(
+            game.description.as_deref(),
+            store_description,
+            tgdb_match
+                .as_ref()
+                .and_then(|details| details.overview.clone()),
+            replace_copy,
+        );
+        if description.is_none()
+            && game.description.as_deref().is_some_and(|text| {
+                is_placeholder_description(Some(text)) && !text.trim().is_empty()
+            })
+        {
+            description = Some(String::new());
+        }
+        let mut artwork = game.artwork.clone();
         if let Some(key) = steamgriddb_api_key(repo) {
             match fetch_matching_assets(&key, &title, steam_app_id.as_deref()).await {
                 Ok(Some((canonical_title, assets))) => {
@@ -228,7 +252,7 @@ impl MetadataEnrichmentService {
             if index > 0 {
                 tokio::time::sleep(Duration::from_millis(150)).await;
             }
-            match Self::enrich_game(repo, cache, game_id).await {
+            match Self::enrich_game_with(repo, cache, game_id, false).await {
                 Ok(result) if result.enriched => enriched += 1,
                 Ok(_) => {}
                 Err(err) => {
@@ -375,10 +399,9 @@ fn should_update_title(game: &Game) -> bool {
             let lower = game.title.trim().to_ascii_lowercase();
             lower.is_empty()
                 || lower.starts_with("steam app ")
-                || game
-                    .source_id
-                    .as_deref()
-                    .is_some_and(|id| crate::services::steam_catalog::is_placeholder_title(&game.title, id))
+                || game.source_id.as_deref().is_some_and(|id| {
+                    crate::services::steam_catalog::is_placeholder_title(&game.title, id)
+                })
         }
         _ => false,
     }
@@ -488,6 +511,20 @@ mod identity_tests {
             "totalPlaytimeSeconds": 0, "achievements": []
         })).unwrap();
         assert_eq!(resolve_steam_app_id(&game).as_deref(), Some("1593500"));
+    }
+
+    #[test]
+    fn wine_steam_installs_keep_the_app_id_for_store_refresh() {
+        let game: Game = serde_json::from_value(serde_json::json!({
+            "id": "watch-dogs-2", "title": "Watch_Dogs 2", "sortTitle": "watch_dogs 2",
+            "provider": "steam", "platform": "windows", "sourceId": "447040",
+            "description": "Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer.",
+            "launchConfig": {"type": "wine", "profile": {"executable": "/games/Watch_Dogs2/EAC.exe", "runtimePath": "/wine", "arguments": [], "environment": {}}},
+            "artwork": {}, "favorite": false, "hidden": false, "dateAdded": "2026-11-14",
+            "totalPlaytimeSeconds": 0, "achievements": []
+        })).unwrap();
+        assert_eq!(resolve_steam_app_id(&game).as_deref(), Some("447040"));
+        assert!(is_placeholder_description(game.description.as_deref()));
     }
 
     #[test]

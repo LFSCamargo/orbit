@@ -20,12 +20,19 @@ pub use metadata_enrichment::MetadataEnrichmentService;
 
 pub mod theme_artwork;
 
+pub mod steam_browser;
 pub mod steam_catalog;
+pub mod steam_catalog_sync;
+pub mod steam_client;
+pub mod steam_client_library;
 pub mod steam_credentials;
 pub mod steam_download;
+pub mod steam_launch;
 pub mod steam_library;
 pub mod steam_login;
+pub mod steam_login_process;
 pub mod steam_qr;
+pub mod steam_session;
 pub mod steam_windows;
 
 pub mod hero_lighting;
@@ -38,6 +45,7 @@ pub mod theme_catalog;
 pub mod theme_image_optimization;
 
 pub mod steam_library_paths;
+pub mod steam_play;
 
 pub mod library;
 

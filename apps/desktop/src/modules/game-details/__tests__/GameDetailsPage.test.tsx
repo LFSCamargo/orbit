@@ -53,6 +53,10 @@ const installed: LibraryEntry = {
   },
 }
 
+const steamStatus = vi.hoisted(() => ({
+  signedIn: true,
+  clientLoggedIn: true,
+}))
 const useLibraryEntry = vi.fn()
 vi.mock('@/hooks/useLibrary', () => ({
   useLibraryEntry: (id: string | null) => useLibraryEntry(id),
@@ -62,11 +66,12 @@ vi.mock('@/hooks/useLibrary', () => ({
   }),
 }))
 vi.mock('@/hooks/useSteamWindows', () => ({
-  useSteamWindows: () => ({ status: { data: { signedIn: true } } }),
+  useSteamWindows: () => ({ status: { data: steamStatus } }),
 }))
 vi.mock('@/hooks/useGames', () => ({
   useGameActions: () => ({
     launch: { mutate: vi.fn(), isPending: false, error: null },
+    playEntry: { mutate: vi.fn(), isPending: false, error: null },
     stop: { mutate: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
   }),
@@ -101,6 +106,8 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  steamStatus.signedIn = true
+  steamStatus.clientLoggedIn = true
   useUiStore.setState({
     selectedGameId: 'steam:10',
     detailsTab: 'overview',
@@ -161,4 +168,45 @@ it('plays the selected installation and honors the Settings tab from navigation'
   fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
   expect(useUiStore.getState().detailsTab).toBe('overview')
   expect(screen.getByRole('button', { name: /Continue playing/ })).toBeTruthy()
+})
+
+it('disables Play until the silent Steam client is logged on', () => {
+  steamStatus.clientLoggedIn = false
+  useLibraryEntry.mockReturnValue({
+    data: {
+      ...portal,
+      id: 'steam:601150',
+      steamAppId: '601150',
+      installations: [
+        {
+          id: 'win',
+          gameId: 'dmc5',
+          platform: 'windows',
+          path: '/Games/DMC5.exe',
+          available: true,
+          launchType: 'wine',
+        },
+      ],
+      game: {
+        ...portal.game,
+        id: 'dmc5',
+        title: 'Devil May Cry 5',
+        platform: 'windows',
+        launchConfig: {
+          type: 'wine',
+          profile: {
+            executable: '/Games/DMC5.exe',
+            runtimePath: '/wine',
+            arguments: [],
+            environment: {},
+          },
+        },
+      },
+    },
+    isLoading: false,
+    error: null,
+  })
+  useUiStore.setState({ selectedGameId: 'steam:601150' })
+  renderPage()
+  expect(screen.getByRole('button', { name: 'Waiting for Steam…' })).toBeDisabled()
 })

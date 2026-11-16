@@ -1,8 +1,13 @@
+export type SteamClientPhase = 'stopped' | 'starting' | 'connecting' | 'ready' | 'failed'
+
 export interface SteamWindowsStatus {
   signedIn: boolean
   accountName: string | null
   steamInstalled: boolean
   clientRunning: boolean
+  clientLoggedIn: boolean
+  clientPhase: SteamClientPhase
+  clientCaption: string
   ownedCount: number
 }
 

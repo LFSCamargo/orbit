@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import {
   ArrowUpRight,
@@ -64,8 +65,9 @@ export function GameDetailsPage() {
   const setHeroGameId = useUiStore((s) => s.setHeroGameId)
   const { data: entry, isLoading, error: loadError } = useLibraryEntry(selectedGameId)
   const { update, remove } = useLibraryActions()
-  const { launch } = useGameActions()
+  const { launch, playEntry } = useGameActions()
   const steam = useSteamWindows()
+  const queryClient = useQueryClient()
   const activeSession = useSessionStore((s) => s.activeSession)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
@@ -137,11 +139,14 @@ export function GameDetailsPage() {
     activeSession &&
     (activeSession.gameId === installation?.gameId || activeSession.gameId === game.id),
   )
-  const error = update.error || remove.error || launch.error
+  const error = update.error || remove.error || launch.error || playEntry.error
   const refresh = async () => {
     setStatus(null)
     try {
       const result = await enrichGameMetadata(game.id)
+      await queryClient.invalidateQueries({ queryKey: ['games'] })
+      await queryClient.invalidateQueries({ queryKey: ['library'] })
+      await queryClient.invalidateQueries({ queryKey: ['library-entry'] })
       setStatus(result.message)
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err))
@@ -175,6 +180,7 @@ export function GameDetailsPage() {
           running={running}
           sessionId={activeSession?.id ?? null}
           signedIn={steam.status.data?.signedIn === true}
+          clientLoggedIn={steam.status.data?.clientLoggedIn === true}
         />
         <Focusable
           focusId="details-favorite"
@@ -200,7 +206,7 @@ export function GameDetailsPage() {
       </DetailsHero>
       <div className="details-content relative z-[1] mt-[-27px] px-[var(--console-gutter)] max-[520px]:px-[22px]">
         <MetaGrid game={game} />
-        <TabList label="Game details" className="mb-6">
+        <TabList label="Game details" className="mb-4 mt-6">
           {(['overview', 'settings'] as const).map((item, order) => (
             <Focusable
               key={item}

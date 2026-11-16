@@ -96,6 +96,51 @@ describe('detailsPrimaryAction', () => {
     ).toBe('sign-in')
   })
 
+  it('waits for the silent Steam client before Play on a Windows install', () => {
+    const wine = entry({
+      installations: [
+        {
+          id: 'win',
+          gameId: 'win',
+          platform: 'windows',
+          path: '/Games/DMC5.exe',
+          available: true,
+          launchType: 'wine',
+        },
+      ],
+    })
+    expect(
+      detailsPrimaryAction({
+        entry: wine,
+        running: false,
+        launching: false,
+        cancelling: false,
+        signedIn: false,
+        clientLoggedIn: false,
+      }),
+    ).toMatchObject({ kind: 'sign-in', label: 'Sign in to Steam' })
+    expect(
+      detailsPrimaryAction({
+        entry: wine,
+        running: false,
+        launching: false,
+        cancelling: false,
+        signedIn: true,
+        clientLoggedIn: false,
+      }),
+    ).toMatchObject({ kind: 'waiting', label: 'Waiting for Steam…' })
+    expect(
+      detailsPrimaryAction({
+        entry: wine,
+        running: false,
+        launching: false,
+        cancelling: false,
+        signedIn: true,
+        clientLoggedIn: true,
+      }).kind,
+    ).toBe('play')
+  })
+
   it('cancels a wine launch in the same primary slot', () => {
     const wine = entry({
       owned: false,

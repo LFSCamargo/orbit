@@ -10,7 +10,6 @@ mod runtimes;
 mod services;
 mod utils;
 
-use std::process::Child;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -27,30 +26,36 @@ pub struct AppState {
     pub repo: Arc<GameRepository>,
     pub metadata_cache: Arc<MetadataCacheRepository>,
     pub sessions: Arc<SessionManager>,
-    pub steam_login: Mutex<Option<Child>>,
+    pub steam_login: Mutex<steam_login::SteamLoginSession>,
+    pub steam_catalog_job: Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_env();
     let db_path = database_path();
-    let repo = GameRepository::open(&db_path).expect("Failed to open Orbit database");
-    let metadata_cache = MetadataCacheRepository::open(&metadata_cache_path())
-        .expect("Failed to open metadata cache database");
-    let sessions = SessionManager::new();
+    let repo = Arc::new(GameRepository::open(&db_path).expect("Failed to open Orbit database"));
+    let metadata_cache = Arc::new(
+        MetadataCacheRepository::open(&metadata_cache_path())
+            .expect("Failed to open metadata cache database"),
+    );
+    let sessions = Arc::new(SessionManager::new());
+    let steam_repo = repo.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
+            services::steam_client::start(app.handle().clone(), steam_repo.clone());
             Ok(())
         })
         .manage(AppState {
-            repo: Arc::new(repo),
-            metadata_cache: Arc::new(metadata_cache),
-            sessions: Arc::new(sessions),
-            steam_login: Mutex::new(None),
+            repo,
+            metadata_cache,
+            sessions,
+            steam_login: Mutex::new(steam_login::SteamLoginSession::new()),
+            steam_catalog_job: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             commands::runtimes::windows_compatibility,
@@ -150,7 +155,13 @@ pub fn run() {
         .run(|app, event| {
             if matches!(event, RunEvent::Exit) {
                 if let Some(state) = app.try_state::<AppState>() {
-                    if let Err(err) = steam_login::close(&state.steam_login) {
+                    let active = state.steam_login.lock().is_active();
+                    let result = if active {
+                        steam_login::close(Some(app), &state.steam_login, false)
+                    } else {
+                        steam_login::finish_sign_in(Some(app), &state.steam_login)
+                    };
+                    if let Err(err) = result {
                         eprintln!("Steam sign-in window could not be closed: {err}");
                     }
                 }

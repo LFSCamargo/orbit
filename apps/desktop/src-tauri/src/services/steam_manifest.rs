@@ -1,12 +1,23 @@
 //! Bounded Steam appmanifest reader for user-selected library roots.
-use std::{fs, io::Read, path::{Component, Path, PathBuf}};
-use regex::Regex;
 use crate::services::steam_download::find_game_executable;
+use regex::Regex;
+use std::{
+    fs,
+    io::Read,
+    path::{Component, Path, PathBuf},
+};
 const MANIFEST_LIMIT: u64 = 256 * 1024;
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SteamInstall { pub app_id: String, pub title: String, pub install_dir: PathBuf, pub size_on_disk: Option<i64> }
+pub struct SteamInstall {
+    pub app_id: String,
+    pub title: String,
+    pub install_dir: PathBuf,
+    pub size_on_disk: Option<i64>,
+}
 #[derive(Debug, Clone, Default)]
-pub struct SteamInstallIndex { pub by_id: std::collections::HashMap<String, SteamInstall> }
+pub struct SteamInstallIndex {
+    pub by_id: std::collections::HashMap<String, SteamInstall>,
+}
 pub(crate) fn install_from_manifest(
     steamapps: &Path,
     app_id: &str,
@@ -30,7 +41,9 @@ pub(crate) fn install_from_manifest(
     if content.len() as u64 > MANIFEST_LIMIT {
         return None;
     }
-    if vdf_value(&content, "appid").as_deref() != Some(app_id) || app_id == "228980" { return None; }
+    if vdf_value(&content, "appid").as_deref() != Some(app_id) || app_id == "228980" {
+        return None;
+    }
     let installdir = vdf_value(&content, "installdir")?;
     if !safe_installdir(&installdir) {
         return None;
@@ -77,4 +90,3 @@ fn vdf_value(content: &str, key: &str) -> Option<String> {
         .and_then(|capture| capture.get(1).map(|found| found.as_str().to_string()))
         .filter(|value| !value.is_empty())
 }
-

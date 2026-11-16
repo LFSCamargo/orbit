@@ -2,7 +2,7 @@ import { selectInstallation } from './libraryEntries'
 import type { LibraryEntry, LibraryInstallation } from '@/types/library'
 
 export type DetailsActionKind =
-  'play' | 'cancel' | 'stop' | 'install' | 'sign-in' | 'setup' | 'locate'
+  'play' | 'cancel' | 'stop' | 'install' | 'sign-in' | 'waiting' | 'setup' | 'locate'
 
 export type DetailsPrimaryAction = {
   kind: DetailsActionKind
@@ -18,6 +18,7 @@ export function detailsPrimaryAction(input: {
   launching: boolean
   cancelling: boolean
   signedIn: boolean
+  clientLoggedIn?: boolean
 }): DetailsPrimaryAction {
   const installation = selectInstallation(input.entry)
   if (input.cancelling) return { kind: 'cancel', label: 'Cancelling…', installation }
@@ -40,6 +41,12 @@ export function detailsPrimaryAction(input: {
     }
   }
   if (installation?.available) {
+    if (needsSilentSteam(input.entry, installation)) {
+      if (!input.signedIn) return { kind: 'sign-in', label: 'Sign in to Steam' }
+      if (!input.clientLoggedIn) {
+        return { kind: 'waiting', label: 'Waiting for Steam…', installation }
+      }
+    }
     return {
       kind: 'play',
       label: input.entry.game.totalPlaytimeSeconds > 0 ? 'Continue playing' : 'Play now',
@@ -63,6 +70,14 @@ export function detailsPrimaryAction(input: {
     return { kind: 'setup', label: 'Set up compatibility' }
   }
   return { kind: 'locate', label: 'Locate installation', gameId: input.entry.game.id }
+}
+
+function needsSilentSteam(entry: LibraryEntry, installation: LibraryInstallation) {
+  return Boolean(
+    entry.steamAppId &&
+    installation.platform === 'windows' &&
+    installation.launchType === 'wine',
+  )
 }
 
 export function isOrbitManagedDownload(path: string | null | undefined) {

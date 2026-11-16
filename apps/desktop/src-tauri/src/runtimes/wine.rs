@@ -7,34 +7,47 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Child, Command},
-    sync::atomic::AtomicBool,
+    sync::{atomic::AtomicBool, Arc, Mutex},
     time::Duration,
 };
 
+pub struct PreparedWineLaunch {
+    pub runtime: WineInstallation,
+    pub prefix: PathBuf,
+    pub profile: WineProfile,
+    pub executable: PathBuf,
+    pub log: Arc<Mutex<fs::File>>,
+    pub shared: bool,
+}
+
 pub struct WineAdapter;
-impl RuntimeAdapter for WineAdapter {
-    type Configuration = WineProfile;
-    fn launch(
+impl WineAdapter {
+    pub fn prepare<F: FnMut(&str)>(
         &self,
         profile: &WineProfile,
         game_id: &str,
         root: &Path,
         cancel: &AtomicBool,
-    ) -> Result<Box<dyn RuntimeProcess>> {
+        progress: &mut F,
+    ) -> Result<PreparedWineLaunch> {
+        progress("resolve");
         profile.validate_options()?;
         let executable = validation::windows_executable(Path::new(&profile.executable))?;
+        progress("runtime");
         let runtime = probe(Path::new(&profile.runtime_path))?;
         let dir = prefix::game_directory(root, game_id)?;
         let log = process::log_file(&dir.join("latest.log"))?;
-        let prefix = prefix::prepare(&dir, &runtime, cancel, &log)?;
+        progress("prefix");
+        let shared = profile.shared_prefix.as_deref().map(Path::new);
+        let prefix = if let Some(shared) = shared {
+            prefix::accept_shared(shared, shared)?
+        } else {
+            prefix::prepare(&dir, &runtime, cancel, &log)?
+        };
+        progress("graphics");
         apply_prefix_settings(&runtime, &prefix, profile, cancel, &log)?;
         let graphics = setup_graphics(&prefix, profile.effective.graphics, &profile.selections)
-            .unwrap_or_else(|error| {
-                // Log but do not silently fail: the validation step already
-                // rejected unavailable backends, so an error here is unexpected.
-                eprintln!("Orbit graphics setup warning: {error}");
-                GraphicsSetup::default()
-            });
+            .context("Could not configure the selected graphics backend")?;
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             bail!("Launch cancelled");
         }
@@ -55,18 +68,56 @@ impl RuntimeAdapter for WineAdapter {
             // directory, not a user-supplied path.
             profile.environment.insert("WINEDLLPATH".into(), dll_path);
         }
+        Ok(PreparedWineLaunch {
+            runtime,
+            prefix,
+            profile,
+            executable,
+            log,
+            shared: shared.is_some(),
+        })
+    }
+
+    pub fn launch_with_progress<F: FnMut(&str)>(
+        &self,
+        profile: &WineProfile,
+        game_id: &str,
+        root: &Path,
+        cancel: &AtomicBool,
+        progress: &mut F,
+    ) -> Result<Box<dyn RuntimeProcess>> {
+        let prepared = self.prepare(profile, game_id, root, cancel, progress)?;
+        progress("spawn");
         let child = process::spawn_logged(
-            &mut game_command(Path::new(&runtime.path), &prefix, &executable, &profile),
-            &log,
+            &mut game_command(
+                Path::new(&prepared.runtime.path),
+                &prepared.prefix,
+                &prepared.executable,
+                &prepared.profile,
+            ),
+            &prepared.log,
         )?;
         Ok(Box::new(WineProcess {
             child,
             waiter: None,
-            runtime,
-            prefix,
+            runtime: prepared.runtime,
+            prefix: prepared.prefix,
+            shared: prepared.shared,
             code: None,
             finished: false,
         }))
+    }
+}
+impl RuntimeAdapter for WineAdapter {
+    type Configuration = WineProfile;
+    fn launch(
+        &self,
+        profile: &WineProfile,
+        game_id: &str,
+        root: &Path,
+        cancel: &AtomicBool,
+    ) -> Result<Box<dyn RuntimeProcess>> {
+        self.launch_with_progress(profile, game_id, root, cancel, &mut |_| {})
     }
 }
 fn apply_prefix_settings(
@@ -107,6 +158,7 @@ struct WineProcess {
     waiter: Option<Child>,
     runtime: WineInstallation,
     prefix: PathBuf,
+    shared: bool,
     code: Option<i32>,
     finished: bool,
 }
@@ -119,6 +171,12 @@ impl RuntimeProcess for WineProcess {
             let Some(status) = self.child.try_wait()? else {
                 return Ok(None);
             };
+            self.code = Some(status.code().unwrap_or(-1));
+            if self.shared {
+                // Silent Steam stays in the prefix. The launched executable is
+                // the session lifetime; stop() then shuts Steam down.
+                return Ok(self.code);
+            }
             // A launcher can exit after spawning the game. The dedicated prefix's
             // server is the lifetime boundary, not the initial loader PID.
             self.waiter = Some(
@@ -126,7 +184,6 @@ impl RuntimeProcess for WineProcess {
                     .arg("-w")
                     .spawn()?,
             );
-            self.code = Some(status.code().unwrap_or(-1));
         }
         if let Some(waiter) = self.waiter.as_mut() {
             match waiter.try_wait()? {
@@ -144,7 +201,9 @@ impl RuntimeProcess for WineProcess {
         if self.finished {
             return Ok(());
         }
-        stop_prefix(&self.runtime, &self.prefix)?;
+        if !self.shared {
+            stop_prefix(&self.runtime, &self.prefix)?;
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
         if let Some(waiter) = self.waiter.as_mut() {
@@ -167,13 +226,14 @@ pub fn stop_prefix(runtime: &WineInstallation, prefix: &Path) -> Result<()> {
         let mut kill = process::command(Path::new(&runtime.server_path), prefix)
             .arg(signal)
             .spawn()?;
-        if !process::wait_bounded(&mut kill, Duration::from_secs(3), &cancel)?.success() {
-            bail!("Wine server refused to stop");
-        }
+        // wineserver -k exits 1 when nothing is running. Silent Steam can also
+        // still be draining. Wait for -w instead of treating the kill status
+        // as a play failure.
+        let _ = process::wait_bounded(&mut kill, Duration::from_secs(5), &cancel);
         let mut wait = process::command(Path::new(&runtime.server_path), prefix)
             .arg("-w")
             .spawn()?;
-        if process::wait_bounded(&mut wait, Duration::from_secs(3), &cancel).is_ok() {
+        if process::wait_bounded(&mut wait, Duration::from_secs(8), &cancel).is_ok() {
             return Ok(());
         }
     }
@@ -227,26 +287,41 @@ pub fn setup_graphics(
             })
         }
         settings::GraphicsBackend::D3dmetal => {
-            // D3DMetal's runtime DLLs ship inside the Apple evaluation payload
-            // and must be present in the prefix; the frameworks stay where they
-            // were installed and are reached through the Wine build's rpath.
+            // Apple's PE builtins call companion Unix libraries, which in turn
+            // load the framework relative to the installed payload. Keep that
+            // layout intact; copying only PE files breaks the native bridge.
             let payload = selected(selections, "gptk")?;
-            install_payload_dlls(
-                prefix,
-                &payload,
-                &[
-                    "d3d11.dll",
-                    "d3d10core.dll",
-                    "d3d12.dll",
-                    "d3d12core.dll",
-                    "dxgi.dll",
-                ],
-            )?;
+            let libraries = [payload.join("redist/lib/wine"), payload.join("lib/wine")]
+                .into_iter()
+                .find(|path| path.join("x86_64-windows/d3d11.dll").is_file())
+                .context("The Game Porting Toolkit has no D3DMetal libraries. Reimport the evaluation environment")?;
+            for name in ["d3d11", "dxgi", "d3d12", "d3d12core"] {
+                if !libraries
+                    .join(format!("x86_64-windows/{name}.dll"))
+                    .is_file()
+                    || !libraries.join(format!("x86_64-unix/{name}.so")).is_file()
+                {
+                    bail!("D3DMetal is missing the {name} Windows/Unix library pair. Reimport the evaluation environment");
+                }
+            }
+            let system32 = prefix.join("drive_c/windows/system32");
+            fs::create_dir_all(&system32)?;
+            // WINEDLLPATH alone follows Wine's own PE directory. Place the
+            // selected PE files in the prefix so they win, while retaining the
+            // matching Unix bridge directory in WINEDLLPATH.
+            for name in ["d3d11", "dxgi", "d3d12", "d3d12core", "d3d10"] {
+                let source = libraries.join(format!("x86_64-windows/{name}.dll"));
+                if source.is_file() {
+                    fs::copy(source, system32.join(format!("{name}.dll")))
+                        .with_context(|| format!("Cannot install D3DMetal {name}"))?;
+                }
+            }
             Ok(GraphicsSetup {
-                overrides: "d3d11=n;d3d10core=n;d3d12=n;d3d12core=n;dxgi=n".into(),
-                dll_path: None,
+                overrides: "d3d11=n,b;d3d10=n,b;d3d12=n,b;d3d12core=n,b;dxgi=n,b".into(),
+                dll_path: Some(libraries.to_string_lossy().into_owned()),
             })
         }
+
         settings::GraphicsBackend::Auto | settings::GraphicsBackend::Wine => {
             Ok(GraphicsSetup::default())
         }
@@ -287,50 +362,122 @@ fn install_dlls(prefix: &Path, source_dir: &Path, dlls: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Copy D3DMetal's Windows runtime libraries from an Apple evaluation payload,
-/// whose layout is `redist/lib/wine/x86_64-windows/*.dll` rather than x64/x32.
-fn install_payload_dlls(prefix: &Path, payload: &Path, dlls: &[&str]) -> Result<()> {
-    let candidates = [
-        payload.join("redist/lib/wine/x86_64-windows"),
-        payload.join("lib/wine/x86_64-windows"),
-    ];
-    let directory = candidates
-        .iter()
-        .find(|directory| directory.is_dir())
-        .with_context(|| {
-            format!(
-                "The Game Porting Toolkit payload at {} has no Windows runtime libraries. Import the evaluation environment instead",
-                payload.display()
-            )
-        })?;
-    let system32 = prefix.join("drive_c/windows/system32");
-    let syswow64 = prefix.join("drive_c/windows/syswow64");
-    fs::create_dir_all(&system32)?;
-    fs::create_dir_all(&syswow64)?;
-    let mut copied = 0usize;
-    for dll in dlls {
-        let source = directory.join(dll);
-        if source.is_file() {
-            fs::copy(&source, system32.join(dll))
-                .with_context(|| format!("Cannot install {dll}"))?;
-            // The 32-bit directory shares the same translation libraries.
-            let _ = fs::copy(&source, syswow64.join(dll));
-            copied += 1;
-        }
-    }
-    if copied == 0 {
-        bail!(
-            "The Game Porting Toolkit payload at {} contains no D3DMetal runtime DLLs. Import a newer package",
-            payload.display()
-        );
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn d3dmetal_keeps_windows_and_unix_libraries_together() {
+        let root = std::env::temp_dir().join(format!("orbit-metal-{}", uuid::Uuid::new_v4()));
+        let libraries = root.join("redist/lib/wine");
+        fs::create_dir_all(libraries.join("x86_64-windows")).unwrap();
+        fs::create_dir_all(libraries.join("x86_64-unix")).unwrap();
+        for dll in ["d3d11", "dxgi", "d3d12", "d3d12core", "d3d10"] {
+            fs::write(libraries.join(format!("x86_64-windows/{dll}.dll")), b"PE").unwrap();
+            fs::write(libraries.join(format!("x86_64-unix/{dll}.so")), b"bridge").unwrap();
+        }
+        let selections = BTreeMap::from([("gptk".into(), root.to_string_lossy().into_owned())]);
+        let setup = setup_graphics(
+            &root.join("prefix"),
+            settings::GraphicsBackend::D3dmetal,
+            &selections,
+        )
+        .unwrap();
+        assert_eq!(setup.dll_path.as_deref(), libraries.to_str());
+        assert!(setup.overrides.contains("d3d11=n,b"));
+        assert_eq!(
+            fs::read(root.join("prefix/drive_c/windows/system32/d3d11.dll")).unwrap(),
+            b"PE"
+        );
+        assert!(!root
+            .join("prefix/drive_c/windows/syswow64/d3d11.dll")
+            .exists());
+        fs::remove_file(libraries.join("x86_64-unix/d3d11.so")).unwrap();
+        assert!(setup_graphics(
+            &root.join("prefix"),
+            settings::GraphicsBackend::D3dmetal,
+            &selections
+        )
+        .is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn stopping_an_idle_prefix_is_not_a_play_failure() {
+        let root = std::env::temp_dir().join(format!("orbit-stop-{}", uuid::Uuid::new_v4()));
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        let wine = bin.join("wine");
+        let server = bin.join("wineserver");
+        fs::write(&wine, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::write(
+            &server,
+            b"#!/bin/sh\ncase \"$1\" in\n-w) exit 0;;\n*) exit 1;;\nesac\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&wine, fs::Permissions::from_mode(0o755)).unwrap();
+            fs::set_permissions(&server, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let runtime = WineInstallation {
+            path: wine.to_string_lossy().into_owned(),
+            server_path: server.to_string_lossy().into_owned(),
+            version: "wine-9".into(),
+        };
+        stop_prefix(&runtime, &root.join("prefix")).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn shared_steam_prefix_survives_stopping_the_game() {
+        let root = std::env::temp_dir().join(format!("orbit-shared-stop-{}", uuid::Uuid::new_v4()));
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        let wine = bin.join("wine");
+        let server = bin.join("wineserver");
+        let marker = root.join("killed");
+        fs::write(&wine, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::write(
+            &server,
+            format!(
+                "#!/bin/sh\ncase \"$1\" in\n-k*|-k) echo k > \"{}\"; exit 0;;\n-w) exit 0;;\n*) exit 0;;\nesac\n",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&wine, fs::Permissions::from_mode(0o755)).unwrap();
+            fs::set_permissions(&server, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let child = Command::new("sleep")
+            .arg("30")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut process = WineProcess {
+            child,
+            waiter: None,
+            runtime: WineInstallation {
+                path: wine.to_string_lossy().into_owned(),
+                server_path: server.to_string_lossy().into_owned(),
+                version: "wine-9".into(),
+            },
+            prefix: root.join("prefix"),
+            shared: true,
+            code: None,
+            finished: false,
+        };
+        process.stop().unwrap();
+        assert!(!marker.exists());
+        let _ = fs::remove_dir_all(root);
+    }
 
     #[test]
     fn dxmt_builtin_package_is_loaded_from_its_own_directory() {

@@ -128,15 +128,18 @@ Application data (macOS):
 
 ```text
 ~/Library/Application Support/Orbit/
-  orbit.db                 # SQLite database
+  orbit.sqlite3            # Live library + settings (never wipe while developing)
+  steam-windows/           # Signed-in Windows Steam prefix
   themes/*.json            # Custom user themes
 ```
+
+Agents must not delete this folder. See [`.cursor/rules/preserve-user-data.mdc`](../.cursor/rules/preserve-user-data.mdc).
 
 ---
 
 ## Quality gates
 
-Defined in `.cursor/rules/quality-gating.mdc`. Run before declaring work done:
+Defined in `.cursor/rules/quality-gating.mdc`. Live Application Support data is protected by `.cursor/rules/preserve-user-data.mdc`. Run before declaring work done:
 
 ```bash
 yarn run format:check
@@ -223,3 +226,10 @@ yarn run test:e2e
 yarn run tauri:build              # release bundle
 yarn run format                   # fix formatting
 ```
+
+The desktop native directory also contains `helpers/steam-browser/`: source, unit
+fixtures, and the deterministic MinGW-w64 build script for Orbit's Windows Steam
+CEF compatibility launcher. Its prebuilt PE is embedded from
+`assets/steam-browser-helper.exe`; end-user machines do not need a cross compiler.
+`services/steam_browser.rs` installs it while preserving Valve's helper, and
+`services/steam_login_process.rs` scopes modal placement to that installed browser.

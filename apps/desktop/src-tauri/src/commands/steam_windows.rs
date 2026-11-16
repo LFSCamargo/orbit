@@ -38,7 +38,7 @@ pub async fn steam_windows_library(app: AppHandle) -> Result<Vec<SteamOwnedGame>
 pub async fn install_windows_steam(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        steam_windows::install_windows_steam(&state.repo)
+        steam_windows::install_windows_steam(&app, &state.repo)
     })
     .await
     .map_err(|_| "Steam installation stopped".to_string())?
@@ -93,20 +93,26 @@ pub async fn poll_steam_windows_qr(
 pub async fn open_steam_windows_login(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        steam_login::open(&state.steam_login)
+        steam_login::open(&app, &state.steam_login)
     })
     .await
     .map_err(|_| "Steam sign-in stopped".to_string())?
 }
 
 #[tauri::command]
-pub fn place_steam_windows_login(
+pub async fn place_steam_windows_login(
+    app: AppHandle,
     x: i32,
     y: i32,
     width: i32,
     height: i32,
 ) -> Result<SteamLoginPlacement, String> {
-    steam_login::place(x, y, width, height)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        steam_login::place(&app, &state.steam_login, x, y, width, height)
+    })
+    .await
+    .map_err(|_| "Steam window positioning stopped".to_string())?
 }
 
 #[tauri::command]
@@ -115,7 +121,7 @@ pub async fn poll_steam_windows_login(app: AppHandle) -> Result<SteamLoginPoll, 
         let state = app.state::<AppState>();
         let result = steam_login::poll(&state.repo)?;
         if result.done {
-            steam_login::close(&state.steam_login)?;
+            steam_login::finish_sign_in(Some(&app), &state.steam_login)?;
         }
         Ok(result)
     })
@@ -134,9 +140,14 @@ pub async fn connect_steam_windows(app: AppHandle) -> Result<SteamWindowsStatus,
 }
 
 #[tauri::command]
-pub fn cancel_steam_windows_sign_in(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn cancel_steam_windows_sign_in(app: AppHandle) -> Result<(), String> {
     steam_windows::cancel_sign_in();
-    steam_login::close(&state.steam_login)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        steam_login::close(Some(&app), &state.steam_login, false)
+    })
+    .await
+    .map_err(|_| "Steam shutdown stopped".to_string())?
 }
 
 #[tauri::command]
@@ -161,47 +172,54 @@ async fn catalog_library(
     force: bool,
 ) -> Result<Vec<SteamOwnedGame>, String> {
     let cloned = app.clone();
-    let (mut entries, key, installed, favorites, paths) = tauri::async_runtime::spawn_blocking(move || {
-        let state = cloned.state::<AppState>();
-        if refresh_ids {
-            steam_windows::refresh_owned_ids(&state.repo)?;
-        }
-        let entries = steam_windows::stored_entries(&state.repo)?;
-        let paths = steam_windows::preferences(&state.repo)?.additional_library_paths;
-        let installed = steam_windows::installed_app_ids(&entries, &paths);
-        let mut favorites = std::collections::HashSet::new();
-        for game in state.repo.list_games().map_err(|err| err.to_string())? {
-            if !game.favorite {
-                continue;
-            }
-            if let Some(id) = crate::utils::steam_app_id::steam_app_id_from_launch(&game.launch_config)
-                .or(game.source_id.filter(|id| crate::services::steam_download::valid_app_id(id)))
-            {
-                favorites.insert(id);
-            }
-        }
-        for (id, saved) in state.repo.library_states().map_err(|err| err.to_string())? {
-            if saved.favorite == Some(true) {
-                if let Some(app_id) = id.strip_prefix("steam:") {
-                    favorites.insert(app_id.to_string());
-                }
-            }
-        }
-        let key = steamgriddb_api_key(&state.repo);
-        Ok::<_, String>((entries, key, installed, favorites, paths))
-    })
-    .await
-    .map_err(|_| "Steam library refresh stopped".to_string())??;
-    if steam_catalog::hydrate(&mut entries, key.as_deref(), &installed, &favorites, force).await {
-        let cloned = app.clone();
-        let saved = entries.clone();
+    let (entries, key, installed, favorites, paths, account) =
         tauri::async_runtime::spawn_blocking(move || {
             let state = cloned.state::<AppState>();
-            steam_windows::save_library(&state.repo, &saved)
+            let account = steam_windows::stored_account(&state.repo)?;
+            if refresh_ids
+                || (account.is_some() && steam_windows::stored_entries(&state.repo)?.is_empty())
+            {
+                steam_windows::refresh_owned_ids(&state.repo)?;
+            }
+            let entries = steam_windows::stored_entries(&state.repo)?;
+            let paths = steam_windows::preferences(&state.repo)?.additional_library_paths;
+            let installed = steam_windows::installed_app_ids(&entries, &paths);
+            let entries = steam_catalog::include_installed(entries, &installed);
+            let mut favorites = std::collections::HashSet::new();
+            for game in state.repo.list_games().map_err(|err| err.to_string())? {
+                if !game.favorite {
+                    continue;
+                }
+                if let Some(id) =
+                    crate::utils::steam_app_id::steam_app_id_from_launch(&game.launch_config)
+                        .or(game
+                            .source_id
+                            .filter(|id| crate::services::steam_download::valid_app_id(id)))
+                {
+                    favorites.insert(id);
+                }
+            }
+            for (id, saved) in state.repo.library_states().map_err(|err| err.to_string())? {
+                if saved.favorite == Some(true) {
+                    if let Some(app_id) = id.strip_prefix("steam:") {
+                        favorites.insert(app_id.to_string());
+                    }
+                }
+            }
+            let key = steamgriddb_api_key(&state.repo);
+            Ok::<_, String>((entries, key, installed, favorites, paths, account))
         })
         .await
         .map_err(|_| "Steam library refresh stopped".to_string())??;
-    }
+    crate::services::steam_catalog_sync::schedule(
+        app,
+        entries.clone(),
+        key,
+        installed,
+        favorites,
+        force,
+        account,
+    );
     tauri::async_runtime::spawn_blocking(move || steam_windows::present(entries, &paths))
         .await
         .map_err(|_| "Steam library inspection stopped".to_string())
@@ -228,8 +246,22 @@ pub async fn play_steam_windows_game(
     app_id: String,
 ) -> Result<GameSession, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        use crate::launching::progress::{emit_launch_failed, emit_launch_progress};
         let state = app.state::<AppState>();
-        let game_id = steam_windows::play(&state.repo, &app_id)?;
+        emit_launch_progress(&app, &format!("steam-windows:{app_id}"), "resolve");
+        let game_id = match steam_windows::play(&state.repo, &app_id) {
+            Ok(game_id) => game_id,
+            Err(error) => {
+                let step = if error.contains("Settings → Steam") {
+                    "runtime"
+                } else {
+                    "resolve"
+                };
+                emit_launch_failed(&app, &format!("steam-windows:{app_id}"), step, &error);
+                return Err(error);
+            }
+        };
+        emit_launch_progress(&app, &game_id, "runtime");
         let game = state
             .repo
             .get_game(&game_id)

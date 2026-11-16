@@ -7,4 +7,6 @@ pub mod size;
 pub mod steam_account;
 pub mod steam_app_id;
 pub mod steam_paths;
+pub mod steam_playtime;
+pub mod steam_vdf;
 pub mod switch_scan;
