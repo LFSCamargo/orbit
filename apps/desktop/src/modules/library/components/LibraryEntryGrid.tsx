@@ -1,11 +1,13 @@
+import { useRef } from 'react'
 import { clsx } from 'clsx'
 import { Heart, HardDrive, Download } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { SquareGameArt } from '@/components/game/SquareGameArt'
-import { gameTileImage } from '@/lib/artwork'
+import { gameTileFit, gameTileImage } from '@/lib/artwork'
 import { placeholderGradient } from '@/lib/format'
 import { useUiStore } from '@/stores/ui.store'
 import type { LibraryEntry } from '@/types/library'
+import { useLibraryViewportFade } from '../hooks/useLibraryViewportFade'
 
 export function LibraryEntryGrid({
   entries,
@@ -15,10 +17,15 @@ export function LibraryEntryGrid({
   screen?: string
 }) {
   const open = useUiStore((s) => s.openGameDetails)
+  const gridRef = useRef<HTMLDivElement>(null)
+  useLibraryViewportFade(gridRef)
   return (
     <div
+      ref={gridRef}
       className={clsx(
-        'library-entry-grid grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-6 max-[1100px]:grid-cols-[repeat(auto-fill,minmax(165px,1fr))] max-[1100px]:gap-[18px]',
+        'library-entry-grid',
+        '[contain:layout_paint]',
+        'grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-6 max-[1100px]:grid-cols-[repeat(auto-fill,minmax(165px,1fr))] max-[1100px]:gap-[18px]',
       )}
       role="list"
       aria-label="Games"
@@ -32,36 +39,40 @@ export function LibraryEntryGrid({
               group={`${screen}-grid`}
               order={order}
               noScale
+              noRing
               className={clsx(
-                'library-entry-card orbit-panel w-full overflow-hidden rounded-[22px] text-left transition-[background,transform] duration-200',
+                'library-entry-card orbit-art-focus orbit-panel w-full rounded-[22px] text-left transition-[background,transform] duration-200',
+                'data-[focused=true]:z-10',
                 'hover:-translate-y-[3px] hover:bg-[rgb(56_61_72/0.8)]',
                 'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
               )}
               aria-label={entry.game.title}
               onClick={() => open(entry.id)}
             >
-              <div
-                className={clsx(
-                  'library-entry-art relative aspect-square overflow-hidden',
-                )}
-              >
-                <SquareGameArt
-                  image={gameTileImage(entry.game.artwork, 'square')}
-                  placeholder={placeholderGradient(entry.id)}
-                  fit="cover"
-                  roundedClassName="rounded-none"
-                  className="aspect-square w-full"
-                />
-                {entry.game.favorite && (
-                  <span
-                    className={clsx(
-                      'library-favorite absolute right-3 top-3 rounded-full bg-[rgb(20_22_28/0.8)] p-[9px] text-[#ffa2b6] backdrop-blur-[12px]',
-                    )}
-                    aria-label="Favorite"
-                  >
-                    <Heart size={16} fill="currentColor" />
-                  </span>
-                )}
+              <div className="orbit-art-focus-target rounded-[22px]">
+                <div
+                  className={clsx(
+                    'library-entry-art relative aspect-square overflow-hidden rounded-[22px]',
+                  )}
+                >
+                  <SquareGameArt
+                    image={gameTileImage(entry.game.artwork, 'square')}
+                    placeholder={placeholderGradient(entry.id)}
+                    fit={gameTileFit(entry.game.artwork, 'square')}
+                    roundedClassName="rounded-none"
+                    className="aspect-square w-full"
+                  />
+                  {entry.game.favorite && (
+                    <span
+                      className={clsx(
+                        'library-favorite absolute right-3 top-3 rounded-full bg-[rgb(20_22_28/0.8)] p-[9px] text-[#ffa2b6] backdrop-blur-[12px]',
+                      )}
+                      aria-label="Favorite"
+                    >
+                      <Heart size={16} fill="currentColor" />
+                    </span>
+                  )}
+                </div>
               </div>
               <div className={clsx('library-entry-copy min-h-[88px] p-4')}>
                 <h2 className={clsx('truncate text-base font-semibold')}>

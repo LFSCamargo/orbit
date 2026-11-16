@@ -21,3 +21,9 @@ export function steamHeroCandidates(appId: string, preferred?: string | null): s
   ]
   return [...new Set(urls.filter((url) => url.startsWith('https://')))]
 }
+
+/** Steam's transparent horizontal wordmark (`logo.png`). */
+export function steamLogoUrl(appId?: string | null): string | undefined {
+  if (!appId || !/^[1-9]\d{0,9}$/.test(appId)) return undefined
+  return `${CDN}/${appId}/logo.png`
+}

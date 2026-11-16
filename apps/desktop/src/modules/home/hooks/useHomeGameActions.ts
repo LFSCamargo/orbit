@@ -1,14 +1,25 @@
 import type { GameSession } from '@/types/game'
 import type { LibraryEntry } from '@/types/library'
+import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
 import { homeLaunchId } from '../lib/homeHero'
 
+export type HomeView = 'recent' | 'installed' | 'favorites'
+
 export interface ThemeHomeProps {
+  view?: HomeView
+  onView?: (view: HomeView) => void
+  shelfEntries?: LibraryEntry[]
+  shelfPending?: boolean
+  shelfError?: boolean
+  onRetry?: () => void
   entries: LibraryEntry[]
   heroEntry: LibraryEntry
   activeSession: GameSession | null
   onPlay: (entry: LibraryEntry) => void
   onStop: () => void
   onFavorite: (entry: LibraryEntry) => void
+  showFavorites?: boolean
+  steamReady?: boolean
 }
 
 export function gameStats(game: LibraryEntry['game']) {
@@ -23,6 +34,7 @@ export function createHomeGameHandlers(
   onPlay: (entry: LibraryEntry) => void,
   onStop: () => void,
   heroEntryId: string,
+  steamReady = true,
 ) {
   const selectGame = (entry: LibraryEntry) => setHero(entry.id)
 
@@ -30,7 +42,7 @@ export function createHomeGameHandlers(
     setHero(entry.id)
     if (activeSession?.gameId === homeLaunchId(entry)) {
       onStop()
-    } else {
+    } else if (!isWindowsSteamPlay(entry) || steamReady) {
       onPlay(entry)
     }
   }

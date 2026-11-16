@@ -159,6 +159,38 @@
       outline-color: Highlight;
     }
   }
+
+  /* Cover tiles: keep the button as the hit target and hug the artwork, not the title. */
+  .orbit-focusable.orbit-art-focus:focus-visible,
+  html[data-navigation-input='controller']
+    .orbit-focusable.orbit-art-focus[data-focused='true']:not(:disabled) {
+    outline: none;
+  }
+
+  .orbit-art-focus:focus-visible .orbit-art-focus-target,
+  html[data-navigation-input='controller']
+    .orbit-art-focus[data-focused='true']:not(:disabled)
+    .orbit-art-focus-target {
+    outline: 3px solid rgb(var(--orbit-focus));
+    outline-offset: 3px;
+  }
+
+  @media (forced-colors: active) {
+    .orbit-art-focus:focus-visible .orbit-art-focus-target,
+    html[data-navigation-input='controller']
+      .orbit-art-focus[data-focused='true']:not(:disabled)
+      .orbit-art-focus-target {
+      outline-color: Highlight;
+    }
+  }
+
+  /* Launch banner close: a circular fill, not the inset focus rectangle. */
+  .launch-overlay-close.orbit-focusable:focus-visible,
+  html[data-navigation-input='controller']
+    .launch-overlay-close.orbit-focusable[data-focused='true']:not(:disabled) {
+    outline: none;
+    background: rgb(255 255 255 / 0.22);
+  }
 }
 
 @layer utilities {

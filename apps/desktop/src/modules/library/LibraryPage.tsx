@@ -2,8 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { RefreshCw, Plus } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { useHasFavorites } from '@/hooks/useHasFavorites'
 import { useLibrary } from '@/hooks/useLibrary'
-import { scanSteamInstallations, scanSteamLibrary } from '@/lib/tauri'
+import { fallbackLibraryView, showFavoritesTab } from '@/lib/favoritesTab'
+import {
+  refreshSteamWindowsLibrary,
+  scanSteamInstallations,
+  scanSteamLibrary,
+} from '@/lib/tauri'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import { useSettingsControllerFocus } from '@/modules/settings/hooks/useSettingsControllerFocus'
@@ -26,20 +32,27 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
   const setPlatform = useUiStore((s) => s.setLibraryPlatform)
   const openAddGame = useUiStore((s) => s.openAddGame)
   const client = useQueryClient()
+  const { hasFavorites, isReady } = useHasFavorites()
+  const visibleView = fallbackLibraryView(view, hasFavorites, isReady) ?? view
   const query = search ? searchQuery : filters.query
   const library = useLibrary({
     query,
-    view: search ? 'all' : view,
+    view: search ? 'all' : visibleView,
     sort: filters.sort,
     platform,
   })
   const refresh = useMutation({
     mutationFn: async () => {
-      await Promise.all([scanSteamLibrary(), scanSteamInstallations()])
+      await Promise.all([
+        scanSteamLibrary(),
+        scanSteamInstallations(),
+        refreshSteamWindowsLibrary(),
+      ])
     },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['library'] })
       await client.invalidateQueries({ queryKey: ['games'] })
+      await client.invalidateQueries({ queryKey: ['steam-windows-library'] })
     },
   })
   const entries = library.data?.pages.flatMap((p) => p.entries) ?? []
@@ -107,7 +120,7 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
         </header>
         <LibraryToolbar
           search={search}
-          view={view}
+          view={visibleView}
           query={query}
           sort={filters.sort}
           platform={platform}
@@ -118,6 +131,11 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
           onSort={(sort) => setFilters({ sort })}
           onPlatform={setPlatform}
           onClear={() => setSearchQuery('')}
+          showFavorites={showFavoritesTab({
+            hasFavorites,
+            probeReady: isReady,
+            viewingFavorites: visibleView === 'favorites',
+          })}
         />
         {refresh.isError && (
           <p role="alert">

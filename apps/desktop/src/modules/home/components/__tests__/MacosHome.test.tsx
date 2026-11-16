@@ -1,9 +1,15 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { focusManager } from '@/controllers/FocusManager'
 import type { Game } from '@/types/game'
 import type { LibraryEntry } from '@/types/library'
+import { useUiStore } from '@/stores/ui.store'
 import { MacosHome } from '../MacosHome'
+
+vi.mock('../../lib/carouselArtwork', () => ({
+  cachedCarouselArtwork: (url?: string) => url,
+  preloadCarouselArtwork: async () => true,
+}))
 
 const game: Game = {
   id: 'g1',
@@ -64,6 +70,21 @@ function renderHome() {
   return { onPlay, onStop, onFavorite }
 }
 
+it('shows the Steam horizontal logo on the hero when the logo slot is empty', () => {
+  renderHome()
+  expect(document.querySelector('.macos-hero-logo')).toHaveAttribute(
+    'src',
+    'https://cdn.akamai.steamstatic.com/steam/apps/883710/logo.png',
+  )
+})
+
+it('keeps the focus ring on the cover instead of boxing the title', () => {
+  renderHome()
+  const tile = screen.getByRole('button', { name: `${game.title}, selected` })
+  expect(tile).toHaveClass('orbit-art-focus', 'macos-game-tile')
+  expect(tile.querySelector('.orbit-art-focus-target')).not.toBeNull()
+})
+
 it('scales the whole focused tile so the outline selector tracks it', () => {
   renderHome()
   const tile = screen.getByRole('button', { name: `${game.title}, selected` })
@@ -92,4 +113,130 @@ it('keeps the shelf in document flow so compact windows do not grow horizontally
   const grid = document.querySelector('.macos-game-grid')
   expect(grid).toHaveClass('overflow-x-auto', 'min-w-0')
   expect(grid).not.toHaveClass('absolute')
+})
+
+it('leaves a short carousel unfaded and without particle fragments', () => {
+  renderHome()
+  expect(document.querySelector('[data-edge-particles]')).toBeNull()
+  const grid = document.querySelector('.macos-game-grid')
+  expect(grid?.className).not.toContain('[mask-image:')
+  expect(grid?.getAttribute('data-shelf-looping')).toBe('false')
+  const wrap = document.querySelector('.macos-shelf-viewport-fade')
+  expect(wrap?.className).not.toContain('[mask-image:')
+  expect(wrap?.className).not.toContain('-mx-')
+  expect(screen.getByRole('button', { name: `${game.title}, selected` })).not.toHaveClass(
+    'snap-start',
+  )
+})
+
+it('opens details on the first card activation without launching', () => {
+  const { onPlay, onStop } = renderHome()
+  fireEvent.click(screen.getByRole('button', { name: `${game.title}, selected` }))
+  expect(useUiStore.getState().selectedGameId).toBe(entry.id)
+  expect(useUiStore.getState().screen).toBe('game-details')
+  expect(onPlay).not.toHaveBeenCalled()
+  expect(onStop).not.toHaveBeenCalled()
+})
+
+it('omits the Favorites filter until a game is marked favorite', () => {
+  renderHome()
+  expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Installed' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Favorites' })).not.toBeInTheDocument()
+})
+
+it('offers Recent, Installed and Favorites filters when favorites exist', () => {
+  render(
+    <MacosHome
+      entries={[entry]}
+      heroEntry={entry}
+      activeSession={null}
+      onPlay={vi.fn()}
+      onStop={vi.fn()}
+      onFavorite={vi.fn()}
+      showFavorites
+    />,
+  )
+  for (const name of ['Recent', 'Installed', 'Favorites']) {
+    expect(screen.getByRole('button', { name })).toBeInTheDocument()
+  }
+})
+
+it('synchronizes native keyboard focus with controller activation', () => {
+  renderHome()
+  fireEvent.focus(screen.getByRole('button', { name: `${game.title}, selected` }))
+  expect(focusManager.getFocusedId()).toBe(`macos-game-${entry.id}`)
+})
+
+it('disables Jump back in until Windows Steam is logged on', () => {
+  const windows: LibraryEntry = {
+    ...entry,
+    installations: [
+      {
+        id: 'win',
+        gameId: 'g1',
+        platform: 'windows',
+        path: '/Games/RE2.exe',
+        available: true,
+        launchType: 'wine',
+      },
+    ],
+    game: {
+      ...game,
+      platform: 'windows',
+      launchConfig: {
+        type: 'wine',
+        profile: {
+          executable: '/Games/RE2.exe',
+          runtimePath: '/wine',
+          arguments: [],
+          environment: {},
+        },
+      },
+    },
+  }
+  const onPlay = vi.fn()
+  render(
+    <MacosHome
+      entries={[windows]}
+      heroEntry={windows}
+      activeSession={null}
+      steamReady={false}
+      onPlay={onPlay}
+      onStop={vi.fn()}
+      onFavorite={vi.fn()}
+    />,
+  )
+  const play = screen.getByRole('button', { name: 'Waiting for Steam…' })
+  expect(play).toBeDisabled()
+  fireEvent.click(play)
+  expect(onPlay).not.toHaveBeenCalled()
+})
+
+it('paints 1:1 icon art on the shelf instead of portrait covers', () => {
+  const withArt: LibraryEntry = {
+    ...entry,
+    game: {
+      ...game,
+      artwork: {
+        icon: 'https://cdn.example/icon.png',
+        cover: 'https://cdn.example/cover.jpg',
+        hero: 'https://cdn.example/hero.jpg',
+      },
+    },
+  }
+  render(
+    <MacosHome
+      entries={[withArt]}
+      heroEntry={withArt}
+      activeSession={null}
+      onPlay={vi.fn()}
+      onStop={vi.fn()}
+      onFavorite={vi.fn()}
+    />,
+  )
+  const art = document.querySelector('.square-game-art') as HTMLElement
+  expect(art.style.backgroundImage).toContain('icon.png')
+  expect(art.style.backgroundImage).not.toContain('cover.jpg')
+  expect(art.style.backgroundImage).not.toContain('hero.jpg')
 })

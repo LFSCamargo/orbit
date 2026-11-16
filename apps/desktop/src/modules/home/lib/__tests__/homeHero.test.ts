@@ -64,4 +64,17 @@ describe('homeHero', () => {
     expect(homeHero([older, recent], 'steam:10')?.id).toBe('steam:10')
     expect(homeLaunchId(recent)).toBe('mock-cyberpunk')
   })
+
+  it('uses a prepended selected entry that is missing from the page', () => {
+    const league = entry('steam:lol', 'steam:lol', {
+      title: 'League of Legends',
+      lastPlayedAt: '2026-11-01T00:00:00Z',
+    })
+    const resident = entry('steam:883710', 'steam:883710', {
+      title: 'Resident Evil 2',
+      dateAdded: '2026-02-01T00:00:00Z',
+    })
+    expect(homeHero([resident, league], 'steam:883710')?.id).toBe('steam:883710')
+    expect(homeHero([league], 'steam:883710')?.id).toBe('steam:lol')
+  })
 })

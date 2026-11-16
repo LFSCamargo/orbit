@@ -14,6 +14,8 @@ export type SteamLibraryGame = {
 }
 
 interface UiState {
+  homeView: 'recent' | 'installed' | 'favorites'
+  setHomeView: (view: 'recent' | 'installed' | 'favorites') => void
   screen: AppScreen
   previousScreen: AppScreen
   selectedGameId: string | null
@@ -65,6 +67,8 @@ const defaultFilters: LibraryFilters = {
 }
 
 export const useUiStore = create<UiState>((set) => ({
+  homeView: 'recent',
+  setHomeView: (homeView) => set({ homeView }),
   screen: 'home',
   previousScreen: 'home',
   selectedGameId: null,

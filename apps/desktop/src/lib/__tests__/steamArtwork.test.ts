@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest'
-import { steamCoverCandidates, steamHeroCandidates } from '@/lib/steamArtwork'
+import {
+  steamCoverCandidates,
+  steamHeroCandidates,
+  steamLogoUrl,
+} from '@/lib/steamArtwork'
 
 it('uses original Steam capsules and falls back to the header', () => {
   expect(steamCoverCandidates('550')).toEqual([
@@ -21,4 +25,12 @@ it('uses the Steam library hero for details', () => {
   expect(steamHeroCandidates('220')[0]).toBe(
     'https://cdn.akamai.steamstatic.com/steam/apps/220/library_hero.jpg',
   )
+})
+
+it('uses the Steam store wordmark for the horizontal logo', () => {
+  expect(steamLogoUrl('1593500')).toBe(
+    'https://cdn.akamai.steamstatic.com/steam/apps/1593500/logo.png',
+  )
+  expect(steamLogoUrl('not-an-id')).toBeUndefined()
+  expect(steamLogoUrl(undefined)).toBeUndefined()
 })

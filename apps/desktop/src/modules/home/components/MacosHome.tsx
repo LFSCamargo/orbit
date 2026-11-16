@@ -1,12 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useInfiniteCarousel, shouldLoopCarousel } from '../hooks/useInfiniteCarousel'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFittedTitle } from '../hooks/useFittedTitle'
+import { useShelfEdgeFade } from '../hooks/useShelfEdgeFade'
+import { shelfFadeMaskClass, SHELF_FOOTER_DISSOLVE_MASK } from '../lib/carouselFade'
+import {
+  animateScrollBy,
+  focusKeepInViewDelta,
+  prefersReducedMotion,
+} from '../lib/shelfScroll'
 import { clsx } from 'clsx'
 import { ArrowUpRight, Clock3, Heart, Play, Square } from 'lucide-react'
+import { focusManager } from '@/controllers/FocusManager'
 import { Focusable } from '@/components/focus/Focusable'
-import { SquareGameArt } from '@/components/game/SquareGameArt'
+import { CarouselArtwork } from './CarouselArtwork'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
-import { artworkPreview, gameTileImage, artworkPlaceholder } from '@/lib/artwork'
+import { artworkPlaceholder, gameLogoImage, gameSquareTileImage } from '@/lib/artwork'
 import { formatPlaytime, providerLabel, formatRelativeDate } from '@/lib/format'
 import { homeLaunchId } from '../lib/homeHero'
+import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
 import { useUiStore } from '@/stores/ui.store'
 import { createHomeGameHandlers, type ThemeHomeProps } from '../hooks/useHomeGameActions'
 
@@ -17,35 +28,49 @@ export function MacosHome({
   onPlay,
   onStop,
   onFavorite,
+  view = 'recent',
+  onView,
+  shelfEntries = entries,
+  shelfPending = false,
+  shelfError = false,
+  onRetry,
+  showFavorites = false,
+  steamReady = true,
 }: ThemeHomeProps) {
   const setHero = useUiStore((s) => s.setHeroGameId)
   const details = useUiStore((s) => s.openGameDetails)
   const navigate = useUiStore((s) => s.setScreen)
-  const [view, setView] = useState<'recent' | 'favorites'>('recent')
+  const titleRef = useFittedTitle(heroEntry.game.title)
+  const shelfRef = useRef<HTMLDivElement>(null)
+  const stopShelfScroll = useRef(() => {})
+  useEffect(() => () => stopShelfScroll.current(), [])
   const heroGame = heroEntry.game
-  const { selectGame, activateGame } = createHomeGameHandlers(
+  const { selectGame } = createHomeGameHandlers(
     activeSession,
     setHero,
     onPlay,
     onStop,
     heroEntry.id,
+    steamReady,
   )
   const running = activeSession?.gameId === homeLaunchId(heroEntry)
+  const steamBlocked = isWindowsSteamPlay(heroEntry) && !steamReady && !running
   const visible = useMemo(() => entries.filter((entry) => !entry.game.hidden), [entries])
   const tiles = useMemo(
-    () =>
-      visible
-        .filter((entry) => view !== 'favorites' || entry.game.favorite)
-        .slice()
-        .sort((a, b) =>
-          (b.game.lastPlayedAt ?? b.game.dateAdded).localeCompare(
-            a.game.lastPlayedAt ?? a.game.dateAdded,
-          ),
-        )
-        .slice(0, 12),
-    [visible, view],
+    () => shelfEntries.filter((entry) => !entry.game.hidden).slice(0, 12),
+    [shelfEntries],
   )
-  const logoImage = artworkPreview(heroGame.artwork, 'logo')
+  const displayedTiles = useMemo(
+    () => (!shelfPending && !shelfError ? tiles : []),
+    [tiles, shelfPending, shelfError],
+  )
+  const shelfLooping = shouldLoopCarousel(displayedTiles.length)
+  const carouselCards = useInfiniteCarousel(shelfRef, displayedTiles)
+  const edgeFade = useShelfEdgeFade(shelfRef, shelfLooping, displayedTiles.length)
+  const logoImage = gameLogoImage(
+    heroGame.artwork,
+    heroEntry.steamAppId ?? heroGame.sourceId,
+  )
 
   return (
     <div className={clsx('macos-home', 'min-w-0 px-[var(--console-gutter)] pb-5')}>
@@ -102,10 +127,10 @@ export function MacosHome({
             </span>
             <h2
               id="macos-feature-title"
+              ref={titleRef}
               className={clsx(
-                'mb-[18px] mt-3 max-w-full text-balance text-[clamp(36px,4.2vw,68px)] font-semibold leading-[1.02] tracking-[-0.055em] text-white [text-shadow:0_3px_35px_#0002]',
-                'max-[520px]:max-w-[90%] max-[520px]:text-[42px]',
-                '[@media(max-height:740px)_and_(min-width:900px)]:text-[48px]',
+                'mb-[18px] mt-3 max-w-full whitespace-nowrap text-[4.2vw] font-semibold leading-[1.02] tracking-[-0.055em] text-white [text-shadow:0_3px_35px_#0002]',
+                'max-[520px]:max-w-[90%]',
               )}
             >
               {heroGame.title}
@@ -139,11 +164,16 @@ export function MacosHome({
                   group="macos-feature"
                   order={0}
                   noScale
-                  onClick={() => (running ? onStop() : onPlay(heroEntry))}
+                  disabled={steamBlocked}
+                  onClick={() => {
+                    if (running) onStop()
+                    else if (!steamBlocked) onPlay(heroEntry)
+                  }}
                   className={clsx(
                     'macos-play',
                     'flex min-h-12 items-center gap-[11px] rounded-full bg-[linear-gradient(#ffffffed,#dce9fce0)] px-[26px] text-[13px] font-[650] text-orbit-canvas shadow-play hover:bg-white',
                     'max-[520px]:px-5',
+                    steamBlocked && 'cursor-wait opacity-40',
                   )}
                 >
                   {running ? (
@@ -151,7 +181,11 @@ export function MacosHome({
                   ) : (
                     <Play size={16} fill="currentColor" />
                   )}
-                  {running ? 'Stop game' : 'Jump back in'}
+                  {running
+                    ? 'Stop game'
+                    : steamBlocked
+                      ? 'Waiting for Steam…'
+                      : 'Jump back in'}
                 </Focusable>
                 <Focusable
                   focusId="macos-details"
@@ -238,7 +272,10 @@ export function MacosHome({
             role="group"
             aria-label="Games to show"
           >
-            {(['recent', 'favorites'] as const).map((item, i) => (
+            {(showFavorites
+              ? (['recent', 'installed', 'favorites'] as const)
+              : (['recent', 'installed'] as const)
+            ).map((item, i) => (
               <Focusable
                 key={item}
                 focusId={`macos-view-${item}`}
@@ -246,21 +283,25 @@ export function MacosHome({
                 order={i}
                 noScale
                 aria-pressed={view === item}
-                onClick={() => setView(item)}
+                onClick={() => onView?.(item)}
                 className={clsx(
                   'rounded-full px-4 py-2 text-[11px] text-[#ffffff80]',
                   'aria-pressed:bg-[#ffffff1c] aria-pressed:text-white aria-pressed:shadow-[inset_0_1px_#ffffff18]',
                   'max-[520px]:px-3',
                 )}
               >
-                {item === 'recent' ? 'Recent' : 'Favorites'}
+                {item === 'recent'
+                  ? 'Recent'
+                  : item === 'installed'
+                    ? 'Installed'
+                    : 'Favorites'}
               </Focusable>
             ))}
           </div>
           <Focusable
             focusId="macos-view-library"
             group="macos-view"
-            order={2}
+            order={showFavorites ? 3 : 2}
             noScale
             onClick={() => navigate('library')}
             className={clsx(
@@ -273,69 +314,121 @@ export function MacosHome({
             <ArrowUpRight size={14} />
           </Focusable>
         </header>
-        {!tiles.length && (
+        {!shelfPending && !shelfError && !tiles.length && (
           <p className="py-8 text-sm text-orbit-muted">
-            Favorite a game to keep it close at hand.
+            {view === 'favorites'
+              ? 'Favorite a game to keep it close at hand.'
+              : view === 'installed'
+                ? 'No installed games yet.'
+                : 'No recent games yet.'}
           </p>
+        )}
+        {shelfPending && (
+          <p role="status" className="py-8 text-orbit-muted">
+            Loading games…
+          </p>
+        )}
+        {shelfError && (
+          <div role="alert">
+            Could not load games.{' '}
+            <Focusable focusId="home-retry" group="macos-games" onClick={onRetry}>
+              Try again
+            </Focusable>
+          </div>
         )}
         <div
           className={clsx(
-            'macos-game-grid',
-            'scrollbar-none -mx-[7px] flex w-full min-w-0 snap-x snap-proximity scroll-px-[7px] gap-[22px] overflow-x-auto px-[7px] pb-[22px] pt-[9px]',
-            'max-[900px]:gap-[18px]',
+            'macos-shelf-viewport-fade relative',
+            shelfLooping && '-mx-[var(--console-gutter)]',
+            shelfLooping && SHELF_FOOTER_DISSOLVE_MASK,
           )}
         >
-          {tiles.map((entry, index) => (
-            <Focusable
-              key={entry.id}
-              focusId={`macos-game-${entry.id}`}
-              group="macos-games"
-              order={index}
-              noRing
-              onFocusSelect={() => selectGame(entry)}
-              onClick={() => activateGame(entry)}
-              aria-label={`${entry.game.title}${entry.id === heroEntry.id ? ', selected' : ''}`}
-              aria-pressed={entry.id === heroEntry.id}
-              className={clsx(
-                'macos-game-tile group/tile',
-                'min-w-0 flex-[0_0_clamp(135px,13vw,218px)] snap-start rounded-[var(--shelf-radius)] text-left [--shelf-radius:clamp(22px,2vw,36px)]',
-                'outline-none focus-visible:outline-none data-[focused=true]:shadow-none data-[focused=true]:outline-none',
-                'focus-visible:!outline-none data-[focused=true]:!shadow-none data-[focused=true]:!outline-none',
-                'motion-reduce:data-[focused=true]:transform-none',
-                'max-[900px]:flex-[0_0_145px] max-[520px]:flex-[0_0_135px]',
-                '[@media(max-height:740px)_and_(min-width:900px)]:flex-[0_0_130px]',
-              )}
-            >
-              <SquareGameArt
-                image={gameTileImage(entry.game.artwork, 'square')}
-                placeholder={artworkPlaceholder(entry.id)}
-                className={clsx(
-                  'aspect-square w-full border border-[#ffffff28] shadow-tile transition-shadow duration-300',
-                  'group-aria-pressed/tile:border-[#ffc8da] group-aria-pressed/tile:shadow-tile-selected',
-                  'group-data-[focused=true]/tile:shadow-tile-focus',
-                  'group-focus-visible/tile:shadow-[0_0_0_3px_#ffffffb0,0_18px_35px_#0004]',
-                )}
-                roundedClassName="rounded-[var(--shelf-radius)]"
-              />
-              <span
-                className={clsx(
-                  'macos-tile-name',
-                  'mt-3 block truncate text-xs font-[550] text-[#ffffffe0]',
-                  'min-[1600px]:text-sm',
-                )}
-              >
-                {entry.game.title}
-              </span>
-              <span
-                className={clsx(
-                  'macos-tile-provider',
-                  'mt-1 block text-[9px] text-[#ffffff60]',
-                )}
-              >
-                {providerLabel(entry.game.provider)}
-              </span>
-            </Focusable>
-          ))}
+          <div
+            ref={shelfRef}
+            aria-busy={shelfPending}
+            data-shelf-looping={shelfLooping ? 'true' : 'false'}
+            className={clsx(
+              'macos-game-grid',
+              'scrollbar-none flex w-full min-w-0 gap-[22px] overflow-x-auto pb-[22px] pt-[9px]',
+              shelfFadeMaskClass(edgeFade),
+              'max-[900px]:gap-[18px]',
+            )}
+          >
+            {carouselCards.map(({ entry, copy, focusId }, index) => {
+              const tileImage = gameSquareTileImage(entry.game.artwork)
+              return (
+                <Focusable
+                  key={focusId}
+                  focusId={focusId}
+                  data-loop-copy={copy}
+                  data-loop-entry={entry.id}
+                  group="macos-games"
+                  order={index}
+                  noRing
+                  className={clsx(
+                    'macos-game-tile orbit-art-focus group/tile',
+                    'min-w-0 flex-[0_0_clamp(135px,13vw,218px)] rounded-[var(--shelf-radius)] text-left [--shelf-radius:clamp(22px,2vw,36px)]',
+                    'data-[focused=true]:z-10',
+                    '!duration-500 motion-reduce:data-[focused=true]:transform-none',
+                    'max-[900px]:flex-[0_0_145px] max-[520px]:flex-[0_0_135px]',
+                    '[@media(max-height:740px)_and_(min-width:900px)]:flex-[0_0_130px]',
+                  )}
+                  onFocusSelect={() => {
+                    selectGame(entry)
+                    const shelf = shelfRef.current
+                    const node = focusManager.getFocusedNode()?.element
+                    if (!shelf || !node || !shelf.contains(node)) return
+                    if (node.dataset.loopRebased) {
+                      delete node.dataset.loopRebased
+                      return
+                    }
+                    const box = node.getBoundingClientRect()
+                    const delta = focusKeepInViewDelta(box, innerWidth, shelf.clientWidth)
+                    stopShelfScroll.current()
+                    stopShelfScroll.current = animateScrollBy(shelf, delta, {
+                      reduceMotion: prefersReducedMotion(),
+                    })
+                  }}
+                  onFocus={() => focusManager.setFocus(focusId, { scroll: false })}
+                  onClick={() => details(entry.id)}
+                  aria-label={`${entry.game.title}${entry.id === heroEntry.id ? ', selected' : ''}`}
+                  aria-pressed={entry.id === heroEntry.id}
+                >
+                  <div className="orbit-art-focus-target rounded-[var(--shelf-radius)]">
+                    <CarouselArtwork
+                      key={tileImage ?? entry.id}
+                      image={tileImage}
+                      fit="cover"
+                      placeholder={artworkPlaceholder(entry.id)}
+                      className={clsx(
+                        'aspect-square w-full border border-[#ffffff28] shadow-tile transition-shadow duration-300',
+                        'group-aria-pressed/tile:border-[#ffc8da] group-aria-pressed/tile:shadow-tile-selected',
+                        'group-data-[focused=true]/tile:shadow-tile-focus',
+                      )}
+                      roundedClassName="rounded-[var(--shelf-radius)]"
+                    />
+                  </div>
+                  <span
+                    className={clsx(
+                      'macos-tile-name',
+                      'mt-3 block truncate text-xs font-[550] text-[#ffffffe0]',
+                      'min-[1600px]:text-sm',
+                    )}
+                  >
+                    {entry.game.title}
+                  </span>
+                  <span
+                    className={clsx(
+                      'macos-tile-provider',
+                      'mt-1 block text-[9px] text-[#ffffff60]',
+                    )}
+                  >
+                    {providerLabel(entry.game.provider)}
+                  </span>
+                </Focusable>
+              )
+            })}
+          </div>
         </div>
       </section>
     </div>

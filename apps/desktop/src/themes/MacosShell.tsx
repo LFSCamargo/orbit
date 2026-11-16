@@ -25,11 +25,10 @@ import { resolveNavScreen, backTarget, focusRestoreId } from '@/lib/navigation'
 import { focusManager } from '@/controllers/FocusManager'
 import { glassTint } from '@/lib/backdropLighting'
 import { useBackdropTransition } from '@/hooks/useBackdropTransition'
-import { homeHero } from '@/modules/home/lib/homeHero'
+import { useHomeHero } from '@/modules/home/hooks/useHomeHero'
 import { ShellBackdrop } from './ShellBackdrop'
 import { useActiveTheme } from '@/hooks/useActiveTheme'
 import { useLibrary } from '@/hooks/useLibrary'
-import { artworkPreview } from '@/lib/artwork'
 import { isBrandedTheme } from '@/themes/catalog'
 import { OrbitMark, ThemeBrand } from '@/themes/ThemeBrand'
 
@@ -78,23 +77,18 @@ export function MacosShell({
   const reduce = useReducedMotion()
   const theme = useActiveTheme()
   const branded = isBrandedTheme(theme)
-  const heroGameId = useUiStore((s) => s.heroGameId)
   const library = useLibrary({ view: 'all', sort: 'recently-played' })
   const entries = useMemo(
     () => library.data?.pages.flatMap((page) => page.entries) ?? [],
     [library.data],
   )
-  const heroEntry = useMemo(
-    () => (screen === 'home' ? homeHero(entries, heroGameId) : undefined),
-    [entries, heroGameId, screen],
-  )
-  const heroGame = heroEntry?.game
+  const homeHeroEntry = useHomeHero(entries)
+  const heroGame = screen === 'home' ? homeHeroEntry?.game : undefined
   const backdrop = useBackdropTransition(heroGame, theme.branding?.wallpaper)
   const paintedImage = backdrop.active ?? (reduce ? null : backdrop.outgoing)
   const glassStyle = paintedImage
     ? ({ '--glass-backdrop-tint': glassTint(paintedImage.lighting) } as CSSProperties)
     : undefined
-  const heroLogo = heroGame ? artworkPreview(heroGame.artwork, 'logo') : undefined
   const pendingFocus = useRef<{ screen: string; id: string } | null>(null)
   useEffect(() => {
     if (!downloadsOpen) {
@@ -186,22 +180,7 @@ export function MacosShell({
             '[&_.theme-brand]:min-w-0 [&_.theme-brand]:max-w-full [&_img]:max-w-full [&_img]:object-left',
           )}
         >
-          {screen === 'home' && heroLogo && !branded ? (
-            <img
-              src={heroLogo}
-              alt=""
-              className={clsx(
-                'macos-header-game-logo',
-                'max-h-11 max-w-[140px] object-contain opacity-[0.85] drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)]',
-                'max-[900px]:!w-[26px] max-[900px]:max-w-[26px]',
-                'max-[520px]:max-h-9',
-              )}
-              aria-hidden="true"
-              draggable={false}
-            />
-          ) : (
-            <ThemeBrand branding={theme.branding} />
-          )}
+          <ThemeBrand branding={theme.branding} />
         </div>
         <LiquidGlass
           surface="toolbar"

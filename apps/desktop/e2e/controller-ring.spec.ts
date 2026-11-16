@@ -12,8 +12,12 @@ async function expectRing(target: Locator) {
   await expect
     .poll(() =>
       target.evaluate((el) => {
-        const style = getComputedStyle(el)
-        return style.outlineStyle === 'solid' && parseFloat(style.outlineWidth) >= 3
+        const ring = (node: Element | null) => {
+          if (!node) return false
+          const style = getComputedStyle(node)
+          return style.outlineStyle === 'solid' && parseFloat(style.outlineWidth) >= 3
+        }
+        return ring(el) || ring(el.querySelector('.orbit-art-focus-target'))
       }),
     )
     .toBe(true)
@@ -151,4 +155,31 @@ test('controller opens and closes Settings graphics selectors without leaving th
   await pressPad(page, 0)
   await expect(graphics).toHaveText('Wine')
   await expect(page.locator('[data-screen="settings"]')).toBeVisible()
+})
+
+test('homepage card activation returns controller focus to its Installed shelf', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Installed', exact: true }).click()
+  const card = page.locator('.macos-game-tile').first()
+  const entryId = await card.getAttribute('data-loop-entry')
+  await card.hover()
+  await pressPad(page, 0)
+  await expect(page.locator('[data-screen="game-details"]')).toBeVisible()
+  await pressPad(page, 1)
+  await expect(page.locator('[data-screen="home"]')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Installed', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  const restored = page.locator(
+    `.macos-game-tile[data-loop-entry="${entryId}"][data-focused="true"]`,
+  )
+  await expectRing(restored)
+  await expect
+    .poll(async () => {
+      const box = await restored.boundingBox()
+      const viewport = page.viewportSize()?.width ?? 0
+      return !!box && box.x + box.width > 0 && box.x < viewport
+    })
+    .toBe(true)
 })
