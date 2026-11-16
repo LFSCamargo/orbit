@@ -92,9 +92,37 @@ export interface CompatibilityCatalog {
 export interface InstalledComponent {
   id: string
   version: string
-  kind: 'wine' | 'dxvk' | 'dxmt' | 'moltenVk' | 'gptk'
+  kind: 'wine' | 'dxvk' | 'dxmt' | 'moltenVk' | 'gptk' | 'vkd3dproton' | 'zink'
   path: string
   installedAt: string
+}
+
+/** A Steam title GameHub manages inside one of its Wine containers. */
+export interface GamehubBindingStatus {
+  gameName: string
+  appId: string
+  containerReady: boolean
+  busy: boolean
+}
+
+/** Read-only view of the locally installed GameHub wine-engine. */
+export interface GamehubStatus {
+  available: boolean
+  /** GameHub.app's overlay library was found, so container launches work. */
+  overlayReady: boolean
+  bindings: GamehubBindingStatus[]
+}
+
+export interface ImportedGamehubComponent {
+  id: string
+  version: string
+  path: string
+}
+
+export interface GamehubImportReport {
+  engineAvailable: boolean
+  imported: ImportedGamehubComponent[]
+  skipped: string[]
 }
 
 export interface ComponentSpec {

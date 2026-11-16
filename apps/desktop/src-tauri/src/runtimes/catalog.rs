@@ -244,6 +244,42 @@ async fn moltenvk_component() -> Result<CatalogComponent> {
     ))
 }
 
+async fn vkd3d_proton_component() -> Result<CatalogComponent> {
+    // Upstream publishes .tar.zst releases; Orbit extracts zstd since the
+    // GameHub engine and vkd3d-proton both ship that format.
+    let releases = fetch_releases("HansKristian-Work/vkd3d-proton").await?;
+    Ok(component(
+        "vkd3d-proton",
+        "DirectX 12 graphics",
+        "vkd3d-proton",
+        "https://github.com/HansKristian-Work/vkd3d-proton/releases",
+        "Official upstream builds",
+        compatible_versions(releases, |asset| {
+            asset.name.starts_with("vkd3d-proton-")
+                && (asset.name.ends_with(".tar.zst")
+                    || asset.name.ends_with(".tar.gz")
+                    || asset.name.ends_with(".tar.xz"))
+        }),
+        true,
+    ))
+}
+
+/// zink (OpenGL over Vulkan) has no single public macOS build feed. The row
+/// exists so an imported or registered zink provider shows up in the same
+/// Compatibility list; installs come from `import_gamehub_components` or a
+/// manual path registration.
+fn zink_component() -> CatalogComponent {
+    component(
+        "zink",
+        "OpenGL over Vulkan",
+        "Mesa zink",
+        "https://docs.mesa3d.org/drivers/zink.html",
+        "Import from a local engine or register a path",
+        Vec::new(),
+        false,
+    )
+}
+
 async fn gptk_component() -> Result<CatalogComponent> {
     // Versioned GPTK installs across three legitimate sources:
     // 1. Apple's official Homebrew formula: only Apple's current build.
@@ -310,11 +346,12 @@ pub async fn catalog(force_refresh: bool) -> CompatibilityCatalog {
             }
         }
     }
-    let (wine, dxvk, dxmt, moltenvk, gptk) = tokio::join!(
+    let (wine, dxvk, dxmt, moltenvk, vkd3d, gptk) = tokio::join!(
         wine_components(),
         dxvk_component(),
         dxmt_component(),
         moltenvk_component(),
+        vkd3d_proton_component(),
         gptk_component(),
     );
     let mut components = Vec::new();
@@ -324,6 +361,7 @@ pub async fn catalog(force_refresh: bool) -> CompatibilityCatalog {
         ("DXVK-macOS", dxvk.map(|entry| vec![entry])),
         ("DXMT", dxmt.map(|entry| vec![entry])),
         ("MoltenVK", moltenvk.map(|entry| vec![entry])),
+        ("vkd3d-proton", vkd3d.map(|entry| vec![entry])),
         ("Apple GPTK", gptk.map(|entry| vec![entry])),
     ];
     for (name, result) in results {
@@ -332,6 +370,7 @@ pub async fn catalog(force_refresh: bool) -> CompatibilityCatalog {
             Err(error) => warnings.push(format!("{name}: {error:#}")),
         }
     }
+    components.push(zink_component());
     let catalog = CompatibilityCatalog {
         components,
         fetched_at: chrono::Utc::now().to_rfc3339(),

@@ -163,12 +163,19 @@ Orbit modifies nothing inside Apple's DMG and never uploads or mirrors it. The
 ## Online component catalog
 
 `runtimes/catalog.rs` reads bounded pages from public GitHub release APIs for
-Wine Stable/Development/Staging, DXVK-macOS, DXMT, MoltenVK and the versioned
-Gcenx Game Porting Toolkit releases. Drafts and incompatible assets are skipped;
-public prereleases are included and labelled. Responses are capped at 8 MiB, at
-most 1,000 releases per repository are read, and the merged catalog is cached
-for six hours. Individual feed failures do not hide other components. Tests use
-fixtures, never live APIs.
+Wine Stable/Development/Staging, DXVK-macOS, DXMT, MoltenVK, vkd3d-proton and
+the versioned Gcenx Game Porting Toolkit releases. Drafts and incompatible
+assets are skipped; public prereleases are included and labelled. Responses are
+capped at 8 MiB, at most 1,000 releases per repository are read, and the merged
+catalog is cached for six hours. Individual feed failures do not hide other
+components. Tests use fixtures, never live APIs.
+
+vkd3d-proton (DirectX 12 over Vulkan) installs from upstream `.tar.zst`
+releases; Orbit extracts zstd archives alongside tar/tar.xz/tar.gz. When a DXVK
+launch also has a vkd3d-proton selection, its `d3d12`/`d3d12core` DLLs are
+installed beside DXVK's (DXVK keeps `dxgi`). zink (OpenGL over Vulkan) has no
+single public macOS build feed: its catalog row is import-only, filled by
+`import_gamehub_components` or a manual path registration.
 
 The older `runtime-packages/gptk/` mirror files and `scripts/fetch-gptk.sh` are
 no longer surfaced in the main catalog; they remain in the repository for
@@ -207,6 +214,41 @@ that Orbit does not launch. `validate_launchable` still rejects an option whose
 component or engine is missing. Play sanitizes leftover DXMT NVIDIA, MetalFX,
 and frame-rate flags that do not apply to the resolved engine instead of
 failing on the first overlay step.
+
+## GameHub engine integration
+
+`services/gamehub_engine.rs` treats a locally installed GameHub
+(`com.gamemac.www`) wine-engine as optional, read-only external state. Orbit
+never starts GameHub.app, never writes to its registries, and never reads its
+account tokens; when GameHub is absent every code path degrades to Orbit's own
+managed stack.
+
+- **Discovery** parses `wine-engine/container/{wine_installations,wine_containers,wine_virtual_containers}.json`
+  and `gamehub/game_container_store.json` with bounded, schema-tolerant reads
+  (8 MiB cap, unknown fields ignored). `gamehub_engine_status` reports engine
+  availability, overlay readiness, and per-game container health without
+  spawning any process.
+- **Container launches** (Steam titles, `playEngine: auto|gamehub`) reproduce
+  GameHub's verified recipe: its Wine build, `WINEPREFIX`/`WINEPREFIX_BASE`,
+  the copy-on-write overlay (`DYLD_INSERT_LIBRARIES` of GameHub's
+  `libsandboxfs.dylib` plus the container's own layer manifest, selected by
+  matching the base-container path), the container's graphics-stack environment
+  (`WINEDLLPATH`, `WINE_GPTK_LIBD3DSHARED_PATH`, MoltenVK ICD, zink provider),
+  sync backend, and the in-container `steam.exe` (GameHub's SteamAgent) with
+  `--username … --offline --applaunch {appId}`. A missing overlay is a hard
+  error, never a silent launch into an incomplete filesystem. Exit tracking and
+  stop use the container's own wineserver, matching GameHub semantics.
+- **Component import** (`import_gamehub_components`,
+  `runtimes/gamehub_components.rs`) registers GameHub's installed GPTK, DXMT,
+  vkd3d-proton, MoltenVK, and zink payloads into Orbit's component store as
+  read-only references (manifest only — nothing is copied or redistributed).
+  Imported versions are named after their GameHub component (`gptk-4.0-2`,
+  `dxmt-v0.80`, …) and become selectable like downloaded ones. D3DMetal accepts
+  GameHub's flat `wine/` payload layout and surfaces `libd3dshared` as engine
+  environment.
+- **Account name** for `--username` comes from Orbit's stored Steam account;
+  only when Orbit has none does Orbit read the plain `account_name` field from
+  GameHub's account registry. Token fields are absent from the parsed shape.
 
 ## CrossOver and GameHub feature audit
 

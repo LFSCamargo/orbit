@@ -109,19 +109,12 @@ pub fn start_title(
         .prepare(profile, game_id, &crate::runtimes::root(), cancel, progress)
         .map_err(|err| format!("{err:#}"))?;
     progress("spawn");
-    super::steam_launch::request_applaunch(
-        Path::new(&prepared.runtime.path),
-        &prepared.prefix,
-        app_id,
-    )?;
-    let exe_name = prepared
-        .executable
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or("This game has no Windows executable to wait for")?
-        .to_string();
-    super::steam_launch::wait_for_game(&prepared.prefix, &exe_name, cancel)
-        .map(|process| Box::new(process) as Box<dyn RuntimeProcess>)
+    // The resident Steam client retains the CPU-only sign-in environment.
+    // A second steam.exe -applaunch forwards only the app id to that process,
+    // losing the prepared graphics DLL paths, options and game arguments.
+    prepared
+        .spawn(Some(app_id), cancel)
+        .map_err(|err| format!("{err:#}"))
 }
 
 pub fn ensure_silent_client(
@@ -248,13 +241,12 @@ fn read_steam_log(steam_root: &Path, name: &str) -> String {
     let Ok(mut file) = std::fs::File::open(&path) else {
         return String::new();
     };
-    if metadata.len() > LOG_LIMIT {
-        if file
+    if metadata.len() > LOG_LIMIT
+        && file
             .seek(SeekFrom::Start(metadata.len() - LOG_LIMIT))
             .is_err()
-        {
-            return String::new();
-        }
+    {
+        return String::new();
     }
     let mut content = String::new();
     if file.take(LOG_LIMIT).read_to_string(&mut content).is_err() {

@@ -2,6 +2,7 @@
 pub mod catalog;
 pub mod components;
 pub mod detection;
+pub mod gamehub_components;
 pub mod gptk_local;
 pub mod homebrew;
 pub mod layer;

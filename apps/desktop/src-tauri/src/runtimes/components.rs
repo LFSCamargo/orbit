@@ -31,6 +31,8 @@ pub enum ComponentKind {
     Dxmt,
     MoltenVk,
     Gptk,
+    Vkd3dProton,
+    Zink,
 }
 
 impl ComponentKind {
@@ -41,6 +43,8 @@ impl ComponentKind {
             "dxmt" => Some(ComponentKind::Dxmt),
             "moltenvk" => Some(ComponentKind::MoltenVk),
             "gptk" => Some(ComponentKind::Gptk),
+            "vkd3d-proton" => Some(ComponentKind::Vkd3dProton),
+            "zink" => Some(ComponentKind::Zink),
             _ => None,
         }
     }
@@ -311,7 +315,14 @@ fn extract(bytes: &[u8], destination: &Path, archive_kind: ArchiveKind) -> Resul
         ArchiveKind::Tar => extract_tar_plain(bytes, destination),
         ArchiveKind::TarXz => extract_tar(bytes, destination),
         ArchiveKind::TarGz => extract_tar_gz(bytes, destination),
+        ArchiveKind::TarZst => extract_tar_zst(bytes, destination),
     }
+}
+
+fn extract_tar_zst(bytes: &[u8], destination: &Path) -> Result<()> {
+    let decoder = zstd::stream::read::Decoder::new(bytes).context("Cannot decode zstd package")?;
+    let mut archive = tar::Archive::new(decoder);
+    extract_archive_entries(&mut archive, destination)
 }
 
 fn extract_tar_plain(bytes: &[u8], destination: &Path) -> Result<()> {
@@ -324,6 +335,7 @@ enum ArchiveKind {
     Tar,
     TarXz,
     TarGz,
+    TarZst,
 }
 
 fn archive_kind(name: &str) -> Result<ArchiveKind> {
@@ -331,6 +343,8 @@ fn archive_kind(name: &str) -> Result<ArchiveKind> {
         Ok(ArchiveKind::TarXz)
     } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
         Ok(ArchiveKind::TarGz)
+    } else if name.ends_with(".tar.zst") || name.ends_with(".tzst") {
+        Ok(ArchiveKind::TarZst)
     } else if name.ends_with(".tar") {
         Ok(ArchiveKind::Tar)
     } else {
@@ -485,9 +499,48 @@ fn validate_installation(dir: &Path, kind: ComponentKind) -> Result<String> {
                 }
             }
             if !has_wine && !has_d3dmetal {
-                bail!("Extracted GPTK package is missing the D3DMetal framework and Wine binaries");
+                // GameHub-style GPTK components ship the framework inside
+                // external/D3DMetal.framework instead of a loose dylib.
+                let framework = find_file_within(dir, |_, name| name == "D3DMetal.framework");
+                if framework.is_none() {
+                    bail!("Extracted GPTK package is missing the D3DMetal framework and Wine binaries");
+                }
             }
             Ok(dir.to_string_lossy().into_owned())
+        }
+        ComponentKind::Vkd3dProton => {
+            // Upstream releases are Wine builtin trees (`x86_64-windows`); some
+            // redistributions keep the classic `x64/` layout. Either is valid.
+            let dll = find_file_within(dir, |path, name| {
+                name == "d3d12.dll"
+                    && path.parent().is_some_and(|parent| {
+                        parent.file_name().is_some_and(|dir| {
+                            dir == std::ffi::OsStr::new("x64")
+                                || dir == std::ffi::OsStr::new("x86_64-windows")
+                        })
+                    })
+            })
+            .context(
+                "The vkd3d-proton package does not contain d3d12.dll under x86_64-windows or x64",
+            )?;
+            let root = dll
+                .parent()
+                .and_then(|parent| parent.parent())
+                .unwrap_or(dir);
+            Ok(root.to_string_lossy().into_owned())
+        }
+        ComponentKind::Zink => {
+            // Mesa's zink gallium driver: GameHub ships libwine_mesa_zink.dylib,
+            // Linux-style builds ship zink_dri.so, and some macOS builds expose
+            // libzink.dylib. The directory holding the driver is the payload.
+            let driver = find_file_within(dir, |_, name| {
+                name == "libwine_mesa_zink.dylib"
+                    || name == "zink_dri.so"
+                    || name == "libzink.dylib"
+            })
+            .context("The zink package does not contain a zink driver library")?;
+            let root = driver.parent().unwrap_or(dir);
+            Ok(root.to_string_lossy().into_owned())
         }
     }
 }
@@ -553,7 +606,7 @@ where
     ));
     fs::create_dir_all(&staging)?;
     let result = (|| -> Result<InstalledComponent> {
-        let archive_kind = archive_kind(&spec.url.rsplit('/').next().unwrap_or(&spec.url))?;
+        let archive_kind = archive_kind(spec.url.rsplit('/').next().unwrap_or(&spec.url))?;
         extract(bytes, &staging, archive_kind)?;
         // Move staged contents into the final versioned directory. For archives
         // with a single top-level folder, flatten one level so the manifest sits
@@ -563,7 +616,7 @@ where
         let component = InstalledComponent {
             id: spec.id.clone(),
             version: spec.version.clone(),
-            kind: kind,
+            kind,
             path,
             installed_at: chrono::Utc::now().to_rfc3339(),
         };
@@ -635,7 +688,11 @@ fn finalize_staging(staging: &Path, target: &Path) -> Result<PathBuf> {
     Ok(target.to_path_buf())
 }
 
-/// Register a locally available component path (used for GPTK/D3DMetal import).
+/// Register a locally available component path. GPTK accepts an Apple DMG or a
+/// payload directory; every other kind validates the directory against the same
+/// layout rules a download would pass, so a registered path is launch-ready.
+/// This is also how external engines (GameHub's wine-engine) lend components to
+/// Orbit without copying or redistributing anything.
 pub fn register(
     root: &Path,
     id: String,
@@ -653,7 +710,19 @@ pub fn register(
 
     let validated_path = match kind {
         ComponentKind::Gptk => validate_gptk_path(&path)?,
-        _ => bail!("Only GPTK supports manual path registration"),
+        ComponentKind::Wine => {
+            // Wine registration goes through the full probe: a path that cannot
+            // execute must never become a selectable runtime.
+            reject_traversal(&path)?;
+            validate_installation(&path, kind)?
+        }
+        _ => {
+            reject_traversal(&path)?;
+            if !path.is_dir() {
+                bail!("Selected component path is not a directory");
+            }
+            validate_installation(&path, kind)?
+        }
     };
 
     let component = InstalledComponent {
@@ -665,6 +734,17 @@ pub fn register(
     };
     write_manifest(&dir, &component)?;
     Ok(component)
+}
+
+fn reject_traversal(path: &Path) -> Result<()> {
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        bail!("Choose an absolute path without parent traversal");
+    }
+    Ok(())
 }
 
 fn validate_gptk_path(path: &Path) -> Result<String> {

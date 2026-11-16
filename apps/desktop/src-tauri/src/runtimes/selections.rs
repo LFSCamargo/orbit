@@ -33,6 +33,8 @@ fn is_selectable(component: &str) -> bool {
     component == "dxvk"
         || component == "dxmt"
         || component == "gptk"
+        || component == "vkd3d-proton"
+        || component == "zink"
         || component.starts_with("wine-")
 }
 
@@ -134,6 +136,8 @@ pub fn resolve(root: &Path, actives: &ActiveComponents) -> BTreeMap<String, Stri
         "moltenvk",
         "dxmt",
         "gptk",
+        "vkd3d-proton",
+        "zink",
         "wine-stable",
         "wine-devel",
         "wine-staging",

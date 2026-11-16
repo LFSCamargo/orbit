@@ -68,6 +68,8 @@ pub fn run() {
             commands::runtimes::install_gptk_via_homebrew,
             commands::runtimes::install_local_gptk_package,
             commands::runtimes::register_component_path,
+            commands::runtimes::gamehub_engine_status,
+            commands::runtimes::import_gamehub_components,
             commands::runtimes::active_components,
             commands::runtimes::set_active_component,
             commands::runtimes::component_views,
