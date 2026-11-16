@@ -564,7 +564,12 @@ pub fn start_title(
     let log = process::log_file(&dir.join("latest.log"))?;
 
     progress("spawn");
-    let mut command = process::base_command(Path::new(&plan.runtime.path));
+    let bundle = game_bundle_for(plan, &log);
+    let program = bundle
+        .as_ref()
+        .map(|bundle| bundle.loader.clone())
+        .unwrap_or_else(|| PathBuf::from(&plan.runtime.path));
+    let mut command = process::base_command(&program);
     command
         .env("WINEPREFIX", &plan.prefix)
         .env("WINEDEBUG", "-all")
@@ -586,6 +591,9 @@ pub fn start_title(
     for (key, value) in &plan.env {
         command.env(key, value);
     }
+    if let Some(bundle) = &bundle {
+        command.envs(bundle.env());
+    }
     command.args(steam_agent_args(app_id, account));
     command.current_dir(&plan.steam_dir);
 
@@ -595,6 +603,29 @@ pub fn start_title(
         plan.runtime.clone(),
         plan.prefix.clone(),
     ))
+}
+
+/// Run the container through Orbit's games-category bundle so Game Mode boosts
+/// the game, not Orbit. Falls back to the plain installation (noted in the
+/// game log) when the loader cannot be bundled.
+fn game_bundle_for(
+    plan: &ContainerLaunchPlan,
+    log: &std::sync::Arc<std::sync::Mutex<std::fs::File>>,
+) -> Option<crate::runtimes::game_bundle::GameBundle> {
+    let install = Path::new(&plan.runtime.path).parent()?.parent()?;
+    match crate::runtimes::game_bundle::ensure(install, &crate::runtimes::root()) {
+        Ok(bundle) => bundle,
+        Err(error) => {
+            if let Ok(mut file) = log.lock() {
+                use std::io::Write;
+                let _ = writeln!(
+                    file,
+                    "orbit: game bundle unavailable, launching unbundled: {error:#}"
+                );
+            }
+            None
+        }
+    }
 }
 
 /// The pure routing decision, split out so the matrix is testable without a
