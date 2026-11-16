@@ -114,6 +114,7 @@ Do not:
 - Skip or delete failing tests to make CI green
 - Commit debug `console.log` / `println!` noise
 - Commit secrets (RAWG keys, API tokens)
+- Delete `~/Library/Application Support/Orbit/` or `steam-windows` while developing (see [`.cursor/rules/preserve-user-data.mdc`](.cursor/rules/preserve-user-data.mdc))
 
 Security-sensitive changes (paths, launch, SQL): review [`.cursor/rules/security-first.mdc`](.cursor/rules/security-first.mdc).
 

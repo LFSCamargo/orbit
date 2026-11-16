@@ -36,7 +36,7 @@ Desktop paths are relative to `apps/desktop/`.
 | `scripts/` (root)       | Release, version sync, cleanup, agent skill sync                                                    |
 | `docs/` (root)          | Design, Tauri, frontend, UI, theme, and landing docs                                                |
 
-Detailed rules: `.cursor/rules/spaghetti-checker.mdc`, `.cursor/rules/project-overview.mdc`.
+Detailed rules: `.cursor/rules/spaghetti-checker.mdc`, `.cursor/rules/project-overview.mdc`, `.cursor/rules/preserve-user-data.mdc`.
 
 ## Changing files
 
@@ -46,9 +46,10 @@ After any code, script, or test change, finish all of these before you stop:
 2. **Keep one context per file.** New screen → `src/modules/`; new command group → `src-tauri/src/commands/`; new importer → `src-tauri/src/importers/`. `lib.rs` is wiring only.
 3. **Check complexity.** No nested loops over library lists, no `invoke` or SQLite calls inside loops, no unbounded queries, no decoding full artwork blobs for thumbnail grids. Add a short complexity note for non-trivial code. See `.cursor/rules/o1-check.mdc`.
 4. **Check security.** Validate and canonicalize paths in Rust, reject `..` traversal, parameterized SQL only, whitelist launch targets, treat user theme JSON and the GitHub Releases payload as untrusted, keep `GITHUB_TOKEN` server-only, no `eval` or `dangerouslySetInnerHTML`, no secrets in source or logs. See `.cursor/rules/security-first.mdc`.
-5. **Run the gates** for what you touched (list below). Never use `@ts-ignore` or `any` to pass, and never skip or delete a failing test. See `.cursor/rules/quality-gating.mdc`.
-6. **Keep docs in sync.** Scope or command contract → `docs/DESIGN_DOC.mdc` first, then `docs/TAURI.mdc`, `docs/FRONTEND.mdc`, or `docs/UI.mdc`. Theme fields → `docs/UI.mdc`, `docs/THEMES.md`, and `docs/examples/`. Landing routes or release parsing → `docs/LANDING.md`. Folder changes → update the trees. See `.cursor/rules/docs-sync.mdc`.
-7. **List anti-pattern violations** in files you touched. Rust: `.cursor/rules/rust-anti-patterns.mdc`. Web: `.cursor/rules/web-anti-patterns.mdc`. End with the violation list, or `None in the touched files.` Call `folder-pattern-manager` when the user asks to organize application folders.
+5. **Preserve live user data.** Never delete `~/Library/Application Support/Orbit/`, `steam-windows`, or the live SQLite file while developing, testing, or reinstalling Orbit.app. Sign-in/install must not wipe a prefix that already has Steam or a saved login. See `.cursor/rules/preserve-user-data.mdc`.
+6. **Run the gates** for what you touched (list below). Never use `@ts-ignore` or `any` to pass, and never skip or delete a failing test. See `.cursor/rules/quality-gating.mdc`.
+7. **Keep docs in sync.** Scope or command contract → `docs/DESIGN_DOC.mdc` first, then `docs/TAURI.mdc`, `docs/FRONTEND.mdc`, or `docs/UI.mdc`. Theme fields → `docs/UI.mdc`, `docs/THEMES.md`, and `docs/examples/`. Landing routes or release parsing → `docs/LANDING.md`. Folder changes → update the trees. See `.cursor/rules/docs-sync.mdc`.
+8. **List anti-pattern violations** in files you touched. Rust: `.cursor/rules/rust-anti-patterns.mdc`. Web: `.cursor/rules/web-anti-patterns.mdc`. End with the violation list, or `None in the touched files.` Call `folder-pattern-manager` when the user asks to organize application folders.
 
 Docs-only edits skip tests when runtime behavior did not change. Still scan for secrets.
 

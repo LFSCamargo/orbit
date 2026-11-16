@@ -51,7 +51,7 @@ yarn tauri:dev
 | Detail        | Value                                                   |
 | ------------- | ------------------------------------------------------- |
 | Vite dev URL  | `http://localhost:1420` (`apps/desktop/vite.config.ts`) |
-| Database      | `~/Library/Application Support/Orbit/orbit.db`          |
+| Database      | `~/Library/Application Support/Orbit/orbit.sqlite3`     |
 | Custom themes | `~/Library/Application Support/Orbit/themes/`           |
 
 Use this mode when working on importers, launch, SQLite, native dialogs, or window management.
@@ -200,14 +200,18 @@ On macOS, Orbit stores local data under Application Support:
 
 ```text
 ~/Library/Application Support/Orbit/
-  orbit.db              # SQLite library database
+  orbit.sqlite3         # SQLite library + settings
+  steam-windows/        # Signed-in Windows Steam prefix (do not delete)
   themes/*.json         # User-authored custom themes
 ```
 
 Settings such as active theme id, optional RAWG API key, SteamGridDB API key, and
 `autoEnrichOnImport` are stored in the SQLite `settings` table.
 
-To reset local state during development, quit Orbit and remove `orbit.db` (this clears your library).
+Do not delete the whole `Orbit/` folder or `steam-windows/` while developing — that
+wipes the Windows Steam login and settings. See
+[`.cursor/rules/preserve-user-data.mdc`](.cursor/rules/preserve-user-data.mdc).
+To reset **only** the game library, quit Orbit and remove `orbit.sqlite3` after a backup.
 
 ---
 
@@ -285,7 +289,9 @@ yarn clean          # cargo clean + remove dist/test/release artifacts (~11 GB t
 yarn clean:deep     # also prune global yarn + cargo caches (optional)
 ```
 
-Orbit app data lives in `~/Library/Application Support/Orbit/` (SQLite + artwork). Do not delete that folder unless you intend to reset your library.
+Orbit app data lives in `~/Library/Application Support/Orbit/` (SQLite, artwork,
+themes, and `steam-windows/`). Do not delete that folder unless you intend to
+reset the library **and** the Windows Steam session.
 
 See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 
