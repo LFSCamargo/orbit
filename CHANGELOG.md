@@ -20,6 +20,27 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-15
+
+### Fixed
+
+- Steam sign-in no longer fails when Wine is already stopped; a bounded server wait certifies shutdown.
+- Cancel dismisses the sign-in modal even if cleanup fails, with the failure reported as a notification.
+- Native shutdown operations time out rather than leaving cancellation waiting indefinitely.
+
+[1.1.2]: https://github.com/LFSCamargo/orbit/releases/tag/v1.1.2
+
+## [1.1.1] - 2026-11-15
+
+### Fixed
+
+- Steam Wine sign-in browser rendering and offscreen-window recovery using a bundled, source-included compatibility helper.
+- Modal readiness based on native placement, explicit positioning errors, and cancellation that waits for native shutdown.
+- Positioning scoped to the managed Steam browser instead of unrelated Wine or native Steam windows.
+- Stable Orbit header branding and persistent failed game-launch feedback.
+
+[1.1.1]: https://github.com/LFSCamargo/orbit/releases/tag/v1.1.1
+
 ## [1.1.0] - 2026-11-14
 
 One library for Mac and Windows Steam games, with in-app Wine and GPTK.
