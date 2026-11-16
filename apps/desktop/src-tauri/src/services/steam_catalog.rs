@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::services::steam_download::valid_app_id;
-use crate::services::steamgrid;
+use crate::services::{steam_app_types, steamgrid};
 
 const OWNED_LIMIT: usize = 2 * 1024 * 1024;
 const TITLE_LIMIT: usize = 200;
@@ -43,6 +43,10 @@ pub struct SteamCatalogEntry {
     pub playtime_seconds: i64,
     #[serde(default)]
     pub last_played_at: Option<String>,
+    /// Steam store `type` (`game`, `application`, `dlc`, …), lowercased.
+    /// `None` until the store has been asked.
+    #[serde(default)]
+    pub app_type: Option<String>,
 }
 
 impl SteamCatalogEntry {
@@ -62,6 +66,14 @@ pub fn placeholder_title(app_id: &str) -> String {
 pub fn is_placeholder_title(title: &str, app_id: &str) -> bool {
     let trimmed = title.trim();
     trimmed.is_empty() || trimmed == placeholder_title(app_id)
+}
+
+/// Owned Steam apps that belong in the game library (see `steam_app_types`).
+pub fn is_game(entry: &SteamCatalogEntry, installed: bool) -> bool {
+    steam_app_types::is_playable(
+        entry.app_type.as_deref(),
+        installed || entry.playtime_seconds > 0,
+    )
 }
 
 pub fn is_thin_description(description: Option<&str>) -> bool {
@@ -93,9 +105,11 @@ pub fn include_installed(
 }
 
 pub fn catalog_needs_hydrate(entries: &[SteamCatalogEntry]) -> bool {
-    entries
-        .iter()
-        .any(|entry| is_placeholder_title(&entry.title, &entry.app_id) || is_stale(entry))
+    entries.iter().any(|entry| {
+        is_placeholder_title(&entry.title, &entry.app_id)
+            || is_stale(entry)
+            || entry.app_type.is_none()
+    })
 }
 
 pub fn is_stale(entry: &SteamCatalogEntry) -> bool {
@@ -263,6 +277,7 @@ pub fn merge_api_snapshot(
                 entry.minimum_requirements = saved.minimum_requirements.clone();
                 entry.recommended_requirements = saved.recommended_requirements.clone();
                 entry.proton_tier = saved.proton_tier.clone();
+                entry.app_type = saved.app_type.clone();
             }
             entry
         })
@@ -303,14 +318,28 @@ struct StorePayload {
     description: Option<String>,
     minimum: Option<String>,
     recommended: Option<String>,
+    app_type: Option<String>,
 }
 
 pub fn apply_store_details(entry: &mut SteamCatalogEntry, value: &Value) -> bool {
     let Some(payload) = parse_store_payload(&entry.app_id, value) else {
+        let delisted = value
+            .get(&entry.app_id)
+            .and_then(|item| item.get("success"))
+            .and_then(Value::as_bool)
+            == Some(false);
+        if delisted && entry.app_type.is_none() {
+            entry.app_type = Some(steam_app_types::UNLISTED.into());
+            return true;
+        }
         return false;
     };
     let mut changed = apply_details(entry, Some(payload.title), payload.description);
     changed |= apply_requirements(entry, payload.minimum, payload.recommended);
+    if payload.app_type.is_some() && payload.app_type != entry.app_type {
+        entry.app_type = payload.app_type;
+        changed = true;
+    }
     changed
 }
 
@@ -342,6 +371,10 @@ fn parse_store_payload(app_id: &str, value: &Value) -> Option<StorePayload> {
         description,
         minimum,
         recommended,
+        app_type: data
+            .get("type")
+            .and_then(Value::as_str)
+            .and_then(steam_app_types::clean),
     })
 }
 
@@ -433,12 +466,12 @@ pub async fn hydrate(
     favorites: &HashSet<String>,
     force: bool,
 ) -> bool {
+    let mut changed = classify(entries).await;
     let can_fetch_art = sgdb_key.is_some();
     let targets = hydrate_indices(entries, installed, favorites, can_fetch_art, force);
     if targets.is_empty() {
-        return false;
+        return changed;
     }
-    let mut changed = false;
     let mut sgdb_usable = can_fetch_art;
     for chunk in targets.chunks(HYDRATE_CONCURRENCY) {
         let mut set = tokio::task::JoinSet::new();
@@ -498,6 +531,34 @@ pub async fn hydrate(
                 _ => {}
             }
             entry.last_hydrated_at = Some(chrono::Utc::now().to_rfc3339());
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Fill missing app types in one batched lookup. A failed lookup leaves them
+/// unset so the next hydrate retries.
+async fn classify(entries: &mut [SteamCatalogEntry]) -> bool {
+    let missing: Vec<String> = entries
+        .iter()
+        .filter(|entry| entry.app_type.is_none())
+        .map(|entry| entry.app_id.clone())
+        .collect();
+    if missing.is_empty() {
+        return false;
+    }
+    let Ok(types) = steam_app_types::fetch(&missing).await else {
+        return false;
+    };
+    apply_app_types(entries, &types)
+}
+
+pub fn apply_app_types(entries: &mut [SteamCatalogEntry], types: &HashMap<String, String>) -> bool {
+    let mut changed = false;
+    for entry in entries.iter_mut().filter(|entry| entry.app_type.is_none()) {
+        if let Some(kind) = types.get(&entry.app_id) {
+            entry.app_type = Some(kind.clone());
             changed = true;
         }
     }
@@ -620,6 +681,7 @@ fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
                 last_played_at: parsed
                     .last_played_at
                     .filter(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).is_ok()),
+                app_type: parsed.app_type.as_deref().and_then(steam_app_types::clean),
                 app_id,
             })
         }
@@ -982,6 +1044,7 @@ mod tests {
         );
         named.cover_url =
             Some("https://cdn.akamai.steamstatic.com/steam/apps/1593500/header.jpg".into());
+        named.app_type = Some("game".into());
         assert!(!catalog_needs_hydrate(&[named]));
     }
 
@@ -996,6 +1059,7 @@ mod tests {
             ),
             cover_url: Some("https://cdn.steamgriddb.com/grid/cs2.png".into()),
             last_hydrated_at: Some(chrono::Utc::now().to_rfc3339()),
+            app_type: Some("game".into()),
             ..SteamCatalogEntry::default()
         };
         let mut installed_thin = SteamCatalogEntry::from_app_id("570").unwrap();
@@ -1060,5 +1124,80 @@ mod tests {
             Some("BioShock 2")
         );
         assert!(parse_sgdb_title("8850", &json!({"success": false})).is_none());
+    }
+
+    #[test]
+    fn store_details_record_the_steam_app_type() {
+        let details = |kind: &str| json!({ "1": { "success": true, "data": { "name": "Driver Booster for Steam", "type": kind } } });
+        let mut tool = SteamCatalogEntry::from_app_id("1").unwrap();
+        assert!(apply_store_details(&mut tool, &details("Application")));
+        assert_eq!(tool.app_type.as_deref(), Some("application"));
+        assert!(!is_game(&tool, true));
+
+        let mut game = SteamCatalogEntry::from_app_id("1").unwrap();
+        apply_store_details(&mut game, &details("game"));
+        assert!(is_game(&game, false));
+
+        // Unclassified entries stay visible until the store says otherwise.
+        assert!(is_game(
+            &SteamCatalogEntry::from_app_id("2").unwrap(),
+            false
+        ));
+        // Garbage types are ignored rather than stored.
+        let mut odd = SteamCatalogEntry::from_app_id("1").unwrap();
+        apply_store_details(&mut odd, &details("<script>"));
+        assert_eq!(odd.app_type, None);
+    }
+
+    #[test]
+    fn missing_types_trigger_a_batched_lookup_not_per_app_refetches() {
+        let mut entry = SteamCatalogEntry::from_app_id("7").unwrap();
+        entry.title = "Steam".into();
+        entry.description = Some("x".repeat(THIN_DESCRIPTION + 1));
+        entry.last_hydrated_at = Some(chrono::Utc::now().to_rfc3339());
+        assert!(catalog_needs_hydrate(std::slice::from_ref(&entry)));
+        assert!(!needs_metadata(&entry, false));
+
+        let mut entries = vec![entry, SteamCatalogEntry::from_app_id("920490").unwrap()];
+        let types = HashMap::from([
+            ("7".to_string(), steam_app_types::UNLISTED.to_string()),
+            ("920490".to_string(), "application".to_string()),
+        ]);
+        assert!(apply_app_types(&mut entries, &types));
+        assert!(
+            !apply_app_types(&mut entries, &types),
+            "known types are kept"
+        );
+        assert!(!catalog_needs_hydrate(&entries[..1]));
+        // Steam's own client has no store item and no play history.
+        assert!(!is_game(&entries[0], false));
+        assert!(!is_game(&entries[1], false));
+    }
+
+    #[test]
+    fn delisted_games_with_history_stay_visible() {
+        let mut entry = SteamCatalogEntry::from_app_id("224060").unwrap();
+        assert!(apply_store_details(
+            &mut entry,
+            &json!({ "224060": { "success": false } })
+        ));
+        assert_eq!(entry.app_type.as_deref(), Some(steam_app_types::UNLISTED));
+        assert!(!is_game(&entry, false));
+        assert!(is_game(&entry, true), "installed");
+        entry.playtime_seconds = 60;
+        assert!(is_game(&entry, false), "played");
+    }
+
+    #[test]
+    fn stored_and_refreshed_entries_keep_their_app_type() {
+        let stored = parse_stored_library(Some(json!([
+            { "appId": "1", "title": "Tool", "appType": "application" },
+            { "appId": "2", "title": "Odd", "appType": "../../etc" }
+        ])));
+        assert_eq!(stored[0].app_type.as_deref(), Some("application"));
+        assert_eq!(stored[1].app_type, None);
+        let refreshed =
+            merge_api_snapshot(&stored, vec![SteamCatalogEntry::from_app_id("1").unwrap()]);
+        assert_eq!(refreshed[0].app_type.as_deref(), Some("application"));
     }
 }

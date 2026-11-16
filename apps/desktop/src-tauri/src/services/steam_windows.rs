@@ -193,8 +193,12 @@ pub fn present(entries: Vec<SteamCatalogEntry>, paths: &[String]) -> Vec<SteamOw
     let library = install_index(paths);
     entries
         .into_iter()
-        .map(|entry| {
+        .filter_map(|entry| {
             let library_install = library.by_id.get(&entry.app_id);
+            let installed = orbit_installed(&entry.app_id) || library_install.is_some();
+            if !steam_catalog::is_game(&entry, installed) {
+                return None;
+            }
             let title = if steam_catalog::is_placeholder_title(&entry.title, &entry.app_id) {
                 library_install
                     .map(|install| install.title.clone())
@@ -202,8 +206,8 @@ pub fn present(entries: Vec<SteamCatalogEntry>, paths: &[String]) -> Vec<SteamOw
             } else {
                 entry.title
             };
-            SteamOwnedGame {
-                installed: orbit_installed(&entry.app_id) || library_install.is_some(),
+            Some(SteamOwnedGame {
+                installed,
                 cover_url: entry
                     .cover_url
                     .filter(|url| url.starts_with("https://"))
@@ -215,7 +219,7 @@ pub fn present(entries: Vec<SteamCatalogEntry>, paths: &[String]) -> Vec<SteamOw
                 description: entry.description,
                 title,
                 app_id: entry.app_id,
-            }
+            })
         })
         .collect()
 }

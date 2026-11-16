@@ -43,6 +43,7 @@ fn merge_metadata(
                 entry.minimum_requirements = details.minimum_requirements;
                 entry.recommended_requirements = details.recommended_requirements;
                 entry.proton_tier = details.proton_tier;
+                entry.app_type = details.app_type;
                 entry.last_hydrated_at = details.last_hydrated_at;
             }
             entry

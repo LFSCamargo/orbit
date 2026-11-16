@@ -109,12 +109,23 @@ fn installation(game: &Game) -> Installation {
 
 /// O(n + m) grouping, then O(t log t) deterministic title ordering; no IPC or SQL per title.
 pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEntry> {
+    // Software stays out even when installed; an unlisted app with a local
+    // install is kept (a delisted game looks the same as Steam's own tools).
+    let software: HashSet<String> = catalog
+        .iter()
+        .filter(|item| !steam_catalog::is_game(item, true))
+        .map(|item| item.app_id.clone())
+        .collect();
+    let local: HashSet<String> = games.iter().filter_map(steam_id).collect();
     let mut entries: HashMap<String, LibraryEntry> = HashMap::new();
     for game in games {
         if game.provider == GameProvider::Gamehub {
             continue;
         }
         let app_id = steam_id(&game);
+        if app_id.as_ref().is_some_and(|id| software.contains(id)) {
+            continue;
+        }
         let id = app_id
             .as_ref()
             .map(|id| format!("steam:{id}"))
@@ -148,7 +159,10 @@ pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEn
             }
         }
     }
-    for item in catalog {
+    for item in catalog
+        .into_iter()
+        .filter(|item| steam_catalog::is_game(item, local.contains(&item.app_id)))
+    {
         let id = format!("steam:{}", item.app_id);
         let run = run_info(&item);
         if let Some(entry) = entries.get_mut(&id) {
@@ -414,6 +428,31 @@ mod tests {
             catalog_only.game.artwork.logo.as_deref(),
             Some("https://cdn.akamai.steamstatic.com/steam/apps/20/logo.png")
         );
+    }
+    #[test]
+    fn steam_software_is_left_out_of_the_library() {
+        // Driver Booster and similar tools are owned Steam apps, not games.
+        let mut tool = SteamCatalogEntry::from_app_id("30").unwrap();
+        tool.app_type = Some("application".into());
+        let mut game_entry = SteamCatalogEntry::from_app_id("10").unwrap();
+        game_entry.app_type = Some("game".into());
+        let unclassified = SteamCatalogEntry::from_app_id("20").unwrap();
+        // A local Windows install of the same tool stays hidden too.
+        let local = vec![game("tool-install", Some("30"), GamePlatform::Windows)];
+        let entries = merge(local, vec![tool, game_entry, unclassified]);
+        let mut ids: Vec<_> = entries.iter().map(|entry| entry.id.as_str()).collect();
+        ids.sort();
+        assert_eq!(ids, ["steam:10", "steam:20"]);
+
+        // Unlisted apps (Steam's client, delisted games) need a local install.
+        let mut client = SteamCatalogEntry::from_app_id("7").unwrap();
+        client.app_type = Some("unlisted".into());
+        let mut delisted = SteamCatalogEntry::from_app_id("40").unwrap();
+        delisted.app_type = Some("unlisted".into());
+        let local = vec![game("delisted-install", Some("40"), GamePlatform::Windows)];
+        let entries = merge(local, vec![client, delisted]);
+        let ids: Vec<_> = entries.iter().map(|entry| entry.id.as_str()).collect();
+        assert_eq!(ids, ["steam:40"]);
     }
     #[test]
     fn equal_titles_never_merge_without_verified_identity() {
