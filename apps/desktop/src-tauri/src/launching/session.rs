@@ -84,7 +84,7 @@ impl SessionManager {
 
         let result = match &game.launch_config {
             crate::models::LaunchConfiguration::Wine { profile } => {
-                emit_launch_progress(app, &game.id, "resolve");
+                emit_launch_progress(app, &game.id, "resolve", Some(&game.title));
                 let steam_windows =
                     game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows;
                 // GameHub container route: when a local GameHub engine manages
@@ -105,7 +105,7 @@ impl SessionManager {
                 };
                 if let Some(route) = gamehub_route {
                     *last_step.lock() = "steam".to_string();
-                    emit_launch_progress(app, &game.id, "steam");
+                    emit_launch_progress(app, &game.id, "steam", Some(&game.title));
                     let app_id = game.source_id.clone().unwrap_or_default();
                     route
                         .and_then(|(_engine, _binding, plan, account)| {
@@ -117,7 +117,7 @@ impl SessionManager {
                                 &self.cancel,
                                 &mut |step| {
                                     *last_step.lock() = step.to_string();
-                                    emit_launch_progress(app, &game.id, step);
+                                    emit_launch_progress(app, &game.id, step, Some(&game.title));
                                 },
                             )
                         })
@@ -130,7 +130,7 @@ impl SessionManager {
                     );
                     if steam_windows {
                         *last_step.lock() = "steam".to_string();
-                        emit_launch_progress(app, &game.id, "steam");
+                        emit_launch_progress(app, &game.id, "steam", Some(&game.title));
                         match crate::services::steam_play::play_prefix() {
                             Ok(prefix) => {
                                 profile.shared_prefix = Some(prefix.to_string_lossy().into_owned());
@@ -147,7 +147,13 @@ impl SessionManager {
                                     )
                                 {
                                     *last_step.lock() = "steam".to_string();
-                                    emit_launch_failed(app, &game.id, "steam", &error);
+                                    emit_launch_failed(
+                                        app,
+                                        &game.id,
+                                        "steam",
+                                        &error,
+                                        Some(&game.title),
+                                    );
                                     let _ = app.emit(
                                         "game-session-error",
                                         serde_json::json!({ "message": error }),
@@ -157,7 +163,13 @@ impl SessionManager {
                             }
                             Err(error) => {
                                 *last_step.lock() = "steam".to_string();
-                                emit_launch_failed(app, &game.id, "steam", &error);
+                                emit_launch_failed(
+                                    app,
+                                    &game.id,
+                                    "steam",
+                                    &error,
+                                    Some(&game.title),
+                                );
                                 let _ = app.emit(
                                     "game-session-error",
                                     serde_json::json!({ "message": error }),
@@ -182,7 +194,7 @@ impl SessionManager {
                                 &self.cancel,
                                 &mut |step| {
                                     *last_step.lock() = step.to_string();
-                                    emit_launch_progress(app, &game.id, step);
+                                    emit_launch_progress(app, &game.id, step, Some(&game.title));
                                 },
                             )
                             .map_err(|error| anyhow::anyhow!(error))
@@ -194,7 +206,7 @@ impl SessionManager {
                             &self.cancel,
                             &mut |step| {
                                 *last_step.lock() = step.to_string();
-                                emit_launch_progress(app, &game.id, step);
+                                emit_launch_progress(app, &game.id, step, Some(&game.title));
                             },
                         ),
                         Err(error) => {
@@ -207,7 +219,7 @@ impl SessionManager {
             }
             _ => {
                 *last_step.lock() = "spawn".to_string();
-                emit_launch_progress(app, &game.id, "spawn");
+                emit_launch_progress(app, &game.id, "spawn", Some(&game.title));
                 launch_game(game, &ctx).map(|_| None)
             }
         };
@@ -215,7 +227,13 @@ impl SessionManager {
             Ok(runtime) => runtime,
             Err(error) => {
                 let message = format!("{error:#}");
-                emit_launch_failed(app, &game.id, last_step.lock().as_str(), &message);
+                emit_launch_failed(
+                    app,
+                    &game.id,
+                    last_step.lock().as_str(),
+                    &message,
+                    Some(&game.title),
+                );
                 let _ = app.emit(
                     "game-session-error",
                     serde_json::json!({ "message": message }),
@@ -227,7 +245,13 @@ impl SessionManager {
             if let Some(handle) = runtime.as_mut() {
                 handle.stop()?;
             }
-            emit_launch_failed(app, &game.id, last_step.lock().as_str(), "Launch cancelled");
+            emit_launch_failed(
+                app,
+                &game.id,
+                last_step.lock().as_str(),
+                "Launch cancelled",
+                Some(&game.title),
+            );
             bail!("Launch cancelled");
         }
         let pid = runtime
@@ -255,7 +279,7 @@ impl SessionManager {
             stopping: false,
         });
 
-        emit_launch_progress(app, &game.id, "running");
+        emit_launch_progress(app, &game.id, "running", Some(&game.title));
         let _ = app.emit("game-session-started", &session);
         defer_minimize_orbit(app.clone(), session.id.clone());
 

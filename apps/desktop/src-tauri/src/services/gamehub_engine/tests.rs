@@ -516,3 +516,53 @@ fn live_gamehub_container_launch_and_stop() {
     drop(repo);
     let _ = fs::remove_dir_all(&repo_root);
 }
+
+#[test]
+fn gamehub_managed_titles_get_a_library_record_without_an_orbit_download() {
+    // Regression: God of War installed only in GameHub failed with "Download
+    // the game before playing" because the Orbit path ran first.
+    let fixture = Fixture::new();
+    let repo = GameRepository::open_in_memory().unwrap();
+
+    let (game_id, title) =
+        ensure_steam_record_with(Some(fixture.engine()), &repo, "1593500").expect("record");
+    assert_eq!(title, "God of War");
+    let game = repo.get_game(&game_id).unwrap().expect("stored game");
+    assert_eq!(game.title, "God of War");
+    assert_eq!(game.source_id.as_deref(), Some("1593500"));
+    assert_eq!(game.provider, GameProvider::Steam);
+    assert_eq!(game.platform, GamePlatform::Windows);
+
+    // Same stable key as Orbit's own Steam path: a second call reuses the row.
+    let (again, _) =
+        ensure_steam_record_with(Some(fixture.engine()), &repo, "1593500").expect("record");
+    assert_eq!(again, game_id);
+}
+
+#[test]
+fn unmanaged_titles_or_missing_engines_are_not_applicable() {
+    let fixture = Fixture::new();
+    let repo = GameRepository::open_in_memory().unwrap();
+    assert_eq!(
+        ensure_steam_record_with(Some(fixture.engine()), &repo, "9999999"),
+        Err(GamehubRecordError::NotApplicable)
+    );
+    assert_eq!(
+        ensure_steam_record_with(None, &repo, "1593500"),
+        Err(GamehubRecordError::NotApplicable)
+    );
+}
+
+#[test]
+fn broken_gamehub_containers_fail_instead_of_falling_back() {
+    let fixture = Fixture::new();
+    let repo = GameRepository::open_in_memory().unwrap();
+    fs::remove_file(fixture.root.join(
+        "wine-engine/containers/virtual_containers/3/drive_c/Program Files (x86)/Steam/steam.exe",
+    ))
+    .unwrap();
+    assert!(matches!(
+        ensure_steam_record_with(Some(fixture.engine()), &repo, "1593500"),
+        Err(GamehubRecordError::Failed(message)) if message.contains("no Steam client")
+    ));
+}

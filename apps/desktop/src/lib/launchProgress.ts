@@ -17,6 +17,8 @@ export type LaunchProgress = {
   index: number
   total: number
   failed: boolean
+  /** Display title; set when `gameId` is a synthetic `steam-windows:` handle. */
+  title?: string | null
 }
 
 export type LaunchStepStatus = 'done' | 'current' | 'pending' | 'failed'

@@ -21,6 +21,10 @@ pub struct LaunchProgress {
     pub index: u8,
     pub total: u8,
     pub failed: bool,
+    /// Game title so the overlay can show the correct name even when the
+    /// launch id is a synthetic handle (`steam-windows:{appId}`) that does not
+    /// match a library game id.
+    pub title: Option<String>,
 }
 
 pub fn wine_step_index(step: &str) -> u8 {
@@ -43,6 +47,7 @@ pub fn launch_progress(
     step: &str,
     failed: bool,
     detail: Option<&str>,
+    title: Option<&str>,
 ) -> LaunchProgress {
     let index = wine_step_index(step);
     let message = if failed {
@@ -57,20 +62,27 @@ pub fn launch_progress(
         index,
         total: WINE_LAUNCH_STEPS.len() as u8,
         failed,
+        title: title.map(str::to_string),
     }
 }
 
-pub fn emit_launch_progress(app: &AppHandle, game_id: &str, step: &str) {
+pub fn emit_launch_progress(app: &AppHandle, game_id: &str, step: &str, title: Option<&str>) {
     let _ = app.emit(
         "game-launch-progress",
-        launch_progress(game_id, step, false, None),
+        launch_progress(game_id, step, false, None, title),
     );
 }
 
-pub fn emit_launch_failed(app: &AppHandle, game_id: &str, step: &str, error: &str) {
+pub fn emit_launch_failed(
+    app: &AppHandle,
+    game_id: &str,
+    step: &str,
+    error: &str,
+    title: Option<&str>,
+) {
     let _ = app.emit(
         "game-launch-progress",
-        launch_progress(game_id, step, true, Some(error)),
+        launch_progress(game_id, step, true, Some(error), title),
     );
 }
 
@@ -89,11 +101,18 @@ mod tests {
 
     #[test]
     fn failed_progress_keeps_the_step_and_uses_the_error_detail() {
-        let payload = launch_progress("g1", "prefix", true, Some("Wine environment setup failed"));
+        let payload = launch_progress(
+            "g1",
+            "prefix",
+            true,
+            Some("Wine environment setup failed"),
+            Some("God of War"),
+        );
         assert_eq!(payload.step, "prefix");
         assert_eq!(payload.index, 3);
         assert!(payload.failed);
         assert_eq!(payload.message, "Wine environment setup failed");
         assert_eq!(payload.total, 7);
+        assert_eq!(payload.title.as_deref(), Some("God of War"));
     }
 }

@@ -5,7 +5,7 @@ type LaunchState = LaunchProgress | null
 
 interface LaunchStore {
   launch: LaunchState
-  begin: (gameId: string) => void
+  begin: (gameId: string, title?: string) => void
   apply: (progress: LaunchProgress) => void
   fail: (gameId: string, step: string, message: string) => void
   clear: () => void
@@ -13,10 +13,11 @@ interface LaunchStore {
 
 export const useLaunchStore = create<LaunchStore>((set) => ({
   launch: null,
-  begin: (gameId) =>
+  begin: (gameId, title) =>
     set({
       launch: {
         gameId,
+        title,
         step: 'resolve',
         message: 'Starting…',
         index: 0,
@@ -33,18 +34,19 @@ export const useLaunchStore = create<LaunchStore>((set) => ({
       ) {
         return state
       }
-      return { launch: progress }
+      return { launch: { ...progress, title: progress.title ?? state.launch?.title } }
     }),
   fail: (gameId, step, message) =>
-    set({
+    set((state) => ({
       launch: {
         gameId,
+        title: state.launch?.title,
         step,
         message,
         index: launchStepIndex(step),
         total: LAUNCH_STEPS.length,
         failed: true,
       },
-    }),
+    })),
   clear: () => set({ launch: null }),
 }))

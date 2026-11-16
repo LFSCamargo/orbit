@@ -180,3 +180,24 @@ it('shows a dismissible error after the game closes during startup', async () =>
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(useLaunchStore.getState().launch).toBeNull()
 })
+
+it('shows the payload title and Steam logo for a synthetic Steam for Windows launch', () => {
+  useGame.mockReturnValue({ data: undefined as unknown as Game })
+  useLaunchStore.setState({
+    launch: {
+      gameId: 'steam-windows:1593500',
+      step: 'resolve',
+      message: 'Download the game before playing',
+      index: 0,
+      total: 7,
+      failed: true,
+      title: 'God of War',
+    },
+  })
+  render(wrap(<LaunchOverlay />))
+  expect(screen.getByRole('img', { name: 'God of War' })).toHaveAttribute(
+    'src',
+    'https://cdn.akamai.steamstatic.com/steam/apps/1593500/logo.png',
+  )
+  expect(screen.queryByText('Your game')).not.toBeInTheDocument()
+})

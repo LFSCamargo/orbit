@@ -22,8 +22,10 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 use crate::database::GameRepository;
+use crate::models::{GameArtwork, GamePlatform, GameProvider, ImportedGame, LaunchConfiguration};
 use crate::runtimes::detection::{probe, WineInstallation};
-use crate::runtimes::{prefix, process};
+use crate::runtimes::{prefix, process, WineProfile};
+use crate::services::steam_catalog;
 
 /// Hard cap for every external registry read; these files are kilobytes in
 /// practice and a runaway file must not be loaded.
@@ -748,6 +750,81 @@ impl GamehubEngine {
         };
         (ready, busy)
     }
+}
+
+/// Why a GameHub library record cannot be created.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GamehubRecordError {
+    /// No engine or no binding for this app. `Auto` should fall back to Orbit's
+    /// own Steam path instead of failing.
+    NotApplicable,
+    /// Engine and binding exist but the record cannot be created. Both `Auto`
+    /// and `Gamehub` preferences should surface this error.
+    Failed(String),
+}
+
+/// Ensure a library record exists for a Steam Windows title managed by GameHub.
+/// Returns `(game_id, title)` on success. The record uses GameHub's Wine
+/// runtime and the in-container Steam executable as placeholders; the launch
+/// session overrides them with the full container plan.
+pub fn ensure_steam_record(
+    repo: &GameRepository,
+    app_id: &str,
+) -> Result<(String, String), GamehubRecordError> {
+    ensure_steam_record_with(GamehubEngine::discover(), repo, app_id)
+}
+
+pub(crate) fn ensure_steam_record_with(
+    engine: Option<GamehubEngine>,
+    repo: &GameRepository,
+    app_id: &str,
+) -> Result<(String, String), GamehubRecordError> {
+    let engine = engine.ok_or(GamehubRecordError::NotApplicable)?;
+    let binding = engine
+        .binding_for_app_id(app_id)
+        .ok_or(GamehubRecordError::NotApplicable)?;
+    let plan = engine
+        .launch_plan(&binding)
+        .map_err(|err| GamehubRecordError::Failed(format!("{err:#}")))?;
+    let title = binding.game_name;
+    let imported = ImportedGame {
+        stable_key: format!("steam-windows:{app_id}"),
+        title: title.clone(),
+        sort_title: title.to_lowercase(),
+        description: None,
+        provider: GameProvider::Steam,
+        platform: GamePlatform::Windows,
+        source_id: Some(app_id.to_string()),
+        launch_config: LaunchConfiguration::Wine {
+            profile: WineProfile {
+                executable: plan
+                    .steam_dir
+                    .join("steam.exe")
+                    .to_string_lossy()
+                    .into_owned(),
+                runtime_path: plan.runtime.path.clone(),
+                ..WineProfile::default()
+            },
+        },
+        artwork: GameArtwork {
+            cover: Some(steam_catalog::cover_url(app_id)),
+            hero: Some(steam_catalog::hero_url(app_id)),
+            logo: Some(steam_catalog::logo_url(app_id)),
+            icon: None,
+        },
+        total_playtime_seconds: 0,
+        install_size_bytes: None,
+        achievements: Vec::new(),
+    };
+    let upserted = repo
+        .upsert_imported(&[imported])
+        .map_err(|err| GamehubRecordError::Failed(err.to_string()))?;
+    upserted
+        .game_ids
+        .into_iter()
+        .next()
+        .ok_or_else(|| GamehubRecordError::Failed("The game could not be saved".into()))
+        .map(|id| (id, title))
 }
 
 /// Decide whether a Steam Windows play request should take the GameHub route.

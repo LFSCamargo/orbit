@@ -17,13 +17,18 @@ export function LaunchOverlay() {
   useModalFocus(Boolean(launch), 'launch-overlay', closeId)
   if (!launch) return null
 
-  const title = game?.title ?? 'Your game'
+  const title = game?.title ?? launch.title ?? 'Your game'
+  const steamWindowsAppId = launch.gameId.startsWith('steam-windows:')
+    ? launch.gameId.slice('steam-windows:'.length)
+    : undefined
   const logo = game
     ? gameLogoImage(
         game.artwork,
         game.launchConfig.type === 'steam' ? game.launchConfig.appId : game.sourceId,
       )
-    : undefined
+    : steamWindowsAppId && launch.title
+      ? gameLogoImage({}, steamWindowsAppId)
+      : undefined
   const hero = game ? gameHeroImage(game.artwork) : undefined
   const caption = launchCaption(launch)
 

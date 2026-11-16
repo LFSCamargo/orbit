@@ -240,6 +240,15 @@ pub fn cancel_steam_windows_download() {
     steam_windows::cancel_download();
 }
 
+fn steam_title_for_overlay(repo: &crate::database::GameRepository, app_id: &str) -> Option<String> {
+    steam_windows::stored_entries(repo)
+        .ok()?
+        .into_iter()
+        .find(|entry| entry.app_id == app_id)
+        .map(|entry| entry.title)
+        .filter(|title| !crate::services::steam_catalog::is_placeholder_title(title, app_id))
+}
+
 #[tauri::command]
 pub async fn play_steam_windows_game(
     app: AppHandle,
@@ -247,8 +256,52 @@ pub async fn play_steam_windows_game(
 ) -> Result<GameSession, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use crate::launching::progress::{emit_launch_failed, emit_launch_progress};
+        use crate::services::gamehub_engine::{ensure_steam_record, GamehubRecordError};
+        use crate::services::steam_windows::PlayEngine;
         let state = app.state::<AppState>();
-        emit_launch_progress(&app, &format!("steam-windows:{app_id}"), "resolve");
+        let preference = steam_windows::preferences(&state.repo)
+            .map(|prefs| prefs.play_engine)
+            .unwrap_or_default();
+        let synthetic_id = format!("steam-windows:{app_id}");
+        let fallback_title = || steam_title_for_overlay(&state.repo, &app_id);
+
+        // GameHub container route: when the user chose GameHub explicitly or
+        // auto-selected it, create/update the library record from GameHub's
+        // metadata and let the launch session run inside the container.
+        if preference != PlayEngine::Orbit {
+            match ensure_steam_record(&state.repo, &app_id) {
+                Ok((game_id, title)) => {
+                    emit_launch_progress(&app, &game_id, "resolve", Some(&title));
+                    let game = state
+                        .repo
+                        .get_game(&game_id)
+                        .map_err(|err| err.to_string())?
+                        .ok_or("Game not found")?;
+                    emit_launch_progress(&app, &game_id, "runtime", Some(&game.title));
+                    return state
+                        .sessions
+                        .launch_game(&app, &state.repo, &game)
+                        .map_err(|err| format!("{err:#}"));
+                }
+                Err(GamehubRecordError::Failed(error)) => {
+                    let title = fallback_title();
+                    emit_launch_failed(&app, &synthetic_id, "resolve", &error, title.as_deref());
+                    return Err(error);
+                }
+                Err(GamehubRecordError::NotApplicable)
+                    if preference == PlayEngine::Gamehub =>
+                {
+                    let title = fallback_title();
+                    let error = "GameHub does not manage this game or its engine is missing. Install it in GameHub first or switch Play engine to Orbit".to_string();
+                    emit_launch_failed(&app, &synthetic_id, "resolve", &error, title.as_deref());
+                    return Err(error);
+                }
+                Err(GamehubRecordError::NotApplicable) => {} // Auto: fall through to Orbit
+            }
+        }
+
+        // Orbit Steam for Windows path.
+        emit_launch_progress(&app, &synthetic_id, "resolve", fallback_title().as_deref());
         let game_id = match steam_windows::play(&state.repo, &app_id) {
             Ok(game_id) => game_id,
             Err(error) => {
@@ -257,16 +310,17 @@ pub async fn play_steam_windows_game(
                 } else {
                     "resolve"
                 };
-                emit_launch_failed(&app, &format!("steam-windows:{app_id}"), step, &error);
+                let title = fallback_title();
+                emit_launch_failed(&app, &synthetic_id, step, &error, title.as_deref());
                 return Err(error);
             }
         };
-        emit_launch_progress(&app, &game_id, "runtime");
         let game = state
             .repo
             .get_game(&game_id)
             .map_err(|err| err.to_string())?
             .ok_or("Game not found")?;
+        emit_launch_progress(&app, &game_id, "runtime", Some(&game.title));
         state
             .sessions
             .launch_game(&app, &state.repo, &game)

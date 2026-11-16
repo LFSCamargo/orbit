@@ -102,7 +102,7 @@ export function useGameActions() {
       const overlayId = entry.steamAppId
         ? `steam-windows:${entry.steamAppId}`
         : entry.game.id
-      useLaunchStore.getState().begin(overlayId)
+      useLaunchStore.getState().begin(overlayId, entry.game.title)
     },
     onError: (error, entry) => {
       const launch = useLaunchStore.getState().launch
