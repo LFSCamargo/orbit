@@ -51,10 +51,18 @@ export function AnimatedSettingsNav<T extends string>({
                     ? { duration: 0 }
                     : { type: 'spring', bounce: 0.15, duration: 0.35 }
                 }
-                className="settings-nav-indicator bg-orbit-accent/16 absolute inset-0 rounded-xl border border-orbit-accent/20"
+                className={clsx(
+                  'settings-nav-indicator absolute inset-0 rounded-xl',
+                  'bg-[linear-gradient(#ffffff2e,#ffffff14)]',
+                  'shadow-[inset_0_1px_0_#ffffff38]',
+                  'ring-1 ring-inset ring-white/20',
+                )}
               />
             )}
-            <Icon size={18} className="relative shrink-0" />
+            <Icon
+              size={18}
+              className={clsx('relative shrink-0', active && 'text-orbit-accent')}
+            />
             <span className="relative">{label}</span>
           </Focusable>
         )

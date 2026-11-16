@@ -166,6 +166,7 @@ Shared components in `src/components/`:
 | Component | Path | Notes |
 | --------- | ---- | ----- |
 | `AppShell` | `layout/AppShell.tsx` | Renders `PlayingScreen` during a session, otherwise `MacosShell` |
+| `LaunchOverlay` | `session/components/LaunchOverlay.tsx` | Centered landscape banner of hero art with the game's horizontal Steam wordmark (`logo.png`) when the stored logo slot is empty, Orbit wordmark, a circular close control, and a single startup caption; no card border or inset focus rectangle |
 | `DrawerProvider` | `layout/DrawerProvider.tsx` | Root-level drawer host; portals overlays above transformed pages |
 | `LiquidGlass` | `ui/liquid-glass.tsx` | Refractive glass with a frosted WebKit fallback. The artwork supplies the tint, with a darker shade over brighter images. |
 
@@ -232,10 +233,10 @@ Game artwork is stored as filesystem paths under `artwork-cache/` when possible 
 
 | Slot | Key | Typical use |
 | ---- | --- | ----------- |
-| Cover | `cover` | Square / portrait box art |
-| Hero | `hero` | Landscape background |
-| Logo | `logo` | Title treatment overlay; theme studio header logo (SteamGridDB `logos`, Steam Store `logo.png`) |
-| Icon | `icon` | Small grid thumbnail |
+| Cover | `cover` | Portrait box art — library square tiles may fall back to this; home never uses it |
+| Hero | `hero` | Landscape background for the selected home title |
+| Logo | `logo` | Title treatment overlay; unbranded home header uses this when the selected game has one |
+| Icon | `icon` | 1:1 grid used by the home shelf; library square tiles prefer this over covers |
 
 Heavy inline Base64 is spilled to cache on save / library list so home and library tiles keep images without multi-MB IPC payloads.
 
@@ -299,11 +300,12 @@ and offers Compatibility diagnostics. See [RUNTIMES.md](RUNTIMES.md).
 
 ### Settings usability and download feedback
 
-Settings uses a dedicated, responsive navigation rail and readable content surface. The rail includes Steam, with the authorization card and offline-mode and file-verification switches. The rail retains restrained LiquidGlass; the main form uses an opaque theme surface. Aceternity's shared-layout active indicator respects reduced motion. shadcn/Radix switches provide labeled keyboard-operable graphics toggles. Game graphics has sectioned controls and a sticky Save/Discard bar; unsaved drafts survive section navigation for the app session. Compatibility lists icon-led component/version rows with installed status and size. Native download events drive determinate transfer progress; preparation and installation are indeterminate. Failures expose retry without reporting a completed install. Unmanaged catalog versions are explicitly browse-only.
+Settings uses a dedicated, responsive navigation rail and readable content surface. The rail includes Steam, with the authorization card and offline-mode and file-verification switches. The rail retains restrained LiquidGlass; the main form uses an opaque theme surface. The active section is a filled glass pill (inset highlight, not a hollow accent outline) that slides with Aceternity's shared-layout indicator and respects reduced motion. shadcn/Radix switches provide labeled keyboard-operable graphics toggles. Game graphics has sectioned controls and a sticky Save/Discard bar; unsaved drafts survive section navigation for the app session. Compatibility lists icon-led component/version rows with installed status and size. Native download events drive determinate transfer progress; preparation and installation are indeterminate. Failures expose retry without reporting a completed install. Unmanaged catalog versions are explicitly browse-only.
 
 ## Interface standards rollout
 
-Library view controls are Installed / All games / Favorites. Initial loads use
+Library view controls are Installed / All games, with Favorites only when at least
+one game is marked favorite. Initial loads use
 shared skeletons; background refresh keeps the current cards visible with a compact
 status message. Horizontal home shelves hide scrollbar chrome locally while retaining
 scrolling.
@@ -320,6 +322,10 @@ and native WebKit visual review are still outstanding.
 Details and the Library view selector share `TabList`, a Liquid Glass pill matching the header’s
 rounded active segment and neutral highlight. Library search and sort/platform sit in
 their own glass clusters beside that pill (48px couch height), not nested inside one bar.
+The Library/Search toolbar sticks under the console header once it reaches that edge.
+Covers and list rows dissolve through a viewport mask under the toolbar and above
+the footer; the wallpaper is not dimmed by a dividing band. The mask updates on
+the grid compositor (rAF-batched, no React re-renders while scrolling).
 Controller focus rings remain separate from the selected state. Editor Save/Discard actions
 flow inline with the form; they have no opaque or sticky footer surface.
 
@@ -333,3 +339,32 @@ Adding an additional Steam folder now starts a Windows import scan and reports t
 result. Existing configured folders can be rescanned with **Scan installed games**.
 Owned-library badges refresh after the scan. A failed scan keeps the saved folder
 and offers a retry; new downloads retain their existing destination.
+
+Homepage filters are Recent / Installed, with Favorites only when at least one
+game is marked favorite. Each uses a bounded backend
+query so installed and favorite games are not limited to the first all-games page.
+The carousel spans the full viewport with no horizontal padding; the hero and
+section header retain their gutters. It retains native horizontal scrolling and
+Focusable buttons. Screen edges fade artwork through a CSS mask only while the
+strip overflows (left, right, or both); a short shelf stays fully visible.
+Shelves with seven or fewer tiles stay inset with the hero gutter, keep labels
+fully visible, and reset horizontal scroll when switching from a looping shelf.
+Looping shelves still dissolve into the footer through a viewport mask.
+There is no particle or WebGL disintegration. Labels and focus indicators
+remain intact. The hero title uses measured single-line fitting; other hero
+content and actions retain their existing layout.
+
+The home shelf loops in either direction using three bounded cycles when more
+than seven games are shown, repeated to fill wide windows. Scroll rebasing
+shifts any in-flight focus scroll so the shelf keeps moving forward instead of
+jumping back to the start of a cycle. Keyboard/controller focus eases a card
+inside the screen edges over 640ms (instant when reduced motion is requested).
+Decoded thumbnail requests are shared across loop copies and held in a 64-entry LRU
+cache. Each tile only paints after its own cover URL is ready so carousel rebases
+and Recent/Installed switches do not show another game’s artwork under the label.
+cache; existing artwork stays visible while replacements decode. Shelves with
+seven or fewer games remain a finite strip.
+
+When a game process exits unsuccessfully after the loading banner has closed, reopen the banner with its exit code and a Dismiss action. Keep that failure visible across remounts until dismissed. Normal exits and user-requested stops leave it closed.
+
+Steam sign-in opens as an Orbit modal with loading, native-hosted QR/account sign-in, placement error, and closing states. A successful process spawn alone must not reveal ready instructions. Cancel dismisses the dialog after bounded cleanup; any failure is shown outside the dialog.

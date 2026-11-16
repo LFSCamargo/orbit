@@ -30,6 +30,7 @@ function renderToolbar(props: Partial<Parameters<typeof LibraryToolbar>[0]> = {}
 it('keeps view, search, and filters as separate glass clusters', () => {
   renderToolbar()
   const toolbar = document.querySelector('.library-toolbar')
+  const clusters = document.querySelector('.library-toolbar-clusters')
   const search = document.querySelector('.library-search')
   const filters = document.querySelector('.library-filters')
   const views = screen.getByRole('group', { name: 'Library view' })
@@ -38,11 +39,18 @@ it('keeps view, search, and filters as separate glass clusters', () => {
   expect(search).toHaveClass('orbit-glass')
   expect(filters).toHaveClass('orbit-glass')
   expect(toolbar?.contains(views)).toBe(true)
-  expect(search?.parentElement).toBe(toolbar)
-  expect(filters?.parentElement).toBe(toolbar)
+  expect(search?.parentElement).toBe(clusters)
+  expect(filters?.parentElement).toBe(clusters)
   expect(getComputedStyle(views).borderRadius).toBe('999px')
   expect(search).toHaveStyle({ borderRadius: '999px' })
   expect(search).toHaveClass('p-[5px]')
+})
+
+it('sticks under the console chrome without a dimming band over the wallpaper', () => {
+  renderToolbar()
+  const toolbar = document.querySelector('.library-toolbar')
+  expect(toolbar).toHaveClass('sticky', 'top-0')
+  expect(document.querySelector('.library-toolbar-fade')).toBeNull()
 })
 
 it('switches library views and types into search without nested field chrome', () => {
@@ -57,6 +65,18 @@ it('switches library views and types into search without nested field chrome', (
   expect(screen.getByRole('button', { name: 'Installed' })).toHaveAccessibleName(
     'Installed',
   )
+})
+
+it('omits the Favorites tab when the user has no favorite games', () => {
+  renderToolbar()
+  expect(screen.getByRole('button', { name: 'Installed' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'All games' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Favorites' })).not.toBeInTheDocument()
+})
+
+it('shows the Favorites tab after a game is marked favorite', () => {
+  renderToolbar({ showFavorites: true })
+  expect(screen.getByRole('button', { name: 'Favorites' })).toBeInTheDocument()
 })
 
 it('hides view tabs on the search route and clears the query', () => {

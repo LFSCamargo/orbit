@@ -31,6 +31,12 @@ vi.mock('@/modules/settings/components/SteamLibraryFolders', () => ({
 vi.mock('@/modules/settings/components/SteamSettings', () => ({
   SteamSettings: () => <div>Steam settings view</div>,
 }))
+vi.mock('@/modules/settings/components/CompatibilityGlobalSettings', () => ({
+  CompatibilityGlobalSettings: () => <div data-testid="graphics-body" />,
+}))
+vi.mock('@/modules/settings/components/RuntimeSettings', () => ({
+  RuntimeSettings: () => <div>Runtime settings view</div>,
+}))
 
 describe('SettingsPage tabs', () => {
   beforeEach(() => {
@@ -78,6 +84,17 @@ describe('SettingsPage tabs', () => {
       'true',
     )
     expect(screen.getByText('Theme settings view')).toBeInTheDocument()
+  })
+
+  it('leaves space under the graphics header before the form', () => {
+    useUiStore.setState({ settingsTab: 'graphics' })
+    render(<SettingsPage />)
+    const header = document.querySelector('.settings-panel-header')
+    expect(header?.className).toContain('!mb-6')
+    expect(
+      screen.getByText('One starting point for all your Windows games.'),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('graphics-body')).toBeInTheDocument()
   })
 
   it('fills the shell column so only the middle panel scrolls', () => {

@@ -52,7 +52,7 @@ const SETTINGS_SCROLL = clsx(
 )
 
 const PANEL =
-  'settings-panel scroll-mt-6 [&+.settings-panel]:mt-7 [&+.settings-panel]:pt-2'
+  'settings-panel scroll-mt-0 [&+.settings-panel]:mt-0 [&+.settings-panel]:pt-0'
 const PANEL_HEADER =
   'settings-panel-header !mb-6 flex !flex-col !items-start !gap-2 !p-0 text-orbit-foreground'
 const PANEL_TITLE =
