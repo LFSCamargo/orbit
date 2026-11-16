@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
+import { requestFullscreen } from '@/hooks/useFullscreen'
 import { clsx } from 'clsx'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -72,7 +73,6 @@ export function MacosShell({
   const { openDrawer, closeDrawer } = useDrawer()
   const downloadsOwned = useRef(false)
   const fullscreen = useUiStore((s) => s.fullscreen)
-  const setFullscreen = useUiStore((s) => s.setFullscreen)
   const selected = resolveNavScreen(screen)
   const reduce = useReducedMotion()
   const theme = useActiveTheme()
@@ -269,7 +269,7 @@ export function MacosShell({
             group="macos-tools"
             order={2}
             noScale
-            onClick={() => setFullscreen(!fullscreen)}
+            onClick={() => requestFullscreen(!fullscreen)}
             aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             className={toolClass}
           >

@@ -11,7 +11,7 @@ import { SearchPage } from '@/modules/search/SearchPage'
 import { SettingsPage } from '@/modules/settings/SettingsPage'
 import { SwitchLibraryPage } from '@/modules/switch-library/SwitchLibraryPage'
 import { useCursorAutoHide } from '@/hooks/useCursorAutoHide'
-import { useFullscreen } from '@/hooks/useFullscreen'
+import { useFullscreenSync } from '@/hooks/useFullscreen'
 import { useActiveSessionQuery } from '@/hooks/useGames'
 import { useSessionEvents } from '@/hooks/useSessionEvents'
 import { useLaunchProgress } from '@/hooks/useLaunchProgress'
@@ -31,7 +31,7 @@ export function App() {
   const { family } = useControllerNavigation()
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const { data: activeSession } = useActiveSessionQuery()
-  useFullscreen()
+  useFullscreenSync()
   useCursorAutoHide()
   useSessionEvents()
   useLaunchProgress()
