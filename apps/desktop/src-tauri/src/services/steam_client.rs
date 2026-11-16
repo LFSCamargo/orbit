@@ -14,6 +14,29 @@ use crate::database::GameRepository;
 
 static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
 static WARMING: AtomicBool = AtomicBool::new(false);
+/// Set while a GameHub container session runs: the resident client is stopped
+/// and not restarted until the session ends.
+static SUSPENDED: AtomicBool = AtomicBool::new(false);
+
+/// Stop the resident client for the length of a container session.
+pub fn suspend() {
+    if !SUSPENDED.swap(true, Ordering::SeqCst) {
+        let _ = std::thread::Builder::new()
+            .name("orbit-steam-suspend".into())
+            .spawn(steam_windows::stop_steam_prefix);
+    }
+}
+
+/// Let the warm loop restart the resident client.
+pub fn resume() {
+    SUSPENDED.store(false, Ordering::SeqCst);
+}
+
+/// The warm loop restarts the resident client unless a sign-in or a container
+/// session needs it stopped.
+fn warm_allowed(login_in_progress: bool, suspended: bool) -> bool {
+    !login_in_progress && !suspended
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SteamClientPhase {
@@ -122,7 +145,10 @@ fn warm_loop(app: AppHandle, repo: Arc<GameRepository>) {
 }
 
 fn warm_once(app: &AppHandle, repo: &GameRepository) {
-    if steam_windows::login_in_progress() {
+    if !warm_allowed(
+        steam_windows::login_in_progress(),
+        SUSPENDED.load(Ordering::SeqCst),
+    ) {
         return;
     }
     let Ok(status) = steam_windows::status(repo) else {
@@ -169,6 +195,18 @@ fn start_silent_client(repo: &GameRepository) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn container_sessions_hold_the_warm_loop_until_resumed() {
+        assert!(warm_allowed(false, false));
+        assert!(!warm_allowed(true, false));
+        assert!(!warm_allowed(false, true));
+        // Without an installed client suspend only flips the flag.
+        SUSPENDED.store(true, Ordering::SeqCst);
+        assert!(SUSPENDED.load(Ordering::SeqCst));
+        resume();
+        assert!(!SUSPENDED.load(Ordering::SeqCst));
+    }
 
     #[test]
     fn ready_only_when_the_prefix_client_is_logged_on() {

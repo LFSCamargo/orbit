@@ -372,10 +372,7 @@ impl GamehubEngine {
         let overlay = match (&self.sandboxfs, &base_prefix) {
             (Some(sandboxfs), Some(base)) => match select_layer_manifest(&prefix, base) {
                 Some(manifest) => {
-                    env.insert(
-                        "DYLD_INSERT_LIBRARIES".into(),
-                        sandboxfs.to_string_lossy().into_owned(),
-                    );
+                    injections::apply(&mut env, sandboxfs, &injections::metalduck_socket());
                     env.insert(
                         "SANDBOXFS_LIB_PATH".into(),
                         sandboxfs.to_string_lossy().into_owned(),
@@ -858,6 +855,8 @@ pub fn play_route(
         },
     ))
 }
+
+mod injections;
 
 #[cfg(test)]
 mod tests;

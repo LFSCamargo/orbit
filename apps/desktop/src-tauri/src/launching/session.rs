@@ -104,6 +104,9 @@ impl SessionManager {
                     None
                 };
                 if let Some(route) = gamehub_route {
+                    // GameHub runs no resident Steam; Orbit's own client would
+                    // compete with the game for CPU and keep a Dock icon.
+                    crate::services::steam_client::suspend();
                     *last_step.lock() = "steam".to_string();
                     emit_launch_progress(app, &game.id, "steam", Some(&game.title));
                     let app_id = game.source_id.clone().unwrap_or_default();
@@ -226,6 +229,7 @@ impl SessionManager {
         let mut runtime = match result {
             Ok(runtime) => runtime,
             Err(error) => {
+                crate::services::steam_client::resume();
                 let message = format!("{error:#}");
                 emit_launch_failed(
                     app,
@@ -344,7 +348,7 @@ impl SessionManager {
         let ended = finalize_session(tracked.session, SessionStopReason::UserStopped, None);
         repo.record_play_end(&ended)?;
         let _ = app.emit("game-session-ended", &ended);
-        show_orbit(app);
+        after_session(app);
         Ok(ended)
     }
 
@@ -370,7 +374,7 @@ impl SessionManager {
                 finalize_session(tracked.session, SessionStopReason::ProcessExited, exit_code);
             let _ = repo.record_play_end(&ended);
             let _ = app.emit("game-session-ended", &ended);
-            show_orbit(app);
+            after_session(app);
         }
     }
 }
@@ -444,6 +448,11 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
             let _ = window.minimize();
         }
     });
+}
+
+fn after_session(app: &AppHandle) {
+    crate::services::steam_client::resume();
+    show_orbit(app);
 }
 
 fn show_orbit(app: &AppHandle) {
