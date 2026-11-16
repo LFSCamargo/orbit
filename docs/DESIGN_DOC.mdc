@@ -324,13 +324,22 @@ of account ownership or installation count. Installed is the initial Library vie
 All games share search, filters and sorting. The Favorites tab is omitted on Home
 and Library until at least one title is marked favorite. Page size is bounded.
 
-GameHub is no longer a provider integration. User-selected Steam library roots,
+GameHub is not a library provider integration. User-selected Steam library roots,
 steamapps and common directories are read directly using bounded manifest discovery.
 Discovery needs neither account login nor a compatibility runtime. Play links those
 installs into the managed Wine Steam `steamapps` and registers the library with the
 client so Steamworks sees titles such as God of War as installed. Legacy Steam-linked
 Windows records migrate to Steam; unmatched GameHub records leave the active library
 only after a consistent SQLite backup. Installed files are never changed by migration.
+
+A locally installed GameHub wine-engine is an optional *play engine*, not a
+provider: Settings → Steam → Play engine (`auto` by default) launches a Steam
+title inside its GameHub container — GameHub's Wine build, container overlay,
+graphics stack, and in-container Steam client — without starting GameHub.app or
+writing to its state, and falls back to Orbit's own silent official Steam client
+when no engine or binding exists (`RUNTIMES.md` → GameHub engine integration,
+`STEAM_WINDOWS.md` → Play engine). GameHub's graphics payloads can also be
+imported read-only into Orbit's component store. Account tokens are never read.
 
 Details contains Overview and Settings. Settings owns General, Artwork, and
 Launch & compatibility editing; no separate Properties navigation. Global Settings

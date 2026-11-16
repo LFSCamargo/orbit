@@ -55,6 +55,19 @@ pub struct SteamWindowsStatus {
     pub owned_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlayEngine {
+    /// Use a GameHub container when GameHub manages the game, otherwise Orbit's
+    /// own silent Steam client.
+    #[default]
+    Auto,
+    /// Always use Orbit's own Steam for Windows environment.
+    Orbit,
+    /// Require the GameHub container; fail instead of falling back.
+    Gamehub,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SteamWindowsPreferences {
@@ -62,6 +75,8 @@ pub struct SteamWindowsPreferences {
     pub verify_files: bool,
     #[serde(default)]
     pub additional_library_paths: Vec<String>,
+    #[serde(default)]
+    pub play_engine: PlayEngine,
 }
 
 impl Default for SteamWindowsPreferences {
@@ -70,6 +85,7 @@ impl Default for SteamWindowsPreferences {
             offline_mode: false,
             verify_files: true,
             additional_library_paths: Vec::new(),
+            play_engine: PlayEngine::default(),
         }
     }
 }
@@ -959,10 +975,8 @@ fn read_connection_log() -> String {
     let Ok(mut file) = fs::File::open(&path) else {
         return String::new();
     };
-    if metadata.len() > LIMIT {
-        if file.seek(SeekFrom::Start(metadata.len() - LIMIT)).is_err() {
-            return String::new();
-        }
+    if metadata.len() > LIMIT && file.seek(SeekFrom::Start(metadata.len() - LIMIT)).is_err() {
+        return String::new();
     }
     let mut content = String::new();
     if file.take(LIMIT).read_to_string(&mut content).is_err() {
@@ -1478,6 +1492,7 @@ mod tests {
                 offline_mode: true,
                 verify_files: false,
                 additional_library_paths: Vec::new(),
+                play_engine: PlayEngine::Gamehub,
             },
         )
         .unwrap();
@@ -1486,6 +1501,14 @@ mod tests {
         let again = preferences(&repo).unwrap();
         assert!(again.offline_mode);
         assert!(!again.verify_files);
+        assert_eq!(again.play_engine, PlayEngine::Gamehub);
+        // A stored preference without play_engine still parses (upgrade path).
+        repo.set_setting(
+            PREFERENCES_KEY,
+            &serde_json::json!({"offlineMode": false, "verifyFiles": true}),
+        )
+        .unwrap();
+        assert_eq!(preferences(&repo).unwrap().play_engine, PlayEngine::Auto);
         let stored = repo
             .get_setting(PREFERENCES_KEY)
             .unwrap()

@@ -11,10 +11,19 @@ export interface SteamWindowsStatus {
   ownedCount: number
 }
 
+export type SteamPlayEngine = 'auto' | 'orbit' | 'gamehub'
+
 export interface SteamWindowsPreferences {
   offlineMode: boolean
   verifyFiles: boolean
   additionalLibraryPaths?: string[]
+  /**
+   * Which engine plays Steam Windows titles. `auto` uses a local GameHub
+   * container when GameHub manages the game, otherwise Orbit's own silent
+   * Steam client. `gamehub` requires the container and fails loudly when it
+   * is unavailable.
+   */
+  playEngine?: SteamPlayEngine
 }
 
 export interface SteamOwnedGame {

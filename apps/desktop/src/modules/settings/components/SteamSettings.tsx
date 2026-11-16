@@ -2,6 +2,7 @@ import { Gamepad2 } from 'lucide-react'
 import { SteamWindowsAccount } from '@/components/layout/SteamWindowsAccount'
 import { Focusable } from '@/components/focus/Focusable'
 import { DownloadProgress } from '@/components/ui/download-progress'
+import { OptionSelect } from '@/components/ui/option-select'
 import { Switch } from '@/components/ui/switch'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
 import type { SteamWindowsPreferences } from '@/types/steam'
@@ -80,7 +81,7 @@ export function SteamSettings() {
                 : 'Could not save Steam preferences. Try again.'}
             </p>
           )}
-          <div className="settings-row mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="settings-row mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3
                 id="steam-offline-mode-label"
@@ -105,7 +106,7 @@ export function SteamSettings() {
               onCheckedChange={(offlineMode) => save({ ...current, offlineMode })}
             />
           </div>
-          <div className="settings-row flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="settings-row my-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3
                 id="steam-verify-files-label"
@@ -129,6 +130,41 @@ export function SteamSettings() {
               disabled={savePreferences.isPending}
               onCheckedChange={(verifyFiles) => save({ ...current, verifyFiles })}
             />
+          </div>
+          <div className="settings-row flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3
+                id="steam-play-engine-label"
+                className="settings-row-title font-display text-[17px] font-semibold text-white"
+              >
+                Play engine
+              </h3>
+              <p
+                id="steam-play-engine-help"
+                className="settings-row-desc mt-1 max-w-[520px] text-[13px] text-[#ffffffa0]"
+              >
+                Automatic plays each Steam title in its GameHub container when GameHub
+                manages it, and otherwise uses Orbit’s own Steam for Windows. The GameHub
+                app never needs to be running.
+              </p>
+            </div>
+            <OptionSelect
+              aria-label="Play engine"
+              focusId="settings-steam-play-engine"
+              className="min-w-[220px]"
+              value={current.playEngine ?? 'auto'}
+              disabled={savePreferences.isPending}
+              onValueChange={(playEngine) =>
+                save({
+                  ...current,
+                  playEngine: playEngine as SteamWindowsPreferences['playEngine'],
+                })
+              }
+            >
+              <option value="auto">Automatic · Recommended</option>
+              <option value="orbit">Orbit Steam for Windows</option>
+              <option value="gamehub">GameHub containers only</option>
+            </OptionSelect>
           </div>
         </div>
       </section>

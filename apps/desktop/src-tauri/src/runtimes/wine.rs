@@ -20,6 +20,26 @@ pub struct PreparedWineLaunch {
     pub shared: bool,
 }
 
+/// Spawn a process handle for a prefix Orbit does not own the lifecycle of
+/// (GameHub containers). Exit is still bounded by that prefix's wineserver and
+/// `stop` terminates the whole prefix — the same semantics GameHub itself uses
+/// when stopping a game.
+pub(crate) fn foreign_process(
+    child: Child,
+    runtime: WineInstallation,
+    prefix: PathBuf,
+) -> Box<dyn RuntimeProcess> {
+    Box::new(WineProcess {
+        child,
+        waiter: None,
+        runtime,
+        prefix,
+        shared: false,
+        code: None,
+        finished: false,
+    })
+}
+
 pub struct WineAdapter;
 impl WineAdapter {
     pub fn prepare<F: FnMut(&str)>(
