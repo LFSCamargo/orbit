@@ -15,7 +15,6 @@ use tauri::{AppHandle, Emitter};
 static APP: OnceLock<Arc<AppHandle>> = OnceLock::new();
 static LAST_HOME_PRESS: Mutex<Option<Instant>> = Mutex::new(None);
 const HOME_DEBOUNCE: Duration = Duration::from_millis(250);
-const BACKGROUND_POLL_INTERVAL: Duration = Duration::from_millis(16);
 const STICK_SCROLL_DEADZONE: f32 = 0.14;
 const STICK_SCROLL_SPEED_PX_PER_MS: f32 = 0.55;
 
@@ -81,9 +80,12 @@ fn start_gilrs_background_listener() {
             let now = Instant::now();
             let dt_ms = now.duration_since(last_poll).as_secs_f32() * 1000.0;
             last_poll = now;
-            dispatch_stick_scroll(&gilrs, dt_ms.min(32.0));
+            // The game owns the sticks; Orbit only listens for Home meanwhile.
+            if !crate::launching::game_activity::running() {
+                dispatch_stick_scroll(&gilrs, dt_ms.min(32.0));
+            }
 
-            thread::sleep(BACKGROUND_POLL_INTERVAL);
+            thread::sleep(crate::launching::game_activity::controller_poll_interval());
         }
     });
 }

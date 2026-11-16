@@ -286,6 +286,7 @@ impl SessionManager {
 
         emit_launch_progress(app, &game.id, "running", Some(&game.title));
         let _ = app.emit("game-session-started", &session);
+        super::game_activity::set_running(true);
         if wine_session {
             focus_game(app.clone(), session.id.clone());
         } else {
@@ -451,6 +452,7 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
 }
 
 fn after_session(app: &AppHandle) {
+    super::game_activity::set_running(false);
     crate::services::steam_client::resume();
     show_orbit(app);
 }

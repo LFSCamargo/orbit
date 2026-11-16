@@ -32,10 +32,10 @@ pub fn resume() {
     SUSPENDED.store(false, Ordering::SeqCst);
 }
 
-/// The warm loop restarts the resident client unless a sign-in or a container
-/// session needs it stopped.
-fn warm_allowed(login_in_progress: bool, suspended: bool) -> bool {
-    !login_in_progress && !suspended
+/// The warm loop restarts the resident client only when nothing needs the
+/// machine more: no sign-in, no container session, no game in play.
+fn warm_allowed(login_in_progress: bool, suspended: bool, game_running: bool) -> bool {
+    !login_in_progress && !suspended && !game_running
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +122,11 @@ pub fn start(app: AppHandle, repo: Arc<GameRepository>) {
 fn watch(app: AppHandle, repo: Arc<GameRepository>) {
     let mut last = None;
     loop {
+        // status() runs a system-wide `ps`; nothing reads it while a game plays.
+        if crate::launching::game_activity::running() {
+            std::thread::sleep(Duration::from_secs(1));
+            continue;
+        }
         if let Ok(status) = steam_windows::status(&repo) {
             let key = (
                 status.client_phase.clone(),
@@ -148,6 +153,7 @@ fn warm_once(app: &AppHandle, repo: &GameRepository) {
     if !warm_allowed(
         steam_windows::login_in_progress(),
         SUSPENDED.load(Ordering::SeqCst),
+        crate::launching::game_activity::running(),
     ) {
         return;
     }
@@ -198,9 +204,10 @@ mod tests {
 
     #[test]
     fn container_sessions_hold_the_warm_loop_until_resumed() {
-        assert!(warm_allowed(false, false));
-        assert!(!warm_allowed(true, false));
-        assert!(!warm_allowed(false, true));
+        assert!(warm_allowed(false, false, false));
+        assert!(!warm_allowed(true, false, false));
+        assert!(!warm_allowed(false, true, false));
+        assert!(!warm_allowed(false, false, true));
         // Without an installed client suspend only flips the flag.
         SUSPENDED.store(true, Ordering::SeqCst);
         assert!(SUSPENDED.load(Ordering::SeqCst));
