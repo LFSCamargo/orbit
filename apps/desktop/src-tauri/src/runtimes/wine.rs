@@ -45,7 +45,10 @@ impl PreparedWineLaunch {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             bail!("Launch cancelled");
         }
-        let child = process::spawn_logged(&mut self.command(steam_app_id)?, &self.log)?;
+        let child = process::spawn_logged(
+            &mut process::detached(&self.command(steam_app_id)?)?,
+            &self.log,
+        )?;
         Ok(Box::new(WineProcess {
             child,
             waiter: None,

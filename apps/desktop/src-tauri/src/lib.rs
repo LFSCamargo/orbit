@@ -5,7 +5,7 @@ mod database;
 mod importers;
 mod launching;
 mod models;
-mod platform;
+pub mod platform;
 mod runtimes;
 mod services;
 mod utils;

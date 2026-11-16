@@ -592,7 +592,7 @@ pub fn start_title(
     command.args(steam_agent_args(app_id, account));
     command.current_dir(&plan.steam_dir);
 
-    let child = process::spawn_logged(&mut command, &log)?;
+    let child = process::spawn_logged(&mut process::detached(&command)?, &log)?;
     Ok(crate::runtimes::wine::foreign_process(
         child,
         plan.runtime.clone(),

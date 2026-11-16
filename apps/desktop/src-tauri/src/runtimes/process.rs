@@ -74,6 +74,28 @@ fn drain(mut input: impl Read + Send + 'static, log: Arc<Mutex<File>>) {
     });
 }
 
+/// Games run as their own macOS app (see `platform::macos::detached_spawn`).
+/// Unit-test binaries have no trampoline, so they spawn the command directly.
+pub fn detached(command: &Command) -> Result<Command> {
+    #[cfg(all(target_os = "macos", not(test)))]
+    return Ok(crate::platform::macos::detached_spawn::wrap(command)?);
+    #[cfg(any(not(target_os = "macos"), test))]
+    {
+        let mut copy = Command::new(command.get_program());
+        copy.args(command.get_args());
+        for (key, value) in command.get_envs() {
+            match value {
+                Some(value) => copy.env(key, value),
+                None => copy.env_remove(key),
+            };
+        }
+        if let Some(dir) = command.get_current_dir() {
+            copy.current_dir(dir);
+        }
+        Ok(copy)
+    }
+}
+
 pub fn base_command(executable: &Path) -> Command {
     let mut cmd = Command::new(executable);
     // Do not pass Orbit's metadata API credentials to games.
