@@ -16,6 +16,7 @@ export function GameSettingsPanel({ game }: { game: Game }) {
   const [baseline, setBaseline] = useState(game.launchConfig)
   const [draft, setDraft] = useState(game.launchConfig)
   const [message, setMessage] = useState('')
+  const [failed, setFailed] = useState(false)
   const { update } = useGameActions()
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline)
   const save = async () => {
@@ -23,9 +24,13 @@ export function GameSettingsPanel({ game }: { game: Game }) {
     try {
       await update.mutateAsync({ gameId: game.id, request: { launchConfig: draft } })
       setBaseline(draft)
-      setMessage('Settings saved. Applies on the next launch.')
-    } catch {
-      setMessage('Could not save settings. Your changes have been kept; try again.')
+      setFailed(false)
+      setMessage('Saved. Used the next time you play.')
+    } catch (error) {
+      setFailed(true)
+      setMessage(
+        `Settings weren’t saved: ${saveFailureReason(error)} Your edits are still here, so you can fix them and save again.`,
+      )
     }
   }
   return (
@@ -79,11 +84,19 @@ export function GameSettingsPanel({ game }: { game: Game }) {
         </Focusable>
       </div>
       {message && (
-        <p role={update.isError ? 'alert' : 'status'} className="mt-3">
+        <p role={failed ? 'alert' : 'status'} className="mt-3">
           {message}
         </p>
       )}
       {draft.type === 'wine' && <RuntimeDiagnostics gameId={game.id} />}
     </section>
   )
+}
+
+/** Tauri rejects with the command's error text; keep it as a sentence. */
+function saveFailureReason(error: unknown): string {
+  const text =
+    typeof error === 'string' ? error : error instanceof Error ? error.message : ''
+  const reason = text.trim() || 'Orbit could not write them.'
+  return /[.!?]$/.test(reason) ? reason : `${reason}.`
 }
