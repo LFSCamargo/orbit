@@ -20,7 +20,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
-it('Single file → choose .exe → Add stores a Wine profile, never a GameHub shortcut', async () => {
+it('Single file → choose .exe → Add stores a Wine profile', async () => {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}

@@ -5,7 +5,6 @@ use super::ImportError;
 use crate::models::{GameArtwork, GamePlatform, GameProvider, ImportedGame, LaunchConfiguration};
 use crate::runtimes::WineProfile;
 use crate::utils::filenames::is_switch_base_application;
-use crate::utils::gamehub_shortcut::is_gamehub_shortcut;
 use crate::utils::paths::{canonical_import_path, resolve_launch_file_path};
 use crate::utils::size::path_size_bytes;
 use crate::utils::switch_scan::parse_switch_rom;
@@ -31,13 +30,6 @@ pub fn import_manual_path(path: &Path) -> Result<ImportedGame, ImportError> {
         .and_then(|s| s.to_str())
         .unwrap_or("Untitled Game")
         .to_string();
-
-    if ext == "app" && is_gamehub_shortcut(&path) {
-        return Err(ImportError::Message(
-            "GameHub shortcuts are not imported. Add a Steam library folder or the game executable."
-                .into(),
-        ));
-    }
 
     let (provider, platform, launch, title) = match ext.as_str() {
         "nsp" | "xci" => {

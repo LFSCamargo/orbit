@@ -1,19 +1,24 @@
 //! Execution engines are independent of library providers and UI components.
 pub mod catalog;
 pub mod components;
+pub mod containers;
 pub mod detection;
 pub mod game_bundle;
-pub mod gamehub_components;
 pub mod gptk_local;
 pub mod homebrew;
 pub mod layer;
 pub mod manager;
 pub mod prefix;
 pub mod process;
+pub mod retired_components;
 pub mod selections;
+#[cfg(target_os = "macos")]
+pub mod session_reaper;
 pub mod settings;
 pub mod validation;
+pub mod windows_process;
 pub mod wine;
+pub mod wine_capabilities;
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};

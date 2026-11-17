@@ -5,7 +5,6 @@ import { providerLabel } from '@/lib/format'
 const COLORS: Record<GameProvider, string> = {
   astris: 'orbit-glass-control bg-rose-500/20 text-rose-200 ring-rose-400/30',
   steam: 'orbit-glass-control bg-sky-500/20 text-sky-200 ring-sky-400/30',
-  gamehub: 'orbit-glass-control bg-amber-500/20 text-amber-100 ring-amber-400/30',
   native: 'orbit-glass-control bg-emerald-500/20 text-emerald-100 ring-emerald-400/30',
   manual: 'orbit-glass-control bg-violet-500/20 text-violet-100 ring-violet-400/30',
 }

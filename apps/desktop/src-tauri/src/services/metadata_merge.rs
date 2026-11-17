@@ -9,6 +9,7 @@ pub fn is_placeholder_description(value: Option<&str>) -> bool {
 
     let lower = text.to_ascii_lowercase();
     lower.starts_with("imported from")
+        // Placeholder copy written by retired importers; still in old rows.
         || lower.starts_with("gamehub shortcut")
         || lower.starts_with("manually added")
 }
@@ -109,7 +110,7 @@ mod tests {
     }
 
     #[test]
-    fn refresh_prefers_steam_store_copy_over_gamehub_stubs() {
+    fn refresh_prefers_steam_store_copy_over_legacy_import_stubs() {
         let stub = "Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer.";
         assert_eq!(
             pick_description(

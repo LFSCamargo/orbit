@@ -62,6 +62,29 @@ mod tests {
         assert_eq!(found.by_id["570"].title, "Demo");
         std::fs::remove_dir_all(root).unwrap();
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovers_a_game_whose_folder_is_a_symlink_into_a_shared_library() {
+        // GameHub's container points steamapps/common/<game> at the shared
+        // ~/GameHub library. That symlink must not read as an escaping install.
+        let root = std::env::temp_dir().join(format!("orbit-symlink-{}", uuid::Uuid::new_v4()));
+        let shared = root.join("GameHub/steamapps/common/RESIDENT EVIL 2");
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::write(shared.join("re2.exe"), b"MZ").unwrap();
+        let apps = root.join("container/steamapps");
+        std::fs::create_dir_all(apps.join("common")).unwrap();
+        std::os::unix::fs::symlink(&shared, apps.join("common/RESIDENT EVIL 2")).unwrap();
+        std::fs::write(
+            apps.join("appmanifest_883710.acf"),
+            r#""appid" "883710" "name" "RESIDENT EVIL 2" "installdir" "RESIDENT EVIL 2""#,
+        )
+        .unwrap();
+        let paths = vec![apps.join("common").to_string_lossy().into_owned()];
+        let found = index(&paths);
+        assert_eq!(found.by_id["883710"].title, "RESIDENT EVIL 2");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
 
 pub fn normalize(path: &Path) -> Result<PathBuf, String> {

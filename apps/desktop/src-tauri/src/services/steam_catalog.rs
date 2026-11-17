@@ -83,7 +83,7 @@ pub fn is_thin_description(description: Option<&str>) -> bool {
             .unwrap_or(true)
 }
 
-/// Extra-library installs (GameHub folders) are not always in GetOwnedGames.
+/// Extra-library installs are not always in GetOwnedGames.
 /// Hydrate still needs a catalog row so store copy can replace importer stubs.
 pub fn include_installed(
     mut entries: Vec<SteamCatalogEntry>,

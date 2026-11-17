@@ -362,11 +362,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires GameHub's x86_64 Wine installation"]
-    fn live_gamehub_wine_runs_from_a_signed_games_bundle() {
-        let install = dirs::data_dir()
-            .unwrap()
-            .join("com.gamemac.www/wine-engine/containers/wine_installations/10000073");
+    #[ignore = "set ORBIT_TEST_WINE_INSTALL to an x86_64 Wine installation root"]
+    fn live_wine_runs_from_a_signed_games_bundle() {
+        let install = PathBuf::from(
+            std::env::var("ORBIT_TEST_WINE_INSTALL").expect("ORBIT_TEST_WINE_INSTALL"),
+        );
         let cache =
             std::env::temp_dir().join(format!("orbit-bundle-live-{}", uuid::Uuid::new_v4()));
         let bundle = ensure(&install, &cache).unwrap().expect("bundled");

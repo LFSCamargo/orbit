@@ -1,0 +1,24 @@
+{
+  "name": "orbit-wine",
+  "license": "LGPL-2.1-or-later",
+  "description": "CrossOver-class Wine for Orbit containers. Sources are not vendored in this repository.",
+  "crossover": {
+    "vendor": "CodeWeavers",
+    "sourceIndex": "https://media.codeweavers.com/pub/crossover/source/",
+    "notes": "CrossOver 26.3.0 (Wine 11.0) already carries MSync (server/msync.c) and the winemac.drv D3DMetal hooks. Do not commit Apple GPTK or steamclient64 binaries.",
+    "version": "26.3.0",
+    "url": "https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz",
+    "sha256": "ac99c8ca4b3848f3e81784135f023df266b61c2345726ea55a50b3e030dd6872"
+  },
+  "requiredFeatures": ["WINEMSYNC", "macdrv_create_metal_view", "D3DMetal"],
+  "mono": {
+    "version": "10.4.1",
+    "url": "https://dl.winehq.org/wine/wine-mono/10.4.1/wine-mono-10.4.1-x86.tar.xz",
+    "sha256": "a16606ef0724202e6a6848ece6e0cbba64d11e2f11aefe744af1d93c6d9f99bb",
+    "notes": "The version CrossOver 26.3.0's mscoree requires. Without it wineboot waits on the Mono install prompt."
+  },
+  "gecko": {
+    "version": "2.47.4",
+    "notes": "Copied from the Gcenx bundle, which ships the version CrossOver 26.3.0 requires."
+  }
+}

@@ -12,7 +12,6 @@ const states = new Map<string, LibraryEntryPatch>()
 export function mockLibrary(games: Game[], catalog: SteamOwnedGame[]): LibraryEntry[] {
   const entries = new Map<string, LibraryEntry>()
   for (const game of games) {
-    if (game.provider === 'gamehub') continue
     const appId =
       game.launchConfig.type === 'steam'
         ? game.launchConfig.appId

@@ -1,23 +1,18 @@
 import { Gamepad2 } from 'lucide-react'
 import { SteamWindowsAccount } from '@/components/layout/SteamWindowsAccount'
-import { Focusable } from '@/components/focus/Focusable'
-import { DownloadProgress } from '@/components/ui/download-progress'
-import { OptionSelect } from '@/components/ui/option-select'
 import { Switch } from '@/components/ui/switch'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
 import type { SteamWindowsPreferences } from '@/types/steam'
-import { useSteamWindowsInstall } from '../hooks/useSteamWindowsInstall'
 
 const DEFAULTS: SteamWindowsPreferences = { offlineMode: false, verifyFiles: true }
 
 /** Settings → Steam. Authorization stays separate from download behavior. */
 export function SteamSettings() {
-  const { status, preferences, savePreferences } = useSteamWindows()
+  const { preferences, savePreferences } = useSteamWindows()
   const current = preferences.data ?? DEFAULTS
   const save = (next: SteamWindowsPreferences) => {
     savePreferences.mutate(next)
   }
-  const install = useSteamWindowsInstall()
 
   return (
     <div className="settings-view flex flex-col gap-7" data-testid="settings-steam-view">
@@ -30,43 +25,11 @@ export function SteamSettings() {
             </h2>
           </div>
           <p className="m-0 text-[13px] font-normal leading-[1.6] text-orbit-muted">
-            Sign in with Steam’s own QR code. After that, uninstalled games appear in
-            Library.
+            Sign in with Steam’s own window. Orbit closes it after the account is saved
+            and uses that login for every Windows game.
           </p>
         </div>
         <div className="settings-card-inner !px-0 !py-5">
-          {status.isSuccess && !status.data.steamInstalled && (
-            <div className="mb-4">
-              <Focusable
-                focusId="settings-install-wine-steam"
-                group="settings-steam"
-                order={0}
-                noScale
-                className="steam-activity-button justify-self-start rounded-full bg-[#f7f8fb] px-3.5 py-[9px] text-[13px] font-[680] text-[#12141a] disabled:opacity-55"
-                disabled={install.busy}
-                onClick={() => void install.install()}
-              >
-                {install.busy
-                  ? 'Preparing the Steam environment…'
-                  : 'Install Steam for Windows'}
-              </Focusable>
-              <p className="mt-2 text-sm text-orbit-muted">
-                Installs official Windows Steam in Orbit, including its browser. If that
-                browser is already present, this does nothing. Sign out is the only action
-                that removes it.
-              </p>
-              {install.task && install.task.progress?.phase !== 'Ready' && (
-                <div className="mt-3">
-                  <DownloadProgress task={install.task} />
-                </div>
-              )}
-              {install.error && (
-                <p role="alert" className="mt-2 text-sm text-rose-300">
-                  {install.error}
-                </p>
-              )}
-            </div>
-          )}
           <SteamWindowsAccount focusGroup="settings-steam" />
         </div>
 
@@ -130,41 +93,6 @@ export function SteamSettings() {
               disabled={savePreferences.isPending}
               onCheckedChange={(verifyFiles) => save({ ...current, verifyFiles })}
             />
-          </div>
-          <div className="settings-row flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3
-                id="steam-play-engine-label"
-                className="settings-row-title font-display text-[17px] font-semibold text-white"
-              >
-                Play engine
-              </h3>
-              <p
-                id="steam-play-engine-help"
-                className="settings-row-desc mt-1 max-w-[520px] text-[13px] text-[#ffffffa0]"
-              >
-                Automatic plays each Steam title in its GameHub container when GameHub
-                manages it, and otherwise uses Orbit’s own Steam for Windows. The GameHub
-                app never needs to be running.
-              </p>
-            </div>
-            <OptionSelect
-              aria-label="Play engine"
-              focusId="settings-steam-play-engine"
-              className="min-w-[220px]"
-              value={current.playEngine ?? 'auto'}
-              disabled={savePreferences.isPending}
-              onValueChange={(playEngine) =>
-                save({
-                  ...current,
-                  playEngine: playEngine as SteamWindowsPreferences['playEngine'],
-                })
-              }
-            >
-              <option value="auto">Automatic · Recommended</option>
-              <option value="orbit">Orbit Steam for Windows</option>
-              <option value="gamehub">GameHub containers only</option>
-            </OptionSelect>
           </div>
         </div>
       </section>

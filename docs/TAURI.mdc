@@ -66,6 +66,8 @@ src-tauri/src/
   database/
     mod.rs
     migrations.rs          # Versioned schema migrations
+    library_migration.rs   # One-time library identity rewrite
+    gamehub_removal.rs     # Drop retired shortcut rows; snapshot first
     repository.rs          # Library SQLite access
     metadata_cache.rs      # Separate metadata enrichment cache DB
   importers/
@@ -78,6 +80,7 @@ src-tauri/src/
     mod.rs
     app_launch.rs          # Shared open-app + 3s delay helpers
     context.rs             # Launch-time screen context from Orbit window
+    first_launch.rs        # Container → compatibility → Steam files → cloud → start
     launcher.rs            # Resolve LaunchConfiguration → Command
     process_monitor.rs     # Watch child process exit
     session.rs             # SessionManager — active session state
@@ -90,7 +93,7 @@ src-tauri/src/
     mod.rs
     library_sync.rs        # Upsert imported games (stable_key dedup)
     metadata_enrichment.rs # TheGamesDB + SteamGridDB orchestrator
-    metadata_merge.rs      # Placeholder description (importer/GameHub copy) + artwork slot merge
+    metadata_merge.rs      # Placeholder description (importer stubs) + artwork slot merge
     thegamesdb.rs          # TheGamesDB API client
     steamgrid.rs           # SteamGridDB API client
     artwork.rs             # Disk artwork-cache helpers
@@ -106,12 +109,13 @@ src-tauri/src/
     steam_library.rs       # Steam install handoff and platform check
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
-    steam_client.rs        # Silent-client keep-alive + steam-client phase events
-    steam_launch.rs        # steam.exe -applaunch + track the game process
+    steam_native/          # Container install paths, depot plan, cloud, agent presence
+    steam_client.rs        # Settings phase labels from signed-in state; no keep-alive
+    steam_play.rs          # Per-game container seed + game EXE with SteamAppId
     steam_library_paths.rs # Additional Steam library folders
     steam_client_library.rs # Wine Steam libraryfolders.vdf + extra-library links
     library.rs             # Canonical LibraryEntry merge
-    steam_login.rs         # Official Windows Steam QR window hosted over Orbit
+    steam_login.rs         # Opens Valve's Steam window, then stops Wine after the account is saved
     steam_qr.rs            # Legacy in-app QR catalog fetch (not the sign-in UI)
     steam_credentials.rs   # Legacy RSA account sign-in (not the sign-in UI)
     steam_content.rs       # Steam depot / DLC inventory helpers
@@ -168,6 +172,13 @@ Created in `lib.rs` at startup; library DB from `utils::paths::database_path()`,
 ## Database
 
 Migrations in `database/migrations.rs` — applied sequentially via `schema_migrations` table.
+`database/library_migration.rs` and `database/gamehub_removal.rs` are one-time
+data rewrites run from `repository` open: they snapshot the live SQLite file
+first, then drop leftover shortcut-provider rows and clear engine paths that
+pointed into a retired third-party Wine folder. Steam rows and their play
+history stay. `runtimes/retired_components.rs` then removes Orbit's own
+component pointer entries to that folder and clears active selections that
+used them, without touching files outside Orbit's component store.
 
 ### Core tables
 
@@ -188,10 +199,10 @@ Migrations in `database/migrations.rs` — applied sequentially via `schema_migr
 | -------- | -- | ------ | ----- |
 | `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, localconfig playtime |
 | `AstrisImporter` | `astris` | User folder | `.nsp` / `.xci` Nintendo Switch ROMs |
-| `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles |
+| `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles (no third-party shortcut skip) |
 | Manual | `manual` | `import_game_path` | User file picker; Windows `.exe` uses Wine |
 
-The owned Steam catalog from `GetOwnedGames` also carries `playtime_forever` and last played onto Home, Library, and Details. Overlay keeps the larger of Steam minutes and Orbit sessions. Additional Steam library folders contribute installed AppIDs even when they are not in the owned snapshot, so store copy can replace leftover GameHub importer text.
+The owned Steam catalog from `GetOwnedGames` also carries `playtime_forever` and last played onto Home, Library, and Details. Overlay keeps the larger of Steam minutes and Orbit sessions. Additional Steam library folders contribute installed AppIDs even when they are not in the owned snapshot, so store copy can replace leftover importer stubs.
 
 Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 
@@ -257,6 +268,10 @@ the matching Steam Store game record for an advertised Mac build before opening
 the Steam client. Steam handles entitlement, compatibility, confirmation, and the
 download. Orbit does not edit store download state.
 
+`src-tauri/crates/orbit-steam` owns native Steam session, product, depot, cloud,
+and agent types. Passwords never enter that crate. Games still authenticate
+through Valve's client inside a Wine container.
+
 `src-tauri/crates/orbit-motion` prepares RGB lighting samples from a bounded raster decode on a blocking worker. `get_hero_lighting` accepts a game ID and hero or cover slot. It resolves only inline raster data or canonical files under Orbit’s artwork cache and runs at most one decode at a time. It returns three bytes and does not make network requests. The frontend animates layer opacity without frame-by-frame IPC.
 
 
@@ -312,7 +327,8 @@ concurrent reads and reloads only on startup or the explicit reload action.
 ## Windows runtime orchestration
 
 `src-tauri/src/runtimes/` owns Wine detection, validation, prefix preparation,
-processes and logs. `commands/runtimes.rs` exposes `windows_compatibility`,
+per-game containers (`containers/`), CrossOver-class capability probes, processes
+and logs. See [CONTAINERS.md](CONTAINERS.md). `commands/runtimes.rs` exposes `windows_compatibility`,
 `install_windows_compatibility`, `compatibility_catalog`,
 `compatibility_settings`,
 `update_compatibility_settings`, `detect_runtimes`, `register_wine_runtime` and

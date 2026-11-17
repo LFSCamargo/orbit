@@ -22,6 +22,7 @@ function steamStatus() {
     clientPhase: steamAccount ? 'ready' : 'stopped',
     clientCaption: steamAccount ? 'Steam is ready' : '',
     ownedCount: steamAccount ? 2 : 0,
+    sessionReady: steamAccount !== null,
   }
 }
 
@@ -375,10 +376,6 @@ export async function mockInvoke<T>(
       throw new Error('Runtime detection requires the Orbit desktop app.')
     case 'runtime_diagnostics':
       return 'Runtime logs are available in the Orbit desktop app.' as T
-    case 'gamehub_engine_status':
-      return { available: false, overlayReady: false, bindings: [] } as T
-    case 'import_gamehub_components':
-      return { engineAvailable: false, imported: [], skipped: [] } as T
     case 'cancel_game_launch':
       return undefined as T
     case 'get_active_session':

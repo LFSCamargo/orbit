@@ -74,7 +74,7 @@ export function SteamLibraryFolders() {
           value={path}
           disabled={busy}
           onChange={(event) => setPath(event.target.value)}
-          placeholder="/Users/you/GameHub/steamapps/common"
+          placeholder="/Users/you/SteamLibrary/steamapps/common"
           spellCheck={false}
         />
         <Focusable

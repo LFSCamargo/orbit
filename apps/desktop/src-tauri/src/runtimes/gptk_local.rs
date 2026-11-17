@@ -66,12 +66,10 @@ fn parse_version(file: &str) -> Option<(String, String)> {
 }
 
 fn scan_dirs() -> Vec<PathBuf> {
-    let mut dirs = vec![dirs::download_dir().unwrap_or_default()];
-    if let Some(home) = dirs::home_dir() {
-        dirs.push(home.join("Applications/GameHub.app"));
-        dirs.push(home.join("Downloads/GameHub"));
-    }
-    dirs.into_iter().filter(|dir| dir.is_dir()).collect()
+    dirs::download_dir()
+        .into_iter()
+        .filter(|dir| dir.is_dir())
+        .collect()
 }
 
 /// Bounded scan (depth 1 per directory) for Apple GPTK DMGs the user already

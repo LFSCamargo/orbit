@@ -221,35 +221,6 @@ pub async fn set_active_component(
 }
 
 #[tauri::command]
-pub async fn gamehub_engine_status(
-) -> Result<crate::services::gamehub_engine::GamehubStatus, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        Ok(
-            match crate::services::gamehub_engine::GamehubEngine::discover() {
-                Some(engine) => engine.status(),
-                None => crate::services::gamehub_engine::GamehubStatus {
-                    available: false,
-                    overlay_ready: false,
-                    bindings: Vec::new(),
-                },
-            },
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
-pub async fn import_gamehub_components(
-) -> Result<runtimes::gamehub_components::GamehubImportReport, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        runtimes::gamehub_components::import(&runtimes::root()).map_err(|e| format!("{e:#}"))
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
 pub async fn runtime_diagnostics(app: AppHandle, game_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if app

@@ -8,8 +8,9 @@ import {
 } from '../launchProgress'
 
 it('orders Steam Windows launch steps for the overlay', () => {
-  expect(launchStepIndex('steam')).toBe(2)
-  expect(launchStepIndex('prefix')).toBe(3)
+  expect(launchStepIndex('container')).toBe(2)
+  expect(launchStepIndex('steam')).toBe(4)
+  expect(launchStepIndex('prefix')).toBe(7)
   expect(launchStepLabel('graphics')).toBe('Applying graphics settings')
   expect(launchStepLabel('unknown')).toBe('Launching…')
 })

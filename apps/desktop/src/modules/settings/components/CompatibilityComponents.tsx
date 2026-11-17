@@ -9,15 +9,9 @@ import {
   Layers,
   LoaderCircle,
   RefreshCw,
-  Boxes,
 } from 'lucide-react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  getCompatibilityCatalog,
-  getComponentStatus,
-  getGamehubEngineStatus,
-  importGamehubComponents,
-} from '@/lib/tauri'
+import { useQuery } from '@tanstack/react-query'
+import { getCompatibilityCatalog, getComponentStatus } from '@/lib/tauri'
 import { Focusable } from '@/components/focus/Focusable'
 import { DownloadProgress } from '@/components/ui/download-progress'
 import type {
@@ -77,33 +71,6 @@ export function CompatibilityComponents({
   })
   const installs = useComponentInstall()
   const { actives, select, error: activeError } = useActiveComponents()
-  const queryClient = useQueryClient()
-  const { data: gamehub } = useQuery({
-    queryKey: ['gamehub-engine-status'],
-    queryFn: () => getGamehubEngineStatus(),
-    staleTime: 60_000,
-  })
-  const [gamehubImport, setGamehubImport] = useState<{
-    busy: boolean
-    message: string
-  }>({ busy: false, message: '' })
-  const importFromGamehub = async () => {
-    setGamehubImport({ busy: true, message: '' })
-    try {
-      const report = await importGamehubComponents()
-      const names = report.imported.map((item) => `${item.id} ${item.version}`)
-      setGamehubImport({
-        busy: false,
-        message: names.length
-          ? `Imported from GameHub: ${names.join(', ')}`
-          : 'GameHub has no components Orbit can use yet.',
-      })
-      void queryClient.invalidateQueries({ queryKey: ['component-status'] })
-      void queryClient.invalidateQueries({ queryKey: ['compatibility-catalog'] })
-    } catch (error) {
-      setGamehubImport({ busy: false, message: String(error) })
-    }
-  }
   const installedByKey = useMemo(() => {
     const map = new Map<string, InstalledComponent>()
     for (const component of installed ?? []) {
@@ -146,23 +113,6 @@ export function CompatibilityComponents({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {gamehub?.available && (
-            <Focusable
-              focusId="runtime-gamehub-import"
-              group="runtimes"
-              order={2}
-              noScale
-              disabled={gamehubImport.busy}
-              onClick={() => void importFromGamehub()}
-              className={SECONDARY_BUTTON}
-            >
-              <Boxes
-                size={13}
-                className={gamehubImport.busy ? 'animate-pulse' : undefined}
-              />
-              {gamehubImport.busy ? 'Importing…' : 'Import from GameHub'}
-            </Focusable>
-          )}
           <Focusable
             focusId="runtime-catalog-refresh"
             group="runtimes"
@@ -177,11 +127,6 @@ export function CompatibilityComponents({
           </Focusable>
         </div>
       </div>
-      {gamehubImport.message && (
-        <p role="status" className="text-xs leading-relaxed text-orbit-muted">
-          {gamehubImport.message}
-        </p>
-      )}
       {!data && (
         <p role="status" className="text-sm text-orbit-muted">
           {error ? String(error) : 'Loading online versions…'}

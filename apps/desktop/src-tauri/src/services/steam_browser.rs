@@ -35,10 +35,10 @@ pub fn prepare(steam: &Path) -> Result<PathBuf> {
         .context("Steam has no installation directory")?
         .canonicalize()?;
     let Some(cef) = helper_dir(&root) else {
-        bail!("Steam is still installing its browser. Use Install Steam for Windows, then sign in");
+        bail!("Steam's sign-in window is not ready");
     };
     let Ok(canonical) = cef.canonicalize() else {
-        bail!("Steam is still installing its browser. Use Install Steam for Windows, then sign in");
+        bail!("Steam's sign-in window is not ready");
     };
     if !canonical.starts_with(&root) {
         bail!("Steam's browser directory escapes its installation");
@@ -46,10 +46,13 @@ pub fn prepare(steam: &Path) -> Result<PathBuf> {
     let helper = canonical.join("steamwebhelper.exe");
     let original = canonical.join(ORIGINAL_NAME);
     let staged = canonical.join("orbit-browser.tmp");
+    // The shared client cache is linked in. Copy that one helper into the
+    // container; never follow a link that points somewhere else.
+    materialize_cached_helper(&helper, &root)?;
     for path in [&helper, &original, &staged] {
         if path
             .symlink_metadata()
-            .is_ok_and(|m| m.file_type().is_symlink())
+            .is_ok_and(|meta| meta.file_type().is_symlink())
         {
             bail!("Steam browser paths cannot be symlinks");
         }
@@ -74,6 +77,47 @@ pub fn prepare(steam: &Path) -> Result<PathBuf> {
     fs::write(&staged, SHIM)?;
     fs::rename(&staged, &helper)?;
     Ok(original)
+}
+
+/// Replace a `steamwebhelper.exe` symlink with the bytes it points at when that
+/// target is the container itself or Orbit's Steam client cache.
+fn materialize_cached_helper(path: &Path, steam_root: &Path) -> Result<()> {
+    let Ok(meta) = path.symlink_metadata() else {
+        return Ok(());
+    };
+    if !meta.file_type().is_symlink() {
+        return Ok(());
+    }
+    let target = path
+        .canonicalize()
+        .context("Steam's browser link is broken")?;
+    if !target.starts_with(steam_root) && !is_steam_client_cache(&target) {
+        bail!("Steam browser paths cannot be symlinks");
+    }
+    let mut bytes = Vec::new();
+    fs::File::open(&target)?
+        .take(32 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 32 * 1024 * 1024 || !bytes.starts_with(b"MZ") {
+        bail!("Steam's browser is invalid. Repair the official Steam installation");
+    }
+    fs::remove_file(path)?;
+    fs::write(path, &bytes)?;
+    Ok(())
+}
+
+fn is_steam_client_cache(path: &Path) -> bool {
+    let mut parts = path.components();
+    while let Some(part) = parts.next() {
+        if part.as_os_str() == "runtimes"
+            && parts
+                .next()
+                .is_some_and(|next| next.as_os_str() == "steam-client")
+        {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -143,7 +187,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("steam.exe"), b"MZsteam").unwrap();
         let error = prepare(&root.join("steam.exe")).unwrap_err().to_string();
-        assert!(error.contains("still installing its browser"), "{error}");
+        assert!(error.contains("not ready"), "{error}");
         assert!(!error.to_ascii_lowercase().contains("os error"));
         let _ = fs::remove_dir_all(root);
     }
@@ -158,6 +202,32 @@ mod tests {
             .unwrap();
         assert!(prepare(&root.join("steam.exe")).is_err());
         assert_eq!(fs::read(outside).unwrap(), b"keep");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copies_a_cached_browser_link_without_changing_the_cache() {
+        let (root, cef) = fixture();
+        let cache = root.join("runtimes/steam-client/1/Steam");
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(cache.join("steamwebhelper.exe"), b"MZcached-helper").unwrap();
+        fs::remove_file(cef.join("steamwebhelper.exe")).unwrap();
+        std::os::unix::fs::symlink(
+            cache.join("steamwebhelper.exe"),
+            cef.join("steamwebhelper.exe"),
+        )
+        .unwrap();
+        prepare(&root.join("steam.exe")).unwrap();
+        assert!(!cef.join("steamwebhelper.exe").is_symlink());
+        assert_eq!(
+            fs::read(cache.join("steamwebhelper.exe")).unwrap(),
+            b"MZcached-helper"
+        );
+        assert_eq!(
+            fs::read(cef.join("steamwebhelper-orbit-original.exe")).unwrap(),
+            b"MZcached-helper"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }

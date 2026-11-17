@@ -154,11 +154,9 @@ Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, qua
 
 ROM downloads/decryption, keys management, emulator distribution, an Orbit account, cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).
 
-Windows Steam on macOS, through a local official Steam client, is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md).
+Windows Steam on macOS, through a local official Steam client, is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md). Per-game Wine containers are specified in [docs/CONTAINERS.md](docs/CONTAINERS.md).
 
-Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass).
-
-GameHub is not a provider. Steam library folders that happen to live under a GameHub path are documented in [docs/GAMEHUB.md](docs/GAMEHUB.md).
+Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass). Additional Steam library folders can be added in Settings → Library.
 
 ### Windows games through Wine (Phase 1)
 

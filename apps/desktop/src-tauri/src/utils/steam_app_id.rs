@@ -5,7 +5,6 @@ pub fn steam_app_id_from_launch(config: &LaunchConfiguration) -> Option<String> 
     match config {
         LaunchConfiguration::Steam { app_id } => Some(app_id.clone()),
         LaunchConfiguration::OpenUrl { url } => steam_app_id_from_url(url),
-        LaunchConfiguration::Gamehub { .. } => None,
         _ => None,
     }
 }
@@ -17,9 +16,6 @@ pub fn steam_app_id_from_url(value: &str) -> Option<String> {
         return None;
     }
 
-    if let Some(id) = extract_after(trimmed, "gamehub://launch/steam/") {
-        return sanitize_app_id(id);
-    }
     if let Some(id) = extract_after(trimmed, "steam://rungameid/") {
         return sanitize_app_id(id);
     }
@@ -66,14 +62,6 @@ mod tests {
     }
 
     #[test]
-    fn parses_gamehub_deep_link() {
-        assert_eq!(
-            steam_app_id_from_url("gamehub://launch/steam/3764200").as_deref(),
-            Some("3764200")
-        );
-    }
-
-    #[test]
     fn parses_steam_run_urls() {
         assert_eq!(
             steam_app_id_from_url("steam://rungameid/2050650").as_deref(),
@@ -88,7 +76,6 @@ mod tests {
     #[test]
     fn rejects_invalid_input() {
         assert_eq!(steam_app_id_from_url(""), None);
-        assert_eq!(steam_app_id_from_url("gamehub://launch/epic/foo"), None);
         assert_eq!(steam_app_id_from_url("not-a-url"), None);
     }
 }

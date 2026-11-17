@@ -100,7 +100,7 @@ pub fn platform_ids(provider: &GameProvider, platform: &GamePlatform) -> Vec<i64
         GamePlatform::Linux => vec![3, 1],
         GamePlatform::Unknown => match provider {
             GameProvider::Astris => vec![4971],
-            GameProvider::Steam | GameProvider::Gamehub => vec![1, 2],
+            GameProvider::Steam => vec![1, 2],
             _ => vec![1, 2, 4971],
         },
     }

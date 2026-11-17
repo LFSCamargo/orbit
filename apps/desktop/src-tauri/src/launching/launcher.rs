@@ -52,9 +52,6 @@ pub fn resolve_launch_strategy(
         LaunchConfiguration::Wine { profile } => LaunchStrategy::Wine {
             profile: profile.clone(),
         },
-        LaunchConfiguration::Gamehub { .. } => LaunchStrategy::Unsupported {
-            reason: "GameHub is no longer a launch provider",
-        },
         other => resolve_config_strategy(other),
     }
 }
@@ -96,9 +93,6 @@ fn resolve_config_strategy(config: &LaunchConfiguration) -> LaunchStrategy {
         } => LaunchStrategy::CustomCommand {
             executable: executable.clone(),
             arguments: arguments.clone(),
-        },
-        LaunchConfiguration::Gamehub { .. } => LaunchStrategy::Unsupported {
-            reason: "GameHub is no longer a launch provider",
         },
     }
 }
@@ -159,9 +153,6 @@ pub fn launch_configuration(
                 let _ = (application_path, arguments);
                 bail!("open-application launching is only implemented for macOS in this MVP");
             }
-        }
-        LaunchConfiguration::Gamehub { .. } => {
-            bail!("GameHub is no longer a launch provider")
         }
         LaunchConfiguration::OpenUrl { url } => {
             open_url(url)?;
@@ -287,23 +278,6 @@ mod tests {
             strategy,
             LaunchStrategy::SteamUrl {
                 url: "steam://rungameid/1091500".into(),
-            }
-        );
-    }
-
-    #[test]
-    fn strategy_gamehub_is_unsupported() {
-        let strategy = resolve_launch_strategy(
-            &LaunchConfiguration::Gamehub {
-                gamehub_app_path: "/Applications/GameHub.app".into(),
-                shortcut_app_path: "/Applications/Games/Hades.app".into(),
-            },
-            GameProvider::Gamehub,
-        );
-        assert_eq!(
-            strategy,
-            LaunchStrategy::Unsupported {
-                reason: "GameHub is no longer a launch provider",
             }
         );
     }

@@ -96,7 +96,7 @@ describe('detailsPrimaryAction', () => {
     ).toBe('sign-in')
   })
 
-  it('waits for the silent Steam client before Play on a Windows install', () => {
+  it('plays a signed-in Windows install without waiting for silent Steam', () => {
     const wine = entry({
       installations: [
         {
@@ -116,7 +116,6 @@ describe('detailsPrimaryAction', () => {
         launching: false,
         cancelling: false,
         signedIn: false,
-        clientLoggedIn: false,
       }),
     ).toMatchObject({ kind: 'sign-in', label: 'Sign in to Steam' })
     expect(
@@ -126,19 +125,8 @@ describe('detailsPrimaryAction', () => {
         launching: false,
         cancelling: false,
         signedIn: true,
-        clientLoggedIn: false,
       }),
-    ).toMatchObject({ kind: 'waiting', label: 'Waiting for Steam…' })
-    expect(
-      detailsPrimaryAction({
-        entry: wine,
-        running: false,
-        launching: false,
-        cancelling: false,
-        signedIn: true,
-        clientLoggedIn: true,
-      }).kind,
-    ).toBe('play')
+    ).toMatchObject({ kind: 'play', label: 'Play now' })
   })
 
   it('cancels a wine launch in the same primary slot', () => {
@@ -173,10 +161,15 @@ describe('isOrbitManagedDownload', () => {
   it('recognizes Orbit SteamCMD install paths', () => {
     expect(
       isOrbitManagedDownload(
+        '/Users/me/Library/Application Support/orbit/runtimes/containers/games/steam-10/install',
+      ),
+    ).toBe(true)
+    expect(
+      isOrbitManagedDownload(
         '/Users/me/Library/Application Support/orbit/steam-windows/games/10',
       ),
     ).toBe(true)
-    expect(isOrbitManagedDownload('/Users/me/GameHub/steamapps/common/Portal')).toBe(
+    expect(isOrbitManagedDownload('/Users/me/SteamLibrary/steamapps/common/Portal')).toBe(
       false,
     )
   })

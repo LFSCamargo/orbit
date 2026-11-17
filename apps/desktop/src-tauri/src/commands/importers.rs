@@ -101,9 +101,14 @@ pub async fn scan_steam_installations(
             crate::services::steam_windows::play_wine_binary(&state.repo).unwrap_or_default();
         let paths =
             crate::services::steam_windows::preferences(&state.repo)?.additional_library_paths;
+        let owned = crate::services::steam_windows::stored_entries(&state.repo)?
+            .into_iter()
+            .map(|entry| (entry.app_id, entry.title))
+            .collect();
         SteamWindowsImporter::new()
             .with_runtime(runtime)
             .with_library_paths(paths)
+            .with_owned(owned, crate::services::steam_windows::wine_steam_root())
             .imported_games()
             .map_err(|err| err.to_string())
     })

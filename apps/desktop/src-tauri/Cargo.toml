@@ -1,5 +1,8 @@
 [workspace]
-members = ["crates/orbit-motion", "crates/orbit-images"]
+members = ["crates/orbit-motion", "crates/orbit-images", "crates/orbit-steam"]
+# Built only for Windows by helpers/steam-agent/build.sh; never part of the
+# macOS app build or `cargo test`.
+exclude = ["helpers/steam-agent"]
 resolver = "2"
 
 [package]
@@ -19,6 +22,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 orbit-motion = { path = "crates/orbit-motion" }
 orbit-images = { path = "crates/orbit-images" }
+orbit-steam = { path = "crates/orbit-steam" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
@@ -50,6 +54,7 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rsa = { version = "0.9", default-features = false, features = ["std"] }
 rand = "0.8"
 zeroize = "1.9"
+zip = { version = "9.6.1", default-features = false, features = ["deflate"] }
 
 [profile.release]
 codegen-units = 1

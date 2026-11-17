@@ -111,7 +111,7 @@ src/
   components/
     layout/
       AppShell.tsx         # PlayingScreen during a session, otherwise MacosShell
-      SteamQrModal.tsx     # Hosts Steam's own 840×520 QR login window over Orbit
+      SteamClientSignIn.tsx # Opens Steam's window, then Orbit closes Wine after the account is saved
       SteamWindowsAccount.tsx # Settings / Downloads Steam authorization card
     home/
       HomeMenuModal.tsx    # Orbit quick menu
@@ -261,10 +261,12 @@ is added only when at least one title is marked favorite. Search still hides vie
 Installed is disk copies (including additional Windows Steam library folders). All games
 includes owned titles that are not installed. Home uses the same entries. Details is one
 page for installed, owned-not-installed, and unavailable titles. Windows Steam Play goes
-through `play_steam_windows_game` so the signed-in prefix and logged-on silent Steam
-client are used. Play stays disabled until `clientLoggedIn` (`Waiting for Steam…`),
-then starts the title with `steam.exe -applaunch`. `useSteamClientEvents` patches
-`steam-windows-status`. Stopping the game leaves Steam running. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md).
+through `play_steam_windows_game`. Home and Details enable Play when `signedIn`
+and the Windows install is available. Downloads write into
+`runtimes/containers/games/steam-{appId}/install/`. Rust clones a per-game
+container from `steam-windows`, seeds login files, and starts the EXE with
+`SteamAppId`. Sign-in stops `steam.exe` after saving the login. See
+[STEAM_WINDOWS.md](STEAM_WINDOWS.md) and [CONTAINERS.md](CONTAINERS.md).
 
 Home copy, header logo, and shell backdrop share `useHomeHero`, which prepends the selected `LibraryEntry` fetch so a title missing from the first library page still paints its own hero. `useBackdropTransition` keeps at most two backdrop layers in the shell. The browser decodes the incoming image before showing it, ignores late results after selection changes, and caches up to 24 lighting samples. Local artwork can use the Rust lighting command. The webview compositor runs the fades.
 
@@ -303,7 +305,7 @@ uses a single O(n) map pass instead of copying the growing groups on each item.
 Settings → Compatibility uses `modules/settings/components/RuntimeSettings.tsx`.
 Settings → Steam uses `modules/settings/components/SteamSettings.tsx` for authorization, offline mode, and file verification. Installing Steam for Windows uses the shared `steam:setup` download task so the progress bar and errors stay visible if the panel unmounts. The Install button stays until `steamwebhelper.exe` is on disk under `cef.win64`, `cef.win7x64`, or `cef.win7`, not merely `steam.exe`.
 
-Details → Settings → Refresh metadata calls `enrich_game_metadata`, which fetches Steam store copy for the known AppID first, then TheGamesDB. Importer stubs such as leftover GameHub install notes are replaced or cleared; catalog overlay never fills an empty field with those stubs.
+Details → Settings → Refresh metadata calls `enrich_game_metadata`, which fetches Steam store copy for the known AppID first, then TheGamesDB. Importer stubs such as leftover shortcut install notes are replaced or cleared; catalog overlay never fills an empty field with those stubs.
 The primary flow is one managed install action with download/install progress,
 online component/version catalog with prereleases and mirror checksums, and
 `CompatibilityGlobalSettings.tsx` for defaults.

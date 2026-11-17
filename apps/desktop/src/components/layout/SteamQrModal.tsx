@@ -4,16 +4,14 @@ import { createPortal } from 'react-dom'
 import { Focusable } from '@/components/focus/Focusable'
 import {
   cancelSteamWindowsSignIn,
-  openSteamWindowsLogin,
-  pollSteamWindowsLogin,
+  pollSteamWindowsQr,
+  startSteamWindowsQr,
 } from '@/lib/tauri'
-import { STEAM_LOGIN_HEIGHT, STEAM_LOGIN_WIDTH } from '@/lib/steamLoginFrame'
-import type { SteamLoginPoll } from '@/types/steam'
-import { useSteamLoginPlacement } from '@/hooks/useSteamLoginPlacement'
+import type { SteamQrPoll } from '@/types/steam'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { useUiStore } from '@/stores/ui.store'
 
-/** Hosts Steam's own QR / account window over Orbit. */
+/** Orbit-drawn Steam QR. Valve's auth API supplies the challenge. No Steam window. */
 export function SteamQrModal({
   open,
   attempt,
@@ -22,30 +20,26 @@ export function SteamQrModal({
 }: {
   open: boolean
   attempt: number
-  onSignedIn: (result: SteamLoginPoll) => void
+  onSignedIn: (result: SteamQrPoll) => void
   onClose: () => void
 }) {
   const finished = useRef(false)
-  const opening = useRef<Promise<void> | null>(null)
   const [closing, setClosing] = useState(false)
-  const [host, setHost] = useState<HTMLDivElement | null>(null)
   const start = useQuery({
-    queryKey: ['steam-login-open', attempt],
-    queryFn: async () => {
-      const operation = openSteamWindowsLogin()
-      opening.current = operation
-      await operation
-      return true
-    },
+    queryKey: ['steam-qr', attempt],
+    queryFn: startSteamWindowsQr,
     enabled: open && attempt > 0 && !closing,
     retry: false,
   })
   const poll = useQuery({
-    queryKey: ['steam-login-poll', attempt],
-    queryFn: pollSteamWindowsLogin,
-    enabled: open && start.isSuccess && !closing,
+    queryKey: ['steam-qr-poll', attempt, start.data?.clientId, start.data?.requestId],
+    queryFn: () => pollSteamWindowsQr(start.data!.clientId, start.data!.requestId),
+    enabled: open && Boolean(start.data) && !closing,
     retry: false,
-    refetchInterval: (query) => (query.state.data?.done ? false : 2_000),
+    refetchInterval: (query) =>
+      query.state.data?.done
+        ? false
+        : Math.max(1, start.data?.intervalSeconds ?? 2) * 1000,
   })
 
   useEffect(() => {
@@ -59,15 +53,11 @@ export function SteamQrModal({
     onSignedIn(result)
   }, [onSignedIn, open, poll.data])
 
-  const placement = useSteamLoginPlacement(open && start.isSuccess && !closing, host)
   useModalFocus(open, 'steam-qr', 'steam-qr-cancel')
   const close = async () => {
     if (closing) return
     setClosing(true)
     try {
-      // Opening may still be provisioning Wine. Reap it after it finishes so a
-      // late spawn cannot appear after the user has dismissed this dialog.
-      await opening.current?.catch(() => undefined)
       await cancelSteamWindowsSignIn()
     } catch (cause) {
       useUiStore
@@ -79,8 +69,9 @@ export function SteamQrModal({
     }
   }
   if (!open) return null
-  const error = start.error ?? poll.error ?? placement.error
-  const ready = start.isSuccess && placement.placed && !error
+  const error = start.error ?? poll.error
+  const qr = start.data?.qrSvg
+  const image = qr ? `data:image/svg+xml,${encodeURIComponent(qr)}` : null
 
   return createPortal(
     <div className="steam-qr-backdrop bg-black/46 fixed inset-0 z-[90] grid place-items-center p-6">
@@ -91,41 +82,35 @@ export function SteamQrModal({
             void close()
           }
         }}
-        className="steam-qr-dialog grid w-[min(900px,100%)] justify-items-center gap-3 rounded-3xl bg-[#f7f8fb] p-4 text-center text-[#141820] shadow-[0_24px_80px_rgb(0_0_0/0.28)] [color-scheme:light]"
+        className="steam-qr-dialog grid w-[min(420px,100%)] justify-items-center gap-3 rounded-3xl bg-[#f7f8fb] p-4 text-center text-[#141820] shadow-[0_24px_80px_rgb(0_0_0/0.28)] [color-scheme:light]"
         style={{ background: '#f7f8fb', color: '#141820' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="steam-qr-title"
-        aria-busy={ready ? 'false' : 'true'}
+        aria-busy={qr && !error ? 'false' : 'true'}
       >
         <h2 id="steam-qr-title" className="m-0">
           Sign in to Steam
         </h2>
-        <div className="relative w-full" style={{ maxWidth: STEAM_LOGIN_WIDTH }}>
-          <div
-            ref={setHost}
-            className="steam-login-host mx-auto rounded-2xl bg-white shadow-[inset_0_0_0_1px_rgb(20_24_32/0.08)]"
-            data-testid="steam-login-host"
-            style={{
-              width: '100%',
-              maxWidth: STEAM_LOGIN_WIDTH,
-              height: `min(${STEAM_LOGIN_HEIGHT}px, calc(100dvh - 240px))`,
-            }}
+        {image ? (
+          <img
+            src={image}
+            alt="Steam sign-in QR code"
+            className="steam-qr-image size-[240px] bg-white"
           />
-          {!ready && !error && (
-            <div className="absolute inset-0 grid place-items-center">
-              <div
-                className="steam-qr-spinner size-[46px] animate-steam-spin rounded-full border-[3px] border-[rgb(20_24_32/0.16)] border-t-[#141820]"
-                role="status"
-                aria-label="Loading Steam sign-in"
-              />
-            </div>
-          )}
-        </div>
+        ) : (
+          !error && (
+            <div
+              className="steam-qr-spinner size-[46px] animate-steam-spin rounded-full border-[3px] border-[rgb(20_24_32/0.16)] border-t-[#141820]"
+              role="status"
+              aria-label="Loading Steam sign-in"
+            />
+          )
+        )}
         <p className="m-0 max-w-[42ch] text-[14px] leading-[1.45] text-[#3c4453]">
-          {ready
-            ? 'Scan the QR code in Steam’s window with the Steam mobile app. Account sign-in is in that same window.'
-            : 'Opening Steam’s sign-in window.'}
+          {qr
+            ? 'Scan this QR code with the Steam mobile app.'
+            : 'Preparing a Steam sign-in code.'}
         </p>
         {error && (
           <p className="steam-auth-error m-0 text-[13px] text-[#9d1c1c]" role="alert">

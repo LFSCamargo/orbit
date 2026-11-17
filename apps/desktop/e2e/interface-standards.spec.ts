@@ -119,9 +119,13 @@ test('adding an existing Steam library folder starts discovery and reports its r
   await page.goto('/')
   await page.locator('[data-focus-id="macos-nav-settings"]').click()
   await page.locator('[data-focus-id="settings-tab-library"]').click()
-  await page.getByLabel('Additional Steam library folder').fill('/Users/player/GameHub')
+  await page
+    .getByLabel('Additional Steam library folder')
+    .fill('/Users/player/SteamLibrary')
   await page.getByRole('button', { name: 'Add library folder', exact: true }).click()
-  await expect(page.getByText('/Users/player/GameHub', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('/Users/player/SteamLibrary', { exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByRole('status').filter({ hasText: 'Library scan complete' }),
   ).toBeVisible()

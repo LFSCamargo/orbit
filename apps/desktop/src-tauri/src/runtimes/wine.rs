@@ -49,36 +49,19 @@ impl PreparedWineLaunch {
             &mut process::detached(&self.command(steam_app_id)?)?,
             &self.log,
         )?;
+        // `detached` makes the child a session leader: its pid is the session.
+        let child_session = child.id() as i32;
         Ok(Box::new(WineProcess {
             child,
             waiter: None,
             runtime: self.runtime,
             prefix: self.prefix,
+            session: Some(child_session),
             shared: self.shared,
             code: None,
             finished: false,
         }))
     }
-}
-
-/// Spawn a process handle for a prefix Orbit does not own the lifecycle of
-/// (GameHub containers). Exit is still bounded by that prefix's wineserver and
-/// `stop` terminates the whole prefix — the same semantics GameHub itself uses
-/// when stopping a game.
-pub(crate) fn foreign_process(
-    child: Child,
-    runtime: WineInstallation,
-    prefix: PathBuf,
-) -> Box<dyn RuntimeProcess> {
-    Box::new(WineProcess {
-        child,
-        waiter: None,
-        runtime,
-        prefix,
-        shared: false,
-        code: None,
-        finished: false,
-    })
 }
 
 pub struct WineAdapter;
@@ -103,41 +86,63 @@ impl WineAdapter {
         let prefix = if let Some(shared) = shared {
             prefix::accept_shared(shared, shared)?
         } else {
-            prefix::prepare(&dir, &runtime, cancel, &log)?
+            prepare_container_or_prefix(&dir, root, game_id, &runtime, cancel, &log)?
         };
+        let containerized = prefix
+            .parent()
+            .is_some_and(|dir| dir.join("container.json").is_file());
         progress("graphics");
         apply_prefix_settings(&runtime, &prefix, profile, cancel, &log)?;
-        let graphics = setup_graphics(&prefix, profile.effective.graphics, &profile.selections)
+        let (overrides, env, dll_path) = if containerized {
+            let graphics = super::containers::graphics::apply(
+                &prefix,
+                profile.effective.graphics,
+                &profile.selections,
+            )
             .context("Could not configure the selected graphics backend")?;
+            (graphics.overrides, graphics.env, graphics.dll_path)
+        } else {
+            let graphics = setup_graphics(&prefix, profile.effective.graphics, &profile.selections)
+                .context("Could not configure the selected graphics backend")?;
+            (graphics.overrides, graphics.env, graphics.dll_path)
+        };
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             bail!("Launch cancelled");
         }
         let mut profile = profile.clone();
-        if !graphics.overrides.is_empty() {
+        if !overrides.is_empty() {
             let existing = profile
                 .environment
                 .entry("WINEDLLOVERRIDES".into())
                 .or_default();
             if !existing.is_empty() {
-                *existing = format!("{existing};{}", graphics.overrides);
+                *existing = format!("{existing};{overrides}");
             } else {
-                *existing = graphics.overrides;
+                *existing = overrides;
             }
         }
-        for (key, value) in graphics.env {
+        for (key, value) in env {
             profile.environment.insert(key, value);
         }
-        if let Some(dll_path) = graphics.dll_path {
-            // Wine searches its own builtins before WINEDLLPATH. Layer both the
-            // Windows DLLs and Unix bridges into a private runtime so the chosen
-            // renderer wins without changing the signed-in client distribution.
-            let layered = super::layer::prepare(
-                Path::new(&runtime.path),
-                Path::new(&dll_path),
-                &root.join("layers"),
-            )
-            .context("Could not prepare the selected graphics runtime")?;
-            runtime = probe(&layered)?;
+        // Everything on this prefix's wineserver (Steam, Orbit's helpers, the
+        // game) must use one sync mode, decided by the Wine, or the game
+        // cannot connect.
+        for (key, value) in super::wine_capabilities::container_sync_env(Path::new(&runtime.path)) {
+            profile.environment.insert(key.into(), value.into());
+        }
+        if let Some(dll_path) = dll_path {
+            if !containerized {
+                // Wine searches its own builtins before WINEDLLPATH. Layer both the
+                // Windows DLLs and Unix bridges into a private runtime so the chosen
+                // renderer wins without changing the signed-in client distribution.
+                let layered = super::layer::prepare(
+                    Path::new(&runtime.path),
+                    Path::new(&dll_path),
+                    &root.join("layers"),
+                )
+                .context("Could not prepare the selected graphics runtime")?;
+                runtime = probe(&layered)?;
+            }
             profile.environment.insert("WINEDLLPATH".into(), dll_path);
         }
         Ok(PreparedWineLaunch {
@@ -146,6 +151,8 @@ impl WineAdapter {
             profile,
             executable,
             log,
+            // A Steam container keeps its client running: the game's own exit
+            // ends the session, and the session then stops that client.
             shared: shared.is_some(),
         })
     }
@@ -163,6 +170,22 @@ impl WineAdapter {
         prepared.spawn(None, cancel)
     }
 }
+fn prepare_container_or_prefix(
+    dir: &Path,
+    root: &Path,
+    game_id: &str,
+    runtime: &WineInstallation,
+    cancel: &AtomicBool,
+    log: &Arc<Mutex<fs::File>>,
+) -> Result<PathBuf> {
+    let seed = dir.join("prefix");
+    let seed = super::containers::layout::prefix_ready(&seed).then_some(seed);
+    match super::containers::prepare_game(root, game_id, runtime, seed.as_deref(), cancel, log) {
+        Ok(container) => Ok(container.prefix),
+        Err(_) => prefix::prepare(dir, runtime, cancel, log),
+    }
+}
+
 impl RuntimeAdapter for WineAdapter {
     type Configuration = WineProfile;
     fn launch(
@@ -213,6 +236,9 @@ struct WineProcess {
     waiter: Option<Child>,
     runtime: WineInstallation,
     prefix: PathBuf,
+    /// The launch's session (see `session_reaper`); `None` when the process
+    /// was not started through `process::detached`.
+    session: Option<i32>,
     shared: bool,
     code: Option<i32>,
     finished: bool,
@@ -261,6 +287,15 @@ impl RuntimeProcess for WineProcess {
         }
         let _ = self.child.kill();
         let _ = self.child.wait();
+        // wineserver -k returns once the server is gone; a game that makes no
+        // server call keeps rendering, from any Steam library. Its launch
+        // session holds it (and never Orbit's resident Steam client).
+        #[cfg(target_os = "macos")]
+        if let Some(session) = self.session {
+            if super::session_reaper::reap(session) > 0 {
+                bail!("The game is still running; retry Stop");
+            }
+        }
         if let Some(waiter) = self.waiter.as_mut() {
             let _ = waiter.kill();
             let _ = waiter.wait();
@@ -375,7 +410,7 @@ pub fn setup_graphics(
             // layout intact; copying only PE files breaks the native bridge.
             let payload = selected(selections, "gptk")?;
             // Apple/Homebrew payloads nest under redist/lib/wine or lib/wine;
-            // GameHub's engine components ship a flat `wine/` directory.
+            // Engine-style component packages ship a flat `wine/` directory.
             let libraries = [
                 payload.join("redist/lib/wine"),
                 payload.join("lib/wine"),
@@ -405,16 +440,7 @@ pub fn setup_graphics(
                         .with_context(|| format!("Cannot install D3DMetal {name}"))?;
                 }
             }
-            let mut env = std::collections::BTreeMap::new();
-            // GameHub-style GPTK components keep the Metal bridge beside the
-            // payload; Apple's own builds resolve it through @rpath instead.
-            let shared = payload.join("external/libd3dshared.dylib");
-            if shared.is_file() {
-                env.insert(
-                    "WINE_GPTK_LIBD3DSHARED_PATH".into(),
-                    shared.to_string_lossy().into_owned(),
-                );
-            }
+            let env = gptk_bridge_env(&payload, &libraries);
             Ok(GraphicsSetup {
                 overrides: "d3d11=b;d3d10=b;d3d12=b;d3d12core=b;dxgi=b".into(),
                 dll_path: Some(libraries.to_string_lossy().into_owned()),
@@ -426,6 +452,41 @@ pub fn setup_graphics(
             Ok(GraphicsSetup::default())
         }
     }
+}
+
+/// GPTK's Metal bridge for the game's environment. It sits beside the payload
+/// (Engine-style packages) or beside its Wine libraries (Apple's
+/// `redist/lib/external`). CrossOver-class Wine only loads it through
+/// `CX_APPLEGPTK_LIBD3DSHARED_PATH`; without it D3DMetal has no non-native
+/// code region support. GPTK's `d3d12.so` finds the framework only through
+/// `D3DMETAL_FRAMEWORK_PATH` in Apple's layout.
+pub(crate) fn gptk_bridge_env(
+    payload: &Path,
+    libraries: &Path,
+) -> std::collections::BTreeMap<String, String> {
+    let mut env = std::collections::BTreeMap::new();
+    let shared = [
+        payload.join("external/libd3dshared.dylib"),
+        libraries
+            .with_file_name("external")
+            .join("libd3dshared.dylib"),
+    ]
+    .into_iter()
+    .find(|path| path.is_file());
+    if let Some(shared) = shared {
+        // d3d12.so looks for D3DMetal next to itself, not beside the bridge.
+        let framework = shared.with_file_name("D3DMetal.framework/D3DMetal");
+        if framework.is_file() {
+            env.insert(
+                "D3DMETAL_FRAMEWORK_PATH".into(),
+                framework.to_string_lossy().into_owned(),
+            );
+        }
+        let shared = shared.to_string_lossy().into_owned();
+        env.insert("CX_APPLEGPTK_LIBD3DSHARED_PATH".into(), shared.clone());
+        env.insert("WINE_GPTK_LIBD3DSHARED_PATH".into(), shared);
+    }
+    env
 }
 
 fn selected(selections: &std::collections::BTreeMap<String, String>, id: &str) -> Result<PathBuf> {
@@ -649,6 +710,24 @@ mod tests {
         assert!(!root
             .join("prefix/drive_c/windows/syswow64/d3d11.dll")
             .exists());
+        assert!(setup.env.is_empty(), "no Metal bridge in this payload");
+        // Regression: Apple's layout keeps the bridge in redist/lib/external,
+        // so CrossOver-class Wine never received it.
+        let shared = root.join("redist/lib/external/libd3dshared.dylib");
+        fs::create_dir_all(shared.parent().unwrap()).unwrap();
+        fs::write(&shared, b"dylib").unwrap();
+        let setup = setup_graphics(
+            &root.join("prefix"),
+            settings::GraphicsBackend::D3dmetal,
+            &selections,
+        )
+        .unwrap();
+        for key in [
+            "CX_APPLEGPTK_LIBD3DSHARED_PATH",
+            "WINE_GPTK_LIBD3DSHARED_PATH",
+        ] {
+            assert_eq!(setup.env.get(key).map(String::as_str), shared.to_str());
+        }
         fs::remove_file(libraries.join("x86_64-unix/d3d11.so")).unwrap();
         assert!(setup_graphics(
             &root.join("prefix"),
@@ -726,6 +805,7 @@ mod tests {
                 version: "wine-9".into(),
             },
             prefix: root.join("prefix"),
+            session: None,
             shared: true,
             code: None,
             finished: false,
@@ -755,11 +835,11 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
-    /// GameHub's GPTK components ship a flat `wine/` tree plus an external
+    /// Engine-style GPTK packages ship a flat `wine/` tree plus an external
     /// libd3dshared bridge instead of Apple's `redist/lib` layout. D3DMetal
     /// must accept that shape and surface the bridge as engine environment.
     #[test]
-    fn d3dmetal_accepts_the_gamehub_component_layout() {
+    fn d3dmetal_accepts_the_flat_component_layout() {
         let root = std::env::temp_dir().join(format!("orbit-gh-gptk-{}", uuid::Uuid::new_v4()));
         let libraries = root.join("wine");
         fs::create_dir_all(libraries.join("x86_64-windows")).unwrap();
@@ -769,7 +849,7 @@ mod tests {
             fs::write(libraries.join(format!("x86_64-windows/{dll}.dll")), b"PE").unwrap();
             fs::write(libraries.join(format!("x86_64-unix/{dll}.so")), b"bridge").unwrap();
         }
-        // GameHub's build merges d3d12core into d3d12; the pair check must not
+        // Some builds merge d3d12core into d3d12; the pair check must not
         // require a separate d3d12core library.
         fs::write(root.join("external/libd3dshared.dylib"), b"shared").unwrap();
         let selections = BTreeMap::from([("gptk".into(), root.to_string_lossy().into_owned())]);
@@ -791,9 +871,9 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
-    /// A missing Unix bridge pair is still a hard error in the GameHub layout.
+    /// A missing Unix bridge pair is still a hard error in the flat layout.
     #[test]
-    fn d3dmetal_gamehub_layout_still_requires_unix_bridges() {
+    fn d3dmetal_flat_layout_still_requires_unix_bridges() {
         let root = std::env::temp_dir().join(format!("orbit-gh-gptk-bad-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(root.join("wine/x86_64-windows")).unwrap();
         fs::create_dir_all(root.join("wine/x86_64-unix")).unwrap();

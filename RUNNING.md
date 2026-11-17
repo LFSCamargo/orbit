@@ -179,7 +179,7 @@ E2E specs (in `apps/desktop/e2e/`):
 | `e2e/macos-theme.spec.ts`         | Liquid Glass home, shelf, compact window, reduced motion                    |
 | `e2e/themes.spec.ts`              | Color + game themes, legacy theme migration, theme studio save/delete       |
 | `e2e/game-details.spec.ts`        | Game details controls and achievements                                      |
-| `e2e/session-and-gamehub.spec.ts` | Session quick menu, Steam library folders, compact header logo              |
+| `e2e/session-and-library.spec.ts` | Session quick menu, Steam library folders, compact header logo              |
 
 `yarn test:e2e` builds the desktop app first (Nx `dependsOn`), then serves it with `vite preview`, so the specs always exercise current code.
 

@@ -168,7 +168,7 @@ it('synchronizes native keyboard focus with controller activation', () => {
   expect(focusManager.getFocusedId()).toBe(`macos-game-${entry.id}`)
 })
 
-it('disables Jump back in until Windows Steam is logged on', () => {
+it('asks to sign in before playing a Windows Steam title', () => {
   const windows: LibraryEntry = {
     ...entry,
     installations: [
@@ -207,10 +207,13 @@ it('disables Jump back in until Windows Steam is logged on', () => {
       onFavorite={vi.fn()}
     />,
   )
-  const play = screen.getByRole('button', { name: 'Waiting for Steam…' })
-  expect(play).toBeDisabled()
+  useUiStore.setState({ screen: 'home', settingsTab: 'general' })
+  const play = screen.getByRole('button', { name: 'Sign in to Steam' })
+  expect(play).toBeEnabled()
   fireEvent.click(play)
   expect(onPlay).not.toHaveBeenCalled()
+  expect(useUiStore.getState().screen).toBe('settings')
+  expect(useUiStore.getState().settingsTab).toBe('steam')
 })
 
 it('paints 1:1 icon art on the shelf instead of portrait covers', () => {

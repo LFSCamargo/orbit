@@ -25,10 +25,10 @@ pub fn request_applaunch(wine: &Path, prefix: &Path, app_id: &str) -> Result<(),
     let steam = steam_exe();
     let steam_root = steam
         .parent()
-        .ok_or("Install Steam for Windows in Settings → Steam before playing this game")?;
+        .ok_or("Install a Windows compatibility runtime in Settings before playing this game")?;
     if !steam.is_file() {
         return Err(
-            "Install Steam for Windows in Settings → Steam before playing this game".into(),
+            "Install a Windows compatibility runtime in Settings before playing this game".into(),
         );
     }
     let mut command = steam_runtime_command(wine, prefix);

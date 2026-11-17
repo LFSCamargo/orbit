@@ -64,6 +64,7 @@ it('opens an uninstalled game and keeps installed games in the All view', async 
     clientPhase: 'ready',
     clientCaption: 'Steam is ready',
     ownedCount: 2,
+    sessionReady: true,
   })
   library.mockResolvedValue([dota, cs])
   renderLibrary()
@@ -97,6 +98,7 @@ it('shows God of War when the owned list is longer than 30 titles', async () => 
     clientPhase: 'ready',
     clientCaption: 'Steam is ready',
     ownedCount: 40,
+    sessionReady: true,
   })
   const filler = Array.from({ length: 39 }, (_, index) => ({
     appId: String(index + 1),
@@ -136,6 +138,7 @@ it('shows a loading overlay while the Steam library is fetching', async () => {
     clientPhase: 'ready',
     clientCaption: 'Steam is ready',
     ownedCount: 2,
+    sessionReady: true,
   })
   library.mockReturnValue(new Promise(() => undefined))
   renderLibrary()

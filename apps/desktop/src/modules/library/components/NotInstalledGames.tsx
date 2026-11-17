@@ -43,7 +43,7 @@ export function NotInstalledGames({ refreshing = false }: { refreshing?: boolean
       <p className="mb-4 mt-1 text-sm text-orbit-muted">
         {status.data?.signedIn
           ? 'Search your full owned library. Open a game to download it or play an install Orbit already has.'
-          : 'Sign in from Settings → Steam. Scan the QR code, then your owned games show up here.'}
+          : 'Sign in from Settings → Steam. Steam’s own window opens, then Orbit closes it and keeps the login.'}
       </p>
       {signedIn && (
         <div className="mb-4 flex flex-wrap items-center gap-3">

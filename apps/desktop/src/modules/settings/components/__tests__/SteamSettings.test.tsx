@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import {
@@ -22,6 +22,7 @@ vi.mock('@/lib/tauri', () => ({
     clientPhase: 'stopped',
     clientCaption: '',
     ownedCount: 0,
+    sessionReady: false,
   }),
   steamWindowsLibrary: vi.fn().mockResolvedValue([]),
   steamWindowsPreferences: vi.fn().mockResolvedValue({
@@ -58,6 +59,7 @@ afterEach(() => {
     clientPhase: 'stopped',
     clientCaption: '',
     ownedCount: 0,
+    sessionReady: false,
   })
   useDownloadStore.setState({ tasks: {}, failures: {} })
 })
@@ -83,10 +85,10 @@ it('gives Steam its own authorization section and saves offline mode', async () 
   expect(await screen.findByRole('region', { name: 'Steam authorization' })).toBeTruthy()
   expect(screen.getByRole('heading', { name: 'Steam' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Sign in with Steam' })).toBeTruthy()
-  expect(
-    await screen.findByRole('button', { name: 'Install Steam for Windows' }),
-  ).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Install Steam for Windows/ })).toBeNull()
   expect(screen.queryByLabelText(/password/i)).toBeNull()
+  expect(screen.queryByText('Play engine')).toBeNull()
+  expect(screen.queryByText('GameHub containers only')).toBeNull()
 
   fireEvent.click(screen.getByRole('switch', { name: 'Offline mode' }))
 
@@ -104,57 +106,27 @@ it('saves an additional existing Steam library path', async () => {
     </QueryClientProvider>,
   )
   fireEvent.change(await screen.findByLabelText('Additional Steam library folder'), {
-    target: { value: '/Users/player/GameHub/steamapps/common' },
+    target: { value: '/Users/player/SteamLibrary/steamapps/common' },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Add library folder' }))
   await waitFor(() =>
     expect(save).toHaveBeenCalledWith({
       offlineMode: false,
       verifyFiles: true,
-      additionalLibraryPaths: ['/Users/player/GameHub/steamapps/common'],
+      additionalLibraryPaths: ['/Users/player/SteamLibrary/steamapps/common'],
     }),
   )
-  expect(await screen.findByText('/Users/player/GameHub/steamapps/common')).toBeTruthy()
+  expect(
+    await screen.findByText('/Users/player/SteamLibrary/steamapps/common'),
+  ).toBeTruthy()
   await waitFor(() => expect(scanSteamInstallations).toHaveBeenCalled())
   expect(await screen.findByText(/Library scan complete/)).toBeTruthy()
 })
 
-it('shows install progress until Steam for Windows is ready', async () => {
-  let finish: (() => void) | undefined
-  vi.mocked(installWindowsSteam).mockImplementation(
-    () =>
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-  )
+it('does not ask to install Steam when the Windows client is missing', async () => {
   renderSteam()
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Install Steam for Windows' }),
-  )
-  expect(await screen.findByTestId('download-progress')).toBeVisible()
-  expect(screen.getByText(/Preparing Steam for Windows/)).toBeVisible()
-  expect(
-    screen.getByRole('button', { name: 'Preparing the Steam environment…' }),
-  ).toBeDisabled()
-  await act(async () => finish?.())
-  await waitFor(() =>
-    expect(useDownloadStore.getState().tasks['steam:setup']?.progress?.phase).toBe(
-      'Ready',
-    ),
-  )
-})
-
-it('keeps a Steam install error visible', async () => {
-  vi.mocked(installWindowsSteam).mockRejectedValue(
-    new Error('The Steam compatibility environment could not be created'),
-  )
-  renderSteam()
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Install Steam for Windows' }),
-  )
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'The Steam compatibility environment could not be created',
-  )
+  expect(await screen.findByRole('button', { name: 'Sign in with Steam' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Install Steam for Windows/ })).toBeNull()
 })
 
 it('hides install when Steam for Windows is already present', async () => {
@@ -167,6 +139,7 @@ it('hides install when Steam for Windows is already present', async () => {
     clientPhase: 'ready',
     clientCaption: 'Steam is ready',
     ownedCount: 4,
+    sessionReady: true,
   })
   renderSteam()
   expect(await screen.findByRole('region', { name: 'Steam authorization' })).toBeTruthy()

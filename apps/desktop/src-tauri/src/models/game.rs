@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub enum GameProvider {
     Astris,
     Steam,
-    Gamehub,
     Native,
     Manual,
 }
@@ -15,7 +14,6 @@ impl GameProvider {
         match self {
             Self::Astris => "astris",
             Self::Steam => "steam",
-            Self::Gamehub => "gamehub",
             Self::Native => "native",
             Self::Manual => "manual",
         }
@@ -25,7 +23,6 @@ impl GameProvider {
         match value {
             "astris" => Self::Astris,
             "steam" => Self::Steam,
-            "gamehub" => Self::Gamehub,
             "native" => Self::Native,
             _ => Self::Manual,
         }
@@ -91,13 +88,6 @@ pub enum LaunchConfiguration {
     CustomCommand {
         executable: String,
         arguments: Vec<String>,
-    },
-    /// GameHub shortcut in Applications — Orbit opens GameHub, then the game's .app.
-    Gamehub {
-        #[serde(rename = "gamehubAppPath")]
-        gamehub_app_path: String,
-        #[serde(rename = "shortcutAppPath")]
-        shortcut_app_path: String,
     },
 }
 

@@ -179,8 +179,7 @@ export function GameDetailsPage() {
           game={game}
           running={running}
           sessionId={activeSession?.id ?? null}
-          signedIn={steam.status.data?.signedIn === true}
-          clientLoggedIn={steam.status.data?.clientLoggedIn === true}
+          signedIn={steam.status.data?.sessionReady === true}
         />
         <Focusable
           focusId="details-favorite"

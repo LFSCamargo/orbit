@@ -40,6 +40,7 @@ export function MacosHome({
   const setHero = useUiStore((s) => s.setHeroGameId)
   const details = useUiStore((s) => s.openGameDetails)
   const navigate = useUiStore((s) => s.setScreen)
+  const setSettingsTab = useUiStore((s) => s.setSettingsTab)
   const titleRef = useFittedTitle(heroEntry.game.title)
   const shelfRef = useRef<HTMLDivElement>(null)
   const stopShelfScroll = useRef(() => {})
@@ -164,16 +165,17 @@ export function MacosHome({
                   group="macos-feature"
                   order={0}
                   noScale
-                  disabled={steamBlocked}
                   onClick={() => {
                     if (running) onStop()
-                    else if (!steamBlocked) onPlay(heroEntry)
+                    else if (steamBlocked) {
+                      setSettingsTab('steam')
+                      navigate('settings')
+                    } else onPlay(heroEntry)
                   }}
                   className={clsx(
                     'macos-play',
                     'flex min-h-12 items-center gap-[11px] rounded-full bg-[linear-gradient(#ffffffed,#dce9fce0)] px-[26px] text-[13px] font-[650] text-orbit-canvas shadow-play hover:bg-white',
                     'max-[520px]:px-5',
-                    steamBlocked && 'cursor-wait opacity-40',
                   )}
                 >
                   {running ? (
@@ -184,7 +186,7 @@ export function MacosHome({
                   {running
                     ? 'Stop game'
                     : steamBlocked
-                      ? 'Waiting for Steam…'
+                      ? 'Sign in to Steam'
                       : 'Jump back in'}
                 </Focusable>
                 <Focusable

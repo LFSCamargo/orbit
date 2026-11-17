@@ -245,8 +245,7 @@ async fn moltenvk_component() -> Result<CatalogComponent> {
 }
 
 async fn vkd3d_proton_component() -> Result<CatalogComponent> {
-    // Upstream publishes .tar.zst releases; Orbit extracts zstd since the
-    // GameHub engine and vkd3d-proton both ship that format.
+    // Upstream publishes .tar.zst releases; Orbit extracts zstd.
     let releases = fetch_releases("HansKristian-Work/vkd3d-proton").await?;
     Ok(component(
         "vkd3d-proton",
@@ -265,16 +264,15 @@ async fn vkd3d_proton_component() -> Result<CatalogComponent> {
 }
 
 /// zink (OpenGL over Vulkan) has no single public macOS build feed. The row
-/// exists so an imported or registered zink provider shows up in the same
-/// Compatibility list; installs come from `import_gamehub_components` or a
-/// manual path registration.
+/// exists so a registered zink provider shows up in the same Compatibility
+/// list; installs come from a manual path registration.
 fn zink_component() -> CatalogComponent {
     component(
         "zink",
         "OpenGL over Vulkan",
         "Mesa zink",
         "https://docs.mesa3d.org/drivers/zink.html",
-        "Import from a local engine or register a path",
+        "Register a local path",
         Vec::new(),
         false,
     )
@@ -286,7 +284,7 @@ async fn gptk_component() -> Result<CatalogComponent> {
     // 2. Community binary releases (1.1 through 3.0-3 plus betas) with
     //    GitHub-published SHA-256 digests.
     // 3. Apple 3.x/4.x packages the user already downloaded with their
-    //    Apple ID (typically via GameHub or the Apple Developer site), detected
+    //    Apple ID from the Apple Developer site, detected
     //    locally and imported with license documents preserved.
     let mut versions = Vec::new();
     let formulae = tokio::task::spawn_blocking(super::homebrew::gptk_formulae)

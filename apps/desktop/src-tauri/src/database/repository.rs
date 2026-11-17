@@ -26,6 +26,7 @@ impl GameRepository {
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         run_migrations(&conn)?;
         crate::database::library_migration::migrate(&conn, path)?;
+        crate::database::gamehub_removal::migrate(&conn, path)?;
         let repo = Self {
             conn: Mutex::new(conn),
         };
@@ -624,9 +625,6 @@ fn install_size_for_launch(config: &LaunchConfiguration) -> Option<i64> {
         LaunchConfiguration::OpenApplication {
             application_path, ..
         } => crate::utils::size::path_size_bytes(Path::new(application_path)),
-        LaunchConfiguration::Gamehub {
-            shortcut_app_path, ..
-        } => crate::utils::size::path_size_bytes(Path::new(shortcut_app_path)),
         _ => None,
     }
 }

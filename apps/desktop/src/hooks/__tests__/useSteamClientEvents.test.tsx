@@ -37,6 +37,7 @@ it('patches steam-windows-status from steam-client events and cleans up', async 
     clientPhase: 'ready',
     clientCaption: 'Steam is ready',
     ownedCount: 4,
+    sessionReady: true,
   }
   act(() => callbacks.get('steam-client')?.({ payload: status }))
   expect(client.getQueryData(['steam-windows-status'])).toEqual(status)

@@ -506,7 +506,7 @@ fn failed_server_monitor_is_not_reported_as_successful_game_exit() {
         assert!(start.elapsed() < std::time::Duration::from_secs(3));
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
-    fs::remove_file(root.join("data/game/prefix/game-started")).unwrap();
+    fs::remove_file(root.join("data/containers/games/game/prefix/game-started")).unwrap();
     handle.stop().unwrap();
     drop(handle);
     fs::remove_dir_all(root).unwrap();
@@ -543,6 +543,8 @@ fn broken_graphics_aborts_before_spawning_the_game() {
         result.is_err(),
         "An unavailable graphics backend must not launch with Wine defaults"
     );
-    assert!(!root.join("data/game/prefix/game-started").exists());
+    assert!(!root
+        .join("data/containers/games/game/prefix/game-started")
+        .exists());
     fs::remove_dir_all(root).unwrap();
 }

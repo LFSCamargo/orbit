@@ -1,42 +1,9 @@
-//! Keep the silent Windows Steam client alive while Orbit is open and emit
-//! `steam-client` phases for Settings and Play.
-
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+//! Steam status phases for Settings. There is no resident steam.exe keep-alive.
+//! A saved login is enough to seed per-game containers.
 
 use parking_lot::Mutex;
-use tauri::{AppHandle, Emitter};
-
-use super::steam_play;
-use super::steam_windows;
-use crate::database::GameRepository;
 
 static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
-static WARMING: AtomicBool = AtomicBool::new(false);
-/// Set while a GameHub container session runs: the resident client is stopped
-/// and not restarted until the session ends.
-static SUSPENDED: AtomicBool = AtomicBool::new(false);
-
-/// Stop the resident client for the length of a container session.
-pub fn suspend() {
-    if !SUSPENDED.swap(true, Ordering::SeqCst) {
-        let _ = std::thread::Builder::new()
-            .name("orbit-steam-suspend".into())
-            .spawn(steam_windows::stop_steam_prefix);
-    }
-}
-
-/// Let the warm loop restart the resident client.
-pub fn resume() {
-    SUSPENDED.store(false, Ordering::SeqCst);
-}
-
-/// The warm loop restarts the resident client only when nothing needs the
-/// machine more: no sign-in, no container session, no game in play.
-fn warm_allowed(login_in_progress: bool, suspended: bool, game_running: bool) -> bool {
-    !login_in_progress && !suspended && !game_running
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SteamClientPhase {
@@ -66,10 +33,10 @@ pub fn phase(
     client_logged_in: bool,
     last_error: Option<&str>,
 ) -> SteamClientPhase {
-    if client_logged_in {
-        SteamClientPhase::Ready
-    } else if last_error.is_some() && !client_running {
+    if last_error.is_some() && !client_running && !client_logged_in {
         SteamClientPhase::Failed
+    } else if client_logged_in || (signed_in && steam_installed && !client_running) {
+        SteamClientPhase::Ready
     } else if client_running {
         SteamClientPhase::Connecting
     } else if signed_in && steam_installed {
@@ -108,115 +75,12 @@ pub fn describe(
     (phase.as_str().into(), caption(phase, error.as_deref()))
 }
 
-pub fn start(app: AppHandle, repo: Arc<GameRepository>) {
-    let watch_repo = repo.clone();
-    let watch_app = app.clone();
-    let _ = std::thread::Builder::new()
-        .name("orbit-steam-client".into())
-        .spawn(move || watch(watch_app, watch_repo));
-    let _ = std::thread::Builder::new()
-        .name("orbit-steam-warm".into())
-        .spawn(move || warm_loop(app, repo));
-}
-
-fn watch(app: AppHandle, repo: Arc<GameRepository>) {
-    let mut last = None;
-    loop {
-        // status() runs a system-wide `ps`; nothing reads it while a game plays.
-        if crate::launching::game_activity::running() {
-            std::thread::sleep(Duration::from_secs(1));
-            continue;
-        }
-        if let Ok(status) = steam_windows::status(&repo) {
-            let key = (
-                status.client_phase.clone(),
-                status.client_running,
-                status.client_logged_in,
-            );
-            if last.as_ref() != Some(&key) {
-                let _ = app.emit("steam-client", &status);
-                last = Some(key);
-            }
-        }
-        std::thread::sleep(Duration::from_secs(1));
-    }
-}
-
-fn warm_loop(app: AppHandle, repo: Arc<GameRepository>) {
-    loop {
-        warm_once(&app, &repo);
-        std::thread::sleep(Duration::from_secs(5));
-    }
-}
-
-fn warm_once(app: &AppHandle, repo: &GameRepository) {
-    if !warm_allowed(
-        steam_windows::login_in_progress(),
-        SUSPENDED.load(Ordering::SeqCst),
-        crate::launching::game_activity::running(),
-    ) {
-        return;
-    }
-    let Ok(status) = steam_windows::status(repo) else {
-        return;
-    };
-    if !status.signed_in || !status.steam_installed || status.client_running {
-        return;
-    }
-    if !WARMING
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_ok()
-    {
-        return;
-    }
-    let result = start_silent_client(repo);
-    WARMING.store(false, Ordering::SeqCst);
-    match result {
-        Ok(()) => {
-            *LAST_ERROR.lock() = None;
-        }
-        Err(error) => {
-            *LAST_ERROR.lock() = Some(error);
-        }
-    }
-    if let Ok(status) = steam_windows::status(repo) {
-        let _ = app.emit("steam-client", &status);
-    }
-}
-
-fn start_silent_client(repo: &GameRepository) -> Result<(), String> {
-    let Some(wine) = steam_windows::play_wine_binary(repo) else {
-        return Err(
-            "Install a Windows compatibility runtime in Settings before Steam can start".into(),
-        );
-    };
-    let prefix = steam_play::play_prefix()?;
-    let extras = steam_windows::preferences(repo)
-        .map(|prefs| prefs.additional_library_paths)
-        .unwrap_or_default();
-    let cancel = AtomicBool::new(false);
-    steam_play::ensure_silent_client(&wine, &prefix, &cancel, &extras)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn container_sessions_hold_the_warm_loop_until_resumed() {
-        assert!(warm_allowed(false, false, false));
-        assert!(!warm_allowed(true, false, false));
-        assert!(!warm_allowed(false, true, false));
-        assert!(!warm_allowed(false, false, true));
-        // Without an installed client suspend only flips the flag.
-        SUSPENDED.store(true, Ordering::SeqCst);
-        assert!(SUSPENDED.load(Ordering::SeqCst));
-        resume();
-        assert!(!SUSPENDED.load(Ordering::SeqCst));
-    }
-
-    #[test]
-    fn ready_only_when_the_prefix_client_is_logged_on() {
+    fn ready_when_the_saved_login_exists() {
         assert_eq!(phase(true, true, true, true, None), SteamClientPhase::Ready);
         assert_eq!(
             phase(true, true, true, false, None),
@@ -224,7 +88,7 @@ mod tests {
         );
         assert_eq!(
             phase(true, true, false, false, None),
-            SteamClientPhase::Starting
+            SteamClientPhase::Ready
         );
         assert_eq!(
             phase(false, true, false, false, None),

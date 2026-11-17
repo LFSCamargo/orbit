@@ -2,7 +2,7 @@ import { selectInstallation } from './libraryEntries'
 import type { LibraryEntry, LibraryInstallation } from '@/types/library'
 
 export type DetailsActionKind =
-  'play' | 'cancel' | 'stop' | 'install' | 'sign-in' | 'waiting' | 'setup' | 'locate'
+  'play' | 'cancel' | 'stop' | 'install' | 'sign-in' | 'setup' | 'locate'
 
 export type DetailsPrimaryAction = {
   kind: DetailsActionKind
@@ -18,7 +18,6 @@ export function detailsPrimaryAction(input: {
   launching: boolean
   cancelling: boolean
   signedIn: boolean
-  clientLoggedIn?: boolean
 }): DetailsPrimaryAction {
   const installation = selectInstallation(input.entry)
   if (input.cancelling) return { kind: 'cancel', label: 'Cancelling…', installation }
@@ -41,11 +40,8 @@ export function detailsPrimaryAction(input: {
     }
   }
   if (installation?.available) {
-    if (needsSilentSteam(input.entry, installation)) {
-      if (!input.signedIn) return { kind: 'sign-in', label: 'Sign in to Steam' }
-      if (!input.clientLoggedIn) {
-        return { kind: 'waiting', label: 'Waiting for Steam…', installation }
-      }
+    if (needsSteamAccount(input.entry, installation) && !input.signedIn) {
+      return { kind: 'sign-in', label: 'Sign in to Steam' }
     }
     return {
       kind: 'play',
@@ -72,7 +68,7 @@ export function detailsPrimaryAction(input: {
   return { kind: 'locate', label: 'Locate installation', gameId: input.entry.game.id }
 }
 
-function needsSilentSteam(entry: LibraryEntry, installation: LibraryInstallation) {
+function needsSteamAccount(entry: LibraryEntry, installation: LibraryInstallation) {
   return Boolean(
     entry.steamAppId &&
     installation.platform === 'windows' &&
@@ -81,5 +77,7 @@ function needsSilentSteam(entry: LibraryEntry, installation: LibraryInstallation
 }
 
 export function isOrbitManagedDownload(path: string | null | undefined) {
-  return Boolean(path?.includes('/steam-windows/games/'))
+  return Boolean(
+    path?.includes('/containers/games/') || path?.includes('/steam-windows/games/'),
+  )
 }

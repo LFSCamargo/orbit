@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Focusable } from '@/components/focus/Focusable'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
 import type { SteamLoginPoll } from '@/types/steam'
-import { SteamQrModal } from './SteamQrModal'
+import { SteamClientSignIn } from './SteamClientSignIn'
 
 const STEAM_BUTTON =
   'steam-activity-button justify-self-start rounded-full bg-[#f7f8fb] px-3.5 py-[9px] text-[13px] font-[680] text-[#12141a] disabled:opacity-55'
@@ -13,7 +13,7 @@ const STEAM_BUTTON_QUIET =
 const AUTH_COPY = 'steam-auth-copy m-0 text-[13px] leading-[1.45] text-white/72'
 const AUTH_ERROR = 'steam-auth-error m-0 text-[13px] text-[#ffb4b4]'
 
-/** Steam Windows sign-in. Steam's own QR window is hosted over Orbit. */
+/** Steam sign-in. Orbit opens Valve's client, then closes Wine once the account is saved. */
 export function SteamWindowsAccount({
   focusGroup = 'steam-activity',
 }: {
@@ -22,6 +22,7 @@ export function SteamWindowsAccount({
   const client = useQueryClient()
   const { status, signOut } = useSteamWindows()
   const account = status.data
+  const shareable = account?.sessionReady === true
   const [qrOpen, setQrOpen] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [libraryError, setLibraryError] = useState<string | null>(null)
@@ -55,21 +56,38 @@ export function SteamWindowsAccount({
         <h3 className="m-0 text-[1.05rem] font-[650] tracking-[-0.03em]">Steam login</h3>
         <p
           className="steam-auth-status bg-white/8 m-0 rounded-full px-2 py-1 text-[11px] font-[650] uppercase tracking-[0.04em] data-[authorized=true]:bg-[rgb(125_255_179/0.16)] data-[authorized=true]:text-[#b8ffd4]"
-          data-authorized={account?.clientLoggedIn ? 'true' : 'false'}
+          data-authorized={shareable ? 'true' : 'false'}
         >
-          {account?.clientLoggedIn ? 'Authorized' : 'Not authorized'}
+          {shareable ? 'Authorized' : 'Not authorized'}
         </p>
       </div>
-      {account?.clientLoggedIn ? (
+      {shareable ? (
         <>
-          <p className={AUTH_COPY}>Signed in as {account.accountName}</p>
+          <p className={AUTH_COPY}>
+            Signed in as {account?.accountName}. Resident Evil and other Windows games use
+            this sign-in.
+          </p>
+          <Focusable
+            focusId={`${focusGroup}-sign-out`}
+            group={focusGroup}
+            order={2}
+            noScale
+            className={clsx(STEAM_BUTTON, STEAM_BUTTON_QUIET)}
+            onClick={() => void signOut.mutate()}
+            disabled={signOut.isPending}
+          >
+            Sign out
+          </Focusable>
+          <p className={AUTH_COPY}>
+            Sign out removes the Windows Steam environment. Games in other folders stay.
+          </p>
         </>
       ) : (
         <>
           <p className={AUTH_COPY}>
             {account?.signedIn
-              ? 'Orbit has your library. Sign in through Steam’s window so the Windows client matches.'
-              : 'Sign in with Steam’s own QR code so the Windows client is logged in too. Orbit never keeps the password.'}
+              ? `Signed in as ${account.accountName ?? 'Steam'}, but games do not have a session yet. Sign in with Steam's own window.`
+              : 'Sign in with Steam’s own window once. Orbit closes it after the account is saved and uses that login for every Windows game.'}
           </p>
           <Focusable
             focusId={`${focusGroup}-sign-in`}
@@ -90,27 +108,6 @@ export function SteamWindowsAccount({
           </Focusable>
         </>
       )}
-      {account?.signedIn ? (
-        <>
-          {account.clientLoggedIn ? null : (
-            <p className={AUTH_COPY}>Signed in as {account.accountName}</p>
-          )}
-          <Focusable
-            focusId={`${focusGroup}-sign-out`}
-            group={focusGroup}
-            order={2}
-            noScale
-            className={clsx(STEAM_BUTTON, STEAM_BUTTON_QUIET)}
-            onClick={() => void signOut.mutate()}
-            disabled={signOut.isPending}
-          >
-            Sign out
-          </Focusable>
-          <p className={AUTH_COPY}>
-            Sign out removes the Windows Steam environment. Games in other folders stay.
-          </p>
-        </>
-      ) : null}
       {libraryError && (
         <p className={AUTH_ERROR} role="alert">
           {libraryError}
@@ -121,7 +118,7 @@ export function SteamWindowsAccount({
           {error instanceof Error ? error.message : String(error)}
         </p>
       )}
-      <SteamQrModal
+      <SteamClientSignIn
         open={qrOpen}
         attempt={attempt}
         onSignedIn={finish}

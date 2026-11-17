@@ -45,7 +45,7 @@ reports phase and percentage through one shared tracker.
 
 `src/lib/downloadProgress.ts` is the single store for background transfers.
 Each task has a stable key (`component:<id>:<version>`, or `steam:<appId>` for
-the planned GameHub-style Steam install integration), a label, a progress value
+Steam Windows downloads), a label, a progress value
 and a failure record. Tasks live in the store rather than in a component, so
 navigating away from Settings keeps the bar visible and cannot restart a
 download.
@@ -138,8 +138,8 @@ GPTK 4.x betas (and Apple's own 3.0 package) are only available through Apple's
 authenticated download, so they are never in any public release feed. Instead,
 `runtimes/gptk_local.rs` **detects the DMGs you already own** and imports them:
 
-- Scan is bounded (depth 1) over `~/Downloads` and GameHub's app/support
-  folders, matching Apple's `Game_Porting_Toolkit_<version>.dmg` and
+- Scan is bounded (depth 1) over `~/Downloads`, matching Apple's
+  `Game_Porting_Toolkit_<version>.dmg` and
   `Evaluation_environment_for_Windows_games_<version>.dmg` names. Size bounds and
   symlink rejection apply; only regular files are offered.
 - When a filename matches a version pinned in `runtime-packages/gptk/manifest.json`,
@@ -175,7 +175,7 @@ releases; Orbit extracts zstd archives alongside tar/tar.xz/tar.gz. When a DXVK
 launch also has a vkd3d-proton selection, its `d3d12`/`d3d12core` DLLs are
 installed beside DXVK's (DXVK keeps `dxgi`). zink (OpenGL over Vulkan) has no
 single public macOS build feed: its catalog row is import-only, filled by
-`import_gamehub_components` or a manual path registration.
+a manual path registration.
 
 The older `runtime-packages/gptk/` mirror files and `scripts/fetch-gptk.sh` are
 no longer surfaced in the main catalog; they remain in the repository for
@@ -215,42 +215,18 @@ component or engine is missing. Play sanitizes leftover DXMT NVIDIA, MetalFX,
 and frame-rate flags that do not apply to the resolved engine instead of
 failing on the first overlay step.
 
-## GameHub engine integration
+D3DMetal also accepts engine-style GPTK packages that ship a flat `wine/`
+directory plus `external/libd3dshared.dylib`; that layout sets
+`WINE_GPTK_LIBD3DSHARED_PATH` instead of relying on Apple's `@rpath`. Payloads
+whose native bridge is ARM64-only (`aarch64-unix` without `x86_64-unix`) are
+never selected: Orbit's Wine runs as x86_64 under Rosetta.
 
-`services/gamehub_engine.rs` treats a locally installed GameHub
-(`com.gamemac.www`) wine-engine as optional, read-only external state. Orbit
-never starts GameHub.app, never writes to its registries, and never reads its
-account tokens; when GameHub is absent every code path degrades to Orbit's own
-managed stack.
+Startup cleanup in `runtimes/retired_components.rs` drops Orbit's own component
+manifests that only pointed at a retired third-party engine folder, and clears
+active selections that used them. It never deletes files outside Orbit's
+component store, and it skips any folder that holds more than the pointer.
 
-- **Discovery** parses `wine-engine/container/{wine_installations,wine_containers,wine_virtual_containers}.json`
-  and `gamehub/game_container_store.json` with bounded, schema-tolerant reads
-  (8 MiB cap, unknown fields ignored). `gamehub_engine_status` reports engine
-  availability, overlay readiness, and per-game container health without
-  spawning any process.
-- **Container launches** (Steam titles, `playEngine: auto|gamehub`) reproduce
-  GameHub's verified recipe: its Wine build, `WINEPREFIX`/`WINEPREFIX_BASE`,
-  the copy-on-write overlay (`DYLD_INSERT_LIBRARIES` of GameHub's
-  `libsandboxfs.dylib` plus the container's own layer manifest, selected by
-  matching the base-container path), the container's graphics-stack environment
-  (`WINEDLLPATH`, `WINE_GPTK_LIBD3DSHARED_PATH`, MoltenVK ICD, zink provider),
-  sync backend, and the in-container `steam.exe` (GameHub's SteamAgent) with
-  `--username … --offline --applaunch {appId}`. A missing overlay is a hard
-  error, never a silent launch into an incomplete filesystem. Exit tracking and
-  stop use the container's own wineserver, matching GameHub semantics.
-- **Component import** (`import_gamehub_components`,
-  `runtimes/gamehub_components.rs`) registers GameHub's installed GPTK, DXMT,
-  vkd3d-proton, MoltenVK, and zink payloads into Orbit's component store as
-  read-only references (manifest only — nothing is copied or redistributed).
-  Imported versions are named after their GameHub component (`gptk-4.0-2`,
-  `dxmt-v0.80`, …) and become selectable like downloaded ones. D3DMetal accepts
-  GameHub's flat `wine/` payload layout and surfaces `libd3dshared` as engine
-  environment.
-- **Account name** for `--username` comes from Orbit's stored Steam account;
-  only when Orbit has none does Orbit read the plain `account_name` field from
-  GameHub's account registry. Token fields are absent from the parsed shape.
-
-## CrossOver and GameHub feature audit
+## CrossOver feature audit
 
 CrossOver behavior was checked against CodeWeavers' official
 [CrossOver 26 advanced settings documentation](https://support.codeweavers.com/en_US/advanced-settings-in-crossover-mac-26):
@@ -258,23 +234,13 @@ Auto/DXMT/D3DMetal/DXVK/Wine graphics, ESync/MSync, High Resolution Mode, and
 MetalFX-powered DLSS. CSMT is always on in current CrossOver and is not exposed
 as a fake Orbit toggle.
 
-GameHub behavior was checked without changing its installation or data, using
-the already documented local frontend extraction (binary SHA-256
-`fe44b84c0b4e7eaca5da57ae10f576b7bf265c627862a074b088f381e9aaa357`).
-The inspected interface exposes versioned Wine/graphics dependencies, graphics
-API, sync backend, Retina mode, resolution modes/scaling, Metal HUD, AVX,
-upscaling and ratio, frame generation and VSync, DXMT NVIDIA extensions, Rosetta
-setup, and X87 options. It also distinguishes dependency download, archive
-verification, extraction, preparation, and per-game container configuration.
-No proprietary source was copied into Orbit.
-
 The remaining implementation backlog is a real backend contract, not more menu
 items: DXVK/DXMT download and per-prefix DLL injection, Apple GPTK package import
 and D3DMetal linkage, MoltenVK capability checks, MetalFX/upscale-ratio mapping,
 frame-generation injection and VSync, Rosetta/X87 setup, color modes, media
 decode workarounds, dependency installation, prefix tools/reset/backup, and
-tested per-game recommendations. Store accounts, social features, cloud sync and
-ROM-related GameHub functionality remain outside Orbit's scope.
+tested per-game recommendations. Store accounts, social features, and cloud sync
+remain outside Orbit's scope.
 
 ## Phase 1 manual runtime foundation
 
@@ -326,6 +292,8 @@ slice does not yet manage. Prefer an already installed, self-contained game.
 - `detection.rs`: bounded candidate discovery and executable probes.
 - `validation.rs`: absolute paths, no parent traversal, Windows PE header checks.
 - `prefix.rs`: creation, ownership/version marker and failed-setup cleanup.
+- `containers/`: base + per-game Wine containers, APFS clone, graphics links, Steam seed.
+- `wine_capabilities.rs`: MSync / Metal-view / D3DMetal probe for CrossOver-class Wine.
 - `process.rs`: bounded waits, sanitized child environment and capped pipe capture.
 - `wine.rs`: Wine adapter, game working directory, exit monitoring and stop.
 - `commands/runtimes.rs`: asynchronous native command boundary.
@@ -342,7 +310,8 @@ titles, the current Steam Wine binary. A leftover prefix is updated in place
 (`wineboot -u`) instead of being deleted when the Wine version changes.
 
 Environment locations are under Orbit's existing application data directory:
-`runtimes/<game-id>/prefix`, `runtime.json`, and `latest.log`. Prefix paths are never
+`runtimes/<game-id>/prefix` (legacy fallback), `runtimes/containers/bases/<wine-key>/`,
+`runtimes/containers/games/<game-id>/`, `runtime.json`, and `latest.log`. Prefix paths are never
 supplied by the frontend. Symlinks at the managed game/prefix boundary are rejected.
 An interrupted unmarked prefix is not reused. Newly failed initialization is removed
 only after its Wine server stops. Imported game files are never deleted on launch
@@ -357,7 +326,7 @@ may exit before the game: monitoring waits for the dedicated prefix's `wineserve
 to exit before ending tracking. The recorded exit code is the initial loader's code,
 not a promise to recover an arbitrary descendant game's exit code. Stop signals
 only that prefix's server, first TERM and then Wine's default kill escalation.
-Shared GameHub hosts remain untouched. Native/emulator tracking retains its current
+Native/emulator tracking retains its current
 limitations; it is not relabeled as owned-process tracking.
 
 Launches use `Command` argv, never a shell. Child environment inheritance is cleared

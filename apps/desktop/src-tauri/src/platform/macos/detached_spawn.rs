@@ -1,4 +1,4 @@
-//! Start games as their own macOS app, the way GameHub does.
+//! Start games as their own macOS app.
 //!
 //! A process spawned by Orbit is attributed to Orbit ("responsible process"),
 //! so macOS credits Game Mode to `com.orbit.launcher` and pauses it when the
@@ -10,7 +10,7 @@
 //!
 //! Orbit ships with the hardened runtime, so dyld removes `DYLD_*` variables
 //! from the trampoline's environment. They travel under [`CARRY`] and are
-//! restored for the game's exec (GameHub's overlay is `DYLD_INSERT_LIBRARIES`).
+//! restored for the game's exec (injected libraries use `DYLD_INSERT_LIBRARIES`).
 
 use std::ffi::{CString, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -176,7 +176,7 @@ mod tests {
         let mut command = Command::new("/opt/wine/bin/wine");
         command
             .env_clear()
-            .env("DYLD_INSERT_LIBRARIES", "/GameHub.app/libsandboxfs.dylib")
+            .env("DYLD_INSERT_LIBRARIES", "/Orbit/runtime/libinject.dylib")
             .env("WINEPREFIX", "/tmp/prefix");
         let wrapped = wrap(&command).unwrap();
         let carried: Vec<(OsString, OsString)> = wrapped
@@ -197,7 +197,7 @@ mod tests {
             [
                 (
                     OsString::from("DYLD_INSERT_LIBRARIES"),
-                    OsString::from("/GameHub.app/libsandboxfs.dylib")
+                    OsString::from("/Orbit/runtime/libinject.dylib")
                 ),
                 (OsString::from("WINEPREFIX"), OsString::from("/tmp/prefix")),
             ]

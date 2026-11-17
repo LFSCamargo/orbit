@@ -12,6 +12,7 @@ use crate::launching::{
 };
 use crate::models::{Game, GamePlatform, GameProvider, GameSession, SessionStopReason};
 use crate::runtimes::RuntimeProcess;
+use crate::services::container_steam::SteamHost;
 use crate::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -25,6 +26,8 @@ struct TrackedSession {
     session: GameSession,
     preexisting_pids: Vec<u32>,
     runtime: Option<Box<dyn RuntimeProcess>>,
+    /// The game container's Steam client, stopped when the session ends.
+    steam_host: Option<SteamHost>,
     stopping: bool,
 }
 
@@ -82,107 +85,20 @@ impl SessionManager {
         let ctx = LaunchContext::from_app(app);
         let last_step = Mutex::new("resolve".to_string());
 
+        let mut steam_host: Option<SteamHost> = None;
         let result = match &game.launch_config {
             crate::models::LaunchConfiguration::Wine { profile } => {
                 emit_launch_progress(app, &game.id, "resolve", Some(&game.title));
                 let steam_windows =
                     game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows;
-                // GameHub container route: when a local GameHub engine manages
-                // this Steam title, launch inside its container with the recipe
-                // GameHub itself uses. The GameHub app is never started.
-                let gamehub_route = if steam_windows {
-                    game.source_id
-                        .as_deref()
-                        .filter(|id| crate::services::steam_download::valid_app_id(id))
-                        .and_then(|app_id| {
-                            let preference = crate::services::steam_windows::preferences(repo)
-                                .map(|prefs| prefs.play_engine)
-                                .unwrap_or_default();
-                            crate::services::gamehub_engine::play_route(repo, app_id, preference)
-                        })
-                } else {
-                    None
-                };
-                if let Some(route) = gamehub_route {
-                    // GameHub runs no resident Steam; Orbit's own client would
-                    // compete with the game for CPU and keep a Dock icon.
-                    crate::services::steam_client::suspend();
-                    *last_step.lock() = "steam".to_string();
-                    emit_launch_progress(app, &game.id, "steam", Some(&game.title));
-                    let app_id = game.source_id.clone().unwrap_or_default();
-                    route
-                        .and_then(|(_engine, _binding, plan, account)| {
-                            crate::services::gamehub_engine::start_title(
-                                &plan,
-                                &game.id,
-                                &app_id,
-                                &account,
-                                &self.cancel,
-                                &mut |step| {
-                                    *last_step.lock() = step.to_string();
-                                    emit_launch_progress(app, &game.id, step, Some(&game.title));
-                                },
-                            )
-                        })
-                        .map(Some)
-                } else {
-                    let mut profile = wine_profile_for_play(
+                {
+                    let profile = wine_profile_for_play(
                         game,
                         profile,
                         crate::services::steam_windows::play_wine_binary(repo),
                     );
-                    if steam_windows {
-                        *last_step.lock() = "steam".to_string();
-                        emit_launch_progress(app, &game.id, "steam", Some(&game.title));
-                        match crate::services::steam_play::play_prefix() {
-                            Ok(prefix) => {
-                                profile.shared_prefix = Some(prefix.to_string_lossy().into_owned());
-                                let wine = std::path::Path::new(&profile.runtime_path);
-                                let extras = crate::services::steam_windows::preferences(repo)
-                                    .map(|prefs| prefs.additional_library_paths)
-                                    .unwrap_or_default();
-                                if let Err(error) =
-                                    crate::services::steam_play::ensure_silent_client(
-                                        wine,
-                                        &prefix,
-                                        &self.cancel,
-                                        &extras,
-                                    )
-                                {
-                                    *last_step.lock() = "steam".to_string();
-                                    emit_launch_failed(
-                                        app,
-                                        &game.id,
-                                        "steam",
-                                        &error,
-                                        Some(&game.title),
-                                    );
-                                    let _ = app.emit(
-                                        "game-session-error",
-                                        serde_json::json!({ "message": error }),
-                                    );
-                                    return Err(anyhow::anyhow!(error));
-                                }
-                            }
-                            Err(error) => {
-                                *last_step.lock() = "steam".to_string();
-                                emit_launch_failed(
-                                    app,
-                                    &game.id,
-                                    "steam",
-                                    &error,
-                                    Some(&game.title),
-                                );
-                                let _ = app.emit(
-                                    "game-session-error",
-                                    serde_json::json!({ "message": error }),
-                                );
-                                return Err(anyhow::anyhow!(error));
-                            }
-                        }
-                    }
                     match crate::runtimes::settings::resolve_profile(repo, &profile) {
-                        Ok(resolved) if steam_windows => {
+                        Ok(mut resolved) if steam_windows => {
                             let app_id = game
                                 .source_id
                                 .clone()
@@ -190,17 +106,60 @@ impl SessionManager {
                                 .ok_or_else(|| {
                                     anyhow::anyhow!("This game's Steam id must be a number")
                                 })?;
-                            crate::services::steam_play::start_title(
+                            let extras = crate::services::steam_windows::preferences(repo)
+                                .map(|prefs| prefs.additional_library_paths)
+                                .unwrap_or_default();
+                            *last_step.lock() = "container".to_string();
+                            emit_launch_progress(app, &game.id, "container", Some(&game.title));
+                            match crate::services::steam_play::play_environment(
                                 &resolved,
-                                &game.id,
                                 &app_id,
                                 &self.cancel,
+                                &extras,
                                 &mut |step| {
                                     *last_step.lock() = step.to_string();
                                     emit_launch_progress(app, &game.id, step, Some(&game.title));
                                 },
-                            )
-                            .map_err(|error| anyhow::anyhow!(error))
+                            ) {
+                                Ok(prefix) => {
+                                    steam_host = Some(SteamHost {
+                                        wine: std::path::PathBuf::from(&resolved.runtime_path),
+                                        prefix: prefix.clone(),
+                                    });
+                                    resolved.shared_prefix =
+                                        Some(prefix.to_string_lossy().into_owned());
+                                    crate::services::steam_play::start_title(
+                                        &resolved,
+                                        &game.id,
+                                        &app_id,
+                                        &self.cancel,
+                                        &mut |step| {
+                                            *last_step.lock() = step.to_string();
+                                            emit_launch_progress(
+                                                app,
+                                                &game.id,
+                                                step,
+                                                Some(&game.title),
+                                            );
+                                        },
+                                    )
+                                    .map_err(|error| anyhow::anyhow!(error))
+                                }
+                                Err(error) => {
+                                    emit_launch_failed(
+                                        app,
+                                        &game.id,
+                                        last_step.lock().as_str(),
+                                        &error,
+                                        Some(&game.title),
+                                    );
+                                    let _ = app.emit(
+                                        "game-session-error",
+                                        serde_json::json!({ "message": error }),
+                                    );
+                                    Err(anyhow::anyhow!(error))
+                                }
+                            }
                         }
                         Ok(resolved) => crate::runtimes::wine::WineAdapter.launch_with_progress(
                             &resolved,
@@ -229,7 +188,7 @@ impl SessionManager {
         let mut runtime = match result {
             Ok(runtime) => runtime,
             Err(error) => {
-                crate::services::steam_client::resume();
+                stop_container_steam(steam_host.take());
                 let message = format!("{error:#}");
                 emit_launch_failed(
                     app,
@@ -281,6 +240,7 @@ impl SessionManager {
             session: session.clone(),
             preexisting_pids,
             runtime,
+            steam_host,
             stopping: false,
         });
 
@@ -346,6 +306,7 @@ impl SessionManager {
             .take()
             .ok_or_else(|| anyhow::anyhow!("No active session"))?;
 
+        stop_container_steam(tracked.steam_host);
         let ended = finalize_session(tracked.session, SessionStopReason::UserStopped, None);
         repo.record_play_end(&ended)?;
         let _ = app.emit("game-session-ended", &ended);
@@ -371,6 +332,7 @@ impl SessionManager {
         };
 
         if let Some(tracked) = tracked {
+            stop_container_steam(tracked.steam_host);
             let ended =
                 finalize_session(tracked.session, SessionStopReason::ProcessExited, exit_code);
             let _ = repo.record_play_end(&ended);
@@ -405,7 +367,6 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
         GameProvider::Astris => "Astris",
         GameProvider::Steam => "steam",
         GameProvider::Native => return None,
-        GameProvider::Gamehub => "GameHub",
         GameProvider::Manual => return None,
     };
 
@@ -421,6 +382,7 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
 fn focus_game(app: AppHandle, session_id: String) {
     #[cfg(target_os = "macos")]
     crate::platform::macos::game_focus::focus_game_when_ready(
+        app.clone(),
         std::time::SystemTime::now(),
         Duration::from_secs(180),
         move || {
@@ -451,9 +413,17 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
     });
 }
 
+/// Stop a container's Steam client off the UI path; it can take seconds.
+fn stop_container_steam(host: Option<SteamHost>) {
+    if let Some(host) = host {
+        let _ = std::thread::Builder::new()
+            .name("orbit-container-steam-stop".into())
+            .spawn(move || crate::services::container_steam::shutdown(&host));
+    }
+}
+
 fn after_session(app: &AppHandle) {
     super::game_activity::set_running(false);
-    crate::services::steam_client::resume();
     show_orbit(app);
 }
 
@@ -556,36 +526,13 @@ fn wine_profile_for_play(
     profile
 }
 
-/// Shared launchers are not owned game processes.
 fn termination_target(session: &GameSession) -> Option<u32> {
-    if session.provider == GameProvider::Gamehub {
-        None
-    } else {
-        session.pid
-    }
+    session.pid
 }
 
 #[cfg(test)]
 mod shared_host_tests {
     use super::*;
-    #[test]
-    fn ending_gamehub_tracking_never_targets_the_background_host() {
-        let mut session = GameSession {
-            id: "test".into(),
-            game_id: "test".into(),
-            provider: GameProvider::Gamehub,
-            pid: Some(12345),
-            started_at: "2026-11-09".into(),
-            ended_at: None,
-            exit_code: None,
-            stop_reason: None,
-            duration_seconds: None,
-        };
-        assert_eq!(termination_target(&session), None);
-        session.provider = GameProvider::Native;
-        assert_eq!(termination_target(&session), Some(12345));
-    }
-
     #[test]
     fn steam_windows_play_uses_current_steam_wine() {
         let game = Game {

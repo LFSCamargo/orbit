@@ -66,7 +66,14 @@ pub fn hide_orbit_window(app: AppHandle) -> Result<(), String> {
             .get_active()
             .and_then(|session| session_start(&session.started_at))
             .unwrap_or(std::time::UNIX_EPOCH);
-        crate::platform::macos::game_focus::hand_off(started);
+        match objc2_foundation::MainThreadMarker::new() {
+            Some(mtm) => {
+                crate::platform::macos::game_focus::hand_off(mtm, started);
+            }
+            None => {
+                let _ = app.hide();
+            }
+        }
         Ok(())
     }
     #[cfg(not(target_os = "macos"))]

@@ -29,7 +29,7 @@ export function HomePage() {
   const library = useLibrary({ view: 'all', sort: 'recently-played' })
   const { playEntry, stop } = useGameActions()
   const steam = useSteamWindows()
-  const steamReady = steam.status.data?.clientLoggedIn === true
+  const steamReady = steam.status.data?.sessionReady === true
   const { update } = useLibraryActions()
   const openAddGame = useUiStore((s) => s.openAddGame)
   const activeSession = useSessionStore((s) => s.activeSession)

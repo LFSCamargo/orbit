@@ -48,7 +48,7 @@ int wmain(void) {
     used = 0;
     if (!append(command, CAPACITY, &used, L"\"") ||
         !append(command, CAPACITY, &used, original) ||
-        !append(command, CAPACITY, &used, L"\" --disable-gpu --single-process ") ||
+        !append(command, CAPACITY, &used, L"\" --disable-gpu --disable-gpu-compositing --in-process-gpu --use-gl=disabled --single-process ") ||
         !append(command, CAPACITY, &used, argument_tail(GetCommandLineW()))) return 1;
     STARTUPINFOW startup = {0};
     startup.cb = sizeof(startup);

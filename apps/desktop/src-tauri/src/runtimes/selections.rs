@@ -110,17 +110,22 @@ fn pick(
     actives: &ActiveComponents,
     component: &str,
 ) -> Option<InstalledComponent> {
+    // A payload Orbit's x86_64 Wine cannot load is never picked, even pinned.
+    let usable = |item: &&InstalledComponent| {
+        item.id == component && components::runs_on_x86_64_wine(Path::new(&item.path))
+    };
     if let Some(version) = actives.get(component) {
         if let Some(found) = installed
             .iter()
-            .find(|item| item.id == component && &item.version == version)
+            .filter(usable)
+            .find(|item| &item.version == version)
         {
             return Some(found.clone());
         }
     }
     installed
         .iter()
-        .filter(|item| item.id == component)
+        .filter(usable)
         .max_by(|a, b| a.installed_at.cmp(&b.installed_at))
         .cloned()
 }

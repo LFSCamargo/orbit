@@ -52,10 +52,7 @@ pub fn steam_id(game: &Game) -> Option<String> {
     let id = match &game.launch_config {
         LaunchConfiguration::Steam { app_id } => Some(app_id.as_str()),
         LaunchConfiguration::Wine { .. }
-            if matches!(
-                game.provider,
-                GameProvider::Steam | GameProvider::Gamehub | GameProvider::Manual
-            ) =>
+            if matches!(game.provider, GameProvider::Steam | GameProvider::Manual) =>
         {
             game.source_id.as_deref()
         }
@@ -94,7 +91,6 @@ fn installation(game: &Game) -> Installation {
         LaunchConfiguration::OpenApplication { .. } => "open-application",
         LaunchConfiguration::OpenUrl { .. } => "open-url",
         LaunchConfiguration::CustomCommand { .. } => "custom-command",
-        LaunchConfiguration::Gamehub { .. } => "gamehub",
     }
     .to_string();
     Installation {
@@ -119,9 +115,6 @@ pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEn
     let local: HashSet<String> = games.iter().filter_map(steam_id).collect();
     let mut entries: HashMap<String, LibraryEntry> = HashMap::new();
     for game in games {
-        if game.provider == GameProvider::Gamehub {
-            continue;
-        }
         let app_id = steam_id(&game);
         if app_id.as_ref().is_some_and(|id| software.contains(id)) {
             continue;
@@ -466,7 +459,7 @@ mod tests {
         assert_eq!(merge(vec![first, second], vec![]).len(), 2);
     }
     #[test]
-    fn persist_overlay_copy_replaces_a_gamehub_stub_in_sqlite() {
+    fn persist_overlay_copy_replaces_a_legacy_import_stub_in_sqlite() {
         let repo = crate::database::GameRepository::open_in_memory().unwrap();
         let stored = repo
             .create_game(crate::models::CreateGameRequest {

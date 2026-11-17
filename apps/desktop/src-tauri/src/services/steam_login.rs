@@ -1,6 +1,6 @@
 //! Steam's own login window, hosted over Orbit's sign-in dialog.
-//! The window contains both the account form and the QR code. GPU drawing is
-//! disabled because Steam's browser otherwise paints a black window under Wine.
+//! The window contains both the account form and the QR code. CEF rasterizes
+//! in-process: Wine's GDI renderer and SwiftShader leave this window black.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -18,13 +18,12 @@ pub const LOGIN_WINDOW_HEIGHT: i32 = 520;
 const LOGIN_FLAGS: [&str; 6] = [
     "-cef-disable-gpu",
     "-cef-disable-gpu-compositing",
-    "-disable-gpu",
-    "-disable-gpu-compositing",
+    "-cef-in-process-gpu",
+    "-cef-use-gl=disabled",
     "-no-cef-sandbox",
     "-noverifyfiles",
 ];
-const LOGIN_D3D: &str = "renderer=gdi";
-const LOGIN_DLLS: &str = "d3d12,d3d11,d3d10,d3d10core,d3d10_1,d3d9,dxgi=b;winemenubuilder.exe=d";
+const LOGIN_DLLS: &str = "winemenubuilder.exe=d";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +59,24 @@ impl SteamLoginSession {
     }
 }
 
+fn inhibit_login_updater(steam_exe: &Path) -> Result<(), String> {
+    let root = steam_exe
+        .parent()
+        .ok_or("Steam's sign-in window is not ready")?;
+    let path = root.join("steam.cfg");
+    if path
+        .symlink_metadata()
+        .is_ok_and(|meta| meta.file_type().is_symlink())
+    {
+        return Err("Steam configuration cannot be a symlink".into());
+    }
+    std::fs::write(
+        path,
+        "BootStrapperInhibitAll = Enable\nBootStrapperForceSelfUpdate = False\n",
+    )
+    .map_err(|_| "Steam could not skip its updater before sign-in".to_string())
+}
+
 pub fn login_argv(steam_exe: &Path) -> Vec<String> {
     let mut args = vec![steam_exe.to_string_lossy().into_owned()];
     args.extend(LOGIN_FLAGS.iter().map(|flag| (*flag).to_string()));
@@ -68,15 +85,13 @@ pub fn login_argv(steam_exe: &Path) -> Vec<String> {
 
 pub fn login_command(wine: &Path, prefix: &Path, steam_exe: &Path) -> Result<Command, String> {
     if !steam_exe.is_file() {
-        return Err("Install Steam for Windows in Settings → Steam before signing in".into());
+        return Err("Steam's sign-in window is not ready".into());
     }
     super::steam_browser::prepare(steam_exe).map_err(|err| format!("{err:#}"))?;
+    inhibit_login_updater(steam_exe)?;
     let mut command = steam_windows::steam_runtime_command(wine, prefix);
     command.args(login_argv(steam_exe));
-    command
-        .env("WINE_D3D_CONFIG", LOGIN_D3D)
-        .env("WINEDLLOVERRIDES", LOGIN_DLLS)
-        .env("LIBGL_ALWAYS_SOFTWARE", "1");
+    command.env("WINEDLLOVERRIDES", LOGIN_DLLS);
     if let Some(dir) = steam_exe.parent() {
         command.current_dir(dir);
     }
@@ -125,44 +140,19 @@ pub fn spawn_login(
     }
 }
 
-pub fn open(app: &AppHandle, slot: &Mutex<SteamLoginSession>) -> Result<(), String> {
-    {
-        let mut session = slot.lock();
-        if session.active {
-            steam_windows::set_login_window_running(true);
-            return Ok(());
-        }
-        session.active = true;
-    }
+pub fn open(_app: &AppHandle, slot: &Mutex<SteamLoginSession>) -> Result<(), String> {
     steam_windows::begin_sign_in();
-    if let Err(error) = stop_prefix_server() {
-        slot.lock().active = false;
-        return Err(error);
+    slot.lock().active = false;
+    // A client that is already logged on only needs its token stored. Opening
+    // another Steam window would leave that Wine process running.
+    if steam_windows::saved_client_waiting() {
+        return Ok(());
     }
-    let restore = match leave_exclusive_fullscreen(app) {
-        Ok(restore) => restore,
-        Err(error) => {
-            slot.lock().active = false;
-            return Err(error);
-        }
-    };
-    slot.lock().restore_fullscreen = restore;
-    let prepared = steam_windows::prepare_login_runtime().and_then(|(wine, prefix, steam_exe)| {
-        login_command(&wine, &prefix, &steam_exe)?
-            .spawn()
-            .map_err(|_| "Steam's sign-in window could not be opened".to_string())
-    });
-    match prepared {
-        Ok(child) => {
-            slot.lock().child = Some(child);
-            steam_windows::set_login_window_running(true);
-            Ok(())
-        }
-        Err(error) => match close(Some(app), slot, false) {
-            Ok(()) => Err(error),
-            Err(cleanup) => Err(format!("{error}. Cleanup also failed: {cleanup}")),
-        },
+    let (wine, prefix, steam) = steam_windows::prepare_client_sign_in()?;
+    if steam_windows::sign_in_cancelled() {
+        return Ok(());
     }
+    spawn_login(slot, &wine, &prefix, &steam)
 }
 
 pub fn place(
@@ -179,9 +169,8 @@ pub fn place(
     let (x, y) = login_screen_origin(app, css_x as f64, css_y as f64);
     let steam_exe = steam_windows::steam_exe();
     let steam_root = steam_exe.parent().ok_or("Steam is not installed")?;
-    let original = super::steam_browser::original_helper(steam_root).ok_or(
-        "Steam is still installing its browser. Use Install Steam for Windows, then sign in",
-    )?;
+    let original = super::steam_browser::original_helper(steam_root)
+        .ok_or("Steam's sign-in window is not ready")?;
     let pids =
         super::steam_login_process::browser_pids(&original).map_err(|err| err.to_string())?;
     if pids.is_empty() {
@@ -214,29 +203,43 @@ pub fn poll(repo: &GameRepository) -> Result<SteamLoginPoll, String> {
     })
 }
 
-/// Hide the login window and keep the logged-on Steam client for Play.
-/// Wine Steam does not write ConnectCache; killing it makes the next Play fail.
+/// Hide the login window and stop the shared Steam process. Saved login files
+/// stay in steam-windows so each game container can be seeded. Play does not
+/// keep a resident steam.exe.
 pub fn finish_sign_in(
     app: Option<&AppHandle>,
     slot: &Mutex<SteamLoginSession>,
 ) -> Result<(), String> {
-    steam_windows::set_login_window_running(false);
-    let restore = {
-        let mut session = slot.lock();
-        session.active = false;
-        if let Some(mut child) = session.child.take() {
-            let _ = child.try_wait();
-            std::mem::forget(child);
+    let captured = persist_window_login();
+    let closed = close(app, slot, false);
+    captured.and(closed)
+}
+
+/// Stop the sign-in window and keep the refresh token it wrote, so game
+/// containers can log on without opening Steam again.
+fn persist_window_login() -> Result<(), String> {
+    let steam_exe = steam_windows::steam_exe();
+    let Some(root) = steam_exe.parent() else {
+        if let Some(wine) = steam_windows::steam_wine_binary() {
+            steam_windows::request_steam_shutdown(&wine, &steam_windows::steam_prefix());
         }
-        std::mem::take(&mut session.restore_fullscreen)
+        return Ok(());
     };
-    if let Some(wine) = steam_windows::steam_wine_binary() {
-        super::steam_play::nudge_silent_client(&wine, &steam_windows::steam_prefix());
+    let login = root.join("config/loginusers.vdf");
+    if login.is_file() {
+        crate::utils::steam_account::enable_saved_login(&login);
     }
-    if restore {
-        app.map(restore_exclusive_fullscreen).unwrap_or(Ok(()))?;
-    }
-    Ok(())
+    let session = steam_windows::session_dir(&crate::utils::paths::app_data_dir());
+    super::steam_native::login::seed_from_client(
+        &steam_windows::steam_prefix(),
+        &super::steam_native::login::steamcmd_root(&session),
+    )?;
+    let Some(wine) = steam_windows::steam_wine_binary() else {
+        return Ok(());
+    };
+    steam_windows::request_steam_shutdown(&wine, &steam_windows::steam_prefix());
+    steam_windows::wait_for_saved_session(root, Duration::from_secs(20));
+    steam_windows::capture_client_session().map(|_| ())
 }
 
 pub fn close(
@@ -555,12 +558,13 @@ mod tests {
     }
 
     #[test]
-    fn login_window_keeps_both_methods_and_disables_the_black_gpu_view() {
+    fn login_window_keeps_both_methods_and_avoids_the_black_swiftshader_view() {
         let flags = login_flags();
         assert!(flags.contains(&"-cef-disable-gpu"));
         assert!(flags.contains(&"-cef-disable-gpu-compositing"));
-        assert!(flags.contains(&"-disable-gpu"));
-        assert!(flags.contains(&"-disable-gpu-compositing"));
+        assert!(flags.contains(&"-cef-in-process-gpu"));
+        assert!(flags.contains(&"-cef-use-gl=disabled"));
+        assert!(!flags.iter().any(|flag| *flag == "-disable-gpu"));
         assert!(!flags.iter().any(|flag| flag.contains("silent")));
         assert!(!flags.iter().any(|flag| flag.contains("password")));
         assert!(!flags.iter().any(|flag| *flag == "-no-browser"));
@@ -575,7 +579,8 @@ mod tests {
         assert!(!args.iter().any(|arg| arg.contains("/desktop=")));
         assert!(args.iter().any(|arg| arg == "-cef-disable-gpu"));
         assert!(args.iter().any(|arg| arg == "-cef-disable-gpu-compositing"));
-        assert!(args.iter().any(|arg| arg == "-disable-gpu"));
+        assert!(args.iter().any(|arg| arg == "-cef-in-process-gpu"));
+        assert!(args.iter().any(|arg| arg == "-cef-use-gl=disabled"));
         assert!(args.iter().any(|arg| arg == "-no-cef-sandbox"));
         assert!(!args.iter().any(|arg| arg.contains("silent")));
         assert!(!args.iter().any(|arg| arg.contains("password")));
@@ -583,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn login_command_hosts_steam_with_software_paint() {
+    fn login_command_does_not_force_the_gdi_black_window() {
         let root = std::env::temp_dir().join(format!("orbit-steam-login-{}", uuid::Uuid::new_v4()));
         let wine = root.join("bin/wine");
         let prefix = root.join("prefix");
@@ -602,17 +607,18 @@ mod tests {
         assert_eq!(command.get_current_dir(), Some(steam.parent().unwrap()));
         assert_eq!(args[0], steam.to_string_lossy());
         assert!(!args.iter().any(|arg| arg == "explorer"));
-        assert!(args.iter().any(|arg| arg == "-cef-disable-gpu"));
+        assert!(args.iter().any(|arg| arg == "-cef-use-gl=disabled"));
+        assert!(args.iter().any(|arg| arg == "-cef-in-process-gpu"));
         let prefix_env = command
             .get_envs()
             .find(|(key, _)| *key == "WINEPREFIX")
             .and_then(|(_, value)| value.map(|value| value.to_os_string()));
         assert_eq!(prefix_env.as_deref(), Some(prefix.as_os_str()));
-        let d3d = command
+        let cfg = std::fs::read_to_string(steam.parent().unwrap().join("steam.cfg")).unwrap();
+        assert!(cfg.contains("BootStrapperInhibitAll = Enable"));
+        assert!(command
             .get_envs()
-            .find(|(key, _)| *key == "WINE_D3D_CONFIG")
-            .and_then(|(_, value)| value.map(|value| value.to_string_lossy().into_owned()));
-        assert_eq!(d3d.as_deref(), Some(LOGIN_D3D));
+            .all(|(key, _)| key != "WINE_D3D_CONFIG" && key != "LIBGL_ALWAYS_SOFTWARE"));
         let dlls = command
             .get_envs()
             .find(|(key, _)| *key == "WINEDLLOVERRIDES")
@@ -648,7 +654,7 @@ mod tests {
     }
 
     #[test]
-    fn finish_sign_in_keeps_the_logged_on_steam_process() {
+    fn finish_sign_in_stops_the_shared_steam_process() {
         let child = Command::new("sleep")
             .arg("30")
             .stdin(Stdio::null())
@@ -679,7 +685,7 @@ mod tests {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
-        assert!(alive);
+        assert!(!alive);
     }
 
     #[test]
@@ -703,7 +709,7 @@ mod tests {
             Path::new("/missing-steam.exe"),
         )
         .unwrap_err();
-        assert!(error.contains("Install Steam for Windows"));
+        assert!(error.contains("not ready"));
         assert!(!slot.lock().active);
         assert!(slot.lock().child.is_none());
     }

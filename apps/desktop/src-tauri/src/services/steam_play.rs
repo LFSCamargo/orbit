@@ -1,54 +1,16 @@
-//! Silent in-prefix Steam for Steamworks titles. Play shares the signed-in
-//! steam-windows prefix instead of creating a private Wine bottle.
+//! Play launches each Windows Steam title in its own Orbit-owned container.
+//! The signed-in steam-windows prefix is a seed only: login files are copied
+//! in, then the container's Steam client logs on with the saved session before
+//! the game EXE starts with SteamAppId.
 
-use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::AtomicBool;
 
-use super::steam_windows::{self, steam_exe, steam_prefix, steam_runtime_command};
+use super::steam_windows::{self, steam_exe_in, steam_prefix};
 use crate::database::GameRepository;
 use crate::models::LaunchConfiguration;
 use crate::runtimes::{prefix, wine::WineAdapter, RuntimeProcess};
 use crate::utils::steam_account;
-
-const STEAM_READY: Duration = Duration::from_secs(3 * 60);
-const LOG_LIMIT: u64 = 256 * 1024;
-
-pub fn silent_argv(steam_exe: &Path) -> Vec<String> {
-    vec![
-        steam_exe.to_string_lossy().into_owned(),
-        "-silent".into(),
-        "-nofriendsui".into(),
-        "-no-dwrite".into(),
-        "-noverifyfiles".into(),
-        "-norepairfiles".into(),
-    ]
-}
-
-/// Tell a logged-on Steam to stay in the tray. GameHub prefixes also have no
-/// ConnectCache; Play needs that resident client, not a fresh autologin.
-pub fn nudge_silent_client(wine: &Path, prefix: &Path) {
-    let steam = steam_exe();
-    let Some(steam_root) = steam.parent() else {
-        return;
-    };
-    if !steam.is_file() || !wine.is_file() || !prefix.is_dir() {
-        return;
-    }
-    if !steam_running(&process_commands(), prefix) {
-        return;
-    }
-    let _ = write_play_steam_cfg(steam_root);
-    let mut command = steam_runtime_command(wine, prefix);
-    command.args(silent_argv(&steam));
-    command.current_dir(steam_root);
-    command
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
-    let _ = command.spawn();
-}
 
 pub fn play_exit_message(code: i32) -> String {
     if code == 53 {
@@ -58,14 +20,19 @@ pub fn play_exit_message(code: i32) -> String {
     }
 }
 
-pub fn play_prefix() -> Result<PathBuf, String> {
-    prefix::accept_shared(&steam_prefix(), &steam_prefix()).map_err(|err| err.to_string())
-}
-
 pub fn launch_owned(
     repo: &GameRepository,
     app_id: &str,
     cancel: &AtomicBool,
+) -> Result<Box<dyn RuntimeProcess>, String> {
+    launch_owned_with(repo, app_id, cancel, &mut |_| {})
+}
+
+pub fn launch_owned_with(
+    repo: &GameRepository,
+    app_id: &str,
+    cancel: &AtomicBool,
+    progress: &mut impl FnMut(&str),
 ) -> Result<Box<dyn RuntimeProcess>, String> {
     let game_id = steam_windows::play(repo, app_id)?;
     let game = repo
@@ -78,15 +45,65 @@ pub fn launch_owned(
     if let Some(path) = steam_windows::play_wine_binary(repo) {
         profile.runtime_path = path.to_string_lossy().into_owned();
     }
-    let prefix = play_prefix()?;
-    profile.shared_prefix = Some(prefix.to_string_lossy().into_owned());
     let extras = steam_windows::preferences(repo)
         .map(|prefs| prefs.additional_library_paths)
         .unwrap_or_default();
-    ensure_silent_client(Path::new(&profile.runtime_path), &prefix, cancel, &extras)?;
     let resolved = crate::runtimes::settings::resolve_profile(repo, &profile)
         .map_err(|err| format!("{err:#}"))?;
-    start_title(&resolved, &game.id, app_id, cancel, &mut |_| {})
+    let prefix = play_environment(&resolved, app_id, cancel, &extras, progress)?;
+    let mut resolved = resolved;
+    resolved.shared_prefix = Some(prefix.to_string_lossy().into_owned());
+    start_title(&resolved, &game.id, app_id, cancel, progress)
+}
+
+/// Clone a per-game container from the signed-in prefix, seed the saved login,
+/// and wait until that container's Steam client is logged on.
+pub fn play_environment(
+    profile: &crate::runtimes::WineProfile,
+    app_id: &str,
+    cancel: &AtomicBool,
+    extra_libraries: &[String],
+    progress: &mut impl FnMut(&str),
+) -> Result<PathBuf, String> {
+    let wine = Path::new(&profile.runtime_path);
+    let runtime = crate::runtimes::detection::probe(wine).map_err(|err| format!("{err:#}"))?;
+    let game_id = super::steam_native::downloads::container_id(app_id)?;
+    let dir = crate::runtimes::containers::layout::directory(
+        &crate::runtimes::containers::root_in(&crate::runtimes::root()),
+        "games",
+        &game_id,
+    )
+    .map_err(|err| format!("{err:#}"))?;
+    let log = crate::runtimes::process::log_file(&dir.join("latest.log"))
+        .map_err(|err| format!("{err:#}"))?;
+    let request = crate::launching::first_launch::FirstLaunchRequest {
+        game_id,
+        app_id: Some(app_id.to_string()),
+        wine: runtime,
+        steam_source: Some(steam_prefix()),
+        graphics: profile.effective.graphics,
+        selections: profile.selections.clone(),
+    };
+    let prepared = crate::launching::first_launch::prepare(
+        &crate::runtimes::root(),
+        &request,
+        cancel,
+        &log,
+        progress,
+    )
+    .map_err(|err| format!("{err:#}"))?;
+    prepare_play_steam(&prepared.container.prefix, extra_libraries)?;
+    // Steamworks titles need a logged-on client in their own container; run it
+    // silently there instead of letting the game open a visible Steam.
+    progress("steam");
+    super::container_steam::ensure_running(
+        &super::container_steam::SteamHost {
+            wine: wine.to_path_buf(),
+            prefix: prepared.container.prefix.clone(),
+        },
+        cancel,
+    )?;
+    Ok(prepared.container.prefix)
 }
 
 pub fn start_title(
@@ -99,123 +116,53 @@ pub fn start_title(
     if !super::steam_download::valid_app_id(app_id) {
         return Err("This game's Steam id must be a number".into());
     }
-    let prefix = play_prefix()?;
-    if !client_ready(&steam_exe(), &prefix) {
-        return Err(
-            "Windows Steam is still signing in. Wait until Steam is ready, then press Play.".into(),
-        );
-    }
+    let prefix = profile
+        .shared_prefix
+        .as_deref()
+        .map(Path::new)
+        .ok_or("Sign in with Steam before playing this game")?;
+    prefix::accept_shared(prefix, prefix).map_err(|err| err.to_string())?;
     let prepared = WineAdapter
         .prepare(profile, game_id, &crate::runtimes::root(), cancel, progress)
         .map_err(|err| format!("{err:#}"))?;
     progress("spawn");
-    // The resident Steam client retains the CPU-only sign-in environment.
-    // A second steam.exe -applaunch forwards only the app id to that process,
-    // losing the prepared graphics DLL paths, options and game arguments.
     prepared
         .spawn(Some(app_id), cancel)
         .map_err(|err| format!("{err:#}"))
 }
 
-pub fn ensure_silent_client(
-    wine: &Path,
-    prefix: &Path,
-    cancel: &AtomicBool,
-    extra_libraries: &[String],
-) -> Result<(), String> {
-    let steam = steam_exe();
+/// Keep Steam in the background when a saved login exists. Play does not open
+/// the Steam store window and does not ask for another sign-in.
+fn prepare_play_steam(prefix: &Path, extra_libraries: &[String]) -> Result<(), String> {
+    let steam = steam_exe_in(prefix);
     if !steam.is_file() {
-        return Err(
-            "Install Steam for Windows in Settings → Steam before playing this game".into(),
-        );
-    }
-    let steam_root = steam
-        .parent()
-        .ok_or("Install Steam for Windows in Settings → Steam before playing this game")?;
-    let loginusers = steam_root.join("config/loginusers.vdf");
-    if !loginusers.is_file() {
-        return Err("Sign in with Steam before playing this game".into());
-    }
-    steam_account::enable_saved_login(&loginusers);
-    write_play_steam_cfg(steam_root)?;
-    if !extra_libraries.is_empty() {
-        super::steam_client_library::link_installs(steam_root, extra_libraries)?;
-        if !steam_running(&process_commands(), prefix) {
-            super::steam_client_library::register(steam_root, prefix, extra_libraries)?;
-        }
-    }
-    if client_ready(&steam, prefix) {
-        nudge_silent_client(wine, prefix);
         return Ok(());
     }
-    let commands = process_commands();
-    if !steam_running(&commands, prefix)
-        && pid_present(&steam)
-        && !prefix_busy_from(&commands, prefix)
-    {
-        let _ = std::fs::remove_file(steam_root.join("steam.pid"));
-    }
-    if !steam_running(&process_commands(), prefix) {
-        super::steam_browser::prepare(&steam).map_err(|err| format!("{err:#}"))?;
-        let mut command = steam_runtime_command(wine, prefix);
-        command.args(silent_argv(&steam));
-        command.current_dir(steam_root);
-        command
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-        command.spawn().map_err(|_| {
-            "Windows Steam could not be started. Sign in again from Settings → Steam."
-        })?;
-    }
-    let deadline = Instant::now() + STEAM_READY;
-    while Instant::now() < deadline {
-        if cancel.load(Ordering::Relaxed) {
-            return Err("Launch cancelled".into());
-        }
-        if client_ready(&steam, prefix) {
-            nudge_silent_client(wine, prefix);
-            return Ok(());
-        }
-        std::thread::sleep(Duration::from_millis(250));
-    }
-    if client_ready(&steam, prefix) {
-        nudge_silent_client(wine, prefix);
-        Ok(())
-    } else if bootstrap_busy(&read_steam_log(steam_root, "bootstrap_log.txt")) {
-        Err(
-            "Steam is still updating. Wait until the Steam window finishes, then press Play."
-                .into(),
-        )
-    } else {
-        Err(
-            "Windows Steam did not finish signing in. Sign in again from Settings → Steam, then press Play."
-                .into(),
-        )
-    }
-}
-
-fn pid_present(steam_exe: &Path) -> bool {
-    steam_exe
-        .parent()
-        .map(|dir| dir.join("steam.pid"))
-        .is_some_and(|pid| pid.is_file())
-}
-
-fn client_ready(steam_exe: &Path, prefix: &Path) -> bool {
-    let Some(root) = steam_exe.parent() else {
-        return false;
+    let Some(steam_root) = steam.parent() else {
+        return Ok(());
     };
-    play_client_ready(
-        &process_commands(),
-        prefix,
-        &read_steam_log(root, "bootstrap_log.txt"),
-        &read_steam_log(root, "connection_log.txt"),
-    )
+    let loginusers = steam_root.join("config/loginusers.vdf");
+    if loginusers.is_file() {
+        steam_account::enable_saved_login(&loginusers);
+    }
+    let _ = write_play_steam_cfg(steam_root);
+    if extra_libraries.is_empty() {
+        return Ok(());
+    }
+    // Games reach the container's `C:` library through these links; drive
+    // libraries are never registered inside a container.
+    super::steam_client_library::link_installs(steam_root, extra_libraries)?;
+    Ok(())
 }
 
-fn play_client_ready(commands: &str, prefix: &Path, bootstrap: &str, connection: &str) -> bool {
-    steam_running(commands, prefix) && !bootstrap_busy(bootstrap) && client_logged_on(connection)
+pub fn silent_client_args(steam_exe: &Path) -> Vec<String> {
+    vec![
+        steam_exe.to_string_lossy().into_owned(),
+        "-silent".into(),
+        "-nofriendsui".into(),
+        "-no-dwrite".into(),
+        "-noverifyfiles".into(),
+    ]
 }
 
 fn write_play_steam_cfg(steam_root: &Path) -> Result<(), String> {
@@ -231,44 +178,6 @@ fn write_play_steam_cfg(steam_root: &Path) -> Result<(), String> {
         "BootStrapperInhibitAll = Enable\nBootStrapperForceSelfUpdate = False\n",
     )
     .map_err(|_| "Steam could not skip its updater before play".to_string())
-}
-
-fn read_steam_log(steam_root: &Path, name: &str) -> String {
-    let path = steam_root.join("logs").join(name);
-    let Ok(metadata) = std::fs::metadata(&path) else {
-        return String::new();
-    };
-    let Ok(mut file) = std::fs::File::open(&path) else {
-        return String::new();
-    };
-    if metadata.len() > LOG_LIMIT
-        && file
-            .seek(SeekFrom::Start(metadata.len() - LOG_LIMIT))
-            .is_err()
-    {
-        return String::new();
-    }
-    let mut content = String::new();
-    if file.take(LOG_LIMIT).read_to_string(&mut content).is_err() {
-        return String::new();
-    }
-    content
-}
-
-fn bootstrap_busy(log: &str) -> bool {
-    let Some(last) = log.lines().rev().find(|line| !line.trim().is_empty()) else {
-        return false;
-    };
-    let last = last.to_ascii_lowercase();
-    last.contains("verifying all executable checksums")
-        || last.contains("verifying installation")
-        || last.contains("checking for available updates")
-        || last.contains("downloading manifest")
-        || last.contains("updating steam")
-}
-
-fn client_logged_on(log: &str) -> bool {
-    steam_account::connection_logged_on(log)
 }
 
 fn process_commands() -> String {
@@ -294,34 +203,11 @@ fn steam_running(commands: &str, prefix: &Path) -> bool {
     })
 }
 
-fn prefix_busy(prefix: &Path) -> bool {
-    prefix_busy_from(&process_commands(), prefix)
-}
-
-fn prefix_busy_from(commands: &str, prefix: &Path) -> bool {
-    let needle = prefix.to_string_lossy();
-    !needle.is_empty() && commands.contains(needle.as_ref())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
-
-    #[test]
-    fn silent_nudge_is_a_no_op_without_a_running_client() {
-        nudge_silent_client(Path::new("/missing-wine"), Path::new("/missing-prefix"));
-    }
-
-    #[test]
-    fn silent_steam_keeps_the_official_client_headless() {
-        let argv = silent_argv(Path::new("/Steam/steam.exe"));
-        assert_eq!(argv[0], "/Steam/steam.exe");
-        assert!(argv.contains(&"-silent".into()));
-        assert!(argv.contains(&"-noverifyfiles".into()));
-        assert!(argv.contains(&"-norepairfiles".into()));
-        assert!(!argv.iter().any(|flag| flag.contains("cef-disable-gpu")));
-    }
+    use std::time::{Duration, Instant};
 
     #[test]
     fn steamworks_exit_explains_the_missing_client() {
@@ -347,51 +233,6 @@ mod tests {
     }
 
     #[test]
-    fn verifying_bootstrap_is_not_ready_to_play() {
-        let verifying = "[2026-11-15 20:23:16] Nothing to do\n[2026-11-15 20:23:16] Verifying installation...\n[2026-11-15 20:23:16] Verifying all executable checksums\n";
-        assert!(bootstrap_busy(verifying));
-        assert!(!bootstrap_busy(
-            "[2026-11-15 20:20:51] Nothing to do\n[2026-11-15 20:20:51] Verifying installation...\n[2026-11-15 20:20:51] Verification skipped\n"
-        ));
-        let connecting = "[Connecting, 0, 7] [U:1:0] Connect() starting connection\n";
-        let logged = "[Logged On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : processing complete\n";
-        assert!(!client_logged_on(connecting));
-        assert!(client_logged_on(logged));
-        assert!(!client_logged_on(&format!("{logged}{connecting}")));
-        assert!(!client_logged_on(
-            "[Logged Off, 0, 0] [U:1:280673132] CSteamEngine::CheckForBackupOrRestore() scheduling LogOn()\n"
-        ));
-        let prefix = Path::new("/tmp/orbit-steam-prefix");
-        let running = format!(
-            "WINEPREFIX={} C:\\\\Program Files (x86)\\\\Steam\\\\steam.exe -silent\n",
-            prefix.display()
-        );
-        assert!(!play_client_ready(&running, prefix, verifying, logged));
-        assert!(play_client_ready(
-            &running,
-            prefix,
-            "[2026-11-15 20:20:51] Verification skipped\n",
-            logged
-        ));
-    }
-
-    #[test]
-    fn play_log_reads_the_tail_of_a_large_file() {
-        let root = std::env::temp_dir().join(format!("orbit-steam-log-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(root.join("logs")).unwrap();
-        let mut body = "x".repeat(LOG_LIMIT as usize);
-        body.push_str(
-            "[Logged On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : processing complete\n",
-        );
-        fs::write(root.join("logs/connection_log.txt"), body).unwrap();
-        assert!(client_logged_on(&read_steam_log(
-            &root,
-            "connection_log.txt"
-        )));
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
     fn play_steam_cfg_skips_the_updater_window() {
         let root = std::env::temp_dir().join(format!("orbit-steam-cfg-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
@@ -403,16 +244,31 @@ mod tests {
     }
 
     #[test]
-    fn leftover_steam_pid_without_a_wineserver_is_not_ready() {
-        let root = std::env::temp_dir().join(format!("orbit-stale-pid-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(&root).unwrap();
-        let steam = root.join("steam.exe");
-        fs::write(&steam, b"MZ").unwrap();
-        fs::write(root.join("steam.pid"), b"1").unwrap();
-        assert!(pid_present(&steam));
-        assert!(!prefix_busy(&root.join("missing-prefix")));
-        assert!(!client_ready(&steam, &root.join("missing-prefix")));
+    fn play_seeds_steam_files_without_waiting_for_steam_exe() {
+        let root = std::env::temp_dir().join(format!("orbit-play-seed-{}", uuid::Uuid::new_v4()));
+        let steam_root = root.join("drive_c/Program Files (x86)/Steam");
+        fs::create_dir_all(steam_root.join("config")).unwrap();
+        fs::write(root.join("system.reg"), b"reg").unwrap();
+        fs::write(steam_root.join("steam.exe"), b"MZ").unwrap();
+        fs::write(
+            steam_root.join("config/loginusers.vdf"),
+            "\"users\"\n{\n\t\"76561197960265729\"\n\t{\n\t\t\"AccountName\"\t\t\"orbit_player\"\n\t\t\"AutoLogin\"\t\t\"0\"\n\t}\n}\n",
+        )
+        .unwrap();
+        prepare_play_steam(&root, &[]).unwrap();
+        let cfg = fs::read_to_string(steam_root.join("steam.cfg")).unwrap();
+        assert!(cfg.contains("BootStrapperInhibitAll = Enable"));
+        let login = fs::read_to_string(steam_root.join("config/loginusers.vdf")).unwrap();
+        assert!(login.contains("\"AutoLogin\"\t\t\"1\""));
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn play_starts_steam_silently_instead_of_opening_the_store() {
+        let args = silent_client_args(Path::new("/Steam/steam.exe"));
+        assert!(args.contains(&"-silent".into()));
+        assert!(args.contains(&"-nofriendsui".into()));
+        assert!(!args.iter().any(|arg| arg == "-applaunch"));
     }
 
     #[test]
@@ -510,6 +366,35 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "plays Resident Evil 2 with the saved Settings sign-in"]
+    fn live_play_re2_with_the_saved_sign_in() {
+        let repo = GameRepository::open(&crate::utils::paths::database_path()).unwrap();
+        let start = Instant::now();
+        let mut trace = |step: &str| {
+            eprintln!(
+                "{:>6.1}s {} {step}",
+                start.elapsed().as_secs_f32(),
+                chrono::Local::now().format("%H:%M:%S")
+            )
+        };
+        let mut runtime =
+            launch_owned_with(&repo, "883710", &AtomicBool::new(false), &mut trace).unwrap();
+        trace("spawned");
+        while !process_mentions("re2.exe") {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        trace("re2.exe running");
+        let deadline = Instant::now() + Duration::from_secs(90);
+        while Instant::now() < deadline {
+            if let Ok(Some(code)) = runtime.poll() {
+                panic!("game exited with {code}: {}", play_exit_message(code));
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        }
+        runtime.stop().unwrap();
+    }
+
+    #[test]
     #[ignore]
     fn live_play_re2_and_gow_with_graphics_presets() {
         let repo = GameRepository::open(&crate::utils::paths::database_path()).unwrap();
@@ -554,7 +439,7 @@ mod tests {
         }
         assert!(
             installed.contains("883710") && installed.contains("1593500"),
-            "GameHub installs must count as installed"
+            "extra-library installs must count as installed"
         );
         assert!(
             entries.len() > installed.len(),

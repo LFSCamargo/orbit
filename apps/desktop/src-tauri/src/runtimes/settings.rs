@@ -313,11 +313,14 @@ impl CompatibilitySettings {
     /// RetinaMode under HKCU\Software\Wine\Mac Driver. `REG ADD` needs `/d` for
     /// the value data; omitting it is invalid syntax.
     pub fn registry_adds(&self) -> Vec<[String; 7]> {
-        let mut operations = vec![reg_sz(
-            r"HKCU\Software\Wine\Mac Driver",
-            "RetinaMode",
-            if self.retina_mode { "y" } else { "n" },
-        )];
+        let mut operations = vec![
+            hide_tray_icons(),
+            reg_sz(
+                r"HKCU\Software\Wine\Mac Driver",
+                "RetinaMode",
+                if self.retina_mode { "y" } else { "n" },
+            ),
+        ];
         if self.resolution == Resolution::Custom {
             operations.push(reg_sz(r"HKCU\Software\Wine\Explorer", "Desktop", "Orbit"));
             operations.push(reg_sz(
@@ -328,6 +331,20 @@ impl CompatibilitySettings {
         }
         operations
     }
+}
+
+/// Steam must stay silent: no tray icon, which Wine's explorer would turn into a
+/// macOS menu-bar item.
+pub fn hide_tray_icons() -> [String; 7] {
+    [
+        r"HKCU\Software\Wine\Explorer".into(),
+        "/v".into(),
+        "ShowSystray".into(),
+        "/t".into(),
+        "REG_DWORD".into(),
+        "/d".into(),
+        "0".into(),
+    ]
 }
 
 fn reg_sz(key: &str, name: &str, data: &str) -> [String; 7] {
@@ -579,9 +596,29 @@ mod tests {
             ..Default::default()
         };
         let operations = settings.registry_adds();
-        assert_eq!(operations[0][5], "/d");
-        assert_eq!(operations[0][6], "y");
-        assert_eq!(operations[2][5], "/d");
-        assert_eq!(operations[2][6], "2560x1440");
+        assert_eq!(operations[1][5], "/d");
+        assert_eq!(operations[1][6], "y");
+        assert_eq!(operations[3][5], "/d");
+        assert_eq!(operations[3][6], "2560x1440");
+    }
+
+    #[test]
+    fn every_prefix_keeps_steam_out_of_the_menu_bar() {
+        // Wine's explorer turns tray icons (Steam's) into macOS menu-bar items.
+        let operations = CompatibilitySettings::default().registry_adds();
+        assert_eq!(operations[0], hide_tray_icons());
+        assert_eq!(
+            hide_tray_icons(),
+            [
+                r"HKCU\Software\Wine\Explorer",
+                "/v",
+                "ShowSystray",
+                "/t",
+                "REG_DWORD",
+                "/d",
+                "0"
+            ]
+            .map(String::from)
+        );
     }
 }

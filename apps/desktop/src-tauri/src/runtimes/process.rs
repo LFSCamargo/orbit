@@ -74,8 +74,9 @@ fn drain(mut input: impl Read + Send + 'static, log: Arc<Mutex<File>>) {
     });
 }
 
-/// Games run as their own macOS app (see `platform::macos::detached_spawn`).
-/// Unit-test binaries have no trampoline, so they spawn the command directly.
+/// Games run as their own macOS app in a session of their own (see
+/// `platform::macos::detached_spawn`). Unit-test binaries have no trampoline,
+/// so they only start the new session.
 pub fn detached(command: &Command) -> Result<Command> {
     #[cfg(all(target_os = "macos", not(test)))]
     return Ok(crate::platform::macos::detached_spawn::wrap(command)?);
@@ -91,6 +92,17 @@ pub fn detached(command: &Command) -> Result<Command> {
         }
         if let Some(dir) = command.get_current_dir() {
             copy.current_dir(dir);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            use std::os::unix::process::CommandExt;
+            // SAFETY: setsid is async-signal-safe.
+            unsafe {
+                copy.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
         }
         Ok(copy)
     }
@@ -122,7 +134,8 @@ pub fn command(executable: &Path, prefix: &Path) -> Command {
     cmd.env("WINEPREFIX", prefix)
         .env("WINEDEBUG", "-all")
         .env("LANG", "en_US.UTF-8")
-        .env("LC_ALL", "en_US.UTF-8");
+        .env("LC_ALL", "en_US.UTF-8")
+        .envs(super::wine_capabilities::container_sync_env(executable));
     if let Some(bin) = executable.parent() {
         let mut path = bin.as_os_str().to_owned();
         path.push(":/usr/bin:/bin:/usr/sbin:/sbin");

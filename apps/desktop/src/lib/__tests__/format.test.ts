@@ -108,13 +108,13 @@ describe('providerLabel', () => {
   it('maps known providers to display labels', () => {
     expect(providerLabel('astris')).toBe('Nintendo Switch')
     expect(providerLabel('steam')).toBe('Steam')
-    expect(providerLabel('gamehub')).toBe('GameHub')
     expect(providerLabel('native')).toBe('macOS')
     expect(providerLabel('manual')).toBe('Manual')
   })
 
   it('returns unknown providers unchanged', () => {
     expect(providerLabel('custom-source')).toBe('custom-source')
+    expect(providerLabel('gamehub')).toBe('gamehub')
   })
 })
 

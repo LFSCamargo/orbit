@@ -16,12 +16,6 @@ vi.mock('@/lib/tauri', () => ({
   installGptkViaHomebrew: vi.fn(),
   installLocalGptkPackage: vi.fn(),
   registerComponentPath: vi.fn(),
-  getGamehubEngineStatus: vi
-    .fn()
-    .mockResolvedValue({ available: false, overlayReady: false, bindings: [] }),
-  importGamehubComponents: vi
-    .fn()
-    .mockResolvedValue({ engineAvailable: false, imported: [], skipped: [] }),
 }))
 vi.mock('@/lib/dialog', () => ({ open: vi.fn() }))
 
@@ -85,13 +79,20 @@ it('shows a percentage progress bar while a component downloads', async () => {
     })
   })
   renderRows()
-  fireEvent.click(await screen.findByRole('button', { name: /Install/ }))
+  expect(await screen.findByText(/Not installed/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: /Install/ }))
   expect(await screen.findByRole('progressbar')).toHaveAttribute('value', '50')
   expect(
     await screen.findByText('Downloading wine-stable 11.0_1 · 50% · 0 of 0 MB'),
   ).toBeVisible()
   settle()
   await waitFor(() => expect(installComponent).toHaveBeenCalledTimes(1))
+})
+
+it('does not offer a GameHub component import', async () => {
+  renderRows()
+  expect(await screen.findByText('Compatibility components')).toBeVisible()
+  expect(screen.queryByRole('button', { name: /Import from GameHub/ })).toBeNull()
 })
 
 it('surfaces the extraction failure with a retry affordance', async () => {
@@ -101,7 +102,8 @@ it('surfaces the extraction failure with a retry affordance', async () => {
     ),
   )
   renderRows()
-  fireEvent.click(await screen.findByRole('button', { name: /Install/ }))
+  expect(await screen.findByText(/Not installed/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: /Install/ }))
   expect(await screen.findByRole('alert')).toHaveTextContent('no wine or wine64 binary')
   const retry = await screen.findByRole('button', { name: /Retry/ })
   expect(retry).toBeEnabled()

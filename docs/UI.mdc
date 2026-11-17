@@ -367,4 +367,4 @@ seven or fewer games remain a finite strip.
 
 When a game process exits unsuccessfully after the loading banner has closed, reopen the banner with its exit code and a Dismiss action. Keep that failure visible across remounts until dismissed. Normal exits and user-requested stops leave it closed.
 
-Steam sign-in opens as an Orbit modal with loading, native-hosted QR/account sign-in, placement error, and closing states. A successful process spawn alone must not reveal ready instructions. Cancel dismisses the dialog after bounded cleanup; any failure is shown outside the dialog.
+Steam sign-in opens as an Orbit modal while Valve's Steam window is open. Cancel closes that window. After Steam saves the account, Orbit closes Wine and keeps the login. A failure is shown in the dialog.

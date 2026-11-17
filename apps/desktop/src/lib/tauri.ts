@@ -353,16 +353,6 @@ export async function registerWineRuntime(
 export async function runtimeDiagnostics(gameId: string): Promise<string> {
   return run('runtime_diagnostics', { gameId })
 }
-export async function getGamehubEngineStatus(): Promise<
-  import('@/types/runtime').GamehubStatus
-> {
-  return run('gamehub_engine_status')
-}
-export async function importGamehubComponents(): Promise<
-  import('@/types/runtime').GamehubImportReport
-> {
-  return run('import_gamehub_components')
-}
 export async function cancelGameLaunch(): Promise<void> {
   return run('cancel_game_launch')
 }

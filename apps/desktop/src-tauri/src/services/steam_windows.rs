@@ -53,19 +53,8 @@ pub struct SteamWindowsStatus {
     pub client_phase: String,
     pub client_caption: String,
     pub owned_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum PlayEngine {
-    /// Use a GameHub container when GameHub manages the game, otherwise Orbit's
-    /// own silent Steam client.
-    #[default]
-    Auto,
-    /// Always use Orbit's own Steam for Windows environment.
-    Orbit,
-    /// Require the GameHub container; fail instead of falling back.
-    Gamehub,
+    /// A refresh token games can log on with. The account name alone is not enough.
+    pub session_ready: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,8 +64,10 @@ pub struct SteamWindowsPreferences {
     pub verify_files: bool,
     #[serde(default)]
     pub additional_library_paths: Vec<String>,
-    #[serde(default)]
-    pub play_engine: PlayEngine,
+    /// Retired `playEngine` choice. Read so older settings still load (unknown
+    /// fields are refused), never written back.
+    #[serde(default, rename = "playEngine", skip_serializing)]
+    legacy_play_engine: Option<serde_json::Value>,
 }
 
 impl Default for SteamWindowsPreferences {
@@ -85,7 +76,7 @@ impl Default for SteamWindowsPreferences {
             offline_mode: false,
             verify_files: true,
             additional_library_paths: Vec::new(),
-            play_engine: PlayEngine::default(),
+            legacy_play_engine: None,
         }
     }
 }
@@ -106,6 +97,7 @@ pub fn session_dir(data_dir: &Path) -> PathBuf {
 }
 
 pub fn status(repo: &GameRepository) -> Result<SteamWindowsStatus, String> {
+    adopt_existing_client_login(repo)?;
     let account = stored_account(repo)?;
     let owned_count = stored_entries(repo)?.len();
     let signed_in = account.is_some();
@@ -123,6 +115,7 @@ pub fn status(repo: &GameRepository) -> Result<SteamWindowsStatus, String> {
         client_phase,
         client_caption,
         owned_count,
+        session_ready: super::steam_native::session::has_saved(&session_dir(&app_data_dir())),
     })
 }
 
@@ -257,9 +250,7 @@ pub fn refresh_owned_ids(repo: &GameRepository) -> Result<(), String> {
     let account =
         stored_account(repo)?.ok_or("Sign in with Steam before refreshing the library")?;
     let Some(support) = steam_support_dir() else {
-        return Err(
-            "Install Steam for Windows in Settings → Steam before refreshing the library".into(),
-        );
+        return Err("Sign in once with Steam before refreshing the library".into());
     };
     let login_path = support.join("config/loginusers.vdf");
     if !login_path.is_file() {
@@ -277,7 +268,9 @@ pub fn refresh_owned_ids(repo: &GameRepository) -> Result<(), String> {
         return Err("Steam is signed in as a different account. Sign in again.".into());
     }
     let local_ids = read_owned_ids(&support, &recent.steam_id)?;
-    let fetched = play_wine_binary(repo).and_then(|wine| {
+    // The web cookie is DPAPI-wrapped by the sign-in prefix's own Wine, so only
+    // that Wine can read it (never the Wine games play with).
+    let fetched = steam_wine_binary().and_then(|wine| {
         super::steam_session::web_token(&wine, &steam_prefix(), &recent.steam_id)
             .ok()
             .and_then(|token| super::steam_qr::fetch_owned_games(token.expose()).ok())
@@ -333,34 +326,137 @@ pub fn connect(repo: &GameRepository) -> Result<SteamWindowsStatus, String> {
     status(repo)
 }
 
-/// Saves a login once Steam's own window has written it. The library error is
-/// returned beside the status so a slow Steam write does not undo the sign-in.
+/// Saves a login that Steam already wrote. A web cookie is not required. The
+/// Steam window is closed once that login is stored.
 pub fn capture_login(
     repo: &GameRepository,
 ) -> Result<(Option<SteamWindowsStatus>, Option<String>), String> {
-    let Some(existing) = read_support_account() else {
-        return Ok((None, None));
-    };
-    let local_ids = steam_support_dir()
-        .and_then(|support| read_owned_ids(&support, &existing.steam_id).ok())
-        .unwrap_or_default();
-    let has_web_session = play_wine_binary(repo).is_some_and(|wine| {
-        super::steam_session::web_token(&wine, &steam_prefix(), &existing.steam_id).is_ok()
-    });
-    // loginusers.vdf is written before Steam finishes its session. Keep the
-    // official client alive until tickets or an authenticated web cookie exist.
-    if !has_web_session && local_ids.is_empty() {
+    if !adopt_existing_client_login(repo)? {
         return Ok((None, None));
     }
-    if stored_account(repo)?.is_some_and(|name| name != existing.name) {
+    let library_error = if wine_steam_root().join("config/loginusers.vdf").is_file() {
+        refresh_owned_ids(repo).err()
+    } else {
+        None
+    };
+    Ok((Some(status(repo)?), library_error))
+}
+
+/// Store a refresh token that is already on disk and stop the Wine process
+/// that was only open to keep that login. Returns false when no client login
+/// exists yet.
+fn adopt_existing_client_login(repo: &GameRepository) -> Result<bool, String> {
+    let session = session_dir(&app_data_dir());
+    if !super::steam_native::session::needs_capture(&steam_prefix(), &session) {
+        let saved = super::steam_native::session::has_saved(&session);
+        if let Some(account) = account_to_restore(
+            stored_account(repo)?,
+            saved,
+            account_name_in(&steam_prefix()),
+        ) {
+            save_account(repo, &account)?;
+            // The library could not refresh without an account; fill it now.
+            let _ = refresh_owned_ids(repo);
+        }
+        return Ok(saved);
+    }
+    if !capture_client_session()? {
+        return Ok(false);
+    }
+    let Some(account) = account_name_in(&steam_prefix()) else {
+        return Ok(true);
+    };
+    if stored_account(repo)?.is_some_and(|name| name != account) {
         save_library(repo, &[])?;
     }
-    save_account(repo, &existing.name)?;
-    if let Some(support) = steam_support_dir() {
-        crate::utils::steam_account::enable_saved_login(&support.join("config/loginusers.vdf"));
+    save_account(repo, &account)?;
+    Ok(true)
+}
+
+/// The account to record when a client session is saved but no account is:
+/// after Disconnect and a new sign-in, the session was kept while the account
+/// stayed empty, so library refreshes failed and the catalog stopped growing.
+fn account_to_restore(
+    stored: Option<String>,
+    session_saved: bool,
+    signed_in: Option<String>,
+) -> Option<String> {
+    (stored.is_none() && session_saved)
+        .then_some(signed_in)
+        .flatten()
+}
+
+/// A `local.vdf` whose token could not be unwrapped, so status polls do not
+/// start Wine again until Steam saves a different login.
+static FAILED_UNWRAP: Mutex<Option<(u64, std::time::SystemTime)>> = Mutex::new(None);
+
+/// Save the client token from the Settings sign-in so game containers can log
+/// on with it, then stop that sign-in's Steam. Only the sign-in prefix is read:
+/// game containers hold tokens Orbit wrote. Returns whether a client session
+/// is saved.
+pub(crate) fn capture_client_session() -> Result<bool, String> {
+    let session = session_dir(&app_data_dir());
+    let prefix = steam_prefix();
+    if !super::steam_native::session::needs_capture(&prefix, &session) {
+        return Ok(super::steam_native::session::has_saved(&session));
     }
-    let library_error = refresh_owned_ids(repo).err();
-    Ok((Some(status(repo)?), library_error))
+    let wine = steam_wine_binary();
+    let stamp = local_vdf_stamp(&prefix);
+    super::steam_native::session::capture_from_client(&prefix, &session, |account| {
+        let wine = wine.as_deref()?;
+        if stamp.is_some() && *FAILED_UNWRAP.lock() == stamp {
+            return None;
+        }
+        let token = super::steam_native::agent_host::unwrap_saved_token(wine, &prefix, account);
+        if token.is_none() {
+            *FAILED_UNWRAP.lock() = stamp;
+        }
+        token
+    })?;
+    if !super::steam_native::session::has_saved(&session) {
+        return Ok(false);
+    }
+    crate::utils::steam_account::enable_saved_login(
+        &crate::runtimes::containers::steam::steam_root(&prefix).join("config/loginusers.vdf"),
+    );
+    if let Some(wine) = wine {
+        stop_steam_runtime(&wine, &prefix);
+    }
+    Ok(true)
+}
+
+fn local_vdf_stamp(prefix: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let users = fs::read_dir(prefix.join("drive_c/users")).ok()?;
+    users.flatten().take(16).find_map(|entry| {
+        let meta = entry
+            .path()
+            .join("AppData/Local/Steam/local.vdf")
+            .metadata()
+            .ok()?;
+        Some((meta.len(), meta.modified().ok()?))
+    })
+}
+
+pub(crate) fn saved_client_waiting() -> bool {
+    super::steam_native::session::client_login_ready(&steam_prefix())
+}
+
+fn account_name_in(prefix: &Path) -> Option<String> {
+    let path = crate::runtimes::containers::steam::steam_root(prefix).join("config/loginusers.vdf");
+    let meta = fs::symlink_metadata(&path).ok()?;
+    if !meta.is_file() || meta.file_type().is_symlink() || meta.len() > 8 * 1024 * 1024 {
+        return None;
+    }
+    let mut text = String::new();
+    fs::File::open(path)
+        .ok()?
+        .take(8 * 1024 * 1024 + 1)
+        .read_to_string(&mut text)
+        .ok()?;
+    if text.len() as u64 > 8 * 1024 * 1024 {
+        return None;
+    }
+    most_recent_account(&text).map(|account| account.name)
 }
 
 /// Saves the account confirmed by a QR login and the owned catalog fetched with it.
@@ -518,7 +614,7 @@ fn install_windows_steam_inner(app: &AppHandle) -> Result<(), String> {
             let _ = child.wait();
         }
         return Err(
-            "Steam did not finish installing its browser. Keep this Mac online and try Install Steam for Windows again."
+            "Steam did not finish installing its browser. Keep this Mac online and try signing in again."
                 .into(),
         );
     }
@@ -535,10 +631,16 @@ pub fn download(app: &AppHandle, repo: &GameRepository, app_id: &str) -> Result<
     if !valid_app_id(app_id) {
         return Err("Steam app id must be a number".into());
     }
-    let account = stored_account(repo)?.ok_or("Sign in with Steam before downloading")?;
+    let account =
+        stored_account(repo)?.ok_or("Sign in once with Steam, then try the download again.")?;
     let session = session_dir(&app_data_dir());
-    let destination = install_dir(&session, app_id)?;
-    fs::create_dir_all(&destination).map_err(|err| err.to_string())?;
+    let cmd_root = super::steam_native::login::steamcmd_root(&session);
+    super::steam_native::login::seed_from_client(&steam_prefix(), &cmd_root)?;
+    if !super::steam_native::login::has_saved_login(&cmd_root) {
+        return Err("Sign in once with Steam, then try the download again.".into());
+    }
+    let destination =
+        super::steam_native::downloads::prepare_install_dir(&crate::runtimes::root(), app_id)?;
     let binary = ensure_steamcmd(&session)?;
     let prefs = preferences(repo)?;
     let args = steamcmd_arguments(
@@ -554,11 +656,9 @@ pub fn download(app: &AppHandle, repo: &GameRepository, app_id: &str) -> Result<
     {
         return Err("A Steam download is already running".into());
     }
-    CLIENT_RUNNING.store(true, Ordering::Relaxed);
     let key = format!("steam:{app_id}");
     let label = format!("Steam {app_id}");
     let result = run_steamcmd(app, &binary, &args, &key, &label);
-    CLIENT_RUNNING.store(false, Ordering::Relaxed);
     DOWNLOAD_ACTIVE.store(false, Ordering::SeqCst);
     result
 }
@@ -567,19 +667,28 @@ pub fn play(repo: &GameRepository, app_id: &str) -> Result<String, String> {
     if !valid_app_id(app_id) {
         return Err("Steam app id must be a number".into());
     }
-    let destination = install_dir(&session_dir(&app_data_dir()), app_id)?;
-    let orbit_exe = find_game_executable(&destination);
-    let library = install_index(&preferences(repo)?.additional_library_paths);
-    let executable = orbit_exe
-        .or_else(|| {
-            library
-                .by_id
-                .get(app_id)
-                .and_then(|install| find_game_executable(&install.install_dir))
-        })
-        .ok_or("Download the game before playing")?;
+    let libraries = play_library_paths(repo);
+    let library = install_index(&libraries);
+    let executable = super::steam_native::installed::executable_in_libraries(
+        app_id,
+        &libraries,
+        &orbit_install_dirs(app_id),
+    )
+    .or_else(|| {
+        super::steam_native::installed::executable_from_manifest(
+            app_id,
+            &libraries,
+            &container_manifest(app_id)?,
+        )
+    })
+    .or_else(|| {
+        let dirs =
+            super::steam_native::installed::install_dirs(&wine_steam_root(), &[app_id.to_string()]);
+        super::steam_native::installed::executable_by_installdir(dirs.get(app_id)?, &libraries)
+    })
+    .ok_or("Download the game before playing")?;
     let runtime = play_wine_binary(repo)
-        .ok_or("Install Steam for Windows in Settings → Steam before playing this game")?;
+        .ok_or("Install a Windows compatibility runtime in Settings before playing this game")?;
     let title = stored_entries(repo)?
         .into_iter()
         .find(|entry| entry.app_id == app_id)
@@ -632,6 +741,10 @@ fn save_account(repo: &GameRepository, name: &str) -> Result<(), String> {
         .map_err(|err| err.to_string())
 }
 
+pub(crate) fn remember_account(repo: &GameRepository, name: &str) -> Result<(), String> {
+    save_account(repo, name)
+}
+
 pub(crate) fn stored_account(repo: &GameRepository) -> Result<Option<String>, String> {
     let value = repo
         .get_setting(ACCOUNT_KEY)
@@ -650,7 +763,7 @@ pub(crate) fn steam_prefix() -> PathBuf {
     session_dir(&app_data_dir()).join("prefix")
 }
 
-fn wine_steam_root() -> PathBuf {
+pub(crate) fn wine_steam_root() -> PathBuf {
     wine_steam_root_in(&steam_prefix())
 }
 
@@ -663,31 +776,93 @@ fn steam_support_dir() -> Option<PathBuf> {
     path.is_dir().then_some(path)
 }
 
+fn play_library_paths(repo: &GameRepository) -> Vec<String> {
+    let extra = preferences(repo)
+        .map(|prefs| prefs.additional_library_paths)
+        .unwrap_or_default();
+    play_library_paths_from(&extra)
+}
+
+fn play_library_paths_from(extra: &[String]) -> Vec<String> {
+    super::steam_native::installed::library_paths(
+        dirs::home_dir().as_deref(),
+        crate::utils::steam_paths::detect_steam_root().as_deref(),
+        extra,
+    )
+}
+
 pub fn installed_app_ids(
     entries: &[SteamCatalogEntry],
     paths: &[String],
 ) -> std::collections::HashSet<String> {
-    let library = install_index(paths).by_id;
-    let mut ids: std::collections::HashSet<String> = library.keys().cloned().collect();
+    let libraries = play_library_paths_from(paths);
+    let mut ids = super::steam_native::installed::discover(
+        &libraries,
+        &crate::runtimes::containers::root_in(&crate::runtimes::root()).join("games"),
+        &session_dir(&app_data_dir()).join("games"),
+    );
     for entry in entries {
         if orbit_installed(&entry.app_id) {
             ids.insert(entry.app_id.clone());
         }
     }
+    // A library can lose an app's manifest while the game folder stays; Steam's
+    // appinfo cache still names that folder.
+    let missing: Vec<String> = entries
+        .iter()
+        .filter(|entry| !ids.contains(&entry.app_id))
+        .map(|entry| entry.app_id.clone())
+        .collect();
+    for (app_id, installdir) in
+        super::steam_native::installed::install_dirs(&wine_steam_root(), &missing)
+    {
+        if super::steam_native::installed::executable_by_installdir(&installdir, &libraries)
+            .is_some()
+        {
+            ids.insert(app_id);
+        }
+    }
     ids
 }
 
+/// The Wine a Steam title plays with. A CrossOver-class Orbit Wine (MSync and
+/// D3DMetal hooks) wins; the sign-in Wine lacks both and runs games slowly.
 pub(crate) fn play_wine_binary(repo: &GameRepository) -> Option<PathBuf> {
-    steam_wine_binary().or_else(|| wine_executable(repo))
+    runtimes::wine_capabilities::installed_crossover(&runtimes::root())
+        .or_else(steam_wine_binary)
+        .or_else(|| wine_executable(repo))
+}
+
+/// The manifest the game container's own Steam keeps for this app.
+fn container_manifest(app_id: &str) -> Option<PathBuf> {
+    let id = super::steam_native::downloads::container_id(app_id).ok()?;
+    let prefix = crate::runtimes::containers::root_in(&crate::runtimes::root())
+        .join("games")
+        .join(id)
+        .join("prefix");
+    Some(
+        crate::runtimes::containers::steam::steam_root(&prefix)
+            .join(format!("steamapps/appmanifest_{app_id}.acf")),
+    )
+}
+
+fn orbit_install_dirs(app_id: &str) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(dir) = super::steam_native::downloads::install_dir(&crate::runtimes::root(), app_id) {
+        dirs.push(dir);
+    }
+    if let Ok(dir) = install_dir(&session_dir(&app_data_dir()), app_id) {
+        dirs.push(dir);
+    }
+    dirs
 }
 
 fn orbit_installed(app_id: &str) -> bool {
-    let Ok(dir) = install_dir(&session_dir(&app_data_dir()), app_id) else {
-        return false;
-    };
-    dir.join(format!("steamapps/appmanifest_{app_id}.acf"))
-        .is_file()
-        || find_game_executable(&dir).is_some()
+    orbit_install_dirs(app_id).iter().any(|dir| {
+        dir.join(format!("steamapps/appmanifest_{app_id}.acf"))
+            .is_file()
+            || find_game_executable(dir).is_some()
+    })
 }
 
 pub(crate) fn steam_runtime_command(wine: &Path, prefix: &Path) -> Command {
@@ -708,7 +883,8 @@ pub(crate) fn steam_runtime_command(wine: &Path, prefix: &Path) -> Command {
         .env("LANG", "en_US.UTF-8")
         .env("LC_ALL", "en_US.UTF-8")
         .env("WINEPREFIX", prefix)
-        .env("WINEDEBUG", "-all");
+        .env("WINEDEBUG", "-all")
+        .envs(runtimes::wine_capabilities::container_sync_env(wine));
     command
 }
 
@@ -758,17 +934,26 @@ fn ensure_steam_wine() -> Result<PathBuf, String> {
         .ok_or_else(|| "The Steam compatibility runtime did not contain wine".into())
 }
 
-fn require_windows_steam() -> Result<PathBuf, String> {
-    let prefix = steam_prefix();
-    let exe = steam_exe_in(&prefix);
-    if !exe.is_file() {
-        return Err("Install Steam for Windows in Settings → Steam before signing in".into());
+pub(crate) fn prepare_client_sign_in() -> Result<(PathBuf, PathBuf, PathBuf), String> {
+    let wine = ensure_steam_wine()?;
+    let prefix = prepare_steam_prefix(&wine)?;
+    // The sign-in prefix only needs Valve's client long enough to save the
+    // account. Play kills that Wine process and reuses the saved files.
+    crate::services::steam_native::client_provision::provision_container(
+        &crate::runtimes::root(),
+        &prefix,
+    )?;
+    let steam = steam_exe_in(&prefix);
+    if !steam.is_file() {
+        return Err("Steam's sign-in window is not ready".into());
     }
-    if !steam_client_ready(&prefix) {
-        return Err(
-            "Steam is still installing its browser. Use Install Steam for Windows, then sign in"
-                .into(),
-        );
+    Ok((wine, prefix, steam))
+}
+
+fn require_windows_steam() -> Result<PathBuf, String> {
+    let exe = steam_exe_in(&steam_prefix());
+    if !exe.is_file() {
+        return Err("Steam's sign-in window is not ready".into());
     }
     Ok(exe)
 }
@@ -777,7 +962,7 @@ fn wine_steam_root_in(prefix: &Path) -> PathBuf {
     prefix.join("drive_c/Program Files (x86)/Steam")
 }
 
-fn steam_exe_in(prefix: &Path) -> PathBuf {
+pub(crate) fn steam_exe_in(prefix: &Path) -> PathBuf {
     wine_steam_root_in(prefix).join("steam.exe")
 }
 
@@ -805,8 +990,20 @@ fn should_reset_prefix(prefix: &Path) -> bool {
 }
 
 fn wait_for_file(path: &Path, timeout: Duration, poll: Duration) -> bool {
+    wait_for_file_until(path, timeout, poll, sign_in_cancelled)
+}
+
+fn wait_for_file_until(
+    path: &Path,
+    timeout: Duration,
+    poll: Duration,
+    cancelled: impl Fn() -> bool,
+) -> bool {
     let started = Instant::now();
     loop {
+        if cancelled() {
+            return false;
+        }
         if path.is_file() {
             return true;
         }
@@ -822,8 +1019,8 @@ fn wait_for_steam_browser(app: &AppHandle, prefix: &Path, timeout: Duration) -> 
     let started = Instant::now();
     let poll = Duration::from_millis(500);
     loop {
-        if steam_client_ready(prefix) {
-            return true;
+        if steam_client_ready(prefix) || sign_in_cancelled() {
+            return steam_client_ready(prefix);
         }
         emit_steam_setup(
             app,
@@ -862,7 +1059,7 @@ pub(crate) fn shutdown_argv(steam_exe: &Path) -> Vec<String> {
 }
 
 /// Ask the official client to exit so it can write ConnectCache / ssfn before
-/// wineserver is killed. GameHub's private SteamAgent is not used.
+/// wineserver is killed.
 pub(crate) fn request_steam_shutdown(wine: &Path, prefix: &Path) {
     let steam = steam_exe();
     if !steam.is_file() || !wine.is_file() || !prefix.is_dir() {
@@ -989,6 +1186,36 @@ fn read_connection_log() -> String {
     content
 }
 
+fn cwd_process_ids(listing: &str, prefix: &Path) -> Vec<u32> {
+    let needle = prefix.to_string_lossy();
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    let inside = format!("{needle}/");
+    let self_pid = std::process::id();
+    let mut pid = None;
+    let mut ids = Vec::new();
+    for line in listing.lines().take(20_000) {
+        if let Some(rest) = line.strip_prefix('p') {
+            pid = rest.parse().ok();
+            continue;
+        }
+        let Some(cwd) = line.strip_prefix('c') else {
+            continue;
+        };
+        let Some(pid) = pid else {
+            continue;
+        };
+        if pid > 1 && pid != self_pid && (cwd == needle.as_ref() || cwd.starts_with(&inside)) {
+            ids.push(pid);
+            if ids.len() == 32 {
+                break;
+            }
+        }
+    }
+    ids
+}
+
 fn prefix_process_ids(listing: &str, prefix: &Path) -> Vec<u32> {
     let needle = prefix.to_string_lossy();
     if needle.is_empty() {
@@ -1015,7 +1242,21 @@ fn reap_prefix_processes(prefix: &Path) {
         return;
     }
     let listing = String::from_utf8_lossy(&output.stdout);
-    for pid in prefix_process_ids(&listing, prefix) {
+    let mut pids = prefix_process_ids(&listing, prefix);
+    if let Ok(cwd) = Command::new("lsof")
+        .args(["-nP", "-F", "pc", "-d", "cwd"])
+        .output()
+    {
+        if cwd.stdout.len() <= 8 * 1024 * 1024 {
+            let cwd_listing = String::from_utf8_lossy(&cwd.stdout);
+            for pid in cwd_process_ids(&cwd_listing, prefix) {
+                if !pids.contains(&pid) && pids.len() < 32 {
+                    pids.push(pid);
+                }
+            }
+        }
+    }
+    for pid in pids {
         let _ = Command::new("kill")
             .args(["-TERM", &pid.to_string()])
             .status();
@@ -1396,7 +1637,7 @@ fn run_steamcmd(
         .take()
         .and_then(|mut child| child.wait().ok());
     if secret {
-        return Err("Steam asked for a password or Guard code. Use Sign in with Steam, then try the download again.".into());
+        return Err("Sign in once with Steam, then try the download again.".into());
     }
     if !status.is_some_and(|status| status.success()) {
         return Err("SteamCMD did not finish the download".into());
@@ -1486,6 +1727,90 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_saved_session_restores_a_missing_account() {
+        let name = || Some("orbit_user".to_string());
+        assert_eq!(account_to_restore(None, true, name()), name());
+        assert_eq!(account_to_restore(name(), true, Some("other".into())), None);
+        assert_eq!(account_to_restore(None, false, name()), None);
+        assert_eq!(account_to_restore(None, true, None), None);
+    }
+
+    #[test]
+    #[ignore = "fetches the real owned library with the saved web session"]
+    fn live_owned_games_come_from_the_web_session() {
+        let support = steam_support_dir().unwrap();
+        let account = read_support_account().unwrap();
+        let local = read_owned_ids(&support, &account.steam_id).unwrap();
+        let wine = steam_wine_binary().unwrap();
+        let token =
+            super::super::steam_session::web_token(&wine, &steam_prefix(), &account.steam_id);
+        eprintln!("local ids {} web token {}", local.len(), token.is_ok());
+        let owned = super::super::steam_qr::fetch_owned_games(token.unwrap().expose()).unwrap();
+        eprintln!("owned games {}", owned.len());
+    }
+
+    #[test]
+    #[ignore = "refreshes the real owned library"]
+    fn live_refresh_saves_the_whole_owned_library() {
+        let repo = GameRepository::open(&crate::utils::paths::database_path()).unwrap();
+        eprintln!("before {}", stored_entries(&repo).unwrap().len());
+        let signed_in = status(&repo).unwrap().signed_in;
+        refresh_owned_ids(&repo).unwrap();
+        let entries = stored_entries(&repo).unwrap();
+        let paths = preferences(&repo).unwrap().additional_library_paths;
+        let installed = installed_app_ids(&entries, &paths);
+        eprintln!(
+            "signed in {signed_in}, owned {}, installed {:?}",
+            entries.len(),
+            installed
+        );
+        assert!(signed_in && entries.len() > 3);
+        assert!(installed.contains("1593500"), "God of War is on disk");
+        let scanned = crate::importers::steam_windows::SteamWindowsImporter::new()
+            .with_library_paths(paths)
+            .with_owned(
+                entries
+                    .into_iter()
+                    .map(|entry| (entry.app_id, entry.title))
+                    .collect(),
+                wine_steam_root(),
+            )
+            .imported_games()
+            .unwrap();
+        let titles: Vec<_> = scanned.iter().map(|game| game.title.as_str()).collect();
+        eprintln!("scan imports {titles:?}");
+        assert!(titles.contains(&"God of War"));
+    }
+
+    #[test]
+    #[ignore = "reads the real Settings sign-in and runs Wine"]
+    fn live_settings_sign_in_becomes_a_container_session() {
+        assert!(capture_client_session().unwrap());
+        let saved = crate::services::steam_native::session::agent_credentials(&session_dir(
+            &app_data_dir(),
+        ))
+        .unwrap();
+        assert!(orbit_steam::is_client_token(
+            &saved.refresh_token,
+            &saved.steam_id
+        ));
+    }
+
+    #[test]
+    #[ignore = "logs a real game container on with the saved Settings sign-in"]
+    fn live_container_logs_on_with_the_settings_sign_in() {
+        let app_id = std::env::var("ORBIT_LIVE_APP_ID").unwrap_or_else(|_| "883710".into());
+        let host = crate::services::container_steam::SteamHost {
+            wine: steam_wine_binary().unwrap(),
+            prefix: runtimes::root().join(format!("containers/games/steam-{app_id}/prefix")),
+        };
+        let result =
+            crate::services::container_steam::ensure_running(&host, &AtomicBool::new(false));
+        crate::services::container_steam::shutdown(&host);
+        result.unwrap();
+    }
+
+    #[test]
     fn offline_mode_persists_without_a_password() {
         let path = std::env::temp_dir().join(format!("orbit-steam-prefs-{}", uuid::Uuid::new_v4()));
         let repo = crate::database::GameRepository::open(&path).unwrap();
@@ -1496,7 +1821,7 @@ mod tests {
                 offline_mode: true,
                 verify_files: false,
                 additional_library_paths: Vec::new(),
-                play_engine: PlayEngine::Gamehub,
+                ..SteamWindowsPreferences::default()
             },
         )
         .unwrap();
@@ -1505,14 +1830,23 @@ mod tests {
         let again = preferences(&repo).unwrap();
         assert!(again.offline_mode);
         assert!(!again.verify_files);
-        assert_eq!(again.play_engine, PlayEngine::Gamehub);
-        // A stored preference without play_engine still parses (upgrade path).
+        // Settings saved while the GameHub play engine existed keep every
+        // other preference, and the retired key is dropped on the next save.
         repo.set_setting(
             PREFERENCES_KEY,
-            &serde_json::json!({"offlineMode": false, "verifyFiles": true}),
+            &serde_json::json!({
+                "offlineMode": true,
+                "verifyFiles": false,
+                "playEngine": "gamehub"
+            }),
         )
         .unwrap();
-        assert_eq!(preferences(&repo).unwrap().play_engine, PlayEngine::Auto);
+        let legacy = preferences(&repo).unwrap();
+        assert!(legacy.offline_mode);
+        assert!(!legacy.verify_files);
+        set_preferences(&repo, legacy).unwrap();
+        let rewritten = repo.get_setting(PREFERENCES_KEY).unwrap().unwrap();
+        assert!(rewritten.get("playEngine").is_none());
         let stored = repo
             .get_setting(PREFERENCES_KEY)
             .unwrap()
@@ -1612,6 +1946,22 @@ mod tests {
 ";
         assert_eq!(prefix_process_ids(listing, prefix), vec![84643, 92297]);
         assert!(prefix_process_ids(listing, Path::new("/missing")).is_empty());
+    }
+
+    #[test]
+    fn cwd_listing_reaps_wine_whose_command_line_omits_the_prefix() {
+        let prefix = Path::new("/tmp/orbit-steam-prefix");
+        let listing = "\
+p1
+c/
+p92825
+c/tmp/orbit-steam-prefix/drive_c/windows/system32
+p99
+c/Applications/Steam.app
+p92826
+c/tmp/orbit-steam-prefix-other
+";
+        assert_eq!(cwd_process_ids(listing, prefix), vec![92825]);
     }
 
     #[test]

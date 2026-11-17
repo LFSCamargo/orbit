@@ -107,6 +107,31 @@ fn load_manifest(dir: &Path) -> Result<InstalledComponent> {
     serde_json::from_slice(&bytes).context("Corrupt component manifest")
 }
 
+/// Whether a payload's native bridge can load in Orbit's Wine, which runs as
+/// x86_64 under Rosetta. Payloads with a Unix side (DXMT's winemetal, GPTK)
+/// must ship `x86_64-unix`; an `aarch64-unix`-only build (an ARM64EC engine)
+/// fails to initialise. PE-only payloads (DXVK) always qualify.
+pub fn runs_on_x86_64_wine(path: &Path) -> bool {
+    let mut unix_dirs = Vec::new();
+    for dir in [
+        path.to_path_buf(),
+        path.join("wine"),
+        path.join("lib/wine"),
+        path.join("redist/lib/wine"),
+    ] {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten().take(64) {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.ends_with("-unix") && entry.path().is_dir() {
+                unix_dirs.push(name);
+            }
+        }
+    }
+    unix_dirs.is_empty() || unix_dirs.iter().any(|name| name == "x86_64-unix")
+}
+
 pub fn installed_components(root: &Path) -> Vec<InstalledComponent> {
     let root = components_root(root);
     let mut components = Vec::new();
@@ -499,7 +524,7 @@ fn validate_installation(dir: &Path, kind: ComponentKind) -> Result<String> {
                 }
             }
             if !has_wine && !has_d3dmetal {
-                // GameHub-style GPTK components ship the framework inside
+                // Engine-style GPTK packages ship the framework inside
                 // external/D3DMetal.framework instead of a loose dylib.
                 let framework = find_file_within(dir, |_, name| name == "D3DMetal.framework");
                 if framework.is_none() {
@@ -530,7 +555,7 @@ fn validate_installation(dir: &Path, kind: ComponentKind) -> Result<String> {
             Ok(root.to_string_lossy().into_owned())
         }
         ComponentKind::Zink => {
-            // Mesa's zink gallium driver: GameHub ships libwine_mesa_zink.dylib,
+            // Mesa's zink gallium driver: Wine-patched builds ship libwine_mesa_zink.dylib,
             // Linux-style builds ship zink_dri.so, and some macOS builds expose
             // libzink.dylib. The directory holding the driver is the payload.
             let driver = find_file_within(dir, |_, name| {
@@ -691,8 +716,6 @@ fn finalize_staging(staging: &Path, target: &Path) -> Result<PathBuf> {
 /// Register a locally available component path. GPTK accepts an Apple DMG or a
 /// payload directory; every other kind validates the directory against the same
 /// layout rules a download would pass, so a registered path is launch-ready.
-/// This is also how external engines (GameHub's wine-engine) lend components to
-/// Orbit without copying or redistributing anything.
 pub fn register(
     root: &Path,
     id: String,
@@ -802,6 +825,36 @@ pub fn installed_by_id(root: &Path) -> BTreeMap<String, InstalledComponent> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arm64_only_bridges_cannot_load_in_orbits_x86_64_wine() {
+        // Regression: an ARM64-only DXMT build was picked over x86_64 DXMT;
+        // winemetal.dll then failed to initialise and the game quit.
+        let root = std::env::temp_dir().join(format!("orbit-arch-{}", uuid::Uuid::new_v4()));
+        let arm = root.join("dxmt-arm64/wine");
+        fs::create_dir_all(arm.join("aarch64-unix")).unwrap();
+        fs::create_dir_all(arm.join("x86_64-windows")).unwrap();
+        let x86 = root.join("dxmt-x86/wine");
+        fs::create_dir_all(x86.join("x86_64-unix")).unwrap();
+        fs::create_dir_all(x86.join("x86_64-windows")).unwrap();
+        let flat = root.join("dxmt-flat");
+        fs::create_dir_all(flat.join("x86_64-unix")).unwrap();
+        let pe_only = root.join("dxvk");
+        fs::create_dir_all(pe_only.join("x64")).unwrap();
+        let gptk = root.join("gptk");
+        fs::create_dir_all(gptk.join("redist/lib/wine/x86_64-unix")).unwrap();
+
+        assert!(!runs_on_x86_64_wine(&arm));
+        assert!(!runs_on_x86_64_wine(arm.parent().unwrap()));
+        assert!(runs_on_x86_64_wine(&x86));
+        assert!(runs_on_x86_64_wine(&flat));
+        assert!(
+            runs_on_x86_64_wine(&pe_only),
+            "PE-only payloads need no bridge"
+        );
+        assert!(runs_on_x86_64_wine(&gptk));
+        let _ = fs::remove_dir_all(root);
+    }
 
     #[test]
     fn component_kind_from_id() {

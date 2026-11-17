@@ -18,18 +18,15 @@ fn merge(content: &str, paths: &[String]) -> Result<String, String> {
         [(name, Value::Object(fields))] if name.eq_ignore_ascii_case("libraryfolders") => fields,
         _ => return Err("Steam library configuration has an unsupported format".into()),
     };
-    if fields.len() > 32 || paths.len() > 16 {
+    if paths.len() > 16 {
         return Err("Too many Steam libraries".into());
     }
     let mut known = HashSet::new();
     let mut next = 0u32;
     for (id, value) in fields.iter() {
-        next = next.max(
-            id.parse::<u32>()
-                .map_err(|_| "Invalid Steam library number")?
-                .checked_add(1)
-                .ok_or("Invalid Steam library number")?,
-        );
+        if let Ok(number) = id.parse::<u32>() {
+            next = next.max(number.saturating_add(1));
+        }
         if let Value::Object(entry) = value {
             for (key, value) in entry {
                 if let ("path", Value::Text(path)) = (key.as_str(), value) {
@@ -232,7 +229,7 @@ fn replace_link(src: &Path, dest: &Path, allowed: &[PathBuf]) -> Result<bool, St
 }
 
 /// Link extra-library manifests and install dirs into the managed steamapps
-/// so Wine Steam treats GameHub copies as installed on C:.
+/// so Wine Steam treats extra-library copies as installed on C:.
 pub fn link_installs(steam_root: &Path, paths: &[String]) -> Result<bool, String> {
     let steamapps = steam_root.join("steamapps");
     fs::create_dir_all(steamapps.join("common"))
@@ -381,11 +378,26 @@ mod tests {
     }
 
     #[test]
+    fn an_existing_library_list_past_thirty_two_still_registers() {
+        let mut text = String::from("\"libraryfolders\" {\n");
+        for index in 0..40 {
+            text.push_str(&format!(
+                "\"{index}\" {{ \"path\" \"C:\\\\Lib{index}\" }}\n"
+            ));
+        }
+        text.push('}');
+        let paths = vec![r"S:\".to_string()];
+        let updated = merge(&text, &paths).unwrap();
+        assert!(updated.contains("S:\\\\"));
+        assert!(updated.contains("C:\\\\Lib39"));
+    }
+
+    #[test]
     fn publish_links_god_of_war_into_the_managed_steamapps() {
         let root = std::env::temp_dir().join(format!("orbit-steam-lib-{}", uuid::Uuid::new_v4()));
         let prefix = root.join("prefix");
         let steam = prefix.join("drive_c/Program Files (x86)/Steam");
-        let extra = root.join("GameHub");
+        let extra = root.join("ExtraLibrary");
         fs::create_dir_all(steam.join("steamapps")).unwrap();
         fs::create_dir_all(prefix.join("dosdevices")).unwrap();
         let common = extra_library(&extra, "1593500", "GodOfWar", "GoW.exe");
@@ -416,7 +428,7 @@ mod tests {
     fn link_installs_does_not_replace_a_real_orbit_download() {
         let root = std::env::temp_dir().join(format!("orbit-steam-keep-{}", uuid::Uuid::new_v4()));
         let steam = root.join("Steam");
-        let extra = root.join("GameHub");
+        let extra = root.join("ExtraLibrary");
         fs::create_dir_all(steam.join("steamapps/common/GodOfWar")).unwrap();
         fs::write(steam.join("steamapps/common/GodOfWar/GoW.exe"), b"ORBIT").unwrap();
         let common = extra_library(&extra, "1593500", "GodOfWar", "GoW.exe");

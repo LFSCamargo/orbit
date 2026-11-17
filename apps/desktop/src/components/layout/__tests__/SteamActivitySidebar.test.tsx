@@ -1,12 +1,4 @@
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useDownloadStore } from '@/lib/downloadProgress'
@@ -21,7 +13,7 @@ vi.mock('@/lib/tauri', () => ({
   setSteamWindowsPreferences: vi.fn(async (preferences: unknown) => preferences),
   steamWindowsLibrary: vi.fn(),
   connectSteamWindows: vi.fn(),
-  openSteamWindowsLogin: vi.fn(),
+  openSteamWindowsLogin: vi.fn().mockResolvedValue(undefined),
   placeSteamWindowsLogin: vi.fn(),
   pollSteamWindowsLogin: vi.fn(),
   startSteamWindowsQr: vi.fn(),
@@ -39,7 +31,6 @@ vi.mock('@/lib/tauri', () => ({
 import {
   connectSteamWindows,
   openSteamWindowsLogin,
-  placeSteamWindowsLogin,
   pollSteamWindowsLogin,
   steamWindowsLibrary,
   steamWindowsStatus,
@@ -50,7 +41,6 @@ const status = vi.mocked(steamWindowsStatus)
 const library = vi.mocked(steamWindowsLibrary)
 const connect = vi.mocked(connectSteamWindows)
 const openLogin = vi.mocked(openSteamWindowsLogin)
-const placeLogin = vi.mocked(placeSteamWindowsLogin)
 const pollLogin = vi.mocked(pollSteamWindowsLogin)
 
 function deferred<T>() {
@@ -85,6 +75,7 @@ beforeEach(() => {
     clientPhase: 'stopped',
     clientCaption: '',
     ownedCount: 0,
+    sessionReady: false,
   })
   library.mockResolvedValue([])
   connect.mockResolvedValue({
@@ -96,9 +87,8 @@ beforeEach(() => {
     clientPhase: 'ready',
     clientCaption: 'Steam is ready',
     ownedCount: 1,
+    sessionReady: true,
   })
-  openLogin.mockResolvedValue(undefined)
-  placeLogin.mockResolvedValue({ placed: true })
   pollLogin.mockResolvedValue({
     done: false,
     status: null,
@@ -106,7 +96,7 @@ beforeEach(() => {
   })
 })
 
-it("docks to the right and signs in with Steam's own QR window", async () => {
+it('opens Steam’s own window and closes it after the account is saved', async () => {
   library.mockResolvedValue([
     {
       appId: '570',
@@ -128,37 +118,18 @@ it("docks to the right and signs in with Steam's own QR window", async () => {
   expect(screen.getByText('Not authorized')).toBeTruthy()
   expect(screen.getByText('Steam client is closed')).toBeTruthy()
 
-  const openGate = deferred<void>()
   const pollGate = deferred<SteamLoginPoll>()
-  openLogin.mockImplementation(() => openGate.promise)
   pollLogin.mockImplementation(() => pollGate.promise)
 
   fireEvent.click(screen.getByRole('button', { name: 'Sign in with Steam' }))
   fireEvent.click(screen.getByRole('button', { name: 'Sign in with Steam' }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Sign in to Steam' })
-  expect(dialog).toHaveStyle({ background: '#f7f8fb', color: '#141820' })
-  expect(
-    within(dialog).getByRole('status', { name: 'Loading Steam sign-in' }),
-  ).toBeTruthy()
-  expect(within(dialog).queryByRole('button', { name: 'Account' })).toBeNull()
   expect(within(dialog).queryByLabelText(/password/i)).toBeNull()
+  expect(within(dialog).queryByRole('img')).toBeNull()
   expect(connect).not.toHaveBeenCalled()
   expect(openLogin).toHaveBeenCalledTimes(1)
-
-  await act(async () => {
-    openGate.resolve()
-  })
-
-  const loginHost = await within(dialog).findByTestId('steam-login-host')
-  expect(loginHost).toHaveStyle({ width: '100%', maxWidth: '840px' })
-  expect(within(dialog).queryByRole('img', { name: 'Steam QR code' })).toBeNull()
-  expect(await within(dialog).findByText(/Steam mobile app/i)).toBeTruthy()
-  await waitFor(() => expect(placeLogin).toHaveBeenCalled())
-  expect(placeLogin.mock.calls[0]?.[0]).toMatchObject({
-    width: 840,
-    height: 520,
-  })
+  expect(await within(dialog).findByText(/Steam’s own window/i)).toBeTruthy()
 
   await act(async () => {
     pollGate.resolve({
@@ -172,12 +143,13 @@ it("docks to the right and signs in with Steam's own QR window", async () => {
         clientPhase: 'ready',
         clientCaption: 'Steam is ready',
         ownedCount: 1,
+        sessionReady: true,
       },
       libraryError: null,
     })
   })
 
-  expect(await screen.findByText('Signed in as orbit_player')).toBeTruthy()
+  expect(await screen.findByText(/Signed in as orbit_player/)).toBeTruthy()
   expect(screen.getByText('Authorized')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Open library' })).toBeTruthy()
   expect(screen.queryByText('Dota 2')).toBeNull()
@@ -185,25 +157,22 @@ it("docks to the right and signs in with Steam's own QR window", async () => {
   expect(connect).not.toHaveBeenCalled()
 })
 
-it("asks for Steam's window when Orbit already has the library snapshot", async () => {
+it('treats a saved Steam login as authorized without a running client', async () => {
   status.mockResolvedValue({
     signedIn: true,
     accountName: 'orbit_player',
     steamInstalled: true,
     clientRunning: false,
     clientLoggedIn: false,
-    clientPhase: 'stopped',
-    clientCaption: '',
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
     ownedCount: 12,
+    sessionReady: true,
   })
   renderSidebar()
-  expect(
-    await screen.findByText(
-      'Orbit has your library. Sign in through Steam’s window so the Windows client matches.',
-    ),
-  ).toBeTruthy()
-  expect(screen.getByText('Not authorized')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Sign in with Steam' })).toBeTruthy()
+  expect(await screen.findByText(/Signed in as orbit_player/)).toBeTruthy()
+  expect(screen.getByText('Authorized')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Sign in with Steam' })).toBeNull()
   expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
 })
 

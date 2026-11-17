@@ -1,7 +1,11 @@
 export const LAUNCH_STEPS = [
   { id: 'resolve', label: 'Finding the Windows install' },
   { id: 'runtime', label: 'Checking Steam for Windows' },
-  { id: 'steam', label: 'Starting Steam for Windows' },
+  { id: 'container', label: 'Preparing the game container' },
+  { id: 'compatibility', label: 'Applying compatibility' },
+  { id: 'steam', label: 'Seeding Steam into the container' },
+  { id: 'login', label: 'Using the saved Steam login' },
+  { id: 'cloud', label: 'Copying Steam Cloud saves' },
   { id: 'prefix', label: 'Preparing the Windows environment' },
   { id: 'graphics', label: 'Applying graphics settings' },
   { id: 'spawn', label: 'Starting the game' },
@@ -44,7 +48,7 @@ export function launchStepLabel(step: string) {
   return LAUNCH_STEPS.find((item) => item.id === step)?.label ?? 'Launching…'
 }
 
-/** One GameHub-style caption on the banner: current stage, or the error. */
+/** One caption on the banner: current stage, or the error. */
 export function playExitMessage(code: number) {
   if (code === 53) {
     return 'Steam was not ready. If a Steam update window is open, wait for it to finish or close it, then press Play. Otherwise sign in again from Settings → Steam.'

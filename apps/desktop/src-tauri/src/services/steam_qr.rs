@@ -53,6 +53,7 @@ enum PollState {
     Approved {
         account_name: String,
         access_token: String,
+        refresh_token: Option<String>,
     },
 }
 
@@ -62,8 +63,10 @@ pub fn start() -> Result<SteamQrStart, String> {
         BEGIN_URL,
         &[
             ("device_friendly_name", "Orbit"),
-            ("platform_type", "2"),
-            ("website_id", "Community"),
+            // SteamClient, not the website. A web token is rejected by the
+            // game client as an invalid password.
+            ("platform_type", "1"),
+            ("website_id", "Client"),
         ],
         BEGIN_LIMIT,
     )?;
@@ -101,7 +104,20 @@ pub fn poll(
         PollState::Approved {
             account_name,
             access_token,
-        } => finish_login(repo, &account_name, &access_token),
+            refresh_token,
+        } => {
+            let refresh_token = refresh_token.ok_or(
+                "Steam did not return a sign-in that games can use. Try again from Settings → Steam",
+            )?;
+            let steam_id = steam_id_from_access_token(&access_token)?;
+            super::steam_native::session::store_refresh(
+                &steam_windows::session_dir(&crate::utils::paths::app_data_dir()),
+                &account_name,
+                &steam_id,
+                &refresh_token,
+            )?;
+            finish_login(repo, &account_name, &access_token)
+        }
     }
 }
 
@@ -233,9 +249,15 @@ fn parse_poll_body(body: &str) -> Result<PollState, String> {
     if !valid_account_name(account_name) || !valid_access_token(access_token) {
         return Err("Steam sign-in could not be confirmed".into());
     }
+    let refresh_token = response
+        .get("refresh_token")
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| valid_access_token(token))
+        .map(str::to_string);
     Ok(PollState::Approved {
         account_name: account_name.to_string(),
         access_token: access_token.to_string(),
+        refresh_token,
     })
 }
 
@@ -357,8 +379,10 @@ mod tests {
             PollState::Approved {
                 account_name,
                 access_token,
+                refresh_token,
             } => {
                 assert_eq!(account_name, "orbit_player");
+                assert!(refresh_token.is_none());
                 assert_eq!(
                     steam_id_from_access_token(&access_token).unwrap(),
                     "76561198000000000"

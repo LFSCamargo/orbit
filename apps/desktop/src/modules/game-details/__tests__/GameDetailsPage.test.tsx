@@ -56,6 +56,7 @@ const installed: LibraryEntry = {
 const steamStatus = vi.hoisted(() => ({
   signedIn: true,
   clientLoggedIn: true,
+  sessionReady: true,
 }))
 const useLibraryEntry = vi.fn()
 vi.mock('@/hooks/useLibrary', () => ({
@@ -170,7 +171,7 @@ it('plays the selected installation and honors the Settings tab from navigation'
   expect(screen.getByRole('button', { name: /Continue playing/ })).toBeTruthy()
 })
 
-it('disables Play until the silent Steam client is logged on', () => {
+it('plays a signed-in Windows install while the silent Steam client is still down', () => {
   steamStatus.clientLoggedIn = false
   useLibraryEntry.mockReturnValue({
     data: {
@@ -208,5 +209,5 @@ it('disables Play until the silent Steam client is logged on', () => {
   })
   useUiStore.setState({ selectedGameId: 'steam:601150' })
   renderPage()
-  expect(screen.getByRole('button', { name: 'Waiting for Steam…' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Play now' })).toBeEnabled()
 })

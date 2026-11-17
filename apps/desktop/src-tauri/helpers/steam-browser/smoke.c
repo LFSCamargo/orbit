@@ -7,6 +7,8 @@
 int wmain(void) {
     if (!wcsstr(GetCommandLineW(), L"--single-process") ||
         !wcsstr(GetCommandLineW(), L"--disable-gpu") ||
+        !wcsstr(GetCommandLineW(), L"--in-process-gpu") ||
+        !wcsstr(GetCommandLineW(), L"--use-gl=disabled") ||
         !wcsstr(GetCommandLineW(), L"literal space")) return 3;
     HWND window = CreateWindowExW(0, L"STATIC", L"Orbit Steam helper test",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE, 805240832, 805240832,

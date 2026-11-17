@@ -381,7 +381,7 @@ pub(crate) fn resolve_steam_app_id(game: &Game) -> Option<String> {
     }
 
     if game.provider != GameProvider::Steam
-        && !(matches!(game.provider, GameProvider::Gamehub | GameProvider::Manual)
+        && !(game.provider == GameProvider::Manual
             && matches!(game.launch_config, LaunchConfiguration::Wine { .. }))
     {
         return None;
@@ -395,7 +395,7 @@ pub(crate) fn resolve_steam_app_id(game: &Game) -> Option<String> {
 fn should_update_title(game: &Game) -> bool {
     match game.provider {
         GameProvider::Astris | GameProvider::Manual => true,
-        GameProvider::Steam | GameProvider::Gamehub => {
+        GameProvider::Steam => {
             let lower = game.title.trim().to_ascii_lowercase();
             lower.is_empty()
                 || lower.starts_with("steam app ")
@@ -502,10 +502,10 @@ fn artwork_changed(before: &GameArtwork, after: &GameArtwork) -> bool {
 mod identity_tests {
     use super::*;
     #[test]
-    fn gamehub_windows_manifest_identity_is_used_for_exact_steam_artwork() {
+    fn manual_windows_manifest_identity_is_used_for_exact_steam_artwork() {
         let game: Game = serde_json::from_value(serde_json::json!({
             "id": "windows-gow", "title": "GodOfWar", "sortTitle": "godofwar",
-            "provider": "gamehub", "platform": "windows", "sourceId": "1593500",
+            "provider": "manual", "platform": "windows", "sourceId": "1593500",
             "launchConfig": {"type": "wine", "profile": {"executable": "/games/GoW.exe", "runtimePath": "/wine", "arguments": [], "environment": {}}},
             "artwork": {}, "favorite": false, "hidden": false, "dateAdded": "2026-11-14",
             "totalPlaytimeSeconds": 0, "achievements": []

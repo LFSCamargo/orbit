@@ -60,7 +60,7 @@ Single file supports `.exe`; Edit properties exposes compatibility controls.
 - User can **launch** a game; Orbit tracks the session and playtime.
 - User can **stop** an active game session from the UI.
 - User can sync **Steam** library metadata (playtime, SizeOnDisk, achievements) locally.
-- User can **enrich** newly imported Steam games with store descriptions and SteamGridDB artwork (optional API key); existing games via Details → Settings → Refresh metadata. Refresh pulls Steam store copy first (then TheGamesDB) and never writes importer stubs such as leftover GameHub text.
+- User can **enrich** newly imported Steam games with store descriptions and SteamGridDB artwork (optional API key); existing games via Details → Settings → Refresh metadata. Refresh pulls Steam store copy first (then TheGamesDB) and never writes importer stubs such as leftover shortcut install notes.
 - User can switch **themes** including custom JSON themes from Application Support.
 - User can navigate entirely with a **gamepad** or keyboard fallback.
 
@@ -75,9 +75,11 @@ Single file supports `.exe`; Edit properties exposes compatibility controls.
 ## Out of scope
 
 ROM downloads/decryption, keys management, emulator distribution, an Orbit account,
-cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, cloud sync,
-social features. A local official headless Steam client for Windows games on macOS
-is specified in [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and is not implemented.
+cloud Steam login, Steam DRM bypass, and social features. Windows games run in
+Orbit-owned Wine containers with a lightweight native Steam client for catalog,
+downloads, and cloud file lists; games still authenticate through Valve's client
+inside the container. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and
+[CONTAINERS.md](CONTAINERS.md).
 Bulk “enrich entire library” jobs and Switch title-ID databases are deferred past 0.2.
 
 ---
@@ -229,29 +231,22 @@ graph TD
   Importers --> FS
 ```
 
-Windows Steam Play is a core connection layer, not a side feature. The silent official client stays logged on while Orbit is open; SQLite is the catalog, not the logon proof.
+Windows Steam Play is a core connection layer, not a side feature. SQLite is the catalog. A saved `loginusers.vdf` in `steam-windows` is the seed for each per-game container.
 
 ```mermaid
 flowchart LR
   ui[Orbit UI]
-  events["steam-client events\nSteamWindowsStatus"]
-  silent[Rust silent-client service]
-  steam["steam.exe -silent\nsteam-windows prefix"]
-  links[extra-library steamapps links]
-  launch["steam.exe -applaunch appId"]
-  game[Game executable]
   sqlite[(SQLite account + catalog)]
-  ui --> events
-  events --> silent
-  silent --> steam
-  silent --> sqlite
-  steam --> links
-  ui -->|"Play when ready"| launch
-  launch --> game
-  steam --> launch
+  seed["steam-windows prefix\nsaved login"]
+  container[Per-game Wine container]
+  game[Game executable]
+  ui -->|"Play when signed in"| container
+  sqlite --> ui
+  seed --> container
+  container --> game
 ```
 
-Ready vs Play: the UI disables Play until `clientLoggedIn`. Rust still refuses `-applaunch` unless the latest `connection_log.txt` state is `[Logged On]` with a nonzero SteamID. `[Logged Off] [U:1:id]` is not ready. Sign out is the only wipe.
+Ready vs Play: the UI enables Play when `signedIn` and the title is installed. Rust clones that game's container, seeds the saved login, signs the container's Steam client on, and starts the EXE with `SteamAppId`. An expired session asks for Settings → Steam. Sign out is the only wipe.
 
 ## Related docs
 
@@ -261,7 +256,7 @@ Ready vs Play: the UI disables Play until `clientLoggedIn`. Rust still refuses `
 - Themes & UI: [docs/UI.mdc](UI.mdc)
 - Windows Steam roadmap: [docs/STEAM_WINDOWS.md](STEAM_WINDOWS.md)
 
-Library, Search, Home, and Details share one `LibraryEntry` identity. Owned Windows games through a local official Steam client are specified in [STEAM_WINDOWS.md](STEAM_WINDOWS.md). Sign-in opens Valve's Windows Steam QR window from the Downloads sidebar, which also lists in-progress transfers. That login is saved in the Wine prefix so the library snapshot and the Windows Steam client share one session. Sign-in hides Steam's window and leaves the logged-on silent client running. Play uses that client for Steamworks, waits until it is logged on and not verifying, then starts the title with `steam.exe -applaunch`. Stopping the game does not stop Steam. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) for the layer, lifecycle, and ready-vs-Play graphs.
+Library, Search, Home, and Details share one `LibraryEntry` identity. Owned Windows games through a local official Steam client are specified in [STEAM_WINDOWS.md](STEAM_WINDOWS.md). Sign-in opens Valve's Windows Steam client from Settings, then Orbit closes that Wine process and keeps the login. The Downloads sidebar lists in-progress transfers. That login is saved in `steam-windows` so later Play can seed each game container. Play clones an Orbit-owned Wine container, copies Steam files, and starts the game EXE with `SteamAppId` without waiting for silent `steam.exe`. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and [CONTAINERS.md](CONTAINERS.md).
 
 `open_steam_library()` opens Steam's library. `install_steam_game(appId)` validates the ID and checks Steam Store platform metadata before opening Steam's installation dialog.
 
@@ -324,22 +319,15 @@ of account ownership or installation count. Installed is the initial Library vie
 All games share search, filters and sorting. The Favorites tab is omitted on Home
 and Library until at least one title is marked favorite. Page size is bounded.
 
-GameHub is not a library provider integration. User-selected Steam library roots,
-steamapps and common directories are read directly using bounded manifest discovery.
-Discovery needs neither account login nor a compatibility runtime. Play links those
-installs into the managed Wine Steam `steamapps` and registers the library with the
-client so Steamworks sees titles such as God of War as installed. Legacy Steam-linked
-Windows records migrate to Steam; unmatched GameHub records leave the active library
-only after a consistent SQLite backup. Installed files are never changed by migration.
-
-A locally installed GameHub wine-engine is an optional *play engine*, not a
-provider: Settings → Steam → Play engine (`auto` by default) launches a Steam
-title inside its GameHub container — GameHub's Wine build, container overlay,
-graphics stack, and in-container Steam client — without starting GameHub.app or
-writing to its state, and falls back to Orbit's own silent official Steam client
-when no engine or binding exists (`RUNTIMES.md` → GameHub engine integration,
-`STEAM_WINDOWS.md` → Play engine). GameHub's graphics payloads can also be
-imported read-only into Orbit's component store. Account tokens are never read.
+User-selected Steam library roots, steamapps and common directories are read
+directly using bounded manifest discovery. Discovery needs neither account login
+nor a compatibility runtime. Play links those installs into the managed Wine Steam
+`steamapps` and registers the library with the client so Steamworks sees titles
+such as God of War as installed. Legacy Steam-linked Windows records migrate to
+Steam. A one-time SQLite cleanup drops leftover shortcut-provider rows and clears
+engine paths that pointed into a retired third-party Wine folder, after a
+recoverable snapshot. Installed files are never changed by migration. Steam
+Windows titles always play through Orbit's own silent official Steam client.
 
 Details contains Overview and Settings. Settings owns General, Artwork, and
 Launch & compatibility editing; no separate Properties navigation. Global Settings
@@ -347,8 +335,8 @@ uses a controller-first sidebar with General, Themes, Library, Steam, Game graph
 and Compatibility, plus a right-hand insights column. Metadata keys stay on General.
 Shared glass surfaces and 48px controls use consistent focus, contrast and
 reduced-motion fallbacks. Expandables use the shared Collapsible panel, not native
-`<details>`. Library merge replaces importer placeholders (including GameHub copy)
-with Steam store descriptions and can-you-run requirements. Catalog hydrate also
+`<details>`. Library merge replaces importer placeholders (including leftover
+shortcut install notes) with Steam store descriptions and can-you-run requirements. Catalog hydrate also
 covers extra-library AppIDs that are installed on disk even when they are missing
 from the owned snapshot, and overlayed store copy is written back onto those game
 rows.

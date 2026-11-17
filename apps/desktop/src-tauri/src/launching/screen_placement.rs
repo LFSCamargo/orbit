@@ -12,7 +12,6 @@ pub fn screen_watcher_process_names(
 ) -> Vec<String> {
     match config {
         LaunchConfiguration::Wine { .. } => Vec::new(),
-        LaunchConfiguration::Gamehub { .. } => Vec::new(),
         LaunchConfiguration::Steam { .. } => vec![STEAM_PROCESS_NAME.into()],
         LaunchConfiguration::OpenApplication {
             application_path, ..
@@ -107,18 +106,6 @@ mod tests {
     }
 
     #[test]
-    fn watcher_names_for_gamehub_config_are_empty() {
-        let names = screen_watcher_process_names(
-            &LaunchConfiguration::Gamehub {
-                gamehub_app_path: "/Applications/GameHub.app".into(),
-                shortcut_app_path: "/Applications/Games/Hades.app".into(),
-            },
-            GameProvider::Gamehub,
-        );
-        assert!(names.is_empty());
-    }
-
-    #[test]
     fn watcher_names_for_open_application() {
         let names = screen_watcher_process_names(
             &LaunchConfiguration::OpenApplication {
@@ -131,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn watcher_names_for_steam_and_gamehub_urls() {
+    fn watcher_names_for_steam_urls() {
         let steam = screen_watcher_process_names(
             &LaunchConfiguration::OpenUrl {
                 url: "steam://rungameid/570".into(),
@@ -139,14 +126,6 @@ mod tests {
             GameProvider::Manual,
         );
         assert_eq!(steam, vec!["Steam".to_string()]);
-
-        let gamehub = screen_watcher_process_names(
-            &LaunchConfiguration::OpenUrl {
-                url: "gamehub://launch/abc".into(),
-            },
-            GameProvider::Manual,
-        );
-        assert!(gamehub.is_empty());
 
         let other = screen_watcher_process_names(
             &LaunchConfiguration::OpenUrl {

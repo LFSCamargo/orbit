@@ -35,19 +35,18 @@ pub fn run() {
     init_env();
     let db_path = database_path();
     let repo = Arc::new(GameRepository::open(&db_path).expect("Failed to open Orbit database"));
+    runtimes::retired_components::remove_in(&runtimes::root(), &repo);
     let metadata_cache = Arc::new(
         MetadataCacheRepository::open(&metadata_cache_path())
             .expect("Failed to open metadata cache database"),
     );
     let sessions = Arc::new(SessionManager::new());
-    let steam_repo = repo.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
-            services::steam_client::start(app.handle().clone(), steam_repo.clone());
             Ok(())
         })
         .manage(AppState {
@@ -68,8 +67,6 @@ pub fn run() {
             commands::runtimes::install_gptk_via_homebrew,
             commands::runtimes::install_local_gptk_package,
             commands::runtimes::register_component_path,
-            commands::runtimes::gamehub_engine_status,
-            commands::runtimes::import_gamehub_components,
             commands::runtimes::active_components,
             commands::runtimes::set_active_component,
             commands::runtimes::component_views,

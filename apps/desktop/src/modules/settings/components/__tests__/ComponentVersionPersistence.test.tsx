@@ -32,12 +32,6 @@ vi.mock('@/lib/tauri', () => ({
   installGptkViaHomebrew: vi.fn(),
   installLocalGptkPackage: vi.fn(),
   registerComponentPath: vi.fn(),
-  getGamehubEngineStatus: vi
-    .fn()
-    .mockResolvedValue({ available: false, overlayReady: false, bindings: [] }),
-  importGamehubComponents: vi
-    .fn()
-    .mockResolvedValue({ engineAvailable: false, imported: [], skipped: [] }),
 }))
 vi.mock('@/lib/dialog', () => ({ open: vi.fn() }))
 

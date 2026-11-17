@@ -1,0 +1,37 @@
+# Orbit Wine (CrossOver sources)
+
+Orbit containers need a Wine build with MSync, macdrv Metal views, and D3DMetal
+hooks. Gcenx `wine-devel` 11.21 (the Steam sign-in Wine) has none of them, so
+GPTK titles run with server-side sync and without D3DMetal's loader support.
+
+CodeWeavers' CrossOver 26.3.0 sources (Wine 11.0) already include all three:
+`server/msync.c` and `dlls/ntdll/unix/msync.c` (`WINEMSYNC=1`),
+`dlls/winemac.drv/d3dmetal.c`, and the ntdll loader that maps GPTK's
+`libd3dshared.dylib` from `CX_APPLEGPTK_LIBD3DSHARED_PATH`.
+
+One Orbit patch (`patches/0001-ntdll-WINEDLLPATH_PREPEND.patch`): Wine searches
+its own builtins before `WINEDLLPATH`, so GPTK's `dxgi`/`d3d12` lost to Wine's and
+games silently ran on wined3d. CrossOver fixes this from closed code through
+`prepend_dll_path`; the patch reads `WINEDLLPATH_PREPEND` instead, and Orbit
+points it at the selected translation layer. Wine Mono 10.4.1 (pinned) and Gecko
+2.47.4 are bundled so prefix setup never waits on an install prompt.
+
+`sources.json` pins the tarball URL and SHA-256. Build and install locally:
+
+```bash
+scripts/wine/build.sh
+```
+
+It verifies the tarball, configures an x86_64 WoW64 build under Rosetta
+against a private copy of the Gcenx bundle's x86_64 libraries (so arm64
+Homebrew libraries are never linked), and installs a self-contained component
+at `runtimes/components/orbit-wine/<version>/`. Needs Xcode CLT and Homebrew
+`mingw-w64`, `bison`, `freetype`, and `gnutls` (headers). EGL, Wayland, FFmpeg,
+SDL, and GStreamer are not built.
+
+Play prefers the newest installed Orbit Wine that passes the probe in
+`runtimes/wine_capabilities.rs` (MSync plus the D3DMetal hook in `ntdll.so`).
+
+The compiled distribution is not committed (LGPL: ship object files or a public
+`orbit-wine` repo with the matching tarball). GPTK DMGs stay user-imported;
+they are not redistributed.

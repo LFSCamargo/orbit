@@ -52,9 +52,15 @@ pub(crate) fn install_from_manifest(
     if is_redistributable(&title) {
         return None;
     }
+    // `installdir` is already lexically safe (no `..`, not absolute), so
+    // `common/<installdir>` cannot escape by string. The folder itself may be a
+    // symlink into a shared library — GameHub points each container's
+    // `steamapps/common/<game>` at `~/GameHub/steamapps/common/<game>` — so the
+    // canonical target legitimately resolves outside this `steamapps`. Only
+    // require that it resolves to a real directory holding the game.
     let install_dir = steamapps.join("common").join(&installdir);
     let canonical = install_dir.canonicalize().ok()?;
-    if !canonical.is_dir() || !canonical.starts_with(steamapps.canonicalize().ok()?) {
+    if !canonical.is_dir() {
         return None;
     }
     if find_game_executable(&canonical).is_none() {
@@ -67,6 +73,27 @@ pub(crate) fn install_from_manifest(
         install_dir: canonical,
         size_on_disk,
     })
+}
+
+/// The validated `installdir` of one app's manifest, wherever that manifest
+/// lives (a container's Steam keeps its own copy of a library game's manifest).
+pub(crate) fn installdir_in(manifest: &Path, app_id: &str) -> Option<String> {
+    let metadata = fs::metadata(manifest).ok()?;
+    if !metadata.is_file() || metadata.len() > MANIFEST_LIMIT {
+        return None;
+    }
+    let mut content = String::new();
+    fs::File::open(manifest)
+        .ok()?
+        .take(MANIFEST_LIMIT)
+        .read_to_string(&mut content)
+        .ok()?;
+    if vdf_value(&content, "appid").as_deref() != Some(app_id) {
+        return None;
+    }
+    let installdir = vdf_value(&content, "installdir")?;
+    let title = vdf_value(&content, "name").unwrap_or_default();
+    (safe_installdir(&installdir) && !is_redistributable(&title)).then_some(installdir)
 }
 
 fn safe_installdir(value: &str) -> bool {

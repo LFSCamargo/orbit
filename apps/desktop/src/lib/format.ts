@@ -50,8 +50,6 @@ export function providerLabel(provider: string): string {
       return 'Nintendo Switch'
     case 'steam':
       return 'Steam'
-    case 'gamehub':
-      return 'GameHub'
     case 'native':
       return 'macOS'
     case 'manual':
