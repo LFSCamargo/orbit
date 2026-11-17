@@ -1077,6 +1077,11 @@ pub(crate) fn request_steam_shutdown(wine: &Path, prefix: &Path) {
     if !steam.is_file() || !wine.is_file() || !prefix.is_dir() {
         return;
     }
+    // `steam.exe -shutdown` starts Steam when none is running, and Orbit's quit
+    // then left that client behind.
+    if !super::container_steam::client_running(prefix) {
+        return;
+    }
     let mut command = steam_runtime_command(wine, prefix);
     command.args(shutdown_argv(&steam));
     if let Some(dir) = steam.parent() {

@@ -58,6 +58,18 @@ Wine's prefix update writes through them. GPTK packages remain user-imported.
 Orbit Wine is installed as `Orbit Wine.app` (games category) so macOS Game Mode
 boosts the game: every Wine process runs from `Contents/MacOS/wine`.
 
+## One Steam client
+
+`services/steam_resident.rs` keeps at most one Orbit Steam running. A game's
+container keeps its Steam logged on after the game exits, so relaunching it
+skips Steam's startup (seconds instead of ~40 s). Starting another container's
+Steam stops the others (and the Settings sign-in client unless its window is
+open), and quitting Orbit stops all of them except the one a still-running game
+uses. Wine hides a process's environment, so Windows processes are matched by a
+working directory inside the prefix and the wineserver by its `WINEPREFIX`.
+`steam.exe -shutdown` is only sent to a client that is running; sent to none, it
+started Steam.
+
 ## Steam play options
 
 Before a container's Steam starts, `services/steam_play_config.rs` writes its

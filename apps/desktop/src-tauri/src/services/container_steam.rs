@@ -83,6 +83,8 @@ pub fn ensure_running(
     let Some(credentials) = saved.filter(|_| launch != SessionLaunch::SignInAgain) else {
         return Err(SHARE_SIGN_IN.into());
     };
+    // One Orbit Steam at a time: another game's resident client goes first.
+    super::steam_resident::stop_all_except(Some(&host.prefix));
     super::steam_native::client_provision::provision_container(
         &crate::runtimes::root(),
         &host.prefix,
@@ -173,7 +175,7 @@ fn start_silent_client(host: &SteamHost, cancel: &AtomicBool) -> Result<(), Stri
         if server_alive(&host.prefix) {
             shutdown(host);
         }
-        reap_orphans(&host.prefix);
+        super::steam_resident::stop_prefix(&host.prefix);
     }
     hide_tray(host);
     // Only log lines written from here on can prove this client logged on.
@@ -341,7 +343,7 @@ fn server_socket_in(base: &Path, prefix: &Path) -> Option<PathBuf> {
 
 /// Processes started for exactly this prefix (`WINEPREFIX=` in their
 /// environment) whose server is gone. Never Orbit itself.
-fn orphan_pids(listing: &str, prefix: &Path) -> Vec<u32> {
+pub(crate) fn orphan_pids(listing: &str, prefix: &Path) -> Vec<u32> {
     let marker = format!("WINEPREFIX={}", prefix.to_string_lossy());
     let own = std::process::id();
     listing
@@ -359,29 +361,6 @@ fn orphan_pids(listing: &str, prefix: &Path) -> Vec<u32> {
             (tagged && pid != own).then_some(pid)
         })
         .collect()
-}
-
-fn reap_orphans(prefix: &Path) {
-    let Ok(output) = std::process::Command::new("ps")
-        .args(["axeww", "-o", "pid=,command="])
-        .output()
-    else {
-        return;
-    };
-    let listing = String::from_utf8_lossy(&output.stdout);
-    let pids = orphan_pids(&listing, prefix);
-    for signal in ["-TERM", "-KILL"] {
-        if pids.is_empty() {
-            return;
-        }
-        for pid in &pids {
-            let _ = std::process::Command::new("kill")
-                .args([signal, &pid.to_string()])
-                .stderr(Stdio::null())
-                .status();
-        }
-        std::thread::sleep(Duration::from_secs(2));
-    }
 }
 
 /// Put Valve's client back where the game and Orbit expect it.
@@ -565,6 +544,11 @@ fn process_commands() -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
+/// Whether Valve's client is running in this prefix right now.
+pub(crate) fn client_running(prefix: &Path) -> bool {
+    steam_running(&process_commands(), prefix)
+}
+
 fn steam_running(commands: &str, prefix: &Path) -> bool {
     let needle = prefix.to_string_lossy();
     !needle.is_empty()
@@ -741,6 +725,19 @@ mod tests {
         let prefix = Path::new("/c/games/steam-883710/prefix");
         let listing = "  31086 C:\\Program Files (x86)\\Steam\\steam.exe steam://run/883710// WINEPREFIX=/c/games/steam-883710/prefix WINESERVER=/w/bin/wineserver\n  31087 C:\\windows\\system32\\services.exe WINEPREFIX=/c/games/steam-883710/prefix\n  40000 C:\\steam.exe WINEPREFIX=/c/games/steam-883710/prefix-old\n  40001 C:\\steam.exe WINEPREFIX=/c/games/steam-550/prefix\n  40002 /bin/zsh\n";
         assert_eq!(orphan_pids(listing, prefix), vec![31086, 31087]);
+    }
+
+    #[test]
+    fn only_valves_client_in_this_prefix_counts_as_running() {
+        // Regression: quitting Orbit ran `steam.exe -shutdown` with no client
+        // up, which started one and left it behind.
+        let prefix = Path::new("/Orbit/steam-windows/prefix");
+        let helper = "C:\\Steam\\bin\\cef\\steamwebhelper.exe -lang=en WINEPREFIX=/Orbit/steam-windows/prefix";
+        let other = "/Orbit/containers/games/steam-550/prefix/drive_c/Steam/steam.exe -silent";
+        assert!(!steam_running(helper, prefix));
+        assert!(!steam_running(other, prefix));
+        let client = "/Orbit/steam-windows/prefix/drive_c/Program Files (x86)/Steam/steam.exe";
+        assert!(steam_running(client, prefix));
     }
 
     #[test]

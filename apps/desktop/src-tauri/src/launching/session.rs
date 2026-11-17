@@ -26,7 +26,8 @@ struct TrackedSession {
     session: GameSession,
     preexisting_pids: Vec<u32>,
     runtime: Option<Box<dyn RuntimeProcess>>,
-    /// The game container's Steam client, stopped when the session ends.
+    /// The game container's Steam client. It stays logged on after the session
+    /// (`steam_resident`), so a relaunch skips Steam's startup.
     steam_host: Option<SteamHost>,
     stopping: bool,
 }
@@ -42,6 +43,15 @@ impl SessionManager {
 
     pub fn is_launching(&self) -> bool {
         self.launching.load(Ordering::SeqCst)
+    }
+
+    /// The container prefix whose Steam the running game uses.
+    pub fn active_steam_prefix(&self) -> Option<std::path::PathBuf> {
+        self.active
+            .lock()
+            .as_ref()
+            .and_then(|tracked| tracked.steam_host.as_ref())
+            .map(|host| host.prefix.clone())
     }
 
     pub fn get_active(&self) -> Option<GameSession> {
@@ -187,7 +197,6 @@ impl SessionManager {
         let mut runtime = match result {
             Ok(runtime) => runtime,
             Err(error) => {
-                stop_container_steam(steam_host.take());
                 let message = format!("{error:#}");
                 emit_launch_failed(
                     app,
@@ -305,7 +314,6 @@ impl SessionManager {
             .take()
             .ok_or_else(|| anyhow::anyhow!("No active session"))?;
 
-        stop_container_steam(tracked.steam_host);
         let ended = finalize_session(tracked.session, SessionStopReason::UserStopped, None);
         repo.record_play_end(&ended)?;
         let _ = app.emit("game-session-ended", &ended);
@@ -331,7 +339,6 @@ impl SessionManager {
         };
 
         if let Some(tracked) = tracked {
-            stop_container_steam(tracked.steam_host);
             let ended =
                 finalize_session(tracked.session, SessionStopReason::ProcessExited, exit_code);
             let _ = repo.record_play_end(&ended);
@@ -410,15 +417,6 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
             let _ = window.minimize();
         }
     });
-}
-
-/// Stop a container's Steam client off the UI path; it can take seconds.
-fn stop_container_steam(host: Option<SteamHost>) {
-    if let Some(host) = host {
-        let _ = std::thread::Builder::new()
-            .name("orbit-container-steam-stop".into())
-            .spawn(move || crate::services::container_steam::shutdown(&host));
-    }
 }
 
 fn after_session(app: &AppHandle) {

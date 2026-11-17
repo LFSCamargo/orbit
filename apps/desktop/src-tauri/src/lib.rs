@@ -154,15 +154,17 @@ pub fn run() {
         .run(|app, event| {
             if matches!(event, RunEvent::Exit) {
                 if let Some(state) = app.try_state::<AppState>() {
-                    let active = state.steam_login.lock().is_active();
-                    let result = if active {
-                        steam_login::close(Some(app), &state.steam_login, false)
-                    } else {
-                        steam_login::finish_sign_in(Some(app), &state.steam_login)
-                    };
-                    if let Err(err) = result {
-                        eprintln!("Steam sign-in window could not be closed: {err}");
+                    // Only an open sign-in has a client to close; finishing an
+                    // idle one started Steam just as Orbit quit.
+                    if state.steam_login.lock().is_active() {
+                        if let Err(err) = steam_login::close(Some(app), &state.steam_login, false) {
+                            eprintln!("Steam sign-in window could not be closed: {err}");
+                        }
                     }
+                    // Nothing of Orbit's keeps running after it quits, except
+                    // the Steam a still-running game depends on.
+                    let keep = state.sessions.active_steam_prefix();
+                    services::steam_resident::stop_all_except(keep.as_deref());
                 }
             }
         });
