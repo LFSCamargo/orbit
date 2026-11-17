@@ -45,12 +45,10 @@ pub fn launch_owned_with(
     if let Some(path) = steam_windows::play_wine_binary(repo) {
         profile.runtime_path = path.to_string_lossy().into_owned();
     }
-    let extras = steam_windows::preferences(repo)
-        .map(|prefs| prefs.additional_library_paths)
-        .unwrap_or_default();
+    let preferences = steam_windows::preferences(repo).unwrap_or_default();
     let resolved = crate::runtimes::settings::resolve_profile(repo, &profile)
         .map_err(|err| format!("{err:#}"))?;
-    let prefix = play_environment(&resolved, app_id, cancel, &extras, progress)?;
+    let prefix = play_environment(&resolved, app_id, cancel, &preferences, progress)?;
     let mut resolved = resolved;
     resolved.shared_prefix = Some(prefix.to_string_lossy().into_owned());
     start_title(&resolved, &game.id, app_id, cancel, progress)
@@ -62,9 +60,10 @@ pub fn play_environment(
     profile: &crate::runtimes::WineProfile,
     app_id: &str,
     cancel: &AtomicBool,
-    extra_libraries: &[String],
+    preferences: &steam_windows::SteamWindowsPreferences,
     progress: &mut impl FnMut(&str),
 ) -> Result<PathBuf, String> {
+    let extra_libraries = &preferences.additional_library_paths;
     let wine = Path::new(&profile.runtime_path);
     let runtime = crate::runtimes::detection::probe(wine).map_err(|err| format!("{err:#}"))?;
     let game_id = super::steam_native::downloads::container_id(app_id)?;
@@ -100,6 +99,11 @@ pub fn play_environment(
         &super::container_steam::SteamHost {
             wine: wine.to_path_buf(),
             prefix: prepared.container.prefix.clone(),
+        },
+        app_id,
+        super::steam_play_config::PlayConfig {
+            steam_input: preferences.steam_input,
+            overlay: preferences.steam_overlay,
         },
         cancel,
     )?;

@@ -49,8 +49,10 @@ pub fn container_sync_env(wine: &Path) -> [(&'static str, &'static str); 2] {
     }
 }
 
-/// Orbit Wine builds live here, one folder per version (`<version>/bin/wine`).
+/// Orbit Wine builds live here, one folder per version. Each is a games-category
+/// app bundle so macOS Game Mode boosts the game (scripts/wine/build.sh).
 pub const ORBIT_WINE_DIR: &str = "components/orbit-wine";
+const BUNDLED_LOADER: &str = "Orbit Wine.app/Contents/MacOS/wine";
 
 /// The newest installed Orbit Wine that passes the CrossOver-class probe.
 pub fn installed_crossover(runtimes_root: &Path) -> Option<PathBuf> {
@@ -64,7 +66,7 @@ pub fn installed_crossover(runtimes_root: &Path) -> Option<PathBuf> {
     versions.sort_by_key(|path| std::cmp::Reverse(version_key(path)));
     versions
         .into_iter()
-        .map(|version| version.join("bin/wine"))
+        .flat_map(|version| [version.join(BUNDLED_LOADER), version.join("bin/wine")])
         .find(|wine| wine.is_file() && inspect(wine).is_ok_and(|caps| caps.crossover_class()))
 }
 
@@ -155,7 +157,11 @@ mod tests {
     }
 
     fn fake_wine(root: &Path, version: &str, ntdll: &[u8]) -> PathBuf {
-        let dist = root.join(ORBIT_WINE_DIR).join(version);
+        fake_wine_at(&root.join(ORBIT_WINE_DIR).join(version), ntdll)
+    }
+
+    /// `bin/` here; Orbit Wine's bundle puts the same files in `Contents/MacOS`.
+    fn fake_wine_at(dist: &Path, ntdll: &[u8]) -> PathBuf {
         fs::create_dir_all(dist.join("bin")).unwrap();
         fs::create_dir_all(dist.join("lib/wine/x86_64-unix")).unwrap();
         fs::write(dist.join("bin/wine"), b"wine").unwrap();
@@ -181,6 +187,21 @@ mod tests {
         assert_eq!(
             container_sync_env(&plain),
             [("WINEMSYNC", "0"), ("WINEESYNC", "0")]
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn play_uses_the_game_mode_bundle_of_an_orbit_wine() {
+        let root = std::env::temp_dir().join(format!("orbit-cx-app-{}", uuid::Uuid::new_v4()));
+        let contents = root
+            .join(ORBIT_WINE_DIR)
+            .join("26.3.0/Orbit Wine.app/Contents");
+        let bin = fake_wine_at(&contents, b"libd3dshared");
+        fs::rename(bin.parent().unwrap(), contents.join("MacOS")).unwrap();
+        assert_eq!(
+            installed_crossover(&root).map(|wine| wine.canonicalize().unwrap()),
+            Some(contents.join("MacOS/wine").canonicalize().unwrap())
         );
         let _ = fs::remove_dir_all(root);
     }

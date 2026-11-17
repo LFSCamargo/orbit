@@ -29,6 +29,15 @@ at `runtimes/components/orbit-wine/<version>/`. Needs Xcode CLT and Homebrew
 `mingw-w64`, `bison`, `freetype`, and `gnutls` (headers). EGL, Wayland, FFmpeg,
 SDL, and GStreamer are not built.
 
+The component is `Orbit Wine.app` (`com.orbit.wine`, games category,
+`LSSupportsGameMode`): the loader is `Contents/MacOS/wine`, Wine's tree sits in
+`Contents/lib` and `Contents/share` (Wine resolves them as `../lib` and
+`../share`), and `Contents/bin` links to `MacOS`. Patch
+`0002-ntdll-bundle-loader.patch` starts every Wine process, the game included,
+from `Contents/MacOS/wine`, so macOS attributes the game to the bundle and Game
+Mode applies to it. The bundle is ad-hoc signed and registered with
+LaunchServices.
+
 Play prefers the newest installed Orbit Wine that passes the probe in
 `runtimes/wine_capabilities.rs` (MSync plus the D3DMetal hook in `ntdll.so`).
 

@@ -66,7 +66,12 @@ fn login_present(prefix: &Path) -> bool {
 /// Start the container's Steam and wait until it is logged on with the saved
 /// Settings sign-in. Valve's client binaries are linked in on demand (they are
 /// not in the seed prefix). An expired session asks for Settings → Steam.
-pub fn ensure_running(host: &SteamHost, cancel: &AtomicBool) -> Result<(), String> {
+pub fn ensure_running(
+    host: &SteamHost,
+    app_id: &str,
+    config: super::steam_play_config::PlayConfig,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
     let session_dir = super::steam_windows::session_dir(&crate::utils::paths::app_data_dir());
     // Settings may have signed in without Orbit storing the token yet (or with
     // a newer login than the stored one). Store it now instead of failing.
@@ -101,6 +106,12 @@ pub fn ensure_running(host: &SteamHost, cancel: &AtomicBool) -> Result<(), Strin
         .ok_or(NO_CLIENT)?;
     if !ready(&host.prefix, &root, LogMarks::default()) {
         super::steam_native::agent_host::seed_saved_login(&host.wine, &host.prefix, &credentials)?;
+        // Steam reads these at start and rewrites them on exit, so only now.
+        if let Err(err) =
+            super::steam_play_config::apply(&root, &credentials.steam_id, app_id, config)
+        {
+            eprintln!("Steam play options were not applied: {err}");
+        }
     }
     start_silent_client(host, cancel)
 }

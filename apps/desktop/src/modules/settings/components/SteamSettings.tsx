@@ -4,12 +4,17 @@ import { Switch } from '@/components/ui/switch'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
 import type { SteamWindowsPreferences } from '@/types/steam'
 
-const DEFAULTS: SteamWindowsPreferences = { offlineMode: false, verifyFiles: true }
+const DEFAULTS: SteamWindowsPreferences = {
+  offlineMode: false,
+  verifyFiles: true,
+  steamInput: true,
+  steamOverlay: false,
+}
 
 /** Settings → Steam. Authorization stays separate from download behavior. */
 export function SteamSettings() {
   const { preferences, savePreferences } = useSteamWindows()
-  const current = preferences.data ?? DEFAULTS
+  const current = { ...DEFAULTS, ...preferences.data }
   const save = (next: SteamWindowsPreferences) => {
     savePreferences.mutate(next)
   }
@@ -92,6 +97,65 @@ export function SteamSettings() {
               checked={current.verifyFiles}
               disabled={savePreferences.isPending}
               onCheckedChange={(verifyFiles) => save({ ...current, verifyFiles })}
+            />
+          </div>
+        </div>
+
+        <div
+          className="settings-card-inner mt-4 !px-0 !py-5"
+          aria-label="Steam game options"
+        >
+          <h3 className="settings-row-title font-display text-[17px] font-semibold text-white">
+            Games
+          </h3>
+          <div className="settings-row mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3
+                id="steam-input-label"
+                className="settings-row-title font-display text-[17px] font-semibold text-white"
+              >
+                Steam Input for controllers
+              </h3>
+              <p
+                id="steam-input-help"
+                className="settings-row-desc mt-1 max-w-[520px] text-[13px] text-[#ffffffa0]"
+              >
+                Steam maps controllers for each game, as in Steam Big Picture. Turn it off
+                to give games the controller directly.
+              </p>
+            </div>
+            <Switch
+              id="steam-input"
+              aria-labelledby="steam-input-label"
+              aria-describedby="steam-input-help"
+              checked={current.steamInput !== false}
+              disabled={savePreferences.isPending}
+              onCheckedChange={(steamInput) => save({ ...current, steamInput })}
+            />
+          </div>
+          <div className="settings-row my-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3
+                id="steam-overlay-label"
+                className="settings-row-title font-display text-[17px] font-semibold text-white"
+              >
+                Steam overlay in games
+              </h3>
+              <p
+                id="steam-overlay-help"
+                className="settings-row-desc mt-1 max-w-[520px] text-[13px] text-[#ffffffa0]"
+              >
+                Shift+Tab opens Steam over the game. It hooks every frame, so it stays off
+                unless you need it. Applies the next time the game's Steam starts.
+              </p>
+            </div>
+            <Switch
+              id="steam-overlay"
+              aria-labelledby="steam-overlay-label"
+              aria-describedby="steam-overlay-help"
+              checked={current.steamOverlay === true}
+              disabled={savePreferences.isPending}
+              onCheckedChange={(steamOverlay) => save({ ...current, steamOverlay })}
             />
           </div>
         </div>

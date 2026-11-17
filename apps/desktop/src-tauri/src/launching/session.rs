@@ -106,8 +106,7 @@ impl SessionManager {
                                 .ok_or_else(|| {
                                     anyhow::anyhow!("This game's Steam id must be a number")
                                 })?;
-                            let extras = crate::services::steam_windows::preferences(repo)
-                                .map(|prefs| prefs.additional_library_paths)
+                            let preferences = crate::services::steam_windows::preferences(repo)
                                 .unwrap_or_default();
                             *last_step.lock() = "container".to_string();
                             emit_launch_progress(app, &game.id, "container", Some(&game.title));
@@ -115,7 +114,7 @@ impl SessionManager {
                                 &resolved,
                                 &app_id,
                                 &self.cancel,
-                                &extras,
+                                &preferences,
                                 &mut |step| {
                                     *last_step.lock() = step.to_string();
                                     emit_launch_progress(app, &game.id, step, Some(&game.title));

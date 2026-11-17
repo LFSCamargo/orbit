@@ -93,7 +93,42 @@ it('gives Steam its own authorization section and saves offline mode', async () 
   fireEvent.click(screen.getByRole('switch', { name: 'Offline mode' }))
 
   await waitFor(() =>
-    expect(save).toHaveBeenCalledWith({ offlineMode: true, verifyFiles: true }),
+    expect(save).toHaveBeenCalledWith({
+      offlineMode: true,
+      verifyFiles: true,
+      steamInput: true,
+      steamOverlay: false,
+    }),
+  )
+})
+
+it('controls Steam Input and the in-game overlay for games', async () => {
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <SteamSettings />
+    </QueryClientProvider>,
+  )
+  const input = await screen.findByRole('switch', { name: 'Steam Input for controllers' })
+  const overlay = screen.getByRole('switch', { name: 'Steam overlay in games' })
+  expect(input.getAttribute('aria-checked')).toBe('true')
+  expect(overlay.getAttribute('aria-checked')).toBe('false')
+
+  fireEvent.click(input)
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith({
+      offlineMode: false,
+      verifyFiles: true,
+      steamInput: false,
+      steamOverlay: false,
+    }),
+  )
+  fireEvent.click(overlay)
+  await waitFor(() =>
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ steamOverlay: true }),
+    ),
   )
 })
 

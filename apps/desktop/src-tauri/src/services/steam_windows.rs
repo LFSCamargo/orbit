@@ -64,10 +64,20 @@ pub struct SteamWindowsPreferences {
     pub verify_files: bool,
     #[serde(default)]
     pub additional_library_paths: Vec<String>,
+    /// Steam Input (controller configuration) for games. On is Steam's default.
+    #[serde(default = "steam_input_default")]
+    pub steam_input: bool,
+    /// Steam's in-game overlay (Shift+Tab). Off: it hooks the game's rendering.
+    #[serde(default)]
+    pub steam_overlay: bool,
     /// Retired `playEngine` choice. Read so older settings still load (unknown
     /// fields are refused), never written back.
     #[serde(default, rename = "playEngine", skip_serializing)]
     legacy_play_engine: Option<serde_json::Value>,
+}
+
+fn steam_input_default() -> bool {
+    true
 }
 
 impl Default for SteamWindowsPreferences {
@@ -76,6 +86,8 @@ impl Default for SteamWindowsPreferences {
             offline_mode: false,
             verify_files: true,
             additional_library_paths: Vec::new(),
+            steam_input: true,
+            steam_overlay: false,
             legacy_play_engine: None,
         }
     }
@@ -1804,10 +1816,31 @@ mod tests {
             wine: steam_wine_binary().unwrap(),
             prefix: runtimes::root().join(format!("containers/games/steam-{app_id}/prefix")),
         };
-        let result =
-            crate::services::container_steam::ensure_running(&host, &AtomicBool::new(false));
+        let result = crate::services::container_steam::ensure_running(
+            &host,
+            &app_id,
+            crate::services::steam_play_config::PlayConfig {
+                steam_input: true,
+                overlay: false,
+            },
+            &AtomicBool::new(false),
+        );
         crate::services::container_steam::shutdown(&host);
         result.unwrap();
+    }
+
+    #[test]
+    fn saved_preferences_from_before_play_options_keep_steam_input_and_drop_the_overlay() {
+        let older: SteamWindowsPreferences = serde_json::from_value(serde_json::json!({
+            "offlineMode": true,
+            "verifyFiles": true,
+            "additionalLibraryPaths": ["/Games/steamapps/common"]
+        }))
+        .unwrap();
+        assert!(older.steam_input);
+        assert!(!older.steam_overlay);
+        let defaults = SteamWindowsPreferences::default();
+        assert!(defaults.steam_input && !defaults.steam_overlay);
     }
 
     #[test]

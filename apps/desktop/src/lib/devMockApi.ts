@@ -10,7 +10,12 @@ import { BUILT_IN_THEMES, DEFAULT_THEME_ID } from '@/themes/catalog'
 let steamAccount: string | null = null
 let steamQrPolls = 0
 let steamLoginPolls = 0
-let steamPreferences: SteamWindowsPreferences = { offlineMode: false, verifyFiles: true }
+let steamPreferences: SteamWindowsPreferences = {
+  offlineMode: false,
+  verifyFiles: true,
+  steamInput: true,
+  steamOverlay: false,
+}
 
 function steamStatus() {
   return {
@@ -571,6 +576,12 @@ export async function mockInvoke<T>(
         verifyFiles:
           (args?.preferences as { verifyFiles?: boolean } | undefined)?.verifyFiles !==
           false,
+        steamInput:
+          (args?.preferences as SteamWindowsPreferences | undefined)?.steamInput !==
+          false,
+        steamOverlay:
+          (args?.preferences as SteamWindowsPreferences | undefined)?.steamOverlay ===
+          true,
       }
       return steamPreferences as T
     case 'open_steam_windows_login':

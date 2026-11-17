@@ -55,6 +55,19 @@ because a blob from another Wine build does not unwrap. A Wine change keeps the
 prefix (saves included) and detaches system DLL links that leave it, since
 Wine's prefix update writes through them. GPTK packages remain user-imported.
 
+Orbit Wine is installed as `Orbit Wine.app` (games category) so macOS Game Mode
+boosts the game: every Wine process runs from `Contents/MacOS/wine`.
+
+## Steam play options
+
+Before a container's Steam starts, `services/steam_play_config.rs` writes its
+own `userdata/<account>/config/localconfig.vdf` (Steam rewrites it on exit, and
+the Mac Steam client is never touched): `EnableGameOverlay` from Settings →
+Steam → "Steam overlay in games" (off by default; it hooks every frame),
+`EnableShaderBackgroundProcessing` 0, and per game `UseSteamControllerConfig`
+(2 on, 0 off) from "Steam Input for controllers" (on by default). A file Orbit
+cannot round-trip, or one over 256 KB, is left alone.
+
 ## Native Steam client
 
 `crates/orbit-steam` holds session, product, owned-library, depot, cloud, and

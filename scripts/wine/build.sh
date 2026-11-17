@@ -86,25 +86,44 @@ arch -x86_64 "${build_env[@]}" make -j"$(sysctl -n hw.ncpu)"
 rm -rf "$WORK/install"
 arch -x86_64 "${build_env[@]}" make install
 
-# Self-contained component: Wine plus the x86_64 libraries it dlopens.
+# Self-contained component: an app bundle that declares the games category, so
+# macOS Game Mode boosts the game's Wine processes (patch 0002 starts every
+# Wine process from Contents/MacOS/wine). Wine resolves lib/ and share/ as
+# ../lib and ../share from its loader, so MacOS works like bin/.
+APP="$DEST.part/Orbit Wine.app"
+CONTENTS="$APP/Contents"
+UNIX_DIR="$CONTENTS/lib/wine/x86_64-unix"
 rm -rf "$DEST.part"
-mkdir -p "$DEST.part"
-cp -a "$WORK/install/." "$DEST.part/"
-cp -a "$WORK/deps/lib/." "$DEST.part/lib/"
+mkdir -p "$CONTENTS/MacOS"
+cp -a "$WORK/install/lib" "$WORK/install/share" "$CONTENTS/"
+cp -a "$WORK/deps/lib/." "$CONTENTS/lib/"
+cp -p "$UNIX_DIR/wine" "$CONTENTS/MacOS/wine"
+cp -p "$WORK/install/bin/wineserver" "$CONTENTS/MacOS/wineserver"
+ln -s ../lib/wine/x86_64-unix/ntdll.so "$CONTENTS/MacOS/ntdll.so"
+ln -s MacOS "$CONTENTS/bin"
+sed "s/@VERSION@/$VERSION/" "$ROOT/scripts/wine/Info.plist" > "$CONTENTS/Info.plist"
 # Wine Mono and Gecko in share/wine, so a new or updated prefix never waits
 # on an install prompt nobody can see.
-mkdir -p "$DEST.part/share/wine/mono" "$DEST.part/share/wine/gecko"
-tar -xJf "$MONO_TARBALL" -C "$DEST.part/share/wine/mono"
+mkdir -p "$CONTENTS/share/wine/mono" "$CONTENTS/share/wine/gecko"
+tar -xJf "$MONO_TARBALL" -C "$CONTENTS/share/wine/mono"
 cp -a "$DEPS_FROM/../share/wine/gecko/wine-gecko-$GECKO_VERSION-x86" \
-  "$DEPS_FROM/../share/wine/gecko/wine-gecko-$GECKO_VERSION-x86_64" "$DEST.part/share/wine/gecko/"
+  "$DEPS_FROM/../share/wine/gecko/wine-gecko-$GECKO_VERSION-x86_64" "$CONTENTS/share/wine/gecko/"
 # The bundled libraries have bare install names; Wine's Unix modules find them
 # in `lib/` through this rpath, as in the Gcenx bundle.
-for module in "$DEST.part"/lib/wine/x86_64-unix/*.so "$DEST.part/bin/wine" "$DEST.part/bin/wineserver"; do
+for module in "$UNIX_DIR"/*.so "$UNIX_DIR/wine" "$CONTENTS/MacOS/wine" "$CONTENTS/MacOS/wineserver"; do
   if ! otool -l "$module" | grep -q "path @loader_path/../../ "; then
     install_name_tool -add_rpath @loader_path/../../ "$module" 2>/dev/null || true
   fi
-  codesign --force -s - "$module" 2>/dev/null
+  # The bundle's main executable is signed with the bundle below.
+  if [[ "$module" != "$CONTENTS/MacOS/wine" ]]; then
+    codesign --force -s - "$module" 2>/dev/null
+  fi
 done
+# The main executable's signature must bind this Info.plist.
+codesign --force --sign - "$APP"
+codesign --verify --strict "$APP"
 rm -rf "$DEST"
 mv "$DEST.part" "$DEST"
-echo "Installed Orbit Wine $VERSION at $DEST"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -f "$DEST/Orbit Wine.app"
+echo "Installed Orbit Wine $VERSION at $DEST/Orbit Wine.app"

@@ -17,6 +17,10 @@ export interface SteamWindowsPreferences {
   offlineMode: boolean
   verifyFiles: boolean
   additionalLibraryPaths?: string[]
+  /** Steam Input (controller configuration) for games. */
+  steamInput?: boolean
+  /** Steam's in-game overlay (Shift+Tab). Off by default: it costs frame time. */
+  steamOverlay?: boolean
 }
 
 export interface SteamOwnedGame {

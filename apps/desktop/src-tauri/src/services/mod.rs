@@ -49,6 +49,7 @@ pub mod steam_app_types;
 pub mod steam_library_paths;
 pub mod steam_native;
 pub mod steam_play;
+pub mod steam_play_config;
 
 pub mod library;
 
