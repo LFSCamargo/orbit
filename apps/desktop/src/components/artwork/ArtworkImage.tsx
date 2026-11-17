@@ -28,8 +28,10 @@ export function ArtworkImage({
         !className?.split(/\s+/).includes('absolute') && 'relative',
         '[&>img]:block [&>img]:size-full [&>img]:object-center [&>img]:opacity-0 [&>img]:transition-opacity [&>img]:duration-[180ms]',
         fit === 'contain' ? '[&>img]:object-contain' : '[&>img]:object-cover',
-        'data-[state=ready]:[&>img]:opacity-100',
-        'data-[state=error]:[&>img]:invisible',
+        // The state is on this wrapper: `data-[state=…]:[&>img]:` would target
+        // `img[data-state]` and never match.
+        '[&[data-state=ready]>img]:opacity-100',
+        '[&[data-state=error]>img]:invisible',
         'motion-reduce:[&>img]:transition-none',
         className,
       )}

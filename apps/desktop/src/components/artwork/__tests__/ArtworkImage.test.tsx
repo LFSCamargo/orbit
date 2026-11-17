@@ -60,3 +60,14 @@ it('stops the loading animation and exposes a fallback when an image fails', () 
   expect(container.querySelector('.artwork-skeleton')).toBeNull()
   expect(screen.getByRole('img', { name: 'Theme logo unavailable' })).toBeVisible()
 })
+
+it('reveals the image through the wrapper state, not an attribute on the image', () => {
+  // Regression: `data-[state=ready]:[&>img]:opacity-100` compiles to
+  // `> img[data-state=ready]`, but the state lives on the wrapper, so every
+  // artwork (theme previews included) stayed at opacity 0.
+  const { container } = render(<ArtworkImage src="/hero.webp" alt="Hero" />)
+  const wrapper = container.firstChild as HTMLElement
+  expect(wrapper).toHaveClass('[&[data-state=ready]>img]:opacity-100')
+  expect(wrapper).toHaveClass('[&[data-state=error]>img]:invisible')
+  expect(wrapper.className).not.toMatch(/data-\[state=[a-z]+\]:\[&>img\]/)
+})
