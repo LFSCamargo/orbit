@@ -1,3 +1,4 @@
+import { withoutNonGameOwned } from '@/lib/nonGames'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   connectSteamWindows,
@@ -18,6 +19,7 @@ export function useSteamWindows() {
   const library = useQuery({
     queryKey: ['steam-windows-library'],
     queryFn: steamWindowsLibrary,
+    select: withoutNonGameOwned,
     enabled: status.data?.signedIn === true,
   })
   const preferences = useQuery({

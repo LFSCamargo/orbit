@@ -10,6 +10,7 @@ import {
   listLibraryEntries,
   updateLibraryEntry,
 } from '@/lib/tauri'
+import { withoutNonGameEntries } from '@/lib/nonGames'
 import type { LibraryEntryPatch, LibraryQuery } from '@/types/library'
 
 export function useLibrary(query: LibraryQuery) {
@@ -18,6 +19,7 @@ export function useLibrary(query: LibraryQuery) {
     initialPageParam: 0,
     queryFn: ({ pageParam }) => listLibraryEntries({ ...query, cursor: pageParam }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    select: withoutNonGameEntries,
   })
 }
 export function useLibraryEntry(id: string | null) {
