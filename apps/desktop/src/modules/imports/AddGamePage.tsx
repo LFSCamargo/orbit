@@ -181,20 +181,6 @@ export function AddGamePage() {
       title="Add game"
       subtitle="Controller-friendly import for Astris, macOS apps, and local files."
     >
-      <div className="mb-8">
-        <Focusable
-          focusId="add-back"
-          group="add-nav"
-          order={0}
-          noScale
-          onClick={() => setScreen(backTarget(screen, previousScreen))}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Focusable>
-      </div>
-
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
