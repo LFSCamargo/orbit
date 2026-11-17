@@ -92,12 +92,11 @@ export function GameMetadataEditor({
     setSaving(true)
     setMessage(null)
     try {
-      const artwork = await normalizeArtwork(game.id, {
-        cover,
-        hero,
-        icon,
-        logo: game.artwork.logo,
-      })
+      const artwork = await normalizeArtwork(
+        game.id,
+        { cover, hero, icon, logo: game.artwork.logo },
+        game.artwork,
+      )
       await update.mutateAsync({
         gameId: game.id,
         request: {

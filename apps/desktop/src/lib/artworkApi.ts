@@ -47,22 +47,40 @@ export async function normalizeArtworkValue(
   return readArtworkFromPath(value)
 }
 
+const SLOT_NAMES: Record<keyof GameArtwork, string> = {
+  cover: 'portrait cover',
+  hero: 'landscape hero',
+  icon: 'square icon',
+  logo: 'logo',
+}
+
+/** Artwork ready to save. Only slots that differ from `saved` are downloaded:
+ *  an untouched remote logo that no longer exists (Steam has none for some
+ *  apps) must not block saving the others. */
 export async function normalizeArtwork(
   gameId: string,
   artwork: Partial<GameArtwork>,
+  saved: Partial<GameArtwork> = {},
 ): Promise<GameArtwork> {
-  const [cover, hero, icon, logo] = await Promise.all([
-    normalizeArtworkValue(gameId, 'cover', artwork.cover),
-    normalizeArtworkValue(gameId, 'hero', artwork.hero),
-    normalizeArtworkValue(gameId, 'icon', artwork.icon),
-    normalizeArtworkValue(gameId, 'logo', artwork.logo),
-  ])
-  return {
-    cover,
-    hero,
-    icon,
-    logo,
+  const slot = async (key: keyof GameArtwork) => {
+    const value = artwork[key]
+    if (value && value === saved[key]) return value
+    try {
+      return await normalizeArtworkValue(gameId, key, value)
+    } catch (error) {
+      const reason = (error instanceof Error ? error.message : String(error))
+        .replace(/^Failed to download\s*/i, '')
+        .replace(/^\((.*)\)$/, '$1')
+      throw new Error(`The ${SLOT_NAMES[key]} image couldn’t be downloaded (${reason}).`)
+    }
   }
+  const [cover, hero, icon, logo] = await Promise.all([
+    slot('cover'),
+    slot('hero'),
+    slot('icon'),
+    slot('logo'),
+  ])
+  return { cover, hero, icon, logo }
 }
 
 export interface ArtworkSearchResults {
