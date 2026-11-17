@@ -105,6 +105,25 @@ it('shows a landscape banner with hero art, logo, and the current caption', () =
   expect(screen.queryByText('Finding the Windows install')).not.toBeInTheDocument()
 })
 
+it('shows the title when the logo fails to load', () => {
+  // Regression: The Expendabros has no Steam logo.png, so the banner showed
+  // a broken image instead of the game's name.
+  useLaunchStore.setState({
+    launch: {
+      gameId: 'g1',
+      step: 'prefix',
+      message: 'Preparing the Windows environment',
+      index: 2,
+      total: 6,
+      failed: false,
+    },
+  })
+  render(wrap(<LaunchOverlay />))
+  fireEvent.error(screen.getByRole('img', { name: 'God of War' }))
+  expect(screen.queryByRole('img', { name: 'God of War' })).toBeNull()
+  expect(screen.getByRole('heading', { name: 'God of War' })).toBeInTheDocument()
+})
+
 it('uses the Steam horizontal logo when the stored logo slot is empty', () => {
   useGame.mockReturnValue({
     data: { ...game, artwork: { hero: 'https://cdn.example/hero.jpg' } },

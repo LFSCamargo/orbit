@@ -1,4 +1,5 @@
 import { useInfiniteCarousel, shouldLoopCarousel } from '../hooks/useInfiniteCarousel'
+import { HeroLogo } from './HeroLogo'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFittedTitle } from '../hooks/useFittedTitle'
 import { useShelfEdgeFade } from '../hooks/useShelfEdgeFade'
@@ -75,20 +76,7 @@ export function MacosHome({
 
   return (
     <div className={clsx('macos-home', 'min-w-0 px-[var(--console-gutter)] pb-5')}>
-      {logoImage && (
-        <img
-          src={logoImage}
-          alt=""
-          className={clsx(
-            'macos-hero-logo',
-            'pointer-events-none fixed right-[var(--console-gutter)] top-[100px] z-[1] max-h-[90px] max-w-[220px] object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.35)]',
-            'max-[900px]:top-[90px] max-[900px]:max-h-16 max-[900px]:max-w-[150px]',
-            'max-[520px]:hidden',
-          )}
-          aria-hidden="true"
-          draggable={false}
-        />
-      )}
+      <HeroLogo src={logoImage} />
       <div
         className={clsx(
           'macos-feature-grid',

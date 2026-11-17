@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { clsx } from 'clsx'
 import { X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
@@ -13,6 +14,8 @@ export function LaunchOverlay() {
   const launch = useLaunchStore((s) => s.launch)
   const clear = useLaunchStore((s) => s.clear)
   const { data: game } = useGame(launch?.gameId ?? null)
+  // Not every Steam app has a logo.png; a failed one falls back to the title.
+  const [failedLogo, setFailedLogo] = useState<string>()
   const closeId = launch?.failed ? 'launch-dismiss' : 'launch-cancel'
   useModalFocus(Boolean(launch), 'launch-overlay', closeId)
   if (!launch) return null
@@ -80,10 +83,11 @@ export function LaunchOverlay() {
             <X size={16} />
           </Focusable>
         </div>
-        {logo ? (
+        {logo && failedLogo !== logo ? (
           <img
             src={logo}
             alt={title}
+            onError={() => setFailedLogo(logo)}
             id="launch-overlay-title"
             className="launch-overlay-logo absolute left-1/2 top-[46%] z-[1] max-h-[38%] max-w-[72%] -translate-x-1/2 -translate-y-1/2 object-contain drop-shadow-[0_8px_28px_#000a]"
           />
