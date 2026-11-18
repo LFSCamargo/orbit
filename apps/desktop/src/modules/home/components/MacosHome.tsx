@@ -1,4 +1,5 @@
 import { useInfiniteCarousel, shouldLoopCarousel } from '../hooks/useInfiniteCarousel'
+import { useShelfWheel } from '../hooks/useShelfWheel'
 import { HeroLogo } from './HeroLogo'
 import { useEffect, useMemo, useRef } from 'react'
 import { useFittedTitle } from '../hooks/useFittedTitle'
@@ -10,8 +11,9 @@ import {
   prefersReducedMotion,
 } from '../lib/shelfScroll'
 import { clsx } from 'clsx'
-import { ArrowUpRight, Clock3, Heart, Play, Square } from 'lucide-react'
+import { ArrowUpRight, Clock3, HardDrive, Heart, Play, Square } from 'lucide-react'
 import { focusManager } from '@/controllers/FocusManager'
+import { EmptyState } from '@/components/feedback/EmptyState'
 import { Focusable } from '@/components/focus/Focusable'
 import { CarouselArtwork } from './CarouselArtwork'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
@@ -69,6 +71,7 @@ export function MacosHome({
   const shelfLooping = shouldLoopCarousel(displayedTiles.length)
   const carouselCards = useInfiniteCarousel(shelfRef, displayedTiles)
   const edgeFade = useShelfEdgeFade(shelfRef, shelfLooping, displayedTiles.length)
+  useShelfWheel(shelfRef)
   const logoImage = gameLogoImage(
     heroGame.artwork,
     heroEntry.steamAppId ?? heroGame.sourceId,
@@ -256,7 +259,7 @@ export function MacosHome({
           <div
             className={clsx(
               'macos-segments orbit-glass-control',
-              'flex rounded-full border border-[#ffffff17] bg-[#ffffff08] p-1',
+              'flex rounded-full border border-[#ffffff17] bg-[rgb(0_0_0/0.22)] p-1',
               '[@media(prefers-reduced-transparency:reduce)]:bg-orbit-panel [@media(prefers-reduced-transparency:reduce)]:backdrop-blur-none',
             )}
             role="group"
@@ -275,7 +278,8 @@ export function MacosHome({
                 aria-pressed={view === item}
                 onClick={() => onView?.(item)}
                 className={clsx(
-                  'rounded-full px-4 py-2 text-[11px] text-[#ffffff80]',
+                  // White, with a soft shadow, so it reads over bright artwork.
+                  'rounded-full px-4 py-2 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.55)]',
                   'aria-pressed:bg-[#ffffff1c] aria-pressed:text-white aria-pressed:shadow-[inset_0_1px_#ffffff18]',
                   'max-[520px]:px-3',
                 )}
@@ -296,7 +300,7 @@ export function MacosHome({
             onClick={() => navigate('library')}
             className={clsx(
               'macos-view-all',
-              'flex items-center gap-2 p-2 text-[11px] text-[#ffffffa6]',
+              'flex items-center gap-2 p-2 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.55)]',
               'max-[520px]:hidden',
             )}
           >
@@ -305,13 +309,37 @@ export function MacosHome({
           </Focusable>
         </header>
         {!shelfPending && !shelfError && !tiles.length && (
-          <p className="py-8 text-sm text-orbit-muted">
-            {view === 'favorites'
-              ? 'Favorite a game to keep it close at hand.'
-              : view === 'installed'
-                ? 'No installed games yet.'
-                : 'No recent games yet.'}
-          </p>
+          <EmptyState
+            size="sm"
+            icon={
+              view === 'favorites' ? Heart : view === 'installed' ? HardDrive : Clock3
+            }
+            title={
+              view === 'favorites'
+                ? 'No favorites yet'
+                : view === 'installed'
+                  ? 'No installed games yet'
+                  : 'Nothing played yet'
+            }
+            description={
+              view === 'favorites'
+                ? 'Favorite a game from its details to keep it close at hand.'
+                : view === 'installed'
+                  ? 'Install a game from your library, or add one yourself.'
+                  : 'Games you play show up here.'
+            }
+            actions={[
+              {
+                label: 'Open library',
+                focusId: 'macos-shelf-empty-library',
+                group: 'macos-view',
+                order: 10,
+                onClick: () => navigate('library'),
+                variant: 'secondary',
+              },
+            ]}
+            className="my-4"
+          />
         )}
         {shelfPending && (
           <p role="status" className="py-8 text-orbit-muted">

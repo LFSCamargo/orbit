@@ -62,6 +62,34 @@ test('home shelf hides scrollbar chrome without disabling scrolling', async ({
   expect(await shelf.evaluate((el) => getComputedStyle(el).overflowX)).toBe('auto')
 })
 
+test('home shelf scrolls sideways with vertical and horizontal mouse wheels', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 600, height: 850 })
+  await page.goto('/')
+  const shelf = page.locator('.macos-game-grid')
+  await expect(shelf).toBeVisible()
+  const box = (await shelf.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  const scrollLeft = () => shelf.evaluate((el) => el.scrollLeft)
+  const pageScroll = () => page.evaluate(() => document.scrollingElement!.scrollTop)
+
+  const start = await scrollLeft()
+  const pageStart = await pageScroll()
+  // A small nudge still moves a whole card instead of springing back.
+  await page.mouse.wheel(0, 30)
+  await expect.poll(scrollLeft).not.toBe(start)
+  expect(await pageScroll()).toBe(pageStart)
+  // The spring settles on the shelf's end, which the mock shelf is within one step of.
+  const end = await shelf.evaluate((el) => el.scrollWidth - el.clientWidth)
+  await expect.poll(scrollLeft).toBe(end)
+
+  // Back the other way: the mock shelf overflows less than one wheel step.
+  const afterVertical = await scrollLeft()
+  await page.mouse.wheel(-200, 0)
+  await expect.poll(scrollLeft).toBeLessThan(afterVertical)
+})
+
 test('game details expose launch settings directly', async ({ page }) => {
   await page.goto('/')
   await page.locator('[data-focus-id="macos-nav-library"]').click()
@@ -243,4 +271,30 @@ test('homepage carousel stays a finite strip when there are seven or fewer games
     )
     .toBe(true)
   expect(await shelf.locator('.macos-game-tile').count()).toBe(count)
+})
+
+test('the search field shows one rounded focus ring, not a box inside the pill', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const input = page.getByRole('textbox', { name: 'Search your collection' })
+  const pill = page.locator('.library-search')
+  const outline = (el: HTMLElement | SVGElement) => getComputedStyle(el).outlineStyle
+  for (const select of [
+    // Typing focus.
+    () => input.focus(),
+    // Controller focus: the ring follows the focused node, without DOM focus.
+    async () => {
+      await page.evaluate(() => {
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        document.documentElement.dataset.navigationInput = 'controller'
+      })
+      await input.evaluate((el) => el.setAttribute('data-focused', 'true'))
+    },
+  ]) {
+    await select()
+    await expect.poll(() => input.evaluate(outline)).toBe('none')
+    await expect.poll(() => pill.evaluate(outline)).toBe('solid')
+  }
 })

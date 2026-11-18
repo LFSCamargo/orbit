@@ -10,6 +10,7 @@ import { searchThemeStudioArtwork } from '@/lib/themeArtwork'
 import type { ArtworkSlot } from '@/lib/artwork'
 import type { ArtworkSearchHit } from '@/lib/artworkApi'
 import { fetchArtworkFromUrl, searchGameArtwork } from '@/lib/artworkApi'
+import { buttonClass } from '@/components/ui/button'
 
 const SLOT_ASPECT: Record<ArtworkSlot, string> = {
   cover: 'aspect-[2/3]',
@@ -224,7 +225,7 @@ export function ImageSearchModal({
                   noScale
                   disabled={loading || selecting !== null || !query.trim()}
                   onClick={() => void runSearch(query)}
-                  className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ shape: 'card' })}
                 >
                   {loading ? 'Searching…' : 'Search'}
                 </Focusable>

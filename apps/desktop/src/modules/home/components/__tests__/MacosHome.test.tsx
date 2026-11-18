@@ -243,3 +243,14 @@ it('paints 1:1 icon art on the shelf instead of portrait covers', () => {
   expect(art.style.backgroundImage).not.toContain('cover.jpg')
   expect(art.style.backgroundImage).not.toContain('hero.jpg')
 })
+
+it('keeps inactive shelf filters and View library readable as white text', () => {
+  renderHome()
+  // Regression: 50% and 65% white disappeared over bright artwork.
+  const installed = screen.getByRole('button', { name: 'Installed' })
+  expect(installed).toHaveAttribute('aria-pressed', 'false')
+  expect(installed.className).toMatch(/(^|\s)text-white(\s|$)/)
+  expect(installed.className).not.toMatch(/text-\[#ffffff/)
+  const viewLibrary = screen.getByRole('button', { name: /View library/ })
+  expect(viewLibrary.className).toMatch(/(^|\s)text-white(\s|$)/)
+})

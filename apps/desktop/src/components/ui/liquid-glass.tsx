@@ -24,7 +24,7 @@ export function LiquidGlass({
       className={clsx('orbit-glass relative overflow-hidden', className)}
       data-glass-mode={opaque ? 'opaque' : 'simple'}
       data-glass-surface={surface}
-      data-refract="false"
+      data-refract="true"
       style={{
         borderRadius: radius,
         ...style,

@@ -15,6 +15,7 @@ import { Focusable } from '@/components/focus/Focusable'
 import { DownloadProgress } from '@/components/ui/download-progress'
 import { useCompatibilitySetup } from '../hooks/useCompatibilitySetup'
 import { CompatibilityComponents } from './CompatibilityComponents'
+import { buttonClass } from '@/components/ui/button'
 
 export function RuntimeSettings() {
   const queryClient = useQueryClient()
@@ -105,7 +106,7 @@ export function RuntimeSettings() {
                     order={0}
                     disabled={busy || compatibility.isLoading}
                     onClick={() => void install()}
-                    className="flex items-center gap-2 rounded-card bg-orbit-accent px-4 py-2.5 text-sm font-medium text-orbit-canvas disabled:opacity-60"
+                    className={buttonClass({ shape: 'card' })}
                   >
                     {busy ? (
                       <LoaderCircle size={16} className="animate-spin" />

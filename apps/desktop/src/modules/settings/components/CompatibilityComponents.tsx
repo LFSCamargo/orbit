@@ -25,6 +25,7 @@ import { useActiveComponents } from '../hooks/useActiveComponents'
 import { useComponentViews } from '../hooks/useComponentViews'
 import { useComponentInstall } from '../hooks/useComponentInstall'
 import { ComponentVersionPicker, type ComponentVersion } from './ComponentVersionPicker'
+import { buttonClass } from '@/components/ui/button'
 
 const graphicsIds = new Set(['dxvk', 'dxmt', 'gptk'])
 
@@ -49,7 +50,7 @@ const SECONDARY_BUTTON = clsx(
 )
 
 const PRIMARY_BUTTON = clsx(
-  'settings-primary-button flex items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-orbit-accent px-3.5 py-2.5 text-xs font-semibold text-orbit-canvas',
+  buttonClass({ size: 'sm', className: 'settings-primary-button' }),
   'disabled:cursor-not-allowed disabled:opacity-40',
 )
 

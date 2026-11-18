@@ -1,6 +1,7 @@
+import { CloudOff, Search, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/feedback/EmptyState'
 import { LibrarySkeleton } from './LibrarySkeleton'
 import { useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
 import { LIBRARY_SQUARE_GRID_CLASS } from '@/components/game/SquareGameArt'
 import { Focusable } from '@/components/focus/Focusable'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
@@ -96,9 +97,17 @@ export function NotInstalledGames({ refreshing = false }: { refreshing?: boolean
           </p>
         )}
         {!loading && signedIn && !library.isError && pending.length === 0 && (
-          <p role="status">
-            {query ? 'No Steam games match your search.' : 'No games in this view.'}
-          </p>
+          <EmptyState
+            icon={query ? SearchX : CloudOff}
+            title={
+              query ? `No Steam games match “${query}”` : 'Everything here is installed'
+            }
+            description={
+              query
+                ? 'Check the spelling, or try a shorter title.'
+                : 'Games you own on Steam but have not installed appear here.'
+            }
+          />
         )}
         <div className={LIBRARY_SQUARE_GRID_CLASS}>
           {pending.map((game, index) => (

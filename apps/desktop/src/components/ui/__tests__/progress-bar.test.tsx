@@ -32,3 +32,9 @@ it('shows a moving indeterminate bar while the size is unknown', () => {
   expect(bar).toHaveAttribute('data-indeterminate', 'true')
   expect(screen.getByText('Updating SteamCMD · Dota 2…')).toBeTruthy()
 })
+
+it('fills with the fire gradient when asked', () => {
+  render(<ProgressBar label="Setup" value={40} tone="fire" />)
+  const fill = screen.getByRole('progressbar', { name: 'Setup' }).firstElementChild
+  expect(fill?.className).toContain('orbit-progress-fire')
+})

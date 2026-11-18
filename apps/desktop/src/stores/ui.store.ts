@@ -34,6 +34,8 @@ interface UiState {
   libraryFilters: LibraryFilters
   searchQuery: string
   homeMenuOpen: boolean
+  /** Onboarding replayed from Settings; first run is decided by preferences. */
+  onboardingOpen: boolean
   settingsTab: SettingsTab
   libraryView: 'installed' | 'all' | 'favorites'
   libraryPlatform: string
@@ -58,6 +60,8 @@ interface UiState {
   setLibraryFilters: (patch: Partial<LibraryFilters>) => void
   setSearchQuery: (query: string) => void
   openHomeMenu: () => void
+  openOnboarding: () => void
+  closeOnboarding: () => void
   closeHomeMenu: () => void
   toggleHomeMenu: () => void
 }
@@ -85,6 +89,7 @@ export const useUiStore = create<UiState>((set) => ({
   libraryFilters: defaultFilters,
   searchQuery: '',
   homeMenuOpen: false,
+  onboardingOpen: false,
   settingsTab: 'general',
   libraryView: 'installed',
   libraryPlatform: 'all',
@@ -150,6 +155,8 @@ export const useUiStore = create<UiState>((set) => ({
     })),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   openHomeMenu: () => set({ homeMenuOpen: true }),
+  openOnboarding: () => set({ onboardingOpen: true, homeMenuOpen: false }),
+  closeOnboarding: () => set({ onboardingOpen: false }),
   closeHomeMenu: () => set({ homeMenuOpen: false }),
   toggleHomeMenu: () => set((state) => ({ homeMenuOpen: !state.homeMenuOpen })),
 }))

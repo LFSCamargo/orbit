@@ -17,7 +17,7 @@ test('compatibility settings keep setup simple and advanced options optional', a
   await expect(page.getByText('No Wine runtime detected.', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'General', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Fullscreen', exact: true }),
+    page.getByRole('heading', { name: 'Scan for new games on startup', exact: true }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Compatibility', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Install compatibility' })).toBeVisible()

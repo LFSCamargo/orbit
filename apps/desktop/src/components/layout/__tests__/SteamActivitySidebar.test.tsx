@@ -31,11 +31,16 @@ vi.mock('@/lib/tauri', () => ({
   pauseActiveDownload: vi.fn(),
   removeQueuedDownload: vi.fn(),
   startQueuedDownloadNow: vi.fn(),
+  listLibraryEntries: vi
+    .fn()
+    .mockResolvedValue({ entries: [], total: 0, nextCursor: null }),
 }))
 
 import {
   connectSteamWindows,
+  enqueueSteamDownload,
   getDownloadQueue,
+  listLibraryEntries,
   openSteamWindowsLogin,
   pauseActiveDownload,
   pollSteamWindowsLogin,
@@ -229,4 +234,62 @@ it('clears finished downloads on request and closes on back', async () => {
   expect(useDownloadStore.getState().tasks['steam:570']).toBeUndefined()
   fireEvent.keyDown(window, { key: 'Escape' })
   expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('floats as a glass sheet over a blur overlay that closes it', async () => {
+  const onClose = vi.fn()
+  renderSidebar(onClose)
+  const scrim = screen.getByTestId('steam-activity-scrim')
+  expect(scrim).toHaveAttribute('aria-hidden', 'true')
+  const drawer = screen.getByRole('dialog', { name: 'Downloads' })
+  expect(drawer.className).toContain('orbit-glass')
+  expect(drawer.closest('.steam-activity-sheet')).not.toBeNull()
+  fireEvent.click(scrim)
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('puts network first and describes each section', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  renderSidebar()
+  await screen.findByText('No downloads yet')
+  const network = screen.getByRole('region', { name: 'Network' })
+  const downloads = screen.getByRole('region', { name: 'Active downloads' })
+  expect(
+    network.compareDocumentPosition(downloads) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
+  expect(screen.getByText('Live transfer speed for Steam downloads.')).toBeTruthy()
+  expect(screen.getByText('Games and components installing now.')).toBeTruthy()
+  expect(
+    screen.getByText('Up next, in order. Start one now or take it out.'),
+  ).toBeTruthy()
+})
+
+it('suggests played games that are not installed, and installs Steam ones', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  const played = (id: string, title: string, seconds: number, available: boolean) => ({
+    id,
+    steamAppId: id.replace('steam:', ''),
+    owned: true,
+    preferredInstallationId: null,
+    installations: [{ available }],
+    game: { id, title, hidden: false, totalPlaytimeSeconds: seconds, artwork: {} },
+  })
+  vi.mocked(listLibraryEntries).mockResolvedValueOnce({
+    entries: [
+      played('steam:620', 'Portal 2', 7200, false),
+      played('steam:570', 'Dota 2', 36000, false),
+      played('steam:400', 'Portal', 3600, true),
+    ],
+    total: 3,
+    nextCursor: null,
+  } as never)
+  renderSidebar()
+  const section = await screen.findByRole('region', { name: 'Played, not installed' })
+  const rows = within(section).getAllByTestId('played-row')
+  expect(rows.map((row) => row.textContent)).toEqual([
+    expect.stringContaining('Dota 2'),
+    expect.stringContaining('Portal 2'),
+  ])
+  fireEvent.click(within(section).getByRole('button', { name: 'Install Dota 2' }))
+  expect(enqueueSteamDownload).toHaveBeenCalledWith('570')
 })

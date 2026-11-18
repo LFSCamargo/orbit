@@ -248,6 +248,8 @@ export async function mockInvoke<T>(
       return { imported: 0, enriched: 0, provider: 'steam' } as T
     case 'scan_steam_library':
       return { imported: 0, enriched: 0, provider: 'steam' } as T
+    case 'scan_native_apps':
+      return { imported: 0, enriched: 0, provider: 'native' } as T
     case 'install_steam_game':
     case 'open_steam_library':
       return undefined as T
@@ -264,6 +266,10 @@ export async function mockInvoke<T>(
         package: { version: '11.0.1', downloadBytes: 185_303_032 },
       } as T
     case 'install_windows_compatibility':
+      throw new Error('Managed downloads require the Orbit desktop app.')
+    case 'orbit_wine_status':
+      return null as T
+    case 'install_orbit_wine':
       throw new Error('Managed downloads require the Orbit desktop app.')
     case 'compatibility_catalog':
       return {
@@ -630,6 +636,7 @@ export async function mockInvoke<T>(
     case 'set_window_fullscreen':
     case 'hide_orbit_window':
     case 'show_orbit_window':
+    case 'open_xbox_cloud':
       return undefined as T
     case 'quit_orbit':
       console.info('[devMockApi] quit_orbit')

@@ -97,6 +97,8 @@ it('applies custom theme colors to CSS variables', () => {
   const root = document.documentElement
   expect(root.style.getPropertyValue('--orbit-canvas')).toBe('20 0 0')
   expect(root.style.getPropertyValue('--orbit-accent')).toBe('255 0 0')
+  // The primary button gradient runs from the accent to a lighter accent.
+  expect(root.style.getPropertyValue('--orbit-accent-light')).toBe('255 89 89')
   expect(root.style.getPropertyValue('--orbit-foreground')).toBe('255 220 220')
 })
 

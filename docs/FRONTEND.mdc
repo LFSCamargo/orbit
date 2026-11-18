@@ -62,7 +62,7 @@ Screens are selected in `App.tsx` from `useUiStore((s) => s.screen)`:
 | Search | `SearchPage` | `modules/search/` |
 | Game details | `GameDetailsPage` | `modules/game-details/` — Overview plus Settings (General, Artwork, Launch) |
 | Add game | `AddGamePage` | `modules/imports/` |
-| Settings | `SettingsPage` | `modules/settings/` — General (including metadata keys), Themes, Library, Steam, Game graphics, Compatibility, plus insights |
+| Settings | `SettingsPage` | `modules/settings/` — General (startup scan, runtime updates, Show onboarding, Xbox Cloud Gaming, metadata keys), Themes, Library, Steam, Game graphics, Compatibility, plus insights |
 
 Every theme renders the single Liquid Glass shell (`themes/MacosShell.tsx`) with its original styling. Game themes change the actual SteamGridDB image logo and hero background, not the palette or layout. `theme.store.ts` loads both assets on explicit game-theme selection and guards against stale asynchronous results. Errors leave the previous selection active. Retired platform/color IDs resolve to Liquid Glass. Custom files remain readable, with legacy text logos suppressed. `useActiveTheme()` (`hooks/useActiveTheme.ts`) returns the active `ThemeDefinition`. `focusRestoreId(screen, gameId)` and `screenEntryFocusId(screen)` in `lib/navigation.ts` resolve controller focus targets for the shell.
 
@@ -74,15 +74,22 @@ Shared cross-module UI lives in `src/components/`.
 ```
 src/
   app/
-    App.tsx                # Screen router + motion wrapper
-    providers.tsx          # QueryClient + theme init
+    App.tsx                # Screen router + motion wrapper; onboarding instead of the shell when visible
+    providers.tsx          # QueryClient + theme and app-preference init
+    startup/               # useStartupScan, useRuntimeAutoUpdate (once per launch, after onboarding)
   modules/
+    onboarding/            # First run, see docs/ONBOARDING.md
+      OnboardingFlow.tsx   # Steps, transitions, focus, back, skip, finish
+      components/          # OnboardingFrame, OnboardingStepper, StepHeader, OnboardingFooter
+      steps/               # Welcome, Setup, Account, Recommended, Scan
+      hooks/               # useOnboardingSetup, useOnboardingScan
+      lib/                 # onboardingSteps, setupPlan, scanSummary, onboardingVisibility
     home/
-      lib/                 # Hero selection, artwork cache, shelf focus scroll, carousel fade
+      lib/                 # Hero selection, artwork cache, shelf focus scroll, shelf wheel and spring, carousel fade
       HomePage.tsx
       ThemeHome.tsx        # Renders MacosHome
       components/          # MacosHome, CarouselArtwork (colocated)
-      hooks/               # useHomeHero, useInfiniteCarousel, useFittedTitle, useShelfEdgeFade
+      hooks/               # useHomeHero, useInfiniteCarousel, useFittedTitle, useShelfEdgeFade, useShelfWheel
     library/
       LibraryPage.tsx
       components/          # LibraryToolbar, LibraryEntryGrid, SteamGameCard, skeletons
@@ -100,7 +107,7 @@ src/
       hooks/               # useImportScan (shared Steam/Astris/native scans)
     settings/
       SettingsPage.tsx
-      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, SettingsInsights
+      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, GeneralPreferences, XboxCloudSettings, SettingsInsights
       hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useSteamWindowsInstall, useCompatibilitySetup
     session/
       PlayingScreen.tsx
@@ -115,7 +122,10 @@ src/
       SteamWindowsAccount.tsx # Settings / Downloads Steam authorization card
     home/
       HomeMenuModal.tsx    # Orbit quick menu
+    brand/
+      AccountIcons.tsx     # XboxIcon, EpicGamesIcon
     ui/
+      button.tsx           # buttonClass / Button: primary (fire gradient), secondary, quiet, danger
       liquid-glass.tsx     # Portable glass surface (material CSS lives in styles/index.css)
       collapsible.tsx      # shadcn/Radix Collapsible primitive
       collapsible-panel.tsx # Shared expandable with icon (not native details)
@@ -129,6 +139,7 @@ src/
     focus/
       Focusable.tsx        # Focusable wrapper (inset rings in styles/index.css)
     artwork/
+      ProgressiveArtwork.tsx # Preview → decoded full image (2x), used by Library tiles and onboarding
       ArtworkSlotPicker.tsx
       ImageSearchModal.tsx
     feedback/
@@ -148,6 +159,7 @@ src/
     useLibrary.ts          # Unified LibraryEntry list, detail, and title state
     useHasFavorites.ts     # Bounded probe for whether the Favorites tab should exist
     useSteamWindows.ts     # Windows Steam status + owned catalog
+    useLibraryPaths.ts     # Extra Steam library folders (Settings → Steam and onboarding)
     useSteamClientEvents.ts # steam-client phases patch steam-windows-status
     useSteamDownloadEvents.ts
     useHeroTone.ts
@@ -162,16 +174,20 @@ src/
     theme.store.ts         # Active theme, custom themes, save/delete studio themes
     session.store.ts       # Active game session
     launch.store.ts        # In-flight launch overlay (step, error)
+    preferences.store.ts   # App preferences (onboarding, startup scan, runtime updates, Xbox)
   themes/
     types.ts               # ThemeDefinition, ThemeBranding
     catalog.ts             # BUILT_IN_THEMES (color + game), DEFAULT_THEME_ID, legacy id migration
     studio.ts              # Theme studio draft → ThemeDefinition
     MacosShell.tsx         # Liquid Glass shell (Tailwind on the component)
-    ThemeBrand.tsx         # Header logo + ORBIT footer mark
+    ThemeBrand.tsx         # Header logo + Orbit logo footer mark
     ThemePage.tsx
   lib/
     tauri.ts               # Typed invoke wrappers
     dialog.ts              # Native open panel (pick_open_path; avoids macOS NSOpenPanel panic)
+    appPreferences.ts      # app-preferences-v1: defaults, parse, upgrade migration
+    runtimeUpdates.ts      # Which installed components have a newer catalog release
+    artworkSources.ts      # Preview / full / 2x sources for ProgressiveArtwork
     devMockApi.ts          # Browser dev mocks
     navigation.ts          # Screen helpers
     themeColors.ts         # RGB ↔ hex, focus derivation, custom- theme ids
@@ -230,6 +246,8 @@ When adding a command: update Rust handler → register in `lib.rs` → add wrap
 **Sticks.** The left stick steps focus once per flick (engage 0.5, release 0.32) and repeats after 380 ms, then every 140 ms, like a held D-pad. The right stick scrolls the innermost scrollable pane around the focused control (`lib/pageScroll.ts`), falling back to the page, and never past an open dialog. On macOS the native gilrs listener sends the right stick; its up-positive Y is flipped so up scrolls up.
 
 **Spatial focus.** Hidden, `inert` and `aria-hidden` controls are skipped. When the right stick has scrolled the focused control out of view, the next D-pad press continues from the first (down/right) or last (up/left) visible control in the same pane, not the fixed toolbar.
+
+**Fields in rounded controls.** A container marked `data-focus-ring="container"` (the search pill) draws the one focus ring, following its rounded shape, on typing focus or when controller focus is on the field inside; the field's own rectangular ring is suppressed so it never boxes inside the pill.
 
 **Accessibility.** Controller and arrow-key moves also move DOM focus (`focus({ preventScroll: true })`), so VoiceOver reads the control under the ring. Opening a dialog moves DOM focus into it, and closing it returns focus to the opener. Tab and VoiceOver focus update the ring through a `focusin` listener. Pointer hover and clicks move only the ring, never DOM focus, and a passive focus change never takes the caret out of a text field.
 

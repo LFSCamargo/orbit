@@ -85,3 +85,25 @@ it('turns a failure into an error toast and a cancel into a dismissal', () => {
   syncDownloadToasts(before, empty)
   expect(notify.dismiss).toHaveBeenCalledWith('steam:312990')
 })
+
+it('stays quiet while onboarding shows its own install progress', async () => {
+  const { renderHook, cleanup } = await import('@testing-library/react')
+  const { useDownloadToasts } = await import('../useDownloadToasts')
+  const { useDownloadStore } = await import('@/lib/downloadProgress')
+  const { usePreferencesStore } = await import('@/stores/preferences.store')
+  const { DEFAULT_APP_PREFERENCES } = await import('@/lib/appPreferences')
+  usePreferencesStore.setState({
+    ready: true,
+    preferences: { ...DEFAULT_APP_PREFERENCES },
+  })
+  renderHook(() => useDownloadToasts())
+  useDownloadStore.getState().fail('component:dxmt:v1', 'offline')
+  expect(notify.error).not.toHaveBeenCalled()
+
+  usePreferencesStore.setState({
+    preferences: { ...DEFAULT_APP_PREFERENCES, onboardingCompleted: true },
+  })
+  useDownloadStore.getState().fail('component:dxmt:v1', 'still offline')
+  expect(notify.error).toHaveBeenCalledTimes(1)
+  cleanup()
+})

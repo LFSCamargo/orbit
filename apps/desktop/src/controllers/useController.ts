@@ -8,6 +8,10 @@ import { backTarget, focusRestoreId, screenEntryFocusId } from '@/lib/navigation
 import { applyPageScroll } from '@/lib/pageScroll'
 import { showOrbitWindow, isTauriRuntime } from '@/lib/tauri'
 import { useUiStore } from '@/stores/ui.store'
+import {
+  onboardingAllows,
+  onboardingVisible,
+} from '@/modules/onboarding/lib/onboardingVisibility'
 import { closeTopOverlay } from './overlayStack'
 import { leaveTextField } from './leaveTextField'
 import { useNavigationInput } from './useNavigationInput'
@@ -59,6 +63,11 @@ export function useControllerNavigation() {
       if (action !== 'section-prev' && action !== 'section-next' && action !== 'menu') {
         cancelScreenFocus()
       }
+
+      // Onboarding covers the app: B only steps back inside it (its overlay
+      // entry), and nothing switches the screen hidden behind it.
+      const onboarding = onboardingVisible()
+      if (onboarding && !onboardingAllows(action)) return
 
       const homeMenuOpen = useUiStore.getState().homeMenuOpen
       if (homeMenuOpen) {
@@ -126,6 +135,7 @@ export function useControllerNavigation() {
           // drawer, dialog or modal, then the screen.
           if (leaveTextField()) break
           if (closeTopOverlay()) break
+          if (onboarding) break
           if (useUiStore.getState().homeMenuOpen) {
             useUiStore.getState().closeHomeMenu()
             break
@@ -248,6 +258,8 @@ async function handleHomePress(wasFocused: boolean) {
     if (homeMenuOpen) closeHomeMenu()
     return
   }
+  // The Home menu would open behind onboarding.
+  if (onboardingVisible()) return
 
   if (homeMenuOpen) {
     closeHomeMenu()

@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Home, LayoutGrid, LogOut, Play, Settings, Square, X } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { XboxIcon } from '@/components/brand/AccountIcons'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { glyphFor } from '@/controllers/ControllerGlyphs'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { useOverlayBack } from '@/controllers/overlayStack'
 import { useGame, useGameActions } from '@/hooks/useGames'
-import { hideOrbitWindow, quitOrbit } from '@/lib/tauri'
+import { XBOX_CLOUD_ENABLED } from '@/lib/features'
+import { hideOrbitWindow, openXboxCloud, quitOrbit } from '@/lib/tauri'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 import { SessionArtwork } from '@/components/session/SessionArtwork'
@@ -20,7 +22,7 @@ interface MenuItem {
   id: string
   label: string
   description: string
-  icon: LucideIcon
+  icon: ComponentType<{ className?: string }>
   tone?: 'danger'
   action: () => void
 }
@@ -36,6 +38,8 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
   const setScreen = useUiStore((s) => s.setScreen)
   const activeSession = useSessionStore((s) => s.activeSession)
   const { stop } = useGameActions()
+  const xboxCloudConnected =
+    usePreferencesStore((s) => s.preferences.xboxCloudConnected) && XBOX_CLOUD_ENABLED
   const { data: game } = useGame(activeSession?.gameId ?? null)
   const reduce = useReducedMotion()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -118,6 +122,22 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
         icon: Settings,
         action: () => navigate('settings'),
       },
+      ...(xboxCloudConnected
+        ? [
+            {
+              id: 'home-menu-xbox',
+              label: 'Xbox Cloud Gaming',
+              description: 'Stream Game Pass games',
+              icon: XboxIcon,
+              action: () => {
+                closeHomeMenu()
+                void openXboxCloud().catch(() =>
+                  setActionError('Could not open Xbox Cloud Gaming.'),
+                )
+              },
+            },
+          ]
+        : []),
       {
         id: 'home-menu-quit',
         label: 'Quit Orbit',
@@ -131,7 +151,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
         },
       },
     ] satisfies MenuItem[]
-  }, [activeSession, closeHomeMenu, setScreen, stop])
+  }, [activeSession, closeHomeMenu, setScreen, stop, xboxCloudConnected])
 
   useModalFocus(open, 'home-menu', items[0]?.id ?? 'home-menu-continue')
 

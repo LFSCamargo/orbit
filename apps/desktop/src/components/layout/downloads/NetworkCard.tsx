@@ -32,7 +32,12 @@ export function NetworkCard({
   const points = sparklinePoints(samples)
   return (
     <section className={CARD} aria-label="Network">
-      <h3 className={SECTION_TITLE}>Network</h3>
+      <div>
+        <h3 className={SECTION_TITLE}>Network</h3>
+        <p className="m-0 mt-0.5 text-[12px] leading-snug text-white/55">
+          Live transfer speed for Steam downloads.
+        </p>
+      </div>
       {points ? (
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}

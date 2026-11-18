@@ -3,8 +3,10 @@ import { clsx } from 'clsx'
 import { Heart, HardDrive, Download } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { SourceIcon } from '@/components/game/SourceIcon'
-import { SquareGameArt } from '@/components/game/SquareGameArt'
-import { gameTileFit, gameTileImage } from '@/lib/artwork'
+import { LIBRARY_CARD_SHELL, LIBRARY_ENTRY_GRID } from './libraryGrid'
+import { ProgressiveArtwork } from '@/components/artwork/ProgressiveArtwork'
+import { artworkSources } from '@/lib/artworkSources'
+import { gameTileFit } from '@/lib/artwork'
 import { gameSource, SOURCE_LABELS } from '@/lib/gameSource'
 import { formatBytes, placeholderGradient } from '@/lib/format'
 import { entrySizes } from '@/lib/libraryEntries'
@@ -30,11 +32,7 @@ export function LibraryEntryGrid({
   return (
     <div
       ref={gridRef}
-      className={clsx(
-        'library-entry-grid',
-        '[contain:layout_paint]',
-        'grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-6 max-[1100px]:grid-cols-[repeat(auto-fill,minmax(165px,1fr))] max-[1100px]:gap-[18px]',
-      )}
+      className={clsx('library-entry-grid', '[contain:layout_paint]', LIBRARY_ENTRY_GRID)}
       role="list"
       aria-label={label}
     >
@@ -51,7 +49,8 @@ export function LibraryEntryGrid({
               noScale
               noRing
               className={clsx(
-                'library-entry-card orbit-art-focus orbit-panel w-full rounded-[22px] text-left transition-[background,transform] duration-200',
+                'library-entry-card orbit-art-focus w-full text-left transition-[background,transform] duration-200',
+                LIBRARY_CARD_SHELL,
                 'data-[focused=true]:z-10',
                 'hover:-translate-y-[3px] hover:bg-[rgb(56_61_72/0.8)]',
                 'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
@@ -65,11 +64,11 @@ export function LibraryEntryGrid({
                     'library-entry-art relative aspect-square overflow-hidden rounded-[22px]',
                   )}
                 >
-                  <SquareGameArt
-                    image={gameTileImage(entry.game.artwork, 'square')}
+                  <ProgressiveArtwork
+                    sources={artworkSources(entry.game.artwork, entry.steamAppId)}
                     placeholder={placeholderGradient(entry.id)}
                     fit={gameTileFit(entry.game.artwork, 'square')}
-                    roundedClassName="rounded-none"
+                    alt={entry.game.title}
                     className="aspect-square w-full"
                   />
                   {source !== 'other' && (

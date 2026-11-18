@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { RefreshCw, Plus } from 'lucide-react'
+import { Gamepad2, Plus, RefreshCw, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/feedback/EmptyState'
 import { Focusable } from '@/components/focus/Focusable'
 import { useHasFavorites } from '@/hooks/useHasFavorites'
 import { useLibrary } from '@/hooks/useLibrary'
@@ -165,21 +166,60 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
           </div>
         ) : entries.length ? (
           <LibrarySections entries={entries} screen={search ? 'search' : 'library'} />
+        ) : query ? (
+          <EmptyState
+            icon={SearchX}
+            title={`No games match “${query}”`}
+            description={
+              search || (visibleView === 'all' && platform === 'all')
+                ? 'Check the spelling, or try a shorter title.'
+                : 'Nothing in this view matches. Try every game and platform.'
+            }
+            actions={[
+              {
+                label: 'Clear search',
+                focusId: 'library-empty-clear',
+                group: 'library-empty',
+                onClick: () => (search ? setSearchQuery('') : setFilters({ query: '' })),
+              },
+              ...(!search && (visibleView !== 'all' || platform !== 'all')
+                ? [
+                    {
+                      label: 'Show all games',
+                      focusId: 'library-empty-all',
+                      group: 'library-empty',
+                      onClick: () => {
+                        setView('all')
+                        setPlatform('all')
+                      },
+                    },
+                  ]
+                : []),
+            ]}
+          />
         ) : (
-          <div
-            className={clsx(
-              'workspace-empty border-white/12 rounded-3xl border bg-[rgb(20_24_30/0.55)] px-6 py-16 text-center',
-            )}
-          >
-            <h2 className={clsx('mb-3 font-display text-2xl')}>
-              {query ? 'No games found' : 'Make room for your next adventure.'}
-            </h2>
-            <p className={clsx('text-orbit-muted')}>
-              {query
-                ? 'Try a different title or platform.'
-                : 'Add a Steam library folder in Settings, or explore All games.'}
-            </p>
-          </div>
+          <EmptyState
+            icon={Gamepad2}
+            title="Your library is waiting"
+            description="Add a Steam library folder in Settings, or add a game yourself. Installed games show up here."
+            actions={[
+              {
+                label: 'Add games',
+                focusId: 'library-empty-add',
+                group: 'library-empty',
+                onClick: openAddGame,
+              },
+              {
+                label: 'Library settings',
+                focusId: 'library-empty-settings',
+                group: 'library-empty',
+                onClick: () => {
+                  useUiStore.getState().setSettingsTab('library')
+                  useUiStore.getState().setScreen('settings')
+                },
+              },
+            ]}
+          />
         )}
         {library.hasNextPage && (
           <Focusable

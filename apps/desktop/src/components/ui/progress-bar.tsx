@@ -13,7 +13,7 @@ export function ProgressBar({
   value: number | null
   label: string
   className?: string
-  tone?: 'accent' | 'done'
+  tone?: 'accent' | 'done' | 'fire'
 }) {
   const percent = value === null ? null : Math.max(0, Math.min(100, value))
   return (
@@ -35,7 +35,11 @@ export function ProgressBar({
         <span
           className={clsx(
             'block h-full rounded-full transition-[width] duration-300 ease-out',
-            tone === 'done' ? 'bg-[#7dffb3]' : 'bg-orbit-accent',
+            tone === 'done'
+              ? 'bg-[#7dffb3]'
+              : tone === 'fire'
+                ? 'orbit-progress-fire'
+                : 'bg-orbit-accent',
           )}
           style={{ width: `${percent}%` }}
         />

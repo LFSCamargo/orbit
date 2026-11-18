@@ -1,4 +1,5 @@
 import { clsx } from 'clsx'
+import orbitLogo from '@/assets/brand/orbit-logo.png'
 import { mediaSrc } from '@/lib/media'
 import type { ThemeBranding } from '@/themes/types'
 
@@ -33,28 +34,27 @@ export function ThemeBrand({
   return (
     <span
       className={clsx(
-        'theme-brand inline-flex items-center leading-none tracking-[0.1em] text-white',
+        'theme-brand inline-flex items-center leading-none',
+        '[&_img]:block [&_img]:w-auto [&_img]:max-w-full [&_img]:object-contain',
         preview
-          ? 'absolute inset-4 min-h-0 max-w-full whitespace-normal text-[22px] leading-snug'
-          : 'min-h-11 max-w-[min(34vw,420px)] whitespace-nowrap text-[36px] max-[900px]:max-w-[24vw] max-[900px]:text-base',
+          ? 'absolute inset-4 min-h-0 max-w-full [&_img]:h-9'
+          : 'min-h-11 max-w-[min(34vw,420px)] max-[900px]:max-w-[24vw] [&_img]:h-10 max-[900px]:[&_img]:h-7',
         className,
       )}
       data-brand="orbit"
-      aria-label="Orbit"
     >
-      ORBIT
+      <img src={orbitLogo} alt="Orbit" />
     </span>
   )
 }
 
-/** Small uppercase Orbit signature shown at the bottom of branded themes. */
+/** Small Orbit signature shown at the bottom of branded themes. */
 export function OrbitMark() {
   return (
-    <span
-      className="theme-orbit-mark text-[9px] font-semibold tracking-[0.42em] text-white/35"
-      aria-label="Orbit"
-    >
-      ORBIT
-    </span>
+    <img
+      src={orbitLogo}
+      alt="Orbit"
+      className="theme-orbit-mark block h-4 w-auto opacity-50"
+    />
   )
 }

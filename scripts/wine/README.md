@@ -48,6 +48,9 @@ LaunchServices.
 Play prefers the newest installed Orbit Wine that passes the probe in
 `runtimes/wine_capabilities.rs` (MSync plus the D3DMetal hook in `ntdll.so`).
 
-The compiled distribution is not committed (LGPL: ship object files or a public
-`orbit-wine` repo with the matching tarball). GPTK DMGs stay user-imported;
-they are not redistributed.
+The compiled distribution is not committed. It ships as a GitHub release of the
+Orbit repository (`orbit-wine-v<version>`), built and published by the
+`Orbit Wine` workflow; `package.sh <built version dir> <out dir>` makes the
+archive, the sources tarball (LGPL) and `orbit-wine.json` that onboarding
+reads. See docs/CONTAINERS.md#distribution. GPTK DMGs stay user-imported; they
+are not redistributed.

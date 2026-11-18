@@ -9,6 +9,7 @@ import {
   setSetting,
   testMetadataApiKeys,
 } from '@/lib/tauri'
+import { buttonClass } from '@/components/ui/button'
 
 interface KeyFieldProps {
   id: string
@@ -57,7 +58,7 @@ function KeyField({
               noScale
               noRing
               onClick={() => void onSave()}
-              className="rounded-card bg-orbit-accent px-4 py-2 text-sm font-semibold text-orbit-canvas"
+              className={buttonClass({ shape: 'card' })}
             >
               Save key
             </Focusable>

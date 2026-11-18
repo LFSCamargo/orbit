@@ -12,6 +12,7 @@ import type { ArtworkSlot } from '@/lib/artwork'
 import { normalizeArtwork } from '@/lib/artworkApi'
 import { enrichGameMetadata, getGame } from '@/lib/tauri'
 import type { Game } from '@/types/game'
+import { buttonClass } from '@/components/ui/button'
 
 export function GameMetadataEditor({
   game,
@@ -191,7 +192,11 @@ export function GameMetadataEditor({
           noScale
           disabled={!dirty || !title.trim() || busy || !persisted}
           onClick={() => void save()}
-          className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-6 py-3 font-semibold text-orbit-canvas disabled:cursor-wait disabled:opacity-40"
+          className={buttonClass({
+            size: 'lg',
+            shape: 'card',
+            className: 'disabled:cursor-wait',
+          })}
         >
           <Save className="h-4 w-4" />
           {saving ? 'Saving…' : 'Save changes'}

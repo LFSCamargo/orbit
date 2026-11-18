@@ -81,6 +81,18 @@ export async function showOrbitWindow(): Promise<void> {
   return run('show_orbit_window')
 }
 
+/** Minimizes Orbit's window to the Dock; no-op in the browser build. */
+export async function minimizeOrbitWindow(): Promise<void> {
+  if (!isTauriRuntime()) return
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  await getCurrentWindow().minimize()
+}
+
+/** Opens (or brings back) the Xbox Cloud Gaming window, xbox.com/play. */
+export async function openXboxCloud(): Promise<void> {
+  return run('open_xbox_cloud')
+}
+
 export async function quitOrbit(): Promise<void> {
   return run('quit_orbit')
 }
@@ -163,7 +175,10 @@ export async function getSetting<T = unknown>(key: string): Promise<T | null> {
 
 export async function setSetting(key: string, value: unknown): Promise<void> {
   if (!isTauriRuntime()) {
-    localStorage.setItem(`orbit.${key}`, String(value))
+    localStorage.setItem(
+      `orbit.${key}`,
+      typeof value === 'string' ? value : JSON.stringify(value),
+    )
   }
   return run('set_setting', { key, value })
 }
@@ -255,6 +270,22 @@ export async function installWindowsCompatibility(
   const channel = new Channel<import('@/types/runtime').SetupProgress>()
   channel.onmessage = onProgress
   return run('install_windows_compatibility', { onProgress: channel })
+}
+
+export async function orbitWineStatus(): Promise<
+  import('@/types/runtime').OrbitWineStatus | null
+> {
+  return run('orbit_wine_status')
+}
+
+/** Installs the newest published Orbit Wine and prepares its base container. */
+export async function installOrbitWine(
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<import('@/types/runtime').OrbitWineStatus> {
+  if (!isTauriRuntime()) return run('install_orbit_wine')
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('install_orbit_wine', { onProgress: channel })
 }
 
 export async function installComponent(

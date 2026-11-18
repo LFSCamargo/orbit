@@ -66,8 +66,9 @@ test.describe('Themes', () => {
     const brand = page.locator('.macos-brand .theme-brand')
     await expect(brand).toHaveAttribute('data-brand', 'image')
     await expect(brand.getByRole('img', { name: 'Devil May Cry 5' })).toBeVisible()
-    await expect(page.locator('.macos-console-footer .theme-orbit-mark')).toHaveText(
-      'ORBIT',
+    await expect(page.locator('.macos-console-footer .theme-orbit-mark')).toHaveAttribute(
+      'alt',
+      'Orbit',
     )
     await expect(brand.locator('img')).toHaveJSProperty('complete', true)
     expect(

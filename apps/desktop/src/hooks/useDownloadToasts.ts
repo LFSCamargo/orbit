@@ -9,6 +9,7 @@ import {
   type DownloadTask,
 } from '@/lib/downloadProgress'
 import { notify } from '@/lib/toast'
+import { onboardingVisible } from '@/modules/onboarding/lib/onboardingVisibility'
 
 type Snapshot = {
   tasks: Record<string, DownloadTask>
@@ -70,11 +71,15 @@ export function syncDownloadToasts(previous: Snapshot, next: Snapshot) {
   }
 }
 
-/** Mount once: mirrors every tracked download as a toast. */
+/** Mount once: mirrors every tracked download as a toast. Quiet during
+ * onboarding, whose Setup step already shows each install.
+ */
 export function useDownloadToasts() {
   useEffect(
     () =>
-      useDownloadStore.subscribe((next, previous) => syncDownloadToasts(previous, next)),
+      useDownloadStore.subscribe((next, previous) => {
+        if (!onboardingVisible()) syncDownloadToasts(previous, next)
+      }),
     [],
   )
 }

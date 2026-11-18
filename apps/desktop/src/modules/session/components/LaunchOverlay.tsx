@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { clsx } from 'clsx'
 import { X } from 'lucide-react'
+import orbitLogo from '@/assets/brand/orbit-logo.png'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGame } from '@/hooks/useGames'
 import { useModalFocus } from '@/hooks/useModalFocus'
@@ -66,9 +67,11 @@ export function LaunchOverlay() {
           className="to-black/72 pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent"
           aria-hidden
         />
-        <p className="text-white/88 absolute left-5 top-4 z-[1] text-[13px] font-medium tracking-tight drop-shadow-[0_1px_8px_#000a]">
-          Orbit
-        </p>
+        <img
+          src={orbitLogo}
+          alt="Orbit"
+          className="absolute left-5 top-4 z-[1] h-5 w-auto drop-shadow-[0_1px_8px_#000a]"
+        />
         <div className="launch-overlay-close-host absolute right-3.5 top-3 z-[1]">
           <Focusable
             focusId={closeId}

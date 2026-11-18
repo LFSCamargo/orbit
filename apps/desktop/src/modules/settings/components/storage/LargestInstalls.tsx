@@ -1,4 +1,5 @@
-import { ChevronRight, Gamepad2 } from 'lucide-react'
+import { ChevronRight, Gamepad2, HardDrive } from 'lucide-react'
+import { EmptyState } from '@/components/feedback/EmptyState'
 import { Focusable } from '@/components/focus/Focusable'
 import { formatBytes } from '@/lib/format'
 import { useUiStore } from '@/stores/ui.store'
@@ -13,9 +14,12 @@ export function LargestInstalls({ items }: { items: StorageItem[] }) {
     <section className={STORAGE_CARD} aria-label="Largest installs">
       <p className={KICKER}>LARGEST INSTALLS</p>
       {games.length === 0 && (
-        <p className="m-0 text-[13px] text-orbit-muted">
-          No games installed by Orbit yet.
-        </p>
+        <EmptyState
+          size="sm"
+          icon={HardDrive}
+          title="No games installed by Orbit yet"
+          description="Games Orbit installs, and the space they take, appear here."
+        />
       )}
       <ul className="m-0 grid list-none gap-1 p-0">
         {games.map((game, index) => (

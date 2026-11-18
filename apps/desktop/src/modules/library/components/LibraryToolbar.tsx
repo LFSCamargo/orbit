@@ -79,7 +79,8 @@ export function LibraryToolbar({
         <LiquidGlass
           surface="toolbar"
           radius={999}
-          className="library-search min-w-[min(100%,18rem)] flex-1 p-[5px] focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-3px] focus-within:outline-orbit-focus"
+          className="library-search min-w-[min(100%,18rem)] flex-1 p-[5px]"
+          data-focus-ring="container"
         >
           <label className="flex min-h-12 items-center gap-3 rounded-[999px] px-4">
             <Search size={18} className="shrink-0 text-white/45" />

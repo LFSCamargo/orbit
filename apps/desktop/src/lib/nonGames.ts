@@ -7,7 +7,12 @@ import type { SteamOwnedGame } from '@/types/steam'
 const NON_GAME_APP_IDS = new Set([
   '920490', // Driver Booster for Steam
 ])
-const NON_GAME_TITLES = [/\bdriver booster\b/i]
+const NON_GAME_TITLES = [
+  /\bdriver booster\b/i,
+  // Launchers and stores the Mac app scan picks up; exact names only, so
+  // games such as "Steamworld Dig" stay.
+  /^(gamehub|orbit|steam|riot client|cliente riot)$/i,
+]
 
 export function isNonGameApp(appId: string | null | undefined, title: string): boolean {
   return (

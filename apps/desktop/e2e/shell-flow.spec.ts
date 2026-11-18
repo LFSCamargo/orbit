@@ -68,11 +68,9 @@ test.describe('Liquid Glass shell flows', () => {
   test('section keys focus page content instead of the navigation', async ({ page }) => {
     for (let i = 0; i < 3; i += 1) await page.keyboard.press('BracketRight')
     await expect(page.locator('[data-screen="settings"]')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('[data-focus-id="settings-fullscreen"]')).toHaveAttribute(
-      'data-focused',
-      'true',
-      { timeout: 5000 },
-    )
+    await expect(
+      page.locator('[data-focus-id="settings-pref-scanOnStartup"]'),
+    ).toHaveAttribute('data-focused', 'true', { timeout: 5000 })
     await expect(page.locator('[data-focus-id="macos-nav-settings"]')).toHaveAttribute(
       'data-focused',
       'false',

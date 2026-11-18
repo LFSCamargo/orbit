@@ -3,8 +3,7 @@ import { scanSteamInstallations } from '@/lib/tauri'
 import { useState } from 'react'
 import { FolderOpen, HardDrive, Plus, RefreshCw, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { useSteamWindows } from '@/hooks/useSteamWindows'
-import { open } from '@/lib/dialog'
+import { useLibraryPaths } from '@/hooks/useLibraryPaths'
 import {
   LIBRARY_CARD,
   LIBRARY_CARD_DESC,
@@ -34,37 +33,14 @@ export function SteamLibraryFolders() {
       ])
     },
   })
-  const { preferences, savePreferences } = useSteamWindows()
+  const library = useLibraryPaths({ onAdded: () => scan.mutateAsync() })
   const [path, setPath] = useState('')
-  const [pickerError, setPickerError] = useState('')
-  const current = preferences.data
-  const paths = current?.additionalLibraryPaths ?? []
-  const busy = savePreferences.isPending || scan.isPending || !current
+  const { paths } = library
+  const busy = library.saving || scan.isPending || !library.loaded
   const add = async (value: string) => {
-    if (!current || !value.trim()) return
-    try {
-      await savePreferences.mutateAsync({
-        ...current,
-        additionalLibraryPaths: [...new Set([...paths, value.trim()])],
-      })
-      setPath('')
-      await scan.mutateAsync()
-    } catch {
-      /* The mutation error is displayed below; keep the draft. */
-    }
+    if (await library.add(value)) setPath('')
   }
-  const browse = async () => {
-    setPickerError('')
-    try {
-      const selected = await open({
-        directory: true,
-        title: 'Choose an existing Steam library folder',
-      })
-      if (typeof selected === 'string') await add(selected)
-    } catch {
-      setPickerError('Could not open the folder picker. Paste a folder path instead.')
-    }
-  }
+  const browse = () => library.browse('Choose an existing Steam library folder')
   return (
     <section className={LIBRARY_CARD} aria-labelledby="steam-library-folders-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -126,13 +102,7 @@ export function SteamLibraryFolders() {
                 disabled={busy}
                 aria-label={`Remove library folder ${value}`}
                 className="grid size-8 shrink-0 place-items-center rounded-full text-orbit-muted transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
-                onClick={() => {
-                  if (current)
-                    savePreferences.mutate({
-                      ...current,
-                      additionalLibraryPaths: paths.filter((item) => item !== value),
-                    })
-                }}
+                onClick={() => library.remove(value)}
               >
                 <X size={16} aria-hidden />
               </Focusable>
@@ -204,17 +174,14 @@ export function SteamLibraryFolders() {
           Scan installed games to retry.
         </p>
       )}
-      {preferences.isError && (
+      {library.loadError && (
         <p role="alert" className="m-0 text-[13px] text-rose-300">
           Could not load library folder preferences.
         </p>
       )}
-      {(savePreferences.isError || pickerError) && (
+      {library.error && (
         <p role="alert" className="m-0 text-[13px] text-rose-300">
-          {pickerError ||
-            (savePreferences.error instanceof Error
-              ? savePreferences.error.message
-              : String(savePreferences.error))}
+          {library.error}
         </p>
       )}
     </section>

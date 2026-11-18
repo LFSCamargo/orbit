@@ -6,10 +6,8 @@ import { SettingsInsights } from './components/SettingsInsights'
 import type { ComponentType, ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { HardDrive, LayoutGrid, Library, Monitor, Palette, Play } from 'lucide-react'
-import { Focusable } from '@/components/focus/Focusable'
 import { SteamIcon } from '@/components/game/SourceIcon'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
-import { useFullscreen } from '@/hooks/useFullscreen'
 import { useUiStore, type SettingsTab } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import { ApiKeySettings } from '@/modules/settings/components/ApiKeySettings'
@@ -21,6 +19,9 @@ import { SteamLibraryFolders } from '@/modules/settings/components/SteamLibraryF
 import { SteamSettings } from '@/modules/settings/components/SteamSettings'
 import { StorageSettings } from '@/modules/settings/components/storage/StorageSettings'
 import { ThemeSettings } from '@/modules/settings/components/ThemeSettings'
+import { GeneralPreferences } from '@/modules/settings/components/GeneralPreferences'
+import { XboxCloudSettings } from '@/modules/settings/components/XboxCloudSettings'
+import { XBOX_CLOUD_ENABLED } from '@/lib/features'
 
 const TABS: {
   id: SettingsTab
@@ -71,14 +72,9 @@ const PANEL_H2 =
   '!m-0 !text-[clamp(22px,2vw,28px)] !font-semibold !leading-none !tracking-[-0.035em] !normal-case'
 const SETTINGS_VIEW = 'settings-view flex flex-col gap-7'
 const CARD_INNER = 'settings-card-inner !px-0 !py-5'
-const ROW_TITLE = 'settings-row-title font-display text-[17px] font-semibold text-white'
-const ROW_DESC = 'settings-row-desc mt-1 max-w-[520px] text-[13px] text-[#ffffffa0]'
-const SETTINGS_ROW =
-  'settings-row flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between'
 
 export function SettingsPage() {
   const controllerRoot = useSettingsControllerFocus()
-  const { fullscreen, setFullscreen } = useFullscreen()
   const activeTab = useUiStore((s) => s.settingsTab)
   const setActiveTab = useUiStore((s) => s.setSettingsTab)
   const tab = TABS.some((item) => item.id === activeTab) ? activeTab : 'general'
@@ -122,26 +118,13 @@ export function SettingsPage() {
                     </div>
                   </div>
                   <SettingsCard>
-                    <div className={SETTINGS_ROW}>
-                      <div>
-                        <h3 className={ROW_TITLE}>Fullscreen</h3>
-                        <p className={ROW_DESC}>
-                          Borderless fullscreen suited for couch play. Toggle with F11.
-                        </p>
-                      </div>
-                      <Focusable
-                        focusId="settings-fullscreen"
-                        group="settings"
-                        order={0}
-                        noScale
-                        noRing
-                        onClick={() => setFullscreen(!fullscreen)}
-                        className="rounded-card bg-orbit-accent px-5 py-2.5 text-sm font-semibold text-orbit-canvas"
-                      >
-                        {fullscreen ? 'On' : 'Off'}
-                      </Focusable>
-                    </div>
+                    <GeneralPreferences />
                   </SettingsCard>
+                  {XBOX_CLOUD_ENABLED && (
+                    <SettingsCard>
+                      <XboxCloudSettings />
+                    </SettingsCard>
+                  )}
                 </section>
                 <section className={PANEL}>
                   <div className={PANEL_HEADER}>

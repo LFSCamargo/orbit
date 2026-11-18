@@ -21,6 +21,7 @@ import type { CompatibilitySettings } from '@/types/runtime'
 
 import { Switch } from '@/components/ui/switch'
 import { useGraphicsDraft } from '@/stores/graphics-draft.store'
+import { buttonClass } from '@/components/ui/button'
 
 const field = clsx(
   'settings-row-control w-full min-w-0 rounded-lg !border-0 !bg-transparent !p-2 text-right text-sm text-orbit-foreground/80 !shadow-none',
@@ -46,7 +47,7 @@ const COMPONENT_ICON =
   'compatibility-component-icon grid size-[34px] place-items-center rounded-xl border border-orbit-border bg-orbit-foreground/[0.04] text-orbit-foreground/70'
 
 const PRIMARY_BUTTON = clsx(
-  'settings-primary-button whitespace-nowrap rounded-[10px] bg-orbit-accent px-3.5 py-2.5 text-xs font-semibold text-orbit-canvas',
+  buttonClass({ size: 'sm', className: 'settings-primary-button' }),
   'disabled:cursor-not-allowed disabled:opacity-40',
 )
 

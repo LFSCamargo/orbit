@@ -10,6 +10,7 @@ import {
   setEditableLaunchPath,
 } from '@/lib/launchConfig'
 import { RuntimeDiagnostics } from './RuntimeDiagnostics'
+import { buttonClass } from '@/components/ui/button'
 
 /** An explicit editor draft: query refreshes never replace user input. */
 export function GameSettingsPanel({ game }: { game: Game }) {
@@ -78,7 +79,11 @@ export function GameSettingsPanel({ game }: { game: Game }) {
           order={1}
           disabled={!dirty || update.isPending}
           onClick={() => void save()}
-          className="rounded-xl bg-orbit-accent px-4 py-3 font-semibold text-orbit-canvas disabled:cursor-wait disabled:opacity-40"
+          className={buttonClass({
+            size: 'lg',
+            shape: 'card',
+            className: 'disabled:cursor-wait',
+          })}
         >
           {update.isPending ? 'Saving…' : 'Save settings'}
         </Focusable>

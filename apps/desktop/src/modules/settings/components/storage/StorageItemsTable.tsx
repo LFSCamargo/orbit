@@ -1,5 +1,6 @@
+import { FolderOpen, Search, SearchX, Trash2 } from 'lucide-react'
+import { EmptyState } from '@/components/feedback/EmptyState'
 import { clsx } from 'clsx'
-import { FolderOpen, Search, Trash2 } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { formatBytes, formatRelativeDate } from '@/lib/format'
 import type { StorageItem } from '@/types/storage'
@@ -127,8 +128,13 @@ export function StorageItemsTable({
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-6 text-center text-orbit-muted">
-                Nothing matches.
+              <td colSpan={6} className="py-3">
+                <EmptyState
+                  size="sm"
+                  icon={SearchX}
+                  title="Nothing matches"
+                  description="Try another name or category."
+                />
               </td>
             </tr>
           )}

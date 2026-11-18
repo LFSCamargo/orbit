@@ -122,6 +122,23 @@ fn drop_outside_links(prefix: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Whether the base container for this Wine (the prefix new game containers
+/// are cloned from) is ready.
+pub fn base_ready(runtimes_root: &Path, runtime: &WineInstallation) -> bool {
+    directory(&root_in(runtimes_root), "bases", &wine_key(runtime))
+        .is_ok_and(|base| prefix_ready(&base.join("prefix")))
+}
+
+/// Prepares the base container for this Wine ahead of a game's first Play.
+pub fn prepare_base(
+    runtimes_root: &Path,
+    runtime: &WineInstallation,
+    cancel: &AtomicBool,
+    log: &Arc<Mutex<fs::File>>,
+) -> Result<PathBuf> {
+    resolve_source(&root_in(runtimes_root), runtime, None, cancel, log)
+}
+
 fn resolve_source(
     root: &Path,
     runtime: &WineInstallation,

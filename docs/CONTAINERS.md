@@ -63,6 +63,23 @@ because a blob from another Wine build does not unwrap. A Wine change keeps the
 prefix (saves included) and detaches system DLL links that leave it, since
 Wine's prefix update writes through them. GPTK packages remain user-imported.
 
+### Distribution
+
+Orbit Wine is published as GitHub releases of this repository, tagged
+`orbit-wine-v<version>` and never marked latest. The `Orbit Wine` workflow
+(`.github/workflows/orbit-wine.yml`, run by hand) builds it with
+`scripts/wine/build.sh` and packages it with `scripts/wine/package.sh`:
+`orbit-wine-<version>.tar.zst` (`<version>/Orbit Wine.app`), the matching
+sources and patches (LGPL), and `orbit-wine.json` (version, url, size, SHA-256,
+sources). Onboarding's Setup installs it (`runtimes/orbit_wine.rs`): it reads
+the newest release from the GitHub API, accepts only this repository's release
+downloads with a SHA-256 under GitHub's 2 GB asset limit, streams the archive to
+disk while hashing, unpacks it with the component store's safe extractor into
+`components/orbit-wine/<version>/`, rejects a build that fails the
+CrossOver-class probe, registers the bundle with LaunchServices, then prepares
+the base container (`containers::prepare_base`) so a game's first Play only
+clones it.
+
 Orbit Wine is installed as `Orbit Wine.app` (games category) so macOS Game Mode
 boosts the game: every Wine process runs from `Contents/MacOS/wine`.
 

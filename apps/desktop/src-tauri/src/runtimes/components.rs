@@ -21,7 +21,7 @@ const MANIFEST_FILE: &str = "orbit-component.json";
 const MAX_DOWNLOAD_BYTES: u64 = 1_000_000_000;
 const DOWNLOAD_TIMEOUT_SECS: u64 = 900;
 
-static INSTALL_LOCK: Mutex<()> = Mutex::new(());
+pub(crate) static INSTALL_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -297,7 +297,7 @@ fn extract_tar_gz(bytes: &[u8], destination: &Path) -> Result<()> {
     extract_archive_entries(&mut archive, destination)
 }
 
-fn extract_archive_entries<R: Read>(
+pub(crate) fn extract_archive_entries<R: Read>(
     archive: &mut tar::Archive<R>,
     destination: &Path,
 ) -> Result<()> {
@@ -691,7 +691,7 @@ fn is_supported_archive(url: &str) -> bool {
     archive_kind(name).is_ok()
 }
 
-fn finalize_staging(staging: &Path, target: &Path) -> Result<PathBuf> {
+pub(crate) fn finalize_staging(staging: &Path, target: &Path) -> Result<PathBuf> {
     // If the staging directory contains exactly one subdirectory, use it as the
     // install root; otherwise use the staging directory itself.
     let entries: Vec<_> = fs::read_dir(staging)

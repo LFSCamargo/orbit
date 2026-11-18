@@ -1,8 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
-import { CARD } from './styles'
+import { EmptyState } from '@/components/feedback/EmptyState'
 
+/** The downloads sidebar's empty sections, in the app's shared empty state. */
 export function EmptyCard({
-  icon: Icon,
+  icon,
   title,
   copy,
 }: {
@@ -10,13 +11,5 @@ export function EmptyCard({
   title: string
   copy: string
 }) {
-  return (
-    <div className={`${CARD} justify-items-center py-6 text-center`}>
-      <span className="grid size-10 place-items-center rounded-full bg-white/10">
-        <Icon size={18} aria-hidden />
-      </span>
-      <strong className="text-[14px] font-[650]">{title}</strong>
-      <p className="m-0 max-w-[30ch] text-[12px] leading-[1.45] text-white/60">{copy}</p>
-    </div>
-  )
+  return <EmptyState size="sm" icon={icon} title={title} description={copy} />
 }

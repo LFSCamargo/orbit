@@ -97,7 +97,10 @@ it('shows a landscape banner with hero art, logo, and the current caption', () =
   expect(screen.getByRole('button', { name: 'Cancel launch' }).parentElement).toHaveClass(
     'launch-overlay-close-host',
   )
-  expect(screen.getByText('Orbit')).toBeInTheDocument()
+  expect(screen.getByRole('img', { name: 'Orbit' })).toHaveAttribute(
+    'src',
+    expect.stringContaining('orbit-logo'),
+  )
   expect(screen.getByRole('status')).toHaveTextContent(
     'Preparing the Windows environment…',
   )

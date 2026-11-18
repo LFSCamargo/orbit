@@ -18,6 +18,22 @@ const LIKELY_GAME_HINTS: &[&str] = &[
     "shooter",
 ];
 
+/// Launchers and stores that match the game hints ("steam", "game") but are
+/// not games. Exact names (any language) or bundle ids, so a game such as
+/// "Steamworld Dig" is still found.
+const LAUNCHER_NAMES: &[&str] = &["steam", "orbit", "gamehub", "riot client", "cliente riot"];
+const LAUNCHER_BUNDLE_IDS: &[&str] = &[
+    "com.valvesoftware.steam",
+    "com.orbit.launcher",
+    "com.riotgames.riotgames.riotclient",
+];
+
+fn is_launcher(name: &str, bundle_id: &str) -> bool {
+    let name = name.trim().to_lowercase();
+    let bundle_id = bundle_id.to_lowercase();
+    LAUNCHER_NAMES.contains(&name.as_str()) || LAUNCHER_BUNDLE_IDS.contains(&bundle_id.as_str())
+}
+
 pub struct NativeAppImporter {
     extra_paths: Vec<PathBuf>,
     include_all: bool,
@@ -69,6 +85,9 @@ fn inspect_app(path: &Path, include_all: bool) -> Option<ImportedGame> {
     let name = path.file_stem()?.to_string_lossy().to_string();
     let bundle_id = read_plist_value(path, "CFBundleIdentifier").unwrap_or_default();
     let category = read_plist_value(path, "LSApplicationCategoryType").unwrap_or_default();
+    if is_launcher(&name, &bundle_id) {
+        return None;
+    }
 
     let looks_like_game = category.to_lowercase().contains("game")
         || LIKELY_GAME_HINTS.iter().any(|hint| {
@@ -126,5 +145,38 @@ fn read_plist_value(app_path: &Path, key: &str) -> Option<String> {
         None
     } else {
         Some(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launchers_and_stores_are_not_games() {
+        for (name, bundle_id) in [
+            ("Steam", "com.valvesoftware.steam"),
+            ("Orbit", "com.orbit.launcher"),
+            ("GameHub", ""),
+            ("Riot Client", "com.riotgames.RiotGames.RiotClient"),
+            ("Cliente Riot", "com.riotgames.RiotGames.RiotClient"),
+        ] {
+            assert!(is_launcher(name, bundle_id), "{name}");
+        }
+    }
+
+    #[test]
+    fn games_with_launcher_words_in_their_names_stay() {
+        for (name, bundle_id) in [
+            (
+                "League of Legends",
+                "com.riotgames.LeagueofLegends.LeagueClient",
+            ),
+            ("Steamworld Dig", "com.imageform.steamworlddig"),
+            ("Orbital Strike", ""),
+            ("Chess", "com.apple.Chess"),
+        ] {
+            assert!(!is_launcher(name, bundle_id), "{name}");
+        }
     }
 }

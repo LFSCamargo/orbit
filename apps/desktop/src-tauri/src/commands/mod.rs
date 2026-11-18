@@ -11,6 +11,7 @@ pub mod switch_library;
 pub mod themes;
 pub mod uninstall;
 pub mod window;
+pub mod xbox_cloud;
 
 pub mod steam;
 pub mod steam_windows;

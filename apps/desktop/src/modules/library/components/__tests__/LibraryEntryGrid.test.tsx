@@ -91,3 +91,13 @@ it('shows how much disk an installed game takes', () => {
   expect(screen.getByText('Installed · 60 GB')).toBeTruthy()
   expect(screen.getByText('Not installed')).toBeTruthy()
 })
+
+it('loads Steam library art progressively, 2x on Retina', () => {
+  const { container } = render(<LibraryEntryGrid entries={[entry]} />)
+  const art = container.querySelector('.library-entry-art .progressive-artwork')
+  expect(art).toBeTruthy()
+  expect(art?.querySelector('img[alt="Bombergrounds: Reborn"]')).toHaveAttribute(
+    'srcset',
+    expect.stringContaining('library_600x900_2x.jpg 2x'),
+  )
+})

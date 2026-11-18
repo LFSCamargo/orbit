@@ -62,7 +62,7 @@ test('controller rings cover every page and survive section changes', async ({
   for (const [screen, id] of [
     ['library', 'library-sort-alphabetical'],
     ['search', 'search-clear'],
-    ['settings', 'settings-fullscreen'],
+    ['settings', 'settings-pref-scanOnStartup'],
     ['home', 'macos-play'],
   ]) {
     await pressPad(page, 5)

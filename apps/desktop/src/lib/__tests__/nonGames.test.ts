@@ -41,3 +41,17 @@ it('drops non-game apps from the owned Steam list', () => {
   ] as SteamOwnedGame[]
   expect(withoutNonGameOwned(owned).map((game) => game.appId)).toEqual(['883710'])
 })
+
+it('hides launchers and stores that the Mac app scan picks up', () => {
+  for (const title of ['GameHub', 'Orbit', 'Steam', 'Riot Client', 'Cliente Riot']) {
+    expect(isNonGameApp(null, title), title).toBe(true)
+  }
+  for (const title of [
+    'League of Legends',
+    'Devil May Cry 5',
+    'Orbital Strike',
+    'Steamworld Dig',
+  ]) {
+    expect(isNonGameApp(null, title), title).toBe(false)
+  }
+})

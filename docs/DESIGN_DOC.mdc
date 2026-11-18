@@ -42,6 +42,7 @@ login window, snapshots the owned library, downloads one Windows depot at a
 time, and plays through the compatibility runtime.
 
 Commands: `windows_compatibility`, `install_windows_compatibility`,
+`orbit_wine_status`, `install_orbit_wine` (onboarding's Orbit Wine and its base container),
 `detect_runtimes`, `register_wine_runtime`, `runtime_diagnostics`,
 `component_views`, `set_component_view`,
 `cancel_game_launch`; existing `create_game`, `update_game`, `launch_game` and
@@ -87,6 +88,8 @@ Bulk “enrich entire library” jobs and Switch title-ID databases are deferred
 ## Screens (frontend routing)
 
 Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts`), not URL routes.
+
+Before any screen, a first run shows onboarding (Welcome → Setup → Account → Recommended → Scan Games → Home) in place of the shell; Settings → General replays it. See [ONBOARDING.md](ONBOARDING.md).
 
 | Screen | `AppScreen` | Purpose |
 | ------ | ----------- | ------- |
@@ -154,6 +157,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `set_window_fullscreen` | `fullscreen` | `void` | |
 | `hide_orbit_window` | — | `void` | During gameplay |
 | `show_orbit_window` | — | `void` | After session ends |
+| `open_xbox_cloud` | — | `void` | Opens or focuses the Xbox Cloud Gaming window (xbox.com/play, no IPC, navigation allowlist). Not reachable while Xbox Cloud Gaming is coming soon (`XBOX_CLOUD_ENABLED`). |
 
 ### Downloads, uninstall & storage
 
@@ -270,6 +274,7 @@ Ready vs Play: the UI enables Play when `signedIn` and the title is installed. R
 - React frontend: [docs/FRONTEND.mdc](FRONTEND.mdc)
 - Themes & UI: [docs/UI.mdc](UI.mdc)
 - Windows Steam roadmap: [docs/STEAM_WINDOWS.md](STEAM_WINDOWS.md)
+- First run: [docs/ONBOARDING.md](ONBOARDING.md)
 
 Library, Search, Home, and Details share one `LibraryEntry` identity. Owned Windows games through a local official Steam client are specified in [STEAM_WINDOWS.md](STEAM_WINDOWS.md). Sign-in opens Valve's Windows Steam client from Settings, then Orbit closes that Wine process and keeps the login. The Downloads sidebar lists in-progress transfers. That login is saved in `steam-windows` so later Play can seed each game container. Play clones an Orbit-owned Wine container, copies Steam files, and starts the game EXE with `SteamAppId` without waiting for silent `steam.exe`. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and [CONTAINERS.md](CONTAINERS.md).
 

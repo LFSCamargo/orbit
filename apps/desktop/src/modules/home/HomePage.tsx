@@ -11,6 +11,7 @@ import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
 import { fallbackHomeView, showFavoritesTab } from '@/lib/favoritesTab'
 import { useUiStore } from '@/stores/ui.store'
 import { useSessionStore } from '@/stores/session.store'
+import { buttonClass } from '@/components/ui/button'
 
 export function HomePage() {
   const view = useUiStore((s) => s.homeView)
@@ -64,7 +65,7 @@ export function HomePage() {
           order={0}
           noScale
           onClick={openAddGame}
-          className="mt-4 rounded-full bg-orbit-accent px-6 py-3 font-semibold text-orbit-canvas"
+          className={buttonClass({ size: 'lg', className: 'mt-4' })}
         >
           Import games
         </Focusable>

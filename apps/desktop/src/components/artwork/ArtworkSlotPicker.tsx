@@ -4,6 +4,7 @@ import { Focusable } from '@/components/focus/Focusable'
 import type { ArtworkSlot } from '@/lib/artwork'
 import { artworkPreview } from '@/lib/artwork'
 import { readArtworkFromPath } from '@/lib/artworkApi'
+import { buttonClass } from '@/components/ui/button'
 
 const SLOT_META: Record<
   ArtworkSlot,
@@ -94,7 +95,7 @@ export function ArtworkSlotPicker({
           noScale
           disabled={disabled}
           onClick={() => void pickFile()}
-          className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-3 py-2 text-sm font-semibold text-orbit-canvas"
+          className={buttonClass({ shape: 'card' })}
         >
           <ImagePlus className="h-4 w-4" />
           File

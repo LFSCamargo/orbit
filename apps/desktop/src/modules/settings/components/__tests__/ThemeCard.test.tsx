@@ -34,7 +34,11 @@ it('does not fall back to decoding an animated original when the catalog has no 
   const { container } = render(
     <ThemeCard theme={theme} active={false} order={0} onSelect={() => {}} />,
   )
-  expect(container.querySelectorAll('img')).toHaveLength(0)
+  const sources = [...container.querySelectorAll('img')].map((img) =>
+    img.getAttribute('src'),
+  )
+  expect(sources).not.toContain('/full/animated.gif')
+  expect(sources.every((src) => src?.includes('orbit-logo'))).toBe(true)
 })
 
 it('keeps the logo inside the artwork frame instead of competing with relative layout', () => {

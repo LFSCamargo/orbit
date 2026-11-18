@@ -10,6 +10,7 @@ import {
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import type { SwitchLibraryScan } from '@/types/switch'
+import { buttonClass } from '@/components/ui/button'
 
 export function SwitchLibraryPage() {
   const setScreen = useUiStore((s) => s.setScreen)
@@ -61,7 +62,7 @@ export function SwitchLibraryPage() {
           noScale
           disabled={busy}
           onClick={() => void refreshFromLibrary()}
-          className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-4 py-2 font-semibold text-orbit-canvas"
+          className={buttonClass({ shape: 'card' })}
         >
           <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
           {busy ? 'Scanning…' : 'Rescan from library'}

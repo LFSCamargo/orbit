@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { notify } from '@/lib/toast'
 import { ThemePage } from '@/themes/ThemePage'
 import type { GamePlatform, GameProvider, LaunchConfiguration } from '@/types/game'
+import { buttonClass } from '@/components/ui/button'
 
 type Step = 'source' | 'path' | 'details' | 'done'
 
@@ -232,7 +233,7 @@ export function AddGamePage() {
                   order={0}
                   disabled={busy}
                   onClick={() => void pickPath()}
-                  className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ size: 'lg', shape: 'card' })}
                 >
                   <FolderOpen className="h-4 w-4" />
                   {source.folder ? 'Choose folder' : 'Choose file'}
@@ -294,7 +295,7 @@ export function AddGamePage() {
                       !wineProfile.runtimePath)
                   }
                   onClick={() => void saveManual()}
-                  className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ size: 'lg', shape: 'card' })}
                 >
                   Add to library
                 </Focusable>
@@ -324,7 +325,7 @@ export function AddGamePage() {
                   group="add-done"
                   order={0}
                   onClick={() => setScreen('library')}
-                  className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ size: 'lg', shape: 'card' })}
                 >
                   Open library
                 </Focusable>

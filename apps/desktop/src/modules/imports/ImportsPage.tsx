@@ -3,6 +3,7 @@ import { Focusable } from '@/components/focus/Focusable'
 import { useImporters } from '@/hooks/useGames'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
+import { buttonClass } from '@/components/ui/button'
 
 const IMPORTERS = [
   {
@@ -63,7 +64,7 @@ export function ImportsSection() {
           noScale
           noRing
           onClick={openAddGame}
-          className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+          className={buttonClass({ size: 'lg', shape: 'card' })}
         >
           Add game journey
         </Focusable>

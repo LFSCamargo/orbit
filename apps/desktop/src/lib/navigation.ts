@@ -46,7 +46,7 @@ export function screenEntryFocusId(screen: AppScreen): string | null {
     case 'search':
       return 'search-clear'
     case 'settings':
-      return 'settings-fullscreen'
+      return 'settings-pref-scanOnStartup'
     case 'switch-library':
       return 'switch-library-scan'
     default:

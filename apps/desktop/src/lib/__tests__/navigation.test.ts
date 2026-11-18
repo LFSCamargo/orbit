@@ -63,7 +63,7 @@ describe('screenEntryFocusId', () => {
     expect(screenEntryFocusId('home')).toBe('macos-play')
     expect(screenEntryFocusId('library')).toBe('library-sort-alphabetical')
     expect(screenEntryFocusId('search')).toBe('search-clear')
-    expect(screenEntryFocusId('settings')).toBe('settings-fullscreen')
+    expect(screenEntryFocusId('settings')).toBe('settings-pref-scanOnStartup')
     expect(screenEntryFocusId('switch-library')).toBe('switch-library-scan')
   })
 

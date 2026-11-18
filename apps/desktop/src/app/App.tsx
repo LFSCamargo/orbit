@@ -24,6 +24,10 @@ import { useSteamClientEvents } from '@/hooks/useSteamClientEvents'
 import { useSteamLibraryEvents } from '@/hooks/useSteamLibraryEvents'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
+import { OnboardingFlow } from '@/modules/onboarding/OnboardingFlow'
+import { useOnboardingVisible } from '@/modules/onboarding/lib/onboardingVisibility'
+import { useRuntimeAutoUpdate } from './startup/useRuntimeAutoUpdate'
+import { useStartupScan } from './startup/useStartupScan'
 
 const pageTransition = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }
 
@@ -31,6 +35,7 @@ export function App() {
   const reduceMotion = useReducedMotion()
   const screen = useUiStore((s) => s.screen)
   const homeMenuOpen = useUiStore((s) => s.homeMenuOpen)
+  const onboarding = useOnboardingVisible()
   const { family } = useControllerNavigation()
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const { data: activeSession } = useActiveSessionQuery()
@@ -43,6 +48,8 @@ export function App() {
   useLaunchToasts()
   useSteamLibraryEvents()
   useSteamClientEvents()
+  useStartupScan()
+  useRuntimeAutoUpdate()
 
   useEffect(() => {
     setActiveSession(activeSession ?? null)
@@ -50,9 +57,14 @@ export function App() {
 
   return (
     <>
+      {/* Onboarding and the Home menu float over Orbit: the app stays visible
+          behind them but cannot be reached until they close. */}
       <div
-        className={homeMenuOpen ? 'pointer-events-none select-none' : undefined}
-        aria-hidden={homeMenuOpen}
+        className={
+          homeMenuOpen || onboarding ? 'pointer-events-none select-none' : undefined
+        }
+        aria-hidden={homeMenuOpen || onboarding}
+        inert={onboarding}
       >
         <AppShell family={family}>
           <AnimatePresence mode="wait">
@@ -80,6 +92,7 @@ export function App() {
           </AnimatePresence>
         </AppShell>
       </div>
+      {onboarding && <OnboardingFlow />}
       <HomeMenuModal family={family} />
       {!activeSession && <LaunchOverlay />}
       <OrbitToaster />

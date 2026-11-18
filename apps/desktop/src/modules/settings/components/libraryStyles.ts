@@ -7,5 +7,5 @@ export const LIBRARY_CARD_DESC =
 const BUTTON =
   'inline-flex min-h-[40px] shrink-0 items-center justify-center gap-2 rounded-full px-4 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45'
 export const QUIET_BUTTON = `${BUTTON} bg-white/[0.08] text-white hover:bg-white/[0.14]`
-export const PRIMARY_BUTTON = `${BUTTON} bg-orbit-accent text-orbit-canvas hover:brightness-110`
+export const PRIMARY_BUTTON = `${BUTTON} orbit-btn-fire`
 export const DANGER_BUTTON = `${BUTTON} bg-rose-500/[0.12] text-rose-300 ring-1 ring-inset ring-rose-400/25 hover:bg-rose-500/20`

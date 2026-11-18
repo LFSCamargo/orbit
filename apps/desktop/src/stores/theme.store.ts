@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { lightAccent } from '@/lib/themeColors'
 import {
   BUILT_IN_THEMES,
   DEFAULT_THEME_ID,
@@ -39,6 +40,7 @@ function applyCssVars(theme: ThemeDefinition) {
   root.style.setProperty('--orbit-foreground', colors.foreground)
   root.style.setProperty('--orbit-muted', colors.muted)
   root.style.setProperty('--orbit-accent', colors.accent)
+  root.style.setProperty('--orbit-accent-light', lightAccent(colors.accent))
   root.style.setProperty('--orbit-focus', colors.focus)
   root.style.setProperty('--orbit-border', colors.border)
   root.style.setProperty('--orbit-radius', theme.radius ?? '1.5rem')

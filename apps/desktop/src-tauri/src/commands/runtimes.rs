@@ -36,6 +36,42 @@ pub async fn install_windows_compatibility(
     .map_err(|e| e.to_string())?
 }
 
+/// The installed Orbit Wine Play uses, and whether its base container is ready.
+#[tauri::command]
+pub async fn orbit_wine_status() -> Result<Option<runtimes::orbit_wine::OrbitWineStatus>, String> {
+    tauri::async_runtime::spawn_blocking(|| runtimes::orbit_wine::status(&runtimes::root()))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Installs the newest published Orbit Wine and prepares its base container,
+/// then makes it the default Wine.
+#[tauri::command]
+pub async fn install_orbit_wine(
+    app: AppHandle,
+    on_progress: Channel<runtimes::manager::SetupProgress>,
+) -> Result<runtimes::orbit_wine::OrbitWineStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = runtimes::root();
+        let release = runtimes::orbit_wine::latest_release().map_err(|e| format!("{e:#}"))?;
+        runtimes::orbit_wine::install(&root, &release, |update| {
+            let _ = on_progress.send(update);
+        })
+        .map_err(|e| format!("{e:#}"))?;
+        let status = runtimes::orbit_wine::prepare_container(&root, |update| {
+            let _ = on_progress.send(update);
+        })
+        .map_err(|e| format!("{e:#}"))?;
+        app.state::<AppState>()
+            .repo
+            .set_setting("wine-runtime", &serde_json::json!(status.path))
+            .map_err(|e| e.to_string())?;
+        Ok(status)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn compatibility_catalog(
     force_refresh: bool,

@@ -40,8 +40,8 @@ Game themes use the same packaged logos and backgrounds in the picker and shell,
 
 ### Branding
 
-- `ThemeBrand` (`src/themes/ThemeBrand.tsx`) renders the header logo: `logoImage` → `<img>`, otherwise the `ORBIT` product wordmark. Legacy text-logo fields are not rendered. Layout uses Tailwind on the component.
-- Branded themes (`isBrandedTheme`) render `OrbitMark` — a small uppercase `ORBIT` centered in the footer. The footer's left text is `branding.tagline`.
+- `ThemeBrand` (`src/themes/ThemeBrand.tsx`) renders the header logo: `logoImage` → `<img>`, otherwise the Orbit logo image (`src/assets/brand/orbit-logo.png`, a trimmed copy of the landing logo). Legacy text-logo fields are not rendered. Layout uses Tailwind on the component.
+- Branded themes (`isBrandedTheme`) render `OrbitMark` — a small, dimmed Orbit logo image centered in the footer. The footer's left text is `branding.tagline`.
 - `branding.wallpaper` is exposed as `--theme-wallpaper`; the shell sets `data-wallpaper="true"` and paints it behind non-home routes. Home gives the selected game’s hero and cover priority. The theme wallpaper appears while browsing other tabs and when the game has no usable artwork.
 
 ### Theme studio
@@ -82,9 +82,37 @@ background: rgb(var(--orbit-canvas));
 | `focus` | `--orbit-focus` | Controller focus ring |
 | `border` | `--orbit-border` | Subtle borders |
 
-Applied at runtime by `theme.store.ts` when user selects a theme. Shell, wallpaper, hero/detail scrims, and primary buttons read these variables through Tailwind `orbit-*` utilities, using the fixed Liquid Glass palette. Stored legacy palettes are not applied. The store also sets `html[data-theme]`, `html[data-theme-kind]`, and `--theme-wallpaper`.
+Applied at runtime by `theme.store.ts` when user selects a theme. Shell, wallpaper, hero/detail scrims, focus rings and progress read these variables through Tailwind `orbit-*` utilities. Game and custom themes bring their own palette (`GAME_PALETTES` in `themes/catalog.ts`, `ThemeColorsEditor`); stored legacy palettes are not applied. The store also sets `html[data-theme]`, `html[data-theme-kind]`, and `--theme-wallpaper`.
 
-Liquid Glass retains its original palette: canvas `15 20 38`, surface `28 35 56`, panel `32 42 68`, foreground `246 248 255`, muted `171 186 211`, accent `134 193 255`, focus `189 222 255`, border `73 90 124`. The warm redesign and platform presets were reverted.
+Liquid Glass palette (`LIQUID_GLASS_COLORS`): canvas `6 6 8`, surface `14 14 16`, panel `22 22 25`, foreground `250 250 249`, muted `150 150 158`, accent `249 115 22` (orange), focus `250 204 21` (gold), border `58 58 62`.
+
+### Onboarding visuals
+
+Onboarding (see `docs/ONBOARDING.md`) is an overlay card floating over Orbit, which stays visible behind it, dimmed and blurred. The card (28px radius) carries its own scenery: warm corner glows, stars, and a planet whose orange rim glows along the horizon near the bottom with a sun bloom behind it. Header: Orbit logo left, minimize and ✕ right, five step dots centred below (done = white check, current = orange ring with glow, upcoming = hollow; lines turn orange as steps finish). Steps: a large centred title and subtitle, glass panels with hairline rows (`ONBOARDING_PANEL`, `PANEL_ROWS`), orange checkboxes and switches, badges (orange "Recommended"/"Default", quiet otherwise), a ← Back pill on the left and the orange primary with → on the right (centred on Welcome). Progress bars use `tone="fire"`; Scan shows a fan of covers beside its checklist.
+
+### Empty states and loading
+
+Every "nothing here" and "no results" uses `EmptyState` (`components/feedback/EmptyState.tsx`): a glass panel with a softly glowing, floating icon, a clear title, a hint at what to do, and optional actions that fix it (the first is the fire primary). `size="sm"` fits tables and small cards. Used by Library and Search (no matches: Clear search, plus Show all games when a view or platform narrows it; empty library: Add games, Library settings), Steam not-installed games, the Home shelf (per view, with Open library), Storage (items table, largest installs) and the Downloads sidebar.
+
+Library loading placeholders (`LibrarySkeleton`) match the cards: the same grid (`LIBRARY_ENTRY_GRID` in `library/components/libraryGrid.ts`, shared with `LibraryEntryGrid`), the same glass card shell, square art, a title line and a status line with an icon dot, under a section-heading placeholder, all with the artwork loader's shimmer sweep.
+
+### Focus ring
+
+`Focusable`'s ring (`ring-2` in the focus colour) and the switch's ring sit flush on the control. They used to have a 2 px offset filled with the canvas colour, which showed as a dark border between the control and its ring.
+
+### Downloads sidebar
+
+`SteamActivitySidebar` is a floating liquid glass sheet (inset 12 px from the window edge, 28 px radius, clear tint, bright top and left rims, light pooling inside the top edge) that springs in from the right over a blur overlay. The overlay fades in while its backdrop blur ramps to 14 px (animated through `--scrim-blur`, which both `backdrop-filter` spellings read, so older WebKit works); clicking it closes the sheet. The header, sections and network card cascade in, empty-state icons bob gently (`float-soft`), and the cards and rows share the glass control material. Sections, top to bottom: Network (live transfer speed), Downloads, Queue, and "Played, not installed" (up to five games you have played that have no available installation, most played first, then by recency; Steam ones install into the queue, others open their details). Each section has a one-line description under its title (`SectionHeading`). Closing plays the exit through `DrawerProvider`'s `AnimatePresence` (drawers without an exit animation, such as Theme Studio, still close at once). Reduced motion swaps the spring, blur ramp and cascade for short fades and stops the bob.
+
+### Home shelf filters
+
+The Recent / Installed / Favorites filters and "View library" sit over the hero artwork, so their text is full white with a soft shadow (`0 1px 2px` at 55% black), and the filter group has a light dark tint, keeping them legible over bright images. The selected filter adds a white glass fill.
+
+### Buttons and the fire gradient
+
+Primary actions use the brand fire gradient in every theme: `--orbit-fire-from` `255 84 62` (red-orange), `--orbit-fire-via` `255 120 48` (orange), `--orbit-fire-to` `255 164 72` (amber), with a white label (`--orbit-fire-ink`) and a faint text shadow. These live on `:root` in `styles/index.css` and `theme.store.ts` never writes them, so game themes cannot recolour a primary button. `.orbit-btn-fire` is liquid glass tinted with the gradient: slightly translucent over a light backdrop blur and saturation lift, a gloss over the upper half, a bright top rim, a hairline inner edge and a darker lower edge. Hover brightens it, press scales it down, and disabled (busy states such as "Installing…") is neutral glass; reduced motion drops the press. There is no moving sheen. `.orbit-progress-fire` is the matching progress fill (`ProgressBar tone="fire"`).
+
+Build buttons with `buttonClass({ variant, size, shape })` from `components/ui/button.tsx` (pass it to `Focusable`'s `className`) or the plain `Button`: `primary` (fire), `secondary` (glass), `quiet`, `danger`; sizes `sm`/`md`/`lg`; `pill` or `card` corners. Selected tabs, chips, switches and the home white Play pill are not primary buttons and keep their own styles.
 
 ### Theme JSON shape
 
@@ -147,7 +175,7 @@ CSS variables: `--orbit-font-display`, `--orbit-font-body`.
 │                                             │
 │  Hero copy + Jump back in / Details         │  selected game's hero art full-bleed
 │  Your next escape ─► tile tile tile tile    │
-│ tagline            ORBIT          A Select  │  footer (ORBIT mark on branded themes)
+│ tagline            Orbit.         A Select  │  footer (Orbit logo on branded themes)
 └─────────────────────────────────────────────┘
 ```
 
@@ -166,9 +194,9 @@ Shared components in `src/components/`:
 | Component | Path | Notes |
 | --------- | ---- | ----- |
 | `AppShell` | `layout/AppShell.tsx` | Renders `PlayingScreen` during a session, otherwise `MacosShell` |
-| `LaunchOverlay` | `session/components/LaunchOverlay.tsx` | Centered landscape banner of hero art with the game's horizontal Steam wordmark (`logo.png`) when the stored logo slot is empty, Orbit wordmark, a circular close control, and a single startup caption; no card border or inset focus rectangle |
+| `LaunchOverlay` | `session/components/LaunchOverlay.tsx` | Centered landscape banner of hero art with the game's horizontal Steam wordmark (`logo.png`) when the stored logo slot is empty, the Orbit logo image, a circular close control, and a single startup caption; no card border or inset focus rectangle |
 | `DrawerProvider` | `layout/DrawerProvider.tsx` | Root-level drawer host; portals overlays above transformed pages |
-| `LiquidGlass` | `ui/liquid-glass.tsx` | Refractive glass with a frosted WebKit fallback. The artwork supplies the tint, with a darker shade over brighter images. |
+| `LiquidGlass` | `ui/liquid-glass.tsx` | Clear glass whose refraction is built from light (WebKit cannot displace a backdrop): light blur, a lens-like saturation and brightness lift, a bright rim, light pooling inside the top edge and a darker lower edge. |
 
 ### Data
 
@@ -266,6 +294,8 @@ Reduce Motion replaces artwork immediately after it decodes. Reduce Transparency
 
 ### Portable glass materials
 
+Orbit runs only in macOS's WebKit view, where SVG displacement filters in `backdrop-filter` (the usual web refraction) are unsupported, so refraction is built from light rather than distortion. The shared material (`styles/index.css`): a 5 px panel / 7 px toolbar / 4 px control blur (`glass_material.rs`), `saturate(1.7–2)` with a small brightness and contrast lift, a 42% surface tint, a diagonal specular gradient, a bright 1 px top rim with softer side and bottom rims, light pooling inside the top edge and a darker lower inner edge. The grain tile is no longer drawn. Reduce Transparency and high contrast still switch to opaque surfaces.
+
 The shared `LiquidGlass` surface uses 12px toolbar blur and 8px panel blur,
 subtle edge highlights, and the existing artwork-aware tint. Rust renders one
 64×64 PNG grain tile on a blocking worker and caches it for the process. A single
@@ -355,7 +385,13 @@ game is marked favorite. Each uses a bounded backend
 query so installed and favorite games are not limited to the first all-games page.
 The carousel spans the full viewport with no horizontal padding; the hero and
 section header retain their gutters. It retains native horizontal scrolling and
-Focusable buttons. Screen edges fade artwork through a CSS mask only while the
+Focusable buttons. A vertical mouse wheel over the shelf scrolls it sideways
+(`useShelfWheel`) on a slightly underdamped spring (`lib/shelfSpring.ts`): it
+overshoots by about a tenth, settles in about half a second, and lands on the
+next card in the wheel's direction 120 ms after the wheel stops, so a small nudge
+moves one card and a big flick several (instant when reduced motion is
+requested; a controller focus scroll or native swipe takes over). Horizontal wheels and trackpad swipes stay native, and a finite
+shelf at its edge lets the wheel scroll the page. Screen edges fade artwork through a CSS mask only while the
 strip overflows (left, right, or both); a short shelf stays fully visible.
 Shelves with seven or fewer tiles stay inset with the hero gutter, keep labels
 fully visible, and reset horizontal scroll when switching from a looping shelf.

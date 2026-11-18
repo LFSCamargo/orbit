@@ -1,3 +1,10 @@
+/** An installed Orbit Wine, and whether its base container is ready. */
+export interface OrbitWineStatus {
+  version: string
+  path: string
+  containerReady: boolean
+}
+
 export interface WineInstallation {
   path: string
   serverPath: string

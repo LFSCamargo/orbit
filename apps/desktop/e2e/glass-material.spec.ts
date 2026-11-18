@@ -7,7 +7,7 @@ test('translucent panels and controls share Liquid Glass without SVG refraction'
   const navigation = page.locator('.macos-navigation')
   await expect(navigation).toHaveAttribute('data-glass-mode', 'simple')
   const filter = await navigation.evaluate((el) => getComputedStyle(el).backdropFilter)
-  expect(filter).toMatch(/blur\(12px\)/)
+  expect(filter).toMatch(/blur\(7px\)/)
   expect(filter).not.toContain('url(')
   await expect(page.locator('.orbit-glass svg filter, .orbit-glass canvas')).toHaveCount(
     0,
@@ -17,7 +17,7 @@ test('translucent panels and controls share Liquid Glass without SVG refraction'
   await expect(cards.first()).toBeVisible()
   for (const card of await cards.all()) {
     expect(await card.evaluate((el) => getComputedStyle(el).backdropFilter)).toContain(
-      'blur(8px)',
+      'blur(5px)',
     )
   }
   await expect(page.locator('[data-focus-id="library-refresh"]')).toHaveClass(
