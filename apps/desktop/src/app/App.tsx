@@ -17,6 +17,9 @@ import { useSessionEvents } from '@/hooks/useSessionEvents'
 import { useLaunchProgress } from '@/hooks/useLaunchProgress'
 import { LaunchOverlay } from '@/modules/session/components/LaunchOverlay'
 import { useSteamDownloadEvents } from '@/hooks/useSteamDownloadEvents'
+import { useDownloadToasts } from '@/hooks/useDownloadToasts'
+import { useLaunchToasts } from '@/hooks/useLaunchToasts'
+import { OrbitToaster } from '@/components/feedback/OrbitToaster'
 import { useSteamClientEvents } from '@/hooks/useSteamClientEvents'
 import { useSteamLibraryEvents } from '@/hooks/useSteamLibraryEvents'
 import { useSessionStore } from '@/stores/session.store'
@@ -36,6 +39,8 @@ export function App() {
   useSessionEvents()
   useLaunchProgress()
   useSteamDownloadEvents()
+  useDownloadToasts()
+  useLaunchToasts()
   useSteamLibraryEvents()
   useSteamClientEvents()
 
@@ -77,6 +82,7 @@ export function App() {
       </div>
       <HomeMenuModal family={family} />
       {!activeSession && <LaunchOverlay />}
+      <OrbitToaster />
     </>
   )
 }

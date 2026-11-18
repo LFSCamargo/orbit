@@ -1,6 +1,6 @@
+import { notify } from '@/lib/toast'
 import { open } from '@/lib/dialog'
 import { useGameActions } from '@/hooks/useGames'
-import { useUiStore } from '@/stores/ui.store'
 import type { ScanResult } from '@/types/game'
 
 export type ImportScanId = 'steam' | 'native' | 'astris'
@@ -50,7 +50,6 @@ export function formatScanMessage(
 
 /** Shared Steam / native / Astris scan branches used by Add Game and Imports. */
 export function useImportScan() {
-  const setImportToast = useUiStore((s) => s.setImportToast)
   const { scanSteam, scanAstris, scanNative } = useGameActions()
 
   const runScan = async (
@@ -79,11 +78,11 @@ export function useImportScan() {
       }
 
       const message = formatScanMessage(id, result, messageStyle)
-      if (toast) setImportToast(message)
+      if (toast) notify.success({ title: 'Library updated', message })
       return { result, message }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      if (toast) setImportToast(message)
+      if (toast) notify.error({ title: 'Import failed', message })
       throw error
     }
   }

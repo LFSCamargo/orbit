@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { useQueryClient } from '@tanstack/react-query'
 import { isTauriRuntime } from '@/lib/devMockApi'
-import { useUiStore } from '@/stores/ui.store'
+import { notify } from '@/lib/toast'
 
 /** Invalidate shared catalog views once the native background job saves details. */
 export function useSteamLibraryEvents() {
@@ -21,7 +21,7 @@ export function useSteamLibraryEvents() {
       }
     }).then(attach)
     void listen<string>('steam-library-error', ({ payload }) => {
-      useUiStore.getState().setImportToast(payload)
+      notify.warning({ title: 'Steam library', message: payload })
     }).then(attach)
     return () => {
       active = false

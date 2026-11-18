@@ -1,4 +1,4 @@
-import { useUiStore } from '@/stores/ui.store'
+import { notify } from '@/lib/toast'
 import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import type { GameSession } from '@/types/game'
@@ -36,7 +36,7 @@ export function useSessionEvents() {
               .getState()
               .fail(launch.gameId, launch.step, event.payload.message)
           } else if (!launch) {
-            useUiStore.getState().setImportToast(event.payload.message)
+            notify.error({ title: 'The game stopped', message: event.payload.message })
           }
           void queryClient.invalidateQueries({ queryKey: ['active-session'] })
         }),

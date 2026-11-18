@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
+vi.mock('@/lib/toast', () => ({ notify: { error: vi.fn() } }))
+import { notify } from '@/lib/toast'
 import { SteamQrModal } from '../SteamQrModal'
-import { useUiStore } from '@/stores/ui.store'
 
 import type { SteamQrPoll } from '@/types/steam'
 
@@ -57,7 +58,6 @@ function show({
 afterEach(() => {
   cleanup()
   vi.resetAllMocks()
-  useUiStore.getState().setImportToast(null)
 })
 
 it('shows an Orbit QR code instead of opening a Steam window', async () => {
@@ -112,5 +112,8 @@ it('dismisses Cancel and reports cleanup errors outside the modal', async () => 
   api.cancel.mockRejectedValue(new Error("Steam's sign-in could not be cancelled"))
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   await waitFor(() => expect(view.onClose).toHaveBeenCalledOnce())
-  expect(useUiStore.getState().importToast).toBe("Steam's sign-in could not be cancelled")
+  expect(notify.error).toHaveBeenCalledWith({
+    title: 'Steam sign-in',
+    message: "Steam's sign-in could not be cancelled",
+  })
 })

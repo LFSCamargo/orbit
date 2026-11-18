@@ -110,9 +110,15 @@ test('component rows expose a per-row install action and honest preview errors',
   await expect(install).toBeVisible()
   await expect(install).toContainText('Install')
   await install.click()
-  await expect(page.getByRole('alert')).toContainText(
-    'Managed downloads require the Orbit desktop app',
-  )
+  // The row shows the inline preview error; the global failure toast may
+  // mirror the same message, so assert either alert carries it rather than
+  // requiring a single element.
+  await expect(
+    page
+      .getByRole('alert')
+      .filter({ hasText: 'Managed downloads require the Orbit desktop app' })
+      .first(),
+  ).toBeVisible()
   await expect(page.locator('[data-focus-id="runtime-install-wine"]')).toContainText(
     'Retry',
   )

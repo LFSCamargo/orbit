@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
 import { useImporters } from '@/hooks/useGames'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
@@ -26,7 +25,6 @@ const IMPORTERS = [
 export function ImportsSection() {
   const openAddGame = useUiStore((s) => s.openAddGame)
   const setScreen = useUiStore((s) => s.setScreen)
-  const importToast = useUiStore((s) => s.importToast)
   const { data: statuses = [] } = useImporters()
   const { runScan } = useImportScan()
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -70,19 +68,6 @@ export function ImportsSection() {
           Add game journey
         </Focusable>
       </div>
-
-      <AnimatePresence>
-        {importToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="orbit-glass-control mt-5 rounded-card bg-orbit-accent/15 px-4 py-3 text-sm text-orbit-accent ring-1 ring-orbit-accent/30"
-          >
-            {importToast}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <Focusable
         focusId="imports-switch-library"

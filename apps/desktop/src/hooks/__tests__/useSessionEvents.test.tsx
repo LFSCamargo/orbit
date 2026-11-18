@@ -1,9 +1,10 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
+vi.mock('@/lib/toast', () => ({ notify: { error: vi.fn() } }))
+import { notify } from '@/lib/toast'
 import type { ReactNode } from 'react'
 import { useSessionEvents } from '../useSessionEvents'
-import { useUiStore } from '@/stores/ui.store'
 const callbacks = vi.hoisted(
   () => new Map<string, (event: { payload: { message: string } }) => void>(),
 )
@@ -29,5 +30,8 @@ it('shows runtime errors in the existing toast instead of losing them in the con
       payload: { message: 'Windows game exited with code 7.' },
     }),
   )
-  expect(useUiStore.getState().importToast).toBe('Windows game exited with code 7.')
+  expect(notify.error).toHaveBeenCalledWith({
+    title: 'The game stopped',
+    message: 'Windows game exited with code 7.',
+  })
 })

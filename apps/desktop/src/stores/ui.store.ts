@@ -26,7 +26,6 @@ interface UiState {
   lastControllerActivityAt: number
   libraryFilters: LibraryFilters
   searchQuery: string
-  importToast: string | null
   homeMenuOpen: boolean
   settingsTab: SettingsTab
   libraryView: 'installed' | 'all' | 'favorites'
@@ -51,7 +50,6 @@ interface UiState {
   markMouseActivity: () => void
   setLibraryFilters: (patch: Partial<LibraryFilters>) => void
   setSearchQuery: (query: string) => void
-  setImportToast: (message: string | null) => void
   openHomeMenu: () => void
   closeHomeMenu: () => void
   toggleHomeMenu: () => void
@@ -79,7 +77,6 @@ export const useUiStore = create<UiState>((set) => ({
   lastControllerActivityAt: 0,
   libraryFilters: defaultFilters,
   searchQuery: '',
-  importToast: null,
   homeMenuOpen: false,
   settingsTab: 'general',
   libraryView: 'installed',
@@ -145,7 +142,6 @@ export const useUiStore = create<UiState>((set) => ({
       libraryFilters: { ...state.libraryFilters, ...patch },
     })),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
-  setImportToast: (message) => set({ importToast: message }),
   openHomeMenu: () => set({ homeMenuOpen: true }),
   closeHomeMenu: () => set({ homeMenuOpen: false }),
   toggleHomeMenu: () => set((state) => ({ homeMenuOpen: !state.homeMenuOpen })),

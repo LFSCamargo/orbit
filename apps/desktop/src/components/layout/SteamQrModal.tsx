@@ -1,3 +1,4 @@
+import { notify } from '@/lib/toast'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -9,7 +10,6 @@ import {
 } from '@/lib/tauri'
 import type { SteamQrPoll } from '@/types/steam'
 import { useModalFocus } from '@/hooks/useModalFocus'
-import { useUiStore } from '@/stores/ui.store'
 
 /** Orbit-drawn Steam QR. Valve's auth API supplies the challenge. No Steam window. */
 export function SteamQrModal({
@@ -60,9 +60,10 @@ export function SteamQrModal({
     try {
       await cancelSteamWindowsSignIn()
     } catch (cause) {
-      useUiStore
-        .getState()
-        .setImportToast(cause instanceof Error ? cause.message : String(cause))
+      notify.error({
+        title: 'Steam sign-in',
+        message: cause instanceof Error ? cause.message : String(cause),
+      })
     } finally {
       setClosing(false)
       onClose()

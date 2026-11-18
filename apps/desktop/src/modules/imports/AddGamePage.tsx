@@ -3,13 +3,13 @@ import type { WineProfile } from '@/types/runtime'
 import { useEffect, useMemo, useState } from 'react'
 import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive } from 'lucide-react'
+import { Check, FolderOpen, Gamepad2, HardDrive } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { focusManager } from '@/controllers/FocusManager'
 import { useGameActions } from '@/hooks/useGames'
-import { backTarget } from '@/lib/navigation'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
+import { notify } from '@/lib/toast'
 import { ThemePage } from '@/themes/ThemePage'
 import type { GamePlatform, GameProvider, LaunchConfiguration } from '@/types/game'
 
@@ -49,10 +49,7 @@ const SOURCES: Array<{
 ]
 
 export function AddGamePage() {
-  const screen = useUiStore((s) => s.screen)
-  const previousScreen = useUiStore((s) => s.previousScreen)
   const setScreen = useUiStore((s) => s.setScreen)
-  const setImportToast = useUiStore((s) => s.setImportToast)
   const { create } = useGameActions()
   const { runScan } = useImportScan()
 
@@ -172,7 +169,7 @@ export function AddGamePage() {
 
   const finish = (message: string) => {
     setStatus(message)
-    setImportToast(message)
+    notify.success({ title: message })
     setStep('done')
   }
 
