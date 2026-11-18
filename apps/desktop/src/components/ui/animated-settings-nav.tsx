@@ -3,7 +3,7 @@
 import { useId } from 'react'
 import { clsx } from 'clsx'
 import { motion, useReducedMotion } from 'framer-motion'
-import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { Focusable } from '@/components/focus/Focusable'
 
 export function AnimatedSettingsNav<T extends string>({
@@ -11,7 +11,12 @@ export function AnimatedSettingsNav<T extends string>({
   value,
   onChange,
 }: {
-  items: { id: T; label: string; icon: LucideIcon }[]
+  /** Lucide icons or any icon taking `size` and `className`, e.g. a brand logo. */
+  items: {
+    id: T
+    label: string
+    icon: ComponentType<{ size?: number; className?: string }>
+  }[]
   value: T
   onChange: (value: T) => void
 }) {

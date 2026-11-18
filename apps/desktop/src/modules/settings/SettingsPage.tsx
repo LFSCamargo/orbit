@@ -3,10 +3,11 @@ import { AnimatedSettingsNav } from '@/components/ui/animated-settings-nav'
 import { CompatibilityGlobalSettings } from './components/CompatibilityGlobalSettings'
 import { RuntimeSettings } from './components/RuntimeSettings'
 import { SettingsInsights } from './components/SettingsInsights'
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { clsx } from 'clsx'
-import { LayoutGrid, Library, Palette, Play, Monitor, Gamepad2 } from 'lucide-react'
+import { LayoutGrid, Library, Monitor, Palette, Play } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { SteamIcon } from '@/components/game/SourceIcon'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { useUiStore, type SettingsTab } from '@/stores/ui.store'
@@ -17,11 +18,15 @@ import { SteamLibraryFolders } from '@/modules/settings/components/SteamLibraryF
 import { SteamSettings } from '@/modules/settings/components/SteamSettings'
 import { ThemeSettings } from '@/modules/settings/components/ThemeSettings'
 
-const TABS: { id: SettingsTab; label: string; icon: typeof LayoutGrid }[] = [
+const TABS: {
+  id: SettingsTab
+  label: string
+  icon: ComponentType<{ size?: number; className?: string }>
+}[] = [
   { id: 'general', label: 'General', icon: LayoutGrid },
   { id: 'themes', label: 'Themes', icon: Palette },
   { id: 'library', label: 'Library', icon: Library },
-  { id: 'steam', label: 'Steam', icon: Gamepad2 },
+  { id: 'steam', label: 'Steam', icon: SteamIcon },
   { id: 'graphics', label: 'Game graphics', icon: Monitor },
   { id: 'runtimes', label: 'Compatibility', icon: Play },
 ]

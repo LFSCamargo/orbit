@@ -4,6 +4,7 @@ import { focusManager } from '@/controllers/FocusManager'
 import type { Game } from '@/types/game'
 import type { LibraryEntry } from '@/types/library'
 import { LibraryEntryGrid } from '../LibraryEntryGrid'
+import { LibrarySections } from '../LibrarySections'
 
 const game: Game = {
   id: 'g1',
@@ -42,4 +43,30 @@ it('keeps the focus ring on the cover instead of boxing the title', () => {
   expect(card).toHaveClass('orbit-art-focus')
   expect(card).not.toHaveClass('overflow-hidden')
   expect(card.querySelector('.orbit-art-focus-target')).not.toBeNull()
+})
+
+const windowsEntry: LibraryEntry = {
+  ...entry,
+  id: 'steam:1593500',
+  steamAppId: '1593500',
+  game: { ...game, id: 'g2', title: 'God of War', platform: 'windows' },
+}
+
+it('marks each tile with the source it plays from', () => {
+  render(<LibraryEntryGrid entries={[entry, windowsEntry]} />)
+  expect(screen.getByRole('img', { name: 'Steam · Mac' })).toBeInTheDocument()
+  expect(screen.getByRole('img', { name: 'Steam · Windows' })).toBeInTheDocument()
+})
+
+it('splits the library into source sections only when sources are mixed', () => {
+  const { rerender } = render(<LibrarySections entries={[entry, windowsEntry]} />)
+  expect(screen.getByRole('heading', { name: /Steam · Mac/ })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: /Steam · Windows/ })).toBeInTheDocument()
+  const ids = screen
+    .getAllByRole('button')
+    .map((card) => card.getAttribute('data-focus-id'))
+  expect(new Set(ids).size).toBe(2)
+
+  rerender(<LibrarySections entries={[entry]} />)
+  expect(screen.queryByRole('heading', { name: /Steam · Mac/ })).toBeNull()
 })

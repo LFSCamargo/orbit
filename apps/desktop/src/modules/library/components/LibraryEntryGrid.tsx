@@ -2,8 +2,10 @@ import { useRef } from 'react'
 import { clsx } from 'clsx'
 import { Heart, HardDrive, Download } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { SourceIcon } from '@/components/game/SourceIcon'
 import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { gameTileFit, gameTileImage } from '@/lib/artwork'
+import { gameSource, SOURCE_LABELS } from '@/lib/gameSource'
 import { placeholderGradient } from '@/lib/format'
 import { useUiStore } from '@/stores/ui.store'
 import type { LibraryEntry } from '@/types/library'
@@ -12,9 +14,14 @@ import { useLibraryViewportFade } from '../hooks/useLibraryViewportFade'
 export function LibraryEntryGrid({
   entries,
   screen = 'library',
+  orderOffset = 0,
+  label = 'Games',
 }: {
   entries: LibraryEntry[]
   screen?: string
+  /** Focus order of the first tile, so sections continue one sequence. */
+  orderOffset?: number
+  label?: string
 }) {
   const open = useUiStore((s) => s.openGameDetails)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -28,10 +35,12 @@ export function LibraryEntryGrid({
         'grid grid-cols-[repeat(auto-fill,minmax(min(100%,190px),1fr))] gap-6 max-[1100px]:grid-cols-[repeat(auto-fill,minmax(165px,1fr))] max-[1100px]:gap-[18px]',
       )}
       role="list"
-      aria-label="Games"
+      aria-label={label}
     >
-      {entries.map((entry, order) => {
+      {entries.map((entry, index) => {
+        const order = orderOffset + index
         const available = entry.installations.some((i) => i.available)
+        const source = gameSource(entry.game)
         return (
           <div key={entry.id} role="listitem" className="min-w-0">
             <Focusable
@@ -62,6 +71,19 @@ export function LibraryEntryGrid({
                     roundedClassName="rounded-none"
                     className="aspect-square w-full"
                   />
+                  {source !== 'other' && (
+                    <span
+                      className={clsx(
+                        'library-source absolute left-3 top-3 grid size-[30px] place-items-center rounded-full bg-[rgb(20_22_28/0.72)] text-white/90 backdrop-blur-[12px]',
+                      )}
+                    >
+                      <SourceIcon
+                        source={source}
+                        size={15}
+                        label={SOURCE_LABELS[source]}
+                      />
+                    </span>
+                  )}
                   {entry.game.favorite && (
                     <span
                       className={clsx(

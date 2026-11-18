@@ -13,7 +13,7 @@ import {
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import { useSettingsControllerFocus } from '@/modules/settings/hooks/useSettingsControllerFocus'
-import { LibraryEntryGrid } from './components/LibraryEntryGrid'
+import { LibrarySections } from './components/LibrarySections'
 import { LibrarySkeleton } from './components/LibrarySkeleton'
 import { LibraryToolbar } from './components/LibraryToolbar'
 
@@ -164,7 +164,7 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
             </Focusable>
           </div>
         ) : entries.length ? (
-          <LibraryEntryGrid entries={entries} screen={search ? 'search' : 'library'} />
+          <LibrarySections entries={entries} screen={search ? 'search' : 'library'} />
         ) : (
           <div
             className={clsx(

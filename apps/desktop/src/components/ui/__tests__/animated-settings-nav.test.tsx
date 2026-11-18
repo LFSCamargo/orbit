@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LayoutGrid, Palette } from 'lucide-react'
 import { afterEach, expect, it } from 'vitest'
+import { SteamIcon } from '@/components/game/SourceIcon'
 import { AnimatedSettingsNav } from '../animated-settings-nav'
 
 afterEach(cleanup)
@@ -44,4 +45,19 @@ it('moves the filled indicator when another section is selected', () => {
       .getByRole('button', { name: 'General' })
       .querySelector('.settings-nav-indicator'),
   ).toBeNull()
+})
+
+it('renders brand logos such as Steam beside the label', () => {
+  render(
+    <AnimatedSettingsNav
+      items={[{ id: 'steam', label: 'Steam', icon: SteamIcon }]}
+      value="steam"
+      onChange={() => undefined}
+    />,
+  )
+  const steam = screen.getByRole('button', { name: 'Steam' })
+  const logo = steam.querySelector('svg')
+  expect(logo).toHaveAttribute('viewBox', '0 0 16 16')
+  expect(logo).toHaveAttribute('width', '18')
+  expect(logo).toHaveClass('text-orbit-accent')
 })

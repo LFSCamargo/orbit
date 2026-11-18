@@ -1,4 +1,4 @@
-import { Gamepad2 } from 'lucide-react'
+import { SteamIcon } from '@/components/game/SourceIcon'
 import { SteamWindowsAccount } from '@/components/layout/SteamWindowsAccount'
 import { Switch } from '@/components/ui/switch'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
@@ -24,7 +24,7 @@ export function SteamSettings() {
       <section className="settings-panel scroll-mt-6 [&+.settings-panel]:mt-7 [&+.settings-panel]:pt-2">
         <div className="settings-panel-header !mb-6 flex !flex-col !items-start !gap-2 !p-0 text-orbit-foreground">
           <div className="settings-panel-title flex items-center gap-2.5 [&>svg]:shrink-0 [&>svg]:text-orbit-accent">
-            <Gamepad2 size={20} />
+            <SteamIcon size={20} />
             <h2 className="!m-0 !text-[clamp(22px,2vw,28px)] !font-semibold !normal-case !leading-none !tracking-[-0.035em]">
               Steam
             </h2>
