@@ -5,6 +5,14 @@ then a cheap **per-game clone**. Graphics PE files are copied (never linked) int
 `drive_c/windows/system32`. Valve's Steam client is seeded from the signed-in
 `steam-windows` prefix and is never deleted.
 
+A container keeps the same client version as that seed. When its
+`package/*.installed` records differ (a container cloned from an older client),
+the client files are copied again from the seed, so `steam.exe`, its DLLs and
+`package/` match. Without this, a newer `steam.exe` started against an older
+`steamui.dll` stops with "steamui.dll not found", since Orbit holds Steam's
+self-updater off. `config/`, `userdata/`, `steamapps/`, logs, caches and sentry
+files stay.
+
 Code: `apps/desktop/src-tauri/src/runtimes/containers/`.
 On disk: `runtimes/containers/bases/<wine-key>/` and
 `runtimes/containers/games/<game-id>/`.

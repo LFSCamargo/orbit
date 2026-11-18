@@ -7,6 +7,19 @@ use super::layout::prefix_ready;
 
 const STEAM_REL: &str = "drive_c/Program Files (x86)/Steam";
 const LOGIN_FILES: &[&str] = &["config/loginusers.vdf", "config/config.vdf"];
+/// Account data that stays when the client files are refreshed.
+const USER_DATA: &[&str] = &[
+    "config",
+    "userdata",
+    "steamapps",
+    "logs",
+    "appcache",
+    "depotcache",
+    "dumps",
+    "htmlcache",
+];
+/// Valve's steam.exe, set aside while Orbit's agent stands in for it.
+const KEPT_STEAM_EXE: &str = "steam.exe.orbit-kept";
 
 pub fn steam_root(prefix: &Path) -> std::path::PathBuf {
     prefix.join(STEAM_REL)
@@ -34,6 +47,9 @@ pub fn seed(source_prefix: &Path, dest_prefix: &Path) -> Result<bool> {
         bail!("Container Steam directory cannot be a symlink");
     }
     if dest.join("steam.exe").is_file() {
+        if client_version(&source).is_some() && client_version(&source) != client_version(&dest) {
+            refresh_client(&source, &dest)?;
+        }
         refresh_login(source_prefix, dest_prefix)?;
         return Ok(true);
     }
@@ -43,6 +59,67 @@ pub fn seed(source_prefix: &Path, dest_prefix: &Path) -> Result<bool> {
     clone_tree(&source, &dest)?;
     refresh_login(source_prefix, dest_prefix)?;
     Ok(true)
+}
+
+/// Which Valve client a Steam folder holds: its `package/*.installed` records
+/// (name and build). None when the folder has no client records.
+pub fn client_version(steam: &Path) -> Option<Vec<(String, Vec<u8>)>> {
+    let mut records: Vec<(String, Vec<u8>)> = fs::read_dir(steam.join("package"))
+        .ok()?
+        .flatten()
+        .take(256)
+        .filter_map(|entry| {
+            let name = entry.file_name().to_str()?.to_string();
+            if !name.ends_with(".installed") {
+                return None;
+            }
+            Some((name, fs::read(entry.path()).ok()?))
+        })
+        .collect();
+    records.sort();
+    (!records.is_empty()).then_some(records)
+}
+
+/// Replaces the container's Valve client files with the signed-in client's,
+/// so steam.exe, its DLLs and `package/` are one version. Account data
+/// (`USER_DATA`), sentry files and dot-files stay. The source is only read.
+/// O(f) over the client's files.
+fn refresh_client(source: &Path, dest: &Path) -> Result<()> {
+    let agent_installed = dest.join(KEPT_STEAM_EXE).is_file();
+    for entry in fs::read_dir(source)?.take(4096) {
+        let entry = entry?;
+        let name = entry.file_name();
+        let Some(text) = name.to_str() else {
+            continue;
+        };
+        if text.starts_with('.') || text.starts_with("ssfn") || USER_DATA.contains(&text) {
+            continue;
+        }
+        let from = entry.path();
+        let kind = entry.file_type()?;
+        if kind.is_symlink() {
+            continue;
+        }
+        // While the agent runs as steam.exe, Valve's client waits beside it.
+        let to = if text == "steam.exe" && agent_installed {
+            dest.join(KEPT_STEAM_EXE)
+        } else {
+            dest.join(&name)
+        };
+        if let Ok(meta) = to.symlink_metadata() {
+            if meta.is_dir() {
+                fs::remove_dir_all(&to)?;
+            } else {
+                fs::remove_file(&to)?;
+            }
+        }
+        if kind.is_dir() {
+            clone_tree(&from, &to)?;
+        } else {
+            copy_file(&from, &to)?;
+        }
+    }
+    Ok(())
 }
 
 pub fn refresh_login(source_prefix: &Path, dest_prefix: &Path) -> Result<()> {
@@ -168,6 +245,63 @@ mod tests {
             fs::read(source.join(local)).unwrap(),
             b"\"ConnectCache\" fresh"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_container_with_an_older_client_gets_the_signed_in_client() {
+        // Regression: a container cloned from an older seed kept its January
+        // 32-bit client while Orbit linked in a newer steam.exe, and Steam
+        // stopped with "steamui.dll not found".
+        let root =
+            std::env::temp_dir().join(format!("orbit-steam-client-{}", uuid::Uuid::new_v4()));
+        let source = root.join("steam-windows/prefix");
+        let dest = root.join("containers/games/steam-312990/prefix");
+        for prefix in [&source, &dest] {
+            fs::create_dir_all(steam_root(prefix).join("package")).unwrap();
+            fs::create_dir_all(steam_root(prefix).join("config")).unwrap();
+            fs::create_dir_all(steam_root(prefix).join("bin")).unwrap();
+            fs::write(prefix.join("system.reg"), b"reg").unwrap();
+        }
+        let (src, dst) = (steam_root(&source), steam_root(&dest));
+        fs::write(src.join("steam.exe"), b"MZ-NEW").unwrap();
+        fs::write(src.join("steamui.dll"), b"UI-NEW").unwrap();
+        fs::write(src.join("bin/cef.dll"), b"CEF-NEW").unwrap();
+        fs::write(src.join("package/steam_client_win64.installed"), b"1794").unwrap();
+        fs::write(src.join("config/loginusers.vdf"), b"fresh login").unwrap();
+        fs::write(dst.join("steam.exe"), b"MZ-OLD").unwrap();
+        fs::write(dst.join("steamui.dll"), b"UI-OLD").unwrap();
+        fs::write(dst.join("bin/cef.dll"), b"CEF-OLD").unwrap();
+        fs::write(dst.join("package/steam_client_win32.installed"), b"1769").unwrap();
+        fs::create_dir_all(dst.join("steamapps/common/Game")).unwrap();
+        fs::write(dst.join("steamapps/appmanifest_312990.acf"), b"game").unwrap();
+        fs::create_dir_all(dst.join("userdata/1/312990/remote")).unwrap();
+        fs::write(dst.join("userdata/1/312990/remote/save.dat"), b"save").unwrap();
+
+        assert!(seed(&source, &dest).unwrap());
+        assert_eq!(fs::read(dst.join("steam.exe")).unwrap(), b"MZ-NEW");
+        assert_eq!(fs::read(dst.join("steamui.dll")).unwrap(), b"UI-NEW");
+        assert_eq!(fs::read(dst.join("bin/cef.dll")).unwrap(), b"CEF-NEW");
+        assert!(dst.join("package/steam_client_win64.installed").is_file());
+        assert!(!dst.join("package/steam_client_win32.installed").exists());
+        assert_eq!(
+            fs::read(dst.join("config/loginusers.vdf")).unwrap(),
+            b"fresh login"
+        );
+        assert_eq!(
+            fs::read(dst.join("steamapps/appmanifest_312990.acf")).unwrap(),
+            b"game"
+        );
+        assert_eq!(
+            fs::read(dst.join("userdata/1/312990/remote/save.dat")).unwrap(),
+            b"save"
+        );
+        assert_eq!(fs::read(src.join("steamui.dll")).unwrap(), b"UI-NEW");
+
+        // Same client version: nothing is copied again.
+        fs::write(dst.join("steamui.dll"), b"UI-LOCAL").unwrap();
+        assert!(seed(&source, &dest).unwrap());
+        assert_eq!(fs::read(dst.join("steamui.dll")).unwrap(), b"UI-LOCAL");
         let _ = fs::remove_dir_all(root);
     }
 }
