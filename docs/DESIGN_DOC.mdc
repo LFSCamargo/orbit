@@ -108,9 +108,10 @@ Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts
 
 | Input | Action |
 | ----- | ------ |
-| D-pad / left stick | Navigate (spatial focus) |
+| D-pad / left stick | Navigate (spatial focus); the stick steps once per flick, then repeats like a held D-pad |
+| Right stick | Scroll the pane that holds focus (an open dialog never scrolls the page behind it) |
 | A / Cross | Select / Confirm |
-| B / Circle | Back |
+| B / Circle | Cancel, one step at a time: leave a text field, close the newest overlay, then go back |
 | X / Square | Edit properties |
 | Y / Triangle | Add game journey |
 | L1 / R1 | Switch sections (home ↔ library ↔ search) |

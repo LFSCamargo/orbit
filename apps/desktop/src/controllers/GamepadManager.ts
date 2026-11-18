@@ -6,6 +6,7 @@ import {
   type ControllerFamily,
   type MappedButtons,
 } from './ControllerMapping'
+import { INITIAL_REPEAT_MS, REPEAT_MS, StickNavigator } from './stickNavigator'
 
 export type GamepadEventHandler = (
   action: ControllerAction,
@@ -25,12 +26,8 @@ interface ButtonState {
   lastRepeatAt: number | null
 }
 
-const DEADZONE = 0.45
 const SCROLL_DEADZONE = 0.14
 const SCROLL_SPEED_PX_PER_MS = 0.55
-const INITIAL_REPEAT_MS = 380
-const REPEAT_MS = 140
-const AXIS_COOLDOWN_MS = 180
 
 export interface GamepadScrollEvent {
   deltaX: number
@@ -49,7 +46,7 @@ export class GamepadManager {
   private handlers = new Set<GamepadEventHandler>()
   private scrollHandlers = new Set<GamepadScrollHandler>()
   private buttonStates = new Map<string, Map<number, ButtonState>>()
-  private axisCooldownUntil = 0
+  private sticks = new Map<string, StickNavigator>()
   private lastTickAt = 0
   private family: ControllerFamily = 'generic'
   private mapping: MappedButtons = mappingForFamily('generic')
@@ -216,13 +213,14 @@ export class GamepadManager {
         }
       })
 
-      if (now >= this.axisCooldownUntil) {
-        const axisAction = this.axisToAction(pad.axes[0] ?? 0, pad.axes[1] ?? 0)
-        if (axisAction) {
-          this.emit(axisAction, false)
-          this.axisCooldownUntil = now + AXIS_COOLDOWN_MS
-        }
+      // Left stick: one focus step per flick, then the D-pad's hold-to-repeat.
+      let stick = this.sticks.get(pad.id)
+      if (!stick) {
+        stick = new StickNavigator()
+        this.sticks.set(pad.id, stick)
       }
+      const step = stick.update(pad.axes[0] ?? 0, pad.axes[1] ?? 0, now)
+      if (step) this.emit(step.action, step.repeating)
 
       const scrollX = this.scrollAxisValue(pad.axes[2] ?? 0)
       const scrollY = this.scrollAxisValue(pad.axes[3] ?? 0)
@@ -243,14 +241,6 @@ export class GamepadManager {
     const normalized = (abs - SCROLL_DEADZONE) / (1 - SCROLL_DEADZONE)
     const curved = normalized ** 1.35
     return Math.sign(value) * curved
-  }
-
-  private axisToAction(x: number, y: number): ControllerAction | null {
-    if (Math.abs(x) < DEADZONE && Math.abs(y) < DEADZONE) return null
-    if (Math.abs(x) > Math.abs(y)) {
-      return x > 0 ? 'navigate-right' : 'navigate-left'
-    }
-    return y > 0 ? 'navigate-down' : 'navigate-up'
   }
 }
 

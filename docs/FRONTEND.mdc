@@ -141,6 +141,8 @@ src/
     useController.ts       # Hook wiring actions → UI store
     useNavigationInput.ts  # Root input modality for rings, including portals
     overlayStack.ts        # Back / Escape closes the topmost overlay first
+    stickNavigator.ts      # Left stick → D-pad steps with the D-pad's hold-to-repeat
+    leaveTextField.ts      # B leaves a focused text field before anything else
   hooks/
     useGames.ts            # TanStack Query wrappers for installed games
     useLibrary.ts          # Unified LibraryEntry list, detail, and title state
@@ -225,9 +227,15 @@ When adding a command: update Rust handler → register in `lib.rs` → add wrap
 3. `useControllerNavigation` dispatches actions to `ui.store` (navigate, confirm, back, edit, add, section switch).
 4. `FocusManager` maintains spatial focus graph; `Focusable` registers focusable elements.
 
+**Sticks.** The left stick steps focus once per flick (engage 0.5, release 0.32) and repeats after 380 ms, then every 140 ms, like a held D-pad. The right stick scrolls the innermost scrollable pane around the focused control (`lib/pageScroll.ts`), falling back to the page, and never past an open dialog. On macOS the native gilrs listener sends the right stick; its up-positive Y is flipped so up scrolls up.
+
+**Spatial focus.** Hidden, `inert` and `aria-hidden` controls are skipped. When the right stick has scrolled the focused control out of view, the next D-pad press continues from the first (down/right) or last (up/left) visible control in the same pane, not the fixed toolbar.
+
+**Accessibility.** Controller and arrow-key moves also move DOM focus (`focus({ preventScroll: true })`), so VoiceOver reads the control under the ring. Opening a dialog moves DOM focus into it, and closing it returns focus to the opener. Tab and VoiceOver focus update the ring through a `focusin` listener. Pointer hover and clicks move only the ring, never DOM focus, and a passive focus change never takes the caret out of a text field.
+
 Keyboard equivalents handled in the same hook.
 
-**Back closes overlays first.** `controllers/overlayStack.ts` keeps a stack of open overlays. A drawer, dialog or modal registers with `useOverlayBack(open, onClose)`. Controller B / Circle (`back`) and Escape close only the top entry; the screen changes only when no overlay is open. One capture-phase Escape listener serves every overlay (it yields to an open Radix Select list), so overlays do not add their own Escape handlers. Registered: downloads sidebar, `ConfirmDialog`, `ImageSearchModal`, `SteamClientSignIn`, the Home menu, and a failed launch banner (back never cancels a launch that is starting).
+**Back closes overlays first.** `controllers/overlayStack.ts` keeps a stack of open overlays. A drawer, dialog or modal registers with `useOverlayBack(open, onClose)`. Controller B / Circle (`back`) and Escape close only the top entry; the screen changes only when no overlay is open. Before that, controller B leaves a focused text field (`leaveTextField`). One capture-phase Escape listener serves every overlay (it yields to an open Radix Select list), so overlays do not add their own Escape handlers. Registered: downloads sidebar, `ConfirmDialog`, `ImageSearchModal`, `SteamClientSignIn`, the Home menu, and a failed launch banner (back never cancels a launch that is starting).
 
 ## Testing
 

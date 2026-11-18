@@ -78,7 +78,8 @@ export function Focusable({
         className,
       )}
       onClick={(event) => {
-        focusManager.setFocus(focusId, { scroll: false })
+        // A click already put DOM focus where the browser wants it.
+        focusManager.setFocus(focusId, { scroll: false, dom: false })
         onClick?.(event)
       }}
       {...rest}

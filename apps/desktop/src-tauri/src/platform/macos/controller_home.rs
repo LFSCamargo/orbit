@@ -116,8 +116,8 @@ fn dispatch_stick_scroll(gilrs: &Gilrs, dt_ms: f32) {
     let mut delta_y = 0.0_f32;
 
     for (_, gamepad) in gilrs.gamepads() {
-        let rx = scroll_axis_value(gamepad.value(Axis::RightStickX));
-        let ry = scroll_axis_value(gamepad.value(Axis::RightStickY));
+        let rx = gamepad.value(Axis::RightStickX);
+        let ry = gamepad.value(Axis::RightStickY);
         if rx.abs() > delta_x.abs() {
             delta_x = rx;
         }
@@ -126,16 +126,22 @@ fn dispatch_stick_scroll(gilrs: &Gilrs, dt_ms: f32) {
         }
     }
 
-    if delta_x == 0.0 && delta_y == 0.0 {
-        return;
+    if let Some(payload) = stick_scroll(delta_x, delta_y, dt_ms) {
+        let _ = app.emit("controller-stick-scroll", payload);
     }
+}
 
-    let payload = StickScrollPayload {
-        delta_x: delta_x * STICK_SCROLL_SPEED_PX_PER_MS * dt_ms,
-        delta_y: delta_y * STICK_SCROLL_SPEED_PX_PER_MS * dt_ms,
-    };
-
-    let _ = app.emit("controller-stick-scroll", payload);
+/// Page scroll for a right-stick position. gilrs reports stick-up as positive
+/// Y, while page scroll grows downward, so Y is flipped: pushing up scrolls up.
+fn stick_scroll(x: f32, y: f32, dt_ms: f32) -> Option<StickScrollPayload> {
+    let (x, y) = (scroll_axis_value(x), -scroll_axis_value(y));
+    if x == 0.0 && y == 0.0 {
+        return None;
+    }
+    Some(StickScrollPayload {
+        delta_x: x * STICK_SCROLL_SPEED_PX_PER_MS * dt_ms,
+        delta_y: y * STICK_SCROLL_SPEED_PX_PER_MS * dt_ms,
+    })
 }
 
 fn register_observers(_app: Arc<AppHandle>) {
@@ -223,4 +229,25 @@ fn on_home_pressed(app: Arc<AppHandle>) {
             serde_json::json!({ "wasFocused": was_focused }),
         );
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pushing_the_right_stick_up_scrolls_up_and_down_scrolls_down() {
+        // Regression: gilrs' up-positive Y was sent as is, so up scrolled down.
+        let up = stick_scroll(0.0, 1.0, 16.0).unwrap();
+        assert!(up.delta_y < 0.0);
+        let down = stick_scroll(0.0, -1.0, 16.0).unwrap();
+        assert!(down.delta_y > 0.0);
+        let right = stick_scroll(1.0, 0.0, 16.0).unwrap();
+        assert!(right.delta_x > 0.0 && right.delta_y == 0.0);
+    }
+
+    #[test]
+    fn a_resting_stick_does_not_scroll() {
+        assert!(stick_scroll(0.1, -0.1, 16.0).is_none());
+    }
 }
