@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { DownloadProgress } from '@/components/ui/download-progress'
 import { useDownloadStore } from '@/lib/downloadProgress'
+import { queuePosition, useDownloadQueue } from '@/hooks/useDownloadQueue'
 import { detailsPrimaryAction } from '@/lib/libraryActions'
-import { cancelGameLaunch, downloadSteamWindowsGame } from '@/lib/tauri'
+import { cancelGameLaunch, enqueueSteamDownload } from '@/lib/tauri'
 import { open } from '@/lib/dialog'
 import { useUiStore } from '@/stores/ui.store'
+import { notify } from '@/lib/toast'
 import { useGameActions } from '@/hooks/useGames'
 import { setEditableLaunchPath } from '@/lib/launchConfig'
 import type { LibraryEntry } from '@/types/library'
@@ -29,11 +30,9 @@ export function DetailsPrimaryAction({
   const setScreen = useUiStore((state) => state.setScreen)
   const setSettingsTab = useUiStore((state) => state.setSettingsTab)
   const [cancelling, setCancelling] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const start = useDownloadStore((state) => state.start)
-  const finish = useDownloadStore((state) => state.finish)
-  const fail = useDownloadStore((state) => state.fail)
   const tasks = useDownloadStore((state) => state.tasks)
+  const queue = useDownloadQueue()
   const action = detailsPrimaryAction({
     entry,
     running,
@@ -41,15 +40,27 @@ export function DetailsPrimaryAction({
     cancelling,
     signedIn,
   })
-  const task = entry.steamAppId ? tasks[`steam:${entry.steamAppId}`] : undefined
+  const downloadKey = entry.steamAppId ? `steam:${entry.steamAppId}` : null
+  const task = downloadKey ? tasks[downloadKey] : undefined
+  const waiting = queuePosition(queue, entry.steamAppId)
+  const downloading =
+    queue.active?.appId === entry.steamAppId ||
+    Boolean(task && task.progress?.phase !== 'Ready')
+  // Steam is writing this game's files: Install and Play wait for it. Progress
+  // lives in the status panel beside the command bar and in a toast.
+  const busy = downloading || waiting !== null
+  const label = downloading
+    ? 'Downloading…'
+    : waiting
+      ? `Queued · #${waiting}`
+      : action.label
   const run = async () => {
-    setError(null)
     if (action.kind === 'cancel') {
       setCancelling(true)
       try {
         await cancelGameLaunch()
       } catch {
-        setError('Could not cancel launch. Try again.')
+        notify.error({ title: 'Could not cancel the launch', message: 'Try again.' })
       } finally {
         setCancelling(false)
       }
@@ -64,15 +75,12 @@ export function DetailsPrimaryAction({
       return
     }
     if (action.kind === 'install' && entry.steamAppId) {
-      const key = `steam:${entry.steamAppId}`
-      start({ key, label: entry.game.title })
+      start({ key: `steam:${entry.steamAppId}`, label: entry.game.title })
       try {
-        await downloadSteamWindowsGame(entry.steamAppId)
-        finish(key)
+        await enqueueSteamDownload(entry.steamAppId)
       } catch (err) {
         const text = err instanceof Error ? err.message : String(err)
-        fail(key, text)
-        setError(text)
+        useDownloadStore.getState().fail(`steam:${entry.steamAppId}`, text)
       }
       return
     }
@@ -103,7 +111,7 @@ export function DetailsPrimaryAction({
         group="details-actions"
         order={1}
         noScale
-        disabled={stop.isPending || cancelling}
+        disabled={stop.isPending || cancelling || (busy && !running)}
         onClick={() => void run()}
         className="details-play flex min-h-12 min-w-[180px] items-center justify-center gap-3 rounded-full bg-[linear-gradient(#fff,#e2ecfc)] px-[26px] text-[13px] font-[650] text-[#15253e] shadow-[0_2px_8px_#0001] hover:brightness-110 disabled:cursor-wait disabled:opacity-40 max-[520px]:px-[22px]"
       >
@@ -112,10 +120,8 @@ export function DetailsPrimaryAction({
         ) : (
           <Play size={17} fill="currentColor" />
         )}
-        <span>{action.label}</span>
+        <span>{label}</span>
       </Focusable>
-      {task && <DownloadProgress task={task} />}
-      {error && <p role="alert">{error}</p>}
     </div>
   )
 }

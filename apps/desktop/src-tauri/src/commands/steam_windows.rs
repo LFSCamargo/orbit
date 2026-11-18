@@ -225,14 +225,14 @@ async fn catalog_library(
         .map_err(|_| "Steam library inspection stopped".to_string())
 }
 
+/// Kept for older callers: queues the title like `enqueue_steam_download`.
 #[tauri::command]
-pub async fn download_steam_windows_game(app: AppHandle, app_id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        crate::services::steam_native::downloads::download_owned(&app, &state.repo, &app_id)
-    })
-    .await
-    .map_err(|_| "Steam download stopped".to_string())?
+pub fn download_steam_windows_game(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    app_id: String,
+) -> Result<(), String> {
+    crate::commands::downloads::enqueue_steam_download(app, state, app_id)
 }
 
 #[tauri::command]

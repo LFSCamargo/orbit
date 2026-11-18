@@ -61,7 +61,7 @@ Rejected for this roadmap: leaving the full Steam GUI running after login, stori
 
 ## Shell
 
-The macOS shell header (`MacosShell.tsx`) keeps Add games in the right-hand utilities group. **Downloads** sits beside that button and opens a right-hand Liquid Glass sidebar through `DrawerProvider`. The sidebar is the connection form, the in-progress transfers, and the network facts for the active transfer: whether Orbit's Steam client is running, and the current rate. It is not a packet capture. The sidebar card has no password field. Steam's hosted window can show one. Controller focus reaches the toolbar control and the sidebar, and the sidebar closes cleanly.
+The macOS shell header (`MacosShell.tsx`) keeps Add games in the right-hand utilities group. **Downloads** sits beside that button and opens a right-hand Liquid Glass sidebar through `DrawerProvider`. The sidebar has three states. Before Steam is authorized it shows the Steam orbit illustration, **Connect Steam** (Steam's own sign-in window), and Downloads / Queue / Network as unavailable. Signed in with nothing running, it shows empty Downloads and Queue cards and Network at 0 B/s. With transfers, each download row shows cover art, title, speed, `x GB / y GB`, a bar and percent, with Pause and Cancel; the queue lists waiting titles in order with Run next and Remove; Network draws a sparkline of the last 40 one-second download samples. SteamCMD reports no upload, so upload reads as a dash. It is not a packet capture. Sign out lives in **Settings → Steam**. The sidebar card has no password field. Steam's hosted window can show one. Controller focus reaches the toolbar control and the sidebar, and the sidebar closes cleanly.
 
 ## Performance
 
@@ -79,7 +79,13 @@ Implemented. Depends on phase 1. Sign-in stores the owned catalog (app ID + Stea
 
 ### 3. Download
 
-Implemented. Depends on phase 2. One Windows depot install runs at a time into that title's container (`runtimes/containers/games/steam-{appId}/install/`). The first download fetches Valve's official SteamCMD archive into `steam-windows`. Progress uses the `steam:<appId>` task. Cancelling stops that process.
+Implemented. Depends on phase 2. One Windows depot install runs at a time into that title's container (`runtimes/containers/games/steam-{appId}/install/`). The first download fetches Valve's official SteamCMD archive into `steam-windows`. Progress uses the `steam:<appId>` task and carries the game's title.
+
+**Queue.** `services/download_queue.rs` is a FIFO: Install adds a title (`enqueue_steam_download`) and returns at once; one worker runs SteamCMD per title in order. The queue is saved in settings (`download-queue-v1`) and comes back paused after a restart, so nothing starts on its own. Pause stops SteamCMD and puts the title back at the front, paused; SteamCMD resumes from its partial files. Cancel stops it and drops it. Neither is reported as a failure (the event carries `stopped: true`). `start_queued_download_now` runs a waiting title next and pauses the current one. Queue changes emit `download-queue-changed`.
+
+**Progress phases.** Downloads run in the game container's signed-in Windows Steam client (`steam_client_download.rs`). Steam rewrites the appmanifest byte counters rarely, so progress comes from the client's `logs/content_log.txt` (`steam_content_log.rs`): each update step (reconfiguring, preallocating, downloading/staging, verifying, committing, fully installed), the real totals from `update started : download 0/X … stage 0/Y`, and a cancel or failure reason. Bytes come from what Steam has written into `steamapps/downloading/<appid>` (allocated blocks, scaled from staged to network bytes), sampled every 500 ms. The frontend names six steps for a game download (Preparing, Signing in to Steam, Allocating disk space, Downloading, Verifying, Installing files), keeps a smoothed MB/s per transfer, and shows both in the toast, the Downloads sidebar and the details status panel. Game start-up steps are mirrored into a toast as well.
+
+**After a download.** The finished install is saved as a library installation right away (`register_download`), so the title shows as installed with its size before the first Play. Disk size comes from the `SizeOnDisk` in the appmanifest SteamCMD writes into the install folder; the downloaded byte total is kept in `steam-download-sizes-v1`.
 
 ### 4. Run
 

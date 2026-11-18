@@ -21,10 +21,13 @@ export function DetailsHero({
   game,
   eyebrow = 'IN YOUR COLLECTION',
   children,
+  aside,
 }: {
   game: Game
   eyebrow?: string
   children?: ReactNode
+  /** Shown to the right of the command bar, e.g. download status. */
+  aside?: ReactNode
 }) {
   const reduce = useReducedMotion()
   const theme = useActiveTheme()
@@ -98,13 +101,18 @@ export function DetailsHero({
               ? 'An adventure worth coming back to.'
               : 'Your next adventure starts here.'}
           </p>
-          <LiquidGlass
-            surface="toolbar"
-            className="details-command-bar mt-7 inline-flex max-w-full items-center gap-1 border border-white/[0.145] p-1.5 shadow-[inset_0_1px_#ffffff15,0_12px_32px_#0002]"
-            radius={999}
-          >
-            {children}
-          </LiquidGlass>
+          {/* One row: Play / Favorite, then the download status beside them.
+              It only wraps under the buttons on narrow windows. */}
+          <div className="details-command-row mt-7 flex max-w-full flex-nowrap items-center gap-3 max-[760px]:flex-wrap">
+            <LiquidGlass
+              surface="toolbar"
+              className="details-command-bar inline-flex max-w-full items-center gap-1 border border-white/[0.145] p-1.5 shadow-[inset_0_1px_#ffffff15,0_12px_32px_#0002]"
+              radius={999}
+            >
+              {children}
+            </LiquidGlass>
+            {aside}
+          </div>
         </div>
         <div
           className={clsx(

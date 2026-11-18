@@ -1,5 +1,6 @@
 pub mod artwork;
 pub mod dialog;
+pub mod downloads;
 pub mod game_content;
 pub mod games;
 pub mod importers;

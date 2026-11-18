@@ -1,24 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
-import { clsx } from 'clsx'
-import { X } from 'lucide-react'
+import { ArrowDownToLine, Download, Layers, RotateCw, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { SteamWindowsAccount } from '@/components/layout/SteamWindowsAccount'
-import { DownloadProgress } from '@/components/ui/download-progress'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
+import { useOverlayBack } from '@/controllers/overlayStack'
+import { useDownloadQueue } from '@/hooks/useDownloadQueue'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
+import { selectActive, selectCompleted, useDownloadStore } from '@/lib/downloadProgress'
 import {
-  formatTransferRate,
-  transferRate,
-  useDownloadStore,
-} from '@/lib/downloadProgress'
-import { useUiStore } from '@/stores/ui.store'
-import { cancelSteamWindowsDownload } from '@/lib/tauri'
-
-const STEAM_BUTTON =
-  'steam-activity-button justify-self-start rounded-full bg-[#f7f8fb] px-3.5 py-[9px] text-[13px] font-[680] text-[#12141a] disabled:opacity-55'
-const STEAM_BUTTON_QUIET =
-  'steam-activity-button-quiet bg-transparent text-[#f4f6fb] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.18)]'
+  enqueueSteamDownload,
+  pauseActiveDownload,
+  removeQueuedDownload,
+  startQueuedDownloadNow,
+} from '@/lib/tauri'
+import { ConnectSteamCard } from './downloads/ConnectSteamCard'
+import { DownloadRow } from './downloads/DownloadRow'
+import { EmptyCard } from './downloads/EmptyCard'
+import { NetworkCard } from './downloads/NetworkCard'
+import { QueueRow } from './downloads/QueueRow'
+import { ICON_BUTTON, ROW, SECTION_TITLE } from './downloads/styles'
+import { useTransferRate } from './downloads/useTransferRate'
 
 const HOST_STYLE = {
   position: 'fixed' as const,
@@ -29,30 +29,29 @@ const HOST_STYLE = {
   zIndex: 80,
 }
 
+/** `steam:<appid>` for game downloads; Steam setup and components have none. */
+function steamAppId(key: string): string | null {
+  const match = /^steam:(\d+)$/.exec(key)
+  return match ? match[1] : null
+}
+
 /** Right-edge downloads panel. The host is fixed so glass layout cannot pull it inline. */
 export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
   const { status } = useSteamWindows()
+  const connected = status.data?.sessionReady === true
+  const queue = useDownloadQueue()
   const tasks = useDownloadStore((state) => state.tasks)
   const failures = useDownloadStore((state) => state.failures)
   const clear = useDownloadStore((state) => state.clear)
-  const sample = useRef<{ at: number; bytes: number } | null>(null)
-  const [rate, setRate] = useState<number | null>(null)
+  const clearCompleted = useDownloadStore((state) => state.clearCompleted)
+  const { rate, samples } = useTransferRate()
   useModalFocus(true, 'steam-activity', 'steam-activity-close')
+  useOverlayBack(true, onClose)
 
-  const downloadedBytes = Object.values(tasks).reduce<number | null>((found, task) => {
-    if (found !== null) return found
-    return task.progress?.phase === 'Downloading' ? task.progress.downloadedBytes : null
-  }, null)
-  useEffect(() => {
-    if (downloadedBytes === null) {
-      sample.current = null
-      setRate(null)
-      return
-    }
-    const next = { at: Date.now(), bytes: downloadedBytes }
-    setRate(transferRate(sample.current, next))
-    sample.current = next
-  }, [downloadedBytes])
+  const active = selectActive(tasks)
+  const completed = selectCompleted(tasks)
+  const downloads = [...active, ...completed]
+  const failed = Object.entries(failures)
 
   return (
     <div
@@ -66,16 +65,14 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-label="Downloads"
         className="steam-activity-drawer size-full shadow-[-20px_0_60px_rgb(0_0_0/0.45)]"
-        contentClassName="steam-activity-content flex h-full flex-col gap-3.5 overflow-auto px-[18px] pb-7 pt-[22px] text-[#f4f6fb]"
+        contentClassName="steam-activity-content flex h-full flex-col gap-4 overflow-auto px-[18px] pb-7 pt-[22px] text-[#f4f6fb]"
       >
-        <header className="steam-activity-header flex items-start justify-between gap-3">
-          <div>
-            <p className="steam-activity-kicker mb-1 text-[11px] font-[650] uppercase tracking-[0.16em] text-white/55">
-              Activity
-            </p>
-            <h2 className="m-0 text-[1.35rem] font-[650] tracking-[-0.03em]">
-              Downloads
-            </h2>
+        <header className="steam-activity-header flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 place-items-center rounded-full bg-white/10">
+              <ArrowDownToLine size={17} aria-hidden />
+            </span>
+            <h2 className="m-0 text-[1.2rem] font-[650] tracking-[-0.02em]">Downloads</h2>
           </div>
           <Focusable
             focusId="steam-activity-close"
@@ -83,110 +80,132 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
             order={0}
             noScale
             aria-label="Close downloads"
-            className="steam-activity-close bg-white/8 grid size-9 place-items-center rounded-full"
+            className="steam-activity-close grid size-9 place-items-center rounded-full bg-white/10"
             onClick={onClose}
           >
             <X size={18} />
           </Focusable>
         </header>
 
-        <SteamWindowsAccount />
+        {status.data && !connected ? (
+          <ConnectSteamCard />
+        ) : (
+          <>
+            <section className="grid gap-2" aria-label="Active downloads">
+              <h3 className={SECTION_TITLE}>
+                Downloads{downloads.length > 0 ? ` (${active.length})` : ''}
+              </h3>
+              {downloads.length === 0 && failed.length === 0 && (
+                <EmptyCard
+                  icon={Download}
+                  title="No downloads yet"
+                  copy="Your active downloads will appear here."
+                />
+              )}
+              {downloads.map((task, index) => {
+                const appId = steamAppId(task.key)
+                const running = task.progress?.phase !== 'Ready'
+                const isQueued = appId !== null && queue.active?.appId === appId
+                return (
+                  <DownloadRow
+                    key={task.key}
+                    task={task}
+                    appId={appId}
+                    coverUrl={isQueued ? queue.active?.coverUrl : null}
+                    rate={rate}
+                    order={10 + index}
+                    onPause={
+                      isQueued && running ? () => void pauseActiveDownload() : undefined
+                    }
+                    onCancel={
+                      isQueued && running
+                        ? () => void removeQueuedDownload(appId)
+                        : undefined
+                    }
+                    onDismiss={running ? undefined : () => clear(task.key)}
+                  />
+                )
+              })}
+              {failed.map(([key, failure], index) => {
+                const appId = steamAppId(key)
+                return (
+                  <div key={key} className={ROW} role="alert">
+                    <p className="m-0 min-w-0 flex-1 text-[12px] leading-[1.4] text-[#ffb4b4]">
+                      {failure}
+                    </p>
+                    {appId && (
+                      <Focusable
+                        focusId={`steam-retry-${key}`}
+                        group="steam-activity"
+                        order={40 + index}
+                        noScale
+                        aria-label="Retry download"
+                        className={ICON_BUTTON}
+                        onClick={() => {
+                          clear(key)
+                          void enqueueSteamDownload(appId)
+                        }}
+                      >
+                        <RotateCw size={14} />
+                      </Focusable>
+                    )}
+                    <Focusable
+                      focusId={`steam-dismiss-${key}`}
+                      group="steam-activity"
+                      order={40 + index}
+                      noScale
+                      aria-label="Dismiss"
+                      className={ICON_BUTTON}
+                      onClick={() => clear(key)}
+                    >
+                      <X size={14} />
+                    </Focusable>
+                  </div>
+                )
+              })}
+            </section>
 
-        <section
-          className="steam-activity-card grid gap-2.5 rounded-[18px] border border-white/10 bg-[rgb(8_10_16/0.42)] p-3.5"
-          aria-label="Network"
-        >
-          <p className="steam-activity-kicker mb-1 text-[11px] font-[650] uppercase tracking-[0.16em] text-white/55">
-            Network
-          </p>
-          <div className="steam-activity-stats grid grid-cols-2 gap-2">
-            <div className="grid gap-1 rounded-[14px] bg-white/5 p-2.5">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-white/50">
-                Client
-              </span>
-              <strong className="text-[13px] font-[620]">
-                {status.data?.clientRunning
-                  ? 'Steam client is running'
-                  : 'Steam client is closed'}
-              </strong>
-            </div>
-            <div className="grid gap-1 rounded-[14px] bg-white/5 p-2.5">
-              <span className="text-[11px] uppercase tracking-[0.08em] text-white/50">
-                Rate
-              </span>
-              <strong className="text-[13px] font-[620]">
-                {formatTransferRate(rate)}
-              </strong>
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="steam-activity-card grid gap-2.5 rounded-[18px] border border-white/10 bg-[rgb(8_10_16/0.42)] p-3.5"
-          aria-label="Transfers"
-        >
-          <p className="steam-activity-kicker mb-1 text-[11px] font-[650] uppercase tracking-[0.16em] text-white/55">
-            In progress
-          </p>
-          {Object.values(tasks).length === 0 && Object.keys(failures).length === 0 && (
-            <p className="steam-auth-copy text-white/72 m-0 text-[13px] leading-[1.45]">
-              No downloads in progress.
-            </p>
-          )}
-          {Object.values(tasks).map((task) => (
-            <div
-              key={task.key}
-              className="steam-activity-transfer flex items-center justify-between gap-3"
-            >
-              <DownloadProgress task={task} />
-              {task.key.startsWith('steam:') &&
-                task.progress?.phase === 'Downloading' && (
+            <section className="grid gap-2" aria-label="Queue">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className={SECTION_TITLE}>
+                  Queue{queue.pending.length > 0 ? ` (${queue.pending.length})` : ''}
+                </h3>
+                {completed.length > 0 && (
                   <Focusable
-                    focusId={`steam-cancel-${task.key}`}
+                    focusId="steam-activity-clear-completed"
                     group="steam-activity"
-                    order={3}
+                    order={60}
                     noScale
-                    className={clsx(STEAM_BUTTON, STEAM_BUTTON_QUIET)}
-                    onClick={() => void cancelSteamWindowsDownload()}
+                    className="text-[12px] text-white/70 underline underline-offset-2"
+                    onClick={clearCompleted}
                   >
-                    Cancel
+                    Clear completed
                   </Focusable>
                 )}
-            </div>
-          ))}
-          {Object.entries(failures).map(([key, failure]) => (
-            <div
-              key={key}
-              className="steam-activity-transfer flex items-center justify-between gap-3"
-            >
-              <span>{failure}</span>
-              <Focusable
-                focusId={`steam-dismiss-${key}`}
-                group="steam-activity"
-                order={4}
-                noScale
-                className={clsx(STEAM_BUTTON, STEAM_BUTTON_QUIET)}
-                onClick={() => clear(key)}
-              >
-                Dismiss
-              </Focusable>
-            </div>
-          ))}
-        </section>
+              </div>
+              {queue.pending.length === 0 ? (
+                <EmptyCard
+                  icon={Layers}
+                  title="Queue is empty"
+                  copy="Games added to download will appear here in order."
+                />
+              ) : (
+                queue.pending.map((item, index) => (
+                  <QueueRow
+                    key={item.appId}
+                    item={item}
+                    position={index + 1}
+                    order={70 + index}
+                    onStart={() => void startQueuedDownloadNow(item.appId)}
+                    onRemove={() => void removeQueuedDownload(item.appId)}
+                  />
+                ))
+              )}
+            </section>
 
-        <Focusable
-          focusId="steam-open-library"
-          group="steam-activity"
-          order={5}
-          noScale
-          className={STEAM_BUTTON}
-          onClick={() => {
-            useUiStore.getState().setScreen('library')
-            onClose()
-          }}
-        >
-          Open library
-        </Focusable>
+            <NetworkCard connected={connected} rate={rate} samples={samples} />
+          </>
+        )}
       </LiquidGlass>
     </div>
   )

@@ -56,15 +56,6 @@ pub fn steamcmd_arguments(plan: &DepotPlan) -> Vec<String> {
     plan.steamcmd_arguments()
 }
 
-/// Download through the native plan. SteamCMD is the hidden executor.
-pub fn download_owned(
-    app: &tauri::AppHandle,
-    repo: &crate::database::GameRepository,
-    app_id: &str,
-) -> Result<(), String> {
-    crate::services::steam_windows::download(app, repo, app_id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

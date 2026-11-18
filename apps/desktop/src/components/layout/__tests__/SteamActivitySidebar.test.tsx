@@ -26,22 +26,50 @@ vi.mock('@/lib/tauri', () => ({
   downloadSteamWindowsGame: vi.fn(),
   cancelSteamWindowsDownload: vi.fn(),
   playSteamWindowsGame: vi.fn(),
+  getDownloadQueue: vi.fn(),
+  enqueueSteamDownload: vi.fn(),
+  pauseActiveDownload: vi.fn(),
+  removeQueuedDownload: vi.fn(),
+  startQueuedDownloadNow: vi.fn(),
 }))
 
 import {
   connectSteamWindows,
+  getDownloadQueue,
   openSteamWindowsLogin,
+  pauseActiveDownload,
   pollSteamWindowsLogin,
+  removeQueuedDownload,
+  startQueuedDownloadNow,
   steamWindowsLibrary,
   steamWindowsStatus,
 } from '@/lib/tauri'
-import type { SteamLoginPoll } from '@/types/steam'
+import type { SteamLoginPoll, SteamWindowsStatus } from '@/types/steam'
 
 const status = vi.mocked(steamWindowsStatus)
 const library = vi.mocked(steamWindowsLibrary)
 const connect = vi.mocked(connectSteamWindows)
 const openLogin = vi.mocked(openSteamWindowsLogin)
 const pollLogin = vi.mocked(pollSteamWindowsLogin)
+const queue = vi.mocked(getDownloadQueue)
+
+const AUTHORIZED: SteamWindowsStatus = {
+  signedIn: true,
+  accountName: 'orbit_player',
+  steamInstalled: true,
+  clientRunning: false,
+  clientLoggedIn: false,
+  clientPhase: 'ready',
+  clientCaption: 'Steam is ready',
+  ownedCount: 12,
+  sessionReady: true,
+}
+const queued = (appId: string, title: string, paused = false) => ({
+  appId,
+  title,
+  coverUrl: null,
+  paused,
+})
 
 function deferred<T>() {
   let resolve: (value: T) => void = () => undefined
@@ -51,11 +79,11 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function renderSidebar() {
+function renderSidebar(onClose: () => void = () => undefined) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <SteamActivitySidebar onClose={() => undefined} />
+      <SteamActivitySidebar onClose={onClose} />
     </QueryClientProvider>,
   )
 }
@@ -78,6 +106,7 @@ beforeEach(() => {
     sessionReady: false,
   })
   library.mockResolvedValue([])
+  queue.mockResolvedValue({ active: null, pending: [] })
   connect.mockResolvedValue({
     signedIn: true,
     accountName: 'orbit_player',
@@ -96,96 +125,53 @@ beforeEach(() => {
   })
 })
 
-it('opens Steam’s own window and closes it after the account is saved', async () => {
-  library.mockResolvedValue([
-    {
-      appId: '570',
-      title: 'Dota 2',
-      description: 'A multiplayer battle arena.',
-      coverUrl:
-        'https://cdn.akamai.steamstatic.com/steam/apps/570/library_600x900_2x.jpg',
-      heroUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/570/library_hero.jpg',
-      installed: false,
-    },
-  ])
+it('asks to connect Steam before downloads and opens Steam’s own window', async () => {
   renderSidebar()
   const host = screen.getByTestId('steam-activity-host')
   expect(host).toHaveStyle({ position: 'fixed', right: '0px', top: '0px' })
-
-  expect(screen.queryByLabelText(/password/i)).toBeNull()
-  expect(await screen.findByRole('button', { name: 'Sign in with Steam' })).toBeTruthy()
-  expect(screen.getByRole('region', { name: 'Steam authorization' })).toBeTruthy()
-  expect(screen.getByText('Not authorized')).toBeTruthy()
-  expect(screen.getByText('Steam client is closed')).toBeTruthy()
+  expect(await screen.findByText('Connect your Steam account')).toBeTruthy()
+  expect(screen.getByText('Not connected')).toBeTruthy()
+  expect(screen.queryByText('No downloads yet')).toBeNull()
 
   const pollGate = deferred<SteamLoginPoll>()
   pollLogin.mockImplementation(() => pollGate.promise)
-
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in with Steam' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Sign in with Steam' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Steam' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Steam' }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Sign in to Steam' })
   expect(within(dialog).queryByLabelText(/password/i)).toBeNull()
-  expect(within(dialog).queryByRole('img')).toBeNull()
-  expect(connect).not.toHaveBeenCalled()
   expect(openLogin).toHaveBeenCalledTimes(1)
-  expect(await within(dialog).findByText(/Steam’s own window/i)).toBeTruthy()
-
-  await act(async () => {
-    pollGate.resolve({
-      done: true,
-      status: {
-        signedIn: true,
-        accountName: 'orbit_player',
-        steamInstalled: true,
-        clientRunning: false,
-        clientLoggedIn: true,
-        clientPhase: 'ready',
-        clientCaption: 'Steam is ready',
-        ownedCount: 1,
-        sessionReady: true,
-      },
-      libraryError: null,
-    })
-  })
-
-  expect(await screen.findByText(/Signed in as orbit_player/)).toBeTruthy()
-  expect(screen.getByText('Authorized')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Open library' })).toBeTruthy()
-  expect(screen.queryByText('Dota 2')).toBeNull()
-  expect(screen.queryByRole('dialog', { name: 'Sign in to Steam' })).toBeNull()
   expect(connect).not.toHaveBeenCalled()
-})
 
-it('treats a saved Steam login as authorized without a running client', async () => {
-  status.mockResolvedValue({
-    signedIn: true,
-    accountName: 'orbit_player',
-    steamInstalled: true,
-    clientRunning: false,
-    clientLoggedIn: false,
-    clientPhase: 'ready',
-    clientCaption: 'Steam is ready',
-    ownedCount: 12,
-    sessionReady: true,
+  status.mockResolvedValue(AUTHORIZED)
+  await act(async () => {
+    pollGate.resolve({ done: true, status: AUTHORIZED, libraryError: null })
   })
-  renderSidebar()
-  expect(await screen.findByText(/Signed in as orbit_player/)).toBeTruthy()
-  expect(screen.getByText('Authorized')).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Sign in with Steam' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+  expect(await screen.findByText('No downloads yet')).toBeTruthy()
+  expect(screen.queryByRole('dialog', { name: 'Sign in to Steam' })).toBeNull()
 })
 
-it('shows a progress bar for an in-progress download', () => {
+it('shows empty downloads, queue and network once Steam is authorized', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  renderSidebar()
+  expect(await screen.findByText('No downloads yet')).toBeTruthy()
+  expect(screen.getByText('Queue is empty')).toBeTruthy()
+  expect(screen.getByRole('region', { name: 'Network' })).toBeTruthy()
+  expect(screen.queryByText('Connect your Steam account')).toBeNull()
+})
+
+it('shows cover, bytes and a live bar for the active download, with pause', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  queue.mockResolvedValue({ active: queued('570', 'Dota 2'), pending: [] })
   useDownloadStore.setState({
     tasks: {
       'steam:570': {
         key: 'steam:570',
-        label: 'Steam 570',
+        label: 'Dota 2',
         startedAt: '2026-11-13T00:00:00.000Z',
         progress: {
           phase: 'Downloading',
-          component: 'Steam 570',
+          component: 'Dota 2',
           downloadedBytes: 25_000_000,
           totalBytes: 100_000_000,
         },
@@ -194,13 +180,53 @@ it('shows a progress bar for an in-progress download', () => {
     failures: {},
   })
   renderSidebar()
-  expect(screen.getByRole('progressbar', { name: 'Steam 570 progress' })).toHaveValue(25)
+  const bar = screen.getByRole('progressbar', { name: 'Dota 2 progress' })
+  expect(bar).toHaveAttribute('aria-valuenow', '25')
+  expect(screen.getByText('4/6 · Downloading · 25.0 MB / 100.0 MB')).toBeTruthy()
+  fireEvent.click(await screen.findByRole('button', { name: 'Pause Dota 2' }))
+  expect(pauseActiveDownload).toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel Dota 2' }))
+  expect(removeQueuedDownload).toHaveBeenCalledWith('570')
 })
 
-it('directs owned-game browsing to Library', async () => {
+it('lists the queue in order and can run, resume or remove a title', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  queue.mockResolvedValue({
+    active: null,
+    pending: [queued('730', 'Counter-Strike 2', true), queued('440', 'Team Fortress 2')],
+  })
   renderSidebar()
-  fireEvent.click(screen.getByRole('button', { name: 'Open library' }))
-  const { useUiStore } = await import('@/stores/ui.store')
-  expect(useUiStore.getState().screen).toBe('library')
-  expect(screen.queryByRole('region', { name: 'Owned Windows games' })).toBeNull()
+  const rows = await screen.findAllByTestId('queue-row')
+  expect(rows).toHaveLength(2)
+  expect(within(rows[0]).getByText('Counter-Strike 2')).toBeTruthy()
+  expect(within(rows[1]).getByText('Team Fortress 2')).toBeTruthy()
+  expect(within(rows[0]).getByText('Paused')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Resume Counter-Strike 2' }))
+  expect(startQueuedDownloadNow).toHaveBeenCalledWith('730')
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Remove Team Fortress 2 from the queue' }),
+  )
+  expect(removeQueuedDownload).toHaveBeenCalledWith('440')
+})
+
+it('clears finished downloads on request and closes on back', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  useDownloadStore.setState({
+    tasks: {
+      'steam:570': {
+        key: 'steam:570',
+        label: 'Dota 2',
+        startedAt: '2026-11-13T00:00:00.000Z',
+        progress: { phase: 'Ready', component: 'Dota 2', message: 'Installed' },
+      },
+    },
+    failures: {},
+  })
+  const onClose = vi.fn()
+  renderSidebar(onClose)
+  expect(screen.getByText('Installed')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear completed' }))
+  expect(useDownloadStore.getState().tasks['steam:570']).toBeUndefined()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(onClose).toHaveBeenCalledTimes(1)
 })

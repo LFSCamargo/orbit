@@ -12,6 +12,7 @@ import type { SwitchLibraryScan } from '@/types/switch'
 import type { HomeContentInventory } from '@/types/gameContent'
 import type { ThemeDefinition } from '@/themes/types'
 
+import type { DownloadQueue } from '@/types/downloads'
 async function run<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauriRuntime()) {
     return mockInvoke<T>(cmd, args)
@@ -463,6 +464,27 @@ export async function retrySteamCatalogMetadata(): Promise<
 
 export async function downloadSteamWindowsGame(appId: string): Promise<void> {
   return run('download_steam_windows_game', { appId })
+}
+
+/** Queues an owned Steam title; progress arrives as `steam-download-progress` events. */
+export async function enqueueSteamDownload(appId: string): Promise<void> {
+  return run('enqueue_steam_download', { appId })
+}
+
+export async function getDownloadQueue(): Promise<DownloadQueue> {
+  return run('get_download_queue')
+}
+
+export async function removeQueuedDownload(appId: string): Promise<void> {
+  return run('remove_queued_download', { appId })
+}
+
+export async function startQueuedDownloadNow(appId: string): Promise<void> {
+  return run('start_queued_download_now', { appId })
+}
+
+export async function pauseActiveDownload(): Promise<void> {
+  return run('pause_active_download')
 }
 
 export async function cancelSteamWindowsDownload(): Promise<void> {

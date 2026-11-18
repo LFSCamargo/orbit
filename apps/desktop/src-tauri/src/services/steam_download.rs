@@ -5,8 +5,17 @@ use std::path::{Path, PathBuf};
 
 use std::collections::VecDeque;
 
+/// What SteamCMD is doing with the bytes it reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadStage {
+    Downloading,
+    Verifying,
+    Preallocating,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DownloadProgress {
+    pub stage: DownloadStage,
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
 }
@@ -83,7 +92,16 @@ pub fn parse_progress_line(line: &str) -> Option<DownloadProgress> {
     if total == 0 {
         return None;
     }
+    let state = line[..start].to_ascii_lowercase();
+    let stage = if state.contains("verifying") {
+        DownloadStage::Verifying
+    } else if state.contains("preallocating") {
+        DownloadStage::Preallocating
+    } else {
+        DownloadStage::Downloading
+    };
     Some(DownloadProgress {
+        stage,
         downloaded_bytes: downloaded,
         total_bytes: total,
     })
@@ -198,9 +216,26 @@ mod tests {
         let progress = parse_progress_line(line).unwrap();
         assert_eq!(progress.downloaded_bytes, 100);
         assert_eq!(progress.total_bytes, 400);
+        assert_eq!(progress.stage, DownloadStage::Downloading);
         assert!(parse_progress_line("Waiting for client config...").is_none());
         assert!(asks_for_secret("Password:"));
         assert!(!asks_for_secret(line));
+    }
+
+    #[test]
+    fn verify_and_preallocate_lines_are_not_reported_as_downloading() {
+        let verifying =
+            parse_progress_line("Update state (0x5) verifying install, progress: 10.00 (10 / 100)")
+                .unwrap();
+        assert_eq!(verifying.stage, DownloadStage::Verifying);
+        let allocating =
+            parse_progress_line("Update state (0x11) preallocating, progress: 50.00 (50 / 100)")
+                .unwrap();
+        assert_eq!(allocating.stage, DownloadStage::Preallocating);
+        assert!(
+            parse_progress_line("Update state (0x3) reconfiguring, progress: 0.00 (0 / 0)")
+                .is_none()
+        );
     }
 
     #[test]

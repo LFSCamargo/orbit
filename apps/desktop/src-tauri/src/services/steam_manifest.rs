@@ -117,3 +117,65 @@ fn vdf_value(content: &str, key: &str) -> Option<String> {
         .and_then(|capture| capture.get(1).map(|found| found.as_str().to_string()))
         .filter(|value| !value.is_empty())
 }
+
+/// Sizes Steam records for one installed app.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ManifestSizes {
+    pub size_on_disk: Option<i64>,
+    pub bytes_to_download: Option<i64>,
+}
+
+/// Reads `SizeOnDisk` and `BytesToDownload` from an appmanifest without
+/// walking the game folder. Bounded to `MANIFEST_LIMIT` bytes.
+pub(crate) fn manifest_sizes(manifest: &Path) -> ManifestSizes {
+    let Ok(metadata) = fs::metadata(manifest) else {
+        return ManifestSizes::default();
+    };
+    if !metadata.is_file() || metadata.len() > MANIFEST_LIMIT {
+        return ManifestSizes::default();
+    }
+    let mut content = String::new();
+    let read = fs::File::open(manifest)
+        .and_then(|file| file.take(MANIFEST_LIMIT).read_to_string(&mut content));
+    if read.is_err() {
+        return ManifestSizes::default();
+    }
+    let number = |key: &str| {
+        vdf_value(&content, key)
+            .and_then(|value| value.parse::<i64>().ok())
+            .filter(|value| *value > 0)
+    };
+    ManifestSizes {
+        size_on_disk: number("SizeOnDisk"),
+        bytes_to_download: number("BytesToDownload"),
+    }
+}
+
+#[cfg(test)]
+mod manifest_size_tests {
+    use super::*;
+
+    #[test]
+    fn reads_steam_sizes_from_an_appmanifest() {
+        let dir = std::env::temp_dir().join(format!("orbit-manifest-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let manifest = dir.join("appmanifest_570.acf");
+        fs::write(
+            &manifest,
+            "\"AppState\"\n{\n\t\"appid\"\t\t\"570\"\n\t\"SizeOnDisk\"\t\t\"4096\"\n\t\"BytesToDownload\"\t\t\"2048\"\n}\n",
+        )
+        .unwrap();
+        assert_eq!(
+            manifest_sizes(&manifest),
+            ManifestSizes {
+                size_on_disk: Some(4096),
+                bytes_to_download: Some(2048),
+            }
+        );
+        assert_eq!(
+            manifest_sizes(&dir.join("missing.acf")),
+            ManifestSizes::default()
+        );
+        let _ = fs::remove_dir_all(dir);
+    }
+}

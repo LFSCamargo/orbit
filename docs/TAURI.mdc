@@ -109,6 +109,7 @@ src-tauri/src/
     steam_library.rs       # Steam install handoff and platform check
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
+    download_queue.rs      # FIFO Steam download queue: one SteamCMD worker, pause/resume, saved in settings
     steam_native/          # Container install paths, depot plan, cloud, agent presence
     steam_client.rs        # Settings phase labels from signed-in state; no keep-alive
     steam_play.rs          # Per-game container seed + game EXE with SteamAppId

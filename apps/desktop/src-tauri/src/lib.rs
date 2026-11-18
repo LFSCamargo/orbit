@@ -47,6 +47,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
+            services::download_queue::restore(&app.state::<AppState>().repo);
             Ok(())
         })
         .manage(AppState {
@@ -122,6 +123,11 @@ pub fn run() {
             commands::steam_windows::retry_steam_catalog_metadata,
             commands::steam_windows::download_steam_windows_game,
             commands::steam_windows::cancel_steam_windows_download,
+            commands::downloads::enqueue_steam_download,
+            commands::downloads::get_download_queue,
+            commands::downloads::remove_queued_download,
+            commands::downloads::start_queued_download_now,
+            commands::downloads::pause_active_download,
             commands::steam_windows::play_steam_windows_game,
             commands::importers::scan_steam_library,
             commands::importers::scan_astris_folder,

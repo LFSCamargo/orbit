@@ -5,7 +5,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
@@ -18,8 +18,8 @@ use crate::models::{GameArtwork, GamePlatform, GameProvider, ImportedGame, Launc
 use crate::runtimes::{self, WineProfile};
 use crate::services::steam_catalog::{self, SteamCatalogEntry};
 use crate::services::steam_download::{
-    asks_for_secret, find_game_executable, install_dir, parse_progress_line, steamcmd_arguments,
-    valid_app_id,
+    asks_for_secret, find_game_executable, install_dir, parse_progress_line, valid_app_id,
+    DownloadStage,
 };
 use crate::utils::paths::app_data_dir;
 use crate::utils::steam_account::{self, most_recent_account, userdata_account_id};
@@ -41,6 +41,23 @@ static CLIENT_RUNNING: AtomicBool = AtomicBool::new(false);
 static CANCEL_SIGN_IN: AtomicBool = AtomicBool::new(false);
 static DOWNLOAD_ACTIVE: AtomicBool = AtomicBool::new(false);
 static DOWNLOAD_CHILD: Mutex<Option<Child>> = Mutex::new(None);
+/// Why the running download was stopped, so a pause is not reported as a failure.
+static DOWNLOAD_STOP: AtomicU8 = AtomicU8::new(STOP_NONE);
+/// Cancels container start-up for a download (shared with the launch path).
+static DOWNLOAD_CANCEL: AtomicBool = AtomicBool::new(false);
+const STOP_NONE: u8 = 0;
+const STOP_CANCEL: u8 = 1;
+const STOP_PAUSE: u8 = 2;
+/// Largest total SteamCMD reported for the current download, in bytes.
+static LAST_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+/// How a game download ended when SteamCMD did not fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadOutcome {
+    Completed,
+    Cancelled,
+    Paused,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -633,46 +650,122 @@ fn install_windows_steam_inner(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Stops the running game download and reports it as cancelled.
 pub fn cancel_download() {
+    stop_download(STOP_CANCEL);
+}
+
+/// Stops the running game download so the queue can resume it later.
+/// SteamCMD keeps partial files, so the next run continues where this one stopped.
+pub fn pause_download() {
+    stop_download(STOP_PAUSE);
+}
+
+fn stop_download(reason: u8) {
+    if !DOWNLOAD_ACTIVE.load(Ordering::SeqCst) {
+        return;
+    }
+    DOWNLOAD_STOP.store(reason, Ordering::SeqCst);
+    DOWNLOAD_CANCEL.store(true, Ordering::SeqCst);
+    kill_download_child();
+}
+
+/// Records the size Steam reported for the finished download.
+pub(crate) fn note_download_total(bytes: u64) {
+    LAST_TOTAL.fetch_max(bytes, Ordering::SeqCst);
+}
+
+fn kill_download_child() {
     if let Some(child) = DOWNLOAD_CHILD.lock().as_mut() {
         let _ = child.kill();
     }
 }
 
-pub fn download(app: &AppHandle, repo: &GameRepository, app_id: &str) -> Result<(), String> {
+/// Bytes SteamCMD downloaded for the last finished game, when it reported any.
+pub fn last_download_total() -> Option<i64> {
+    let total = LAST_TOTAL.load(Ordering::SeqCst);
+    (total > 0).then(|| i64::try_from(total).unwrap_or(i64::MAX))
+}
+
+pub(crate) fn stop_outcome() -> Option<DownloadOutcome> {
+    match DOWNLOAD_STOP.load(Ordering::SeqCst) {
+        STOP_CANCEL => Some(DownloadOutcome::Cancelled),
+        STOP_PAUSE => Some(DownloadOutcome::Paused),
+        _ => None,
+    }
+}
+
+pub fn download(
+    app: &AppHandle,
+    repo: &GameRepository,
+    app_id: &str,
+    label: &str,
+) -> Result<DownloadOutcome, String> {
     if !valid_app_id(app_id) {
         return Err("Steam app id must be a number".into());
     }
-    let account =
-        stored_account(repo)?.ok_or("Sign in once with Steam, then try the download again.")?;
-    let session = session_dir(&app_data_dir());
-    let cmd_root = super::steam_native::login::steamcmd_root(&session);
-    super::steam_native::login::seed_from_client(&steam_prefix(), &cmd_root)?;
-    if !super::steam_native::login::has_saved_login(&cmd_root) {
-        return Err("Sign in once with Steam, then try the download again.".into());
-    }
-    let destination =
-        super::steam_native::downloads::prepare_install_dir(&crate::runtimes::root(), app_id)?;
-    let binary = ensure_steamcmd(&session)?;
-    let prefs = preferences(repo)?;
-    let args = steamcmd_arguments(
-        &account,
-        app_id,
-        &destination,
-        prefs.offline_mode,
-        prefs.verify_files,
-    )?;
     if DOWNLOAD_ACTIVE
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
         return Err("A Steam download is already running".into());
     }
+    DOWNLOAD_STOP.store(STOP_NONE, Ordering::SeqCst);
+    DOWNLOAD_CANCEL.store(false, Ordering::SeqCst);
+    LAST_TOTAL.store(0, Ordering::SeqCst);
     let key = format!("steam:{app_id}");
-    let label = format!("Steam {app_id}");
-    let result = run_steamcmd(app, &binary, &args, &key, &label);
+    // A pause or cancel during container start-up surfaces as an error from
+    // the launch path; report it as the stop it was.
+    let result = prepare_and_run_download(app, repo, app_id, &key, label)
+        .or_else(|error| stop_outcome().ok_or(error));
     DOWNLOAD_ACTIVE.store(false, Ordering::SeqCst);
+    DOWNLOAD_STOP.store(STOP_NONE, Ordering::SeqCst);
     result
+}
+
+/// Downloads with the container's signed-in Windows Steam client (one login
+/// for sign-in, Play and downloads). SteamCMD is no longer used: it needs a
+/// separate login the Windows client's DPAPI-wrapped token cannot provide.
+fn prepare_and_run_download(
+    app: &AppHandle,
+    repo: &GameRepository,
+    app_id: &str,
+    key: &str,
+    label: &str,
+) -> Result<DownloadOutcome, String> {
+    emit_game_progress(
+        app,
+        key,
+        label,
+        json!({ "phase": "Installing", "component": label, "message": "Preparing download" }),
+    );
+    stored_account(repo)?.ok_or("Sign in to Steam in Settings → Steam, then try again.")?;
+    let outcome =
+        super::steam_client_download::run(app, repo, app_id, key, label, &DOWNLOAD_CANCEL)?;
+    if outcome == DownloadOutcome::Completed {
+        let _ = app.emit(
+            "steam-download-progress",
+            json!({
+                "key": key,
+                "label": label,
+                "done": true,
+                "progress": { "phase": "Ready", "component": label, "message": "Installed" }
+            }),
+        );
+    }
+    Ok(outcome)
+}
+
+pub(crate) fn emit_game_progress(
+    app: &AppHandle,
+    key: &str,
+    label: &str,
+    progress: serde_json::Value,
+) {
+    let _ = app.emit(
+        "steam-download-progress",
+        json!({ "key": key, "label": label, "done": false, "progress": progress }),
+    );
 }
 
 pub fn play(repo: &GameRepository, app_id: &str) -> Result<String, String> {
@@ -701,6 +794,52 @@ pub fn play(repo: &GameRepository, app_id: &str) -> Result<String, String> {
     .ok_or("Download the game before playing")?;
     let runtime = play_wine_binary(repo)
         .ok_or("Install a Windows compatibility runtime in Settings before playing this game")?;
+    save_install(repo, app_id, &executable, &runtime, &library)
+}
+
+/// Saves a finished Orbit download as a library installation, so the title
+/// shows as installed (with its size) before it is played the first time.
+/// The runtime is filled in when one is installed; `play` refreshes it.
+pub fn register_download(repo: &GameRepository, app_id: &str) -> Result<String, String> {
+    if !valid_app_id(app_id) {
+        return Err("Steam app id must be a number".into());
+    }
+    let executable = orbit_install_dirs(app_id)
+        .iter()
+        .find_map(|dir| find_game_executable(dir))
+        .ok_or("The download finished without a game executable")?;
+    let runtime = play_wine_binary(repo).unwrap_or_default();
+    save_install(
+        repo,
+        app_id,
+        &executable,
+        &runtime,
+        &crate::services::steam_manifest::SteamInstallIndex::default(),
+    )
+}
+
+/// Sizes Steam recorded for an Orbit-managed install, read from the
+/// appmanifest SteamCMD writes next to the game files.
+pub fn orbit_install_sizes(app_id: &str) -> crate::services::steam_manifest::ManifestSizes {
+    let client_manifest = super::steam_client_download::container_paths(app_id)
+        .ok()
+        .map(|(_, steamapps)| steamapps.join(format!("appmanifest_{app_id}.acf")));
+    orbit_install_dirs(app_id)
+        .iter()
+        .map(|dir| dir.join(format!("steamapps/appmanifest_{app_id}.acf")))
+        .chain(client_manifest)
+        .map(|manifest| crate::services::steam_manifest::manifest_sizes(&manifest))
+        .find(|sizes| sizes.size_on_disk.is_some())
+        .unwrap_or_default()
+}
+
+fn save_install(
+    repo: &GameRepository,
+    app_id: &str,
+    executable: &Path,
+    runtime: &Path,
+    library: &crate::services::steam_manifest::SteamInstallIndex,
+) -> Result<String, String> {
     let title = stored_entries(repo)?
         .into_iter()
         .find(|entry| entry.app_id == app_id)
@@ -735,7 +874,12 @@ pub fn play(repo: &GameRepository, app_id: &str) -> Result<String, String> {
             icon: None,
         },
         total_playtime_seconds: 0,
-        install_size_bytes: None,
+        install_size_bytes: orbit_install_sizes(app_id).size_on_disk.or_else(|| {
+            library
+                .by_id
+                .get(app_id)
+                .and_then(|install| install.size_on_disk)
+        }),
         achievements: Vec::new(),
     };
     let upserted = repo
@@ -786,6 +930,11 @@ pub(crate) fn steam_exe() -> PathBuf {
 fn steam_support_dir() -> Option<PathBuf> {
     let path = wine_steam_root();
     path.is_dir().then_some(path)
+}
+
+/// Steam library `common` folders Orbit plays Windows games from.
+pub fn windows_library_paths(repo: &GameRepository) -> Vec<String> {
+    play_library_paths(repo)
 }
 
 fn play_library_paths(repo: &GameRepository) -> Vec<String> {
@@ -858,8 +1007,12 @@ fn container_manifest(app_id: &str) -> Option<PathBuf> {
     )
 }
 
-fn orbit_install_dirs(app_id: &str) -> Vec<PathBuf> {
+pub(crate) fn orbit_install_dirs(app_id: &str) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
+    // Installed by the game container's own Steam client.
+    if let Some(dir) = super::steam_client_download::client_install_dir(app_id) {
+        dirs.push(dir);
+    }
     if let Ok(dir) = super::steam_native::downloads::install_dir(&crate::runtimes::root(), app_id) {
         dirs.push(dir);
     }
@@ -1597,7 +1750,7 @@ fn run_steamcmd(
     args: &[String],
     key: &str,
     label: &str,
-) -> Result<(), String> {
+) -> Result<DownloadOutcome, String> {
     let mut child = steamcmd_command(binary)
         .args(args)
         .stdin(Stdio::null())
@@ -1613,15 +1766,20 @@ fn run_steamcmd(
         }
     };
     *DOWNLOAD_CHILD.lock() = Some(child);
+    // A stop requested while SteamCMD was starting has no child to kill yet.
+    if stop_outcome().is_some() {
+        kill_download_child();
+    }
     let mut last_emit = Instant::now()
         .checked_sub(Duration::from_secs(1))
         .unwrap_or_else(Instant::now);
     let mut last_percent = -1i64;
+    let mut last_stage = None;
     let mut secret = false;
     while let Some(line) = next_output_line(&mut stdout) {
         if asks_for_secret(&line) {
             secret = true;
-            cancel_download();
+            kill_download_child();
             break;
         }
         let Some(progress) = parse_progress_line(&line) else {
@@ -1629,25 +1787,33 @@ fn run_steamcmd(
         };
         let percent =
             (progress.downloaded_bytes.saturating_mul(100) / progress.total_bytes.max(1)) as i64;
-        if percent == last_percent && last_emit.elapsed() < Duration::from_millis(250) {
+        if Some(progress.stage) == last_stage
+            && percent == last_percent
+            && last_emit.elapsed() < Duration::from_millis(250)
+        {
             continue;
         }
+        if progress.stage == DownloadStage::Downloading {
+            LAST_TOTAL.fetch_max(progress.total_bytes, Ordering::SeqCst);
+        }
+        last_stage = Some(progress.stage);
         last_percent = percent;
         last_emit = Instant::now();
-        let _ = app.emit(
-            "steam-download-progress",
-            json!({
-                "key": key,
-                "label": label,
-                "done": false,
-                "progress": {
-                    "phase": "Downloading",
-                    "component": label,
-                    "downloadedBytes": progress.downloaded_bytes,
-                    "totalBytes": progress.total_bytes,
-                }
-            }),
-        );
+        let phase = match progress.stage {
+            DownloadStage::Downloading => "Downloading",
+            DownloadStage::Verifying => "Verifying",
+            DownloadStage::Preallocating => "Installing",
+        };
+        let mut payload = json!({
+            "phase": phase,
+            "component": label,
+            "downloadedBytes": progress.downloaded_bytes,
+            "totalBytes": progress.total_bytes,
+        });
+        if progress.stage == DownloadStage::Preallocating {
+            payload["message"] = json!("Allocating disk space");
+        }
+        emit_game_progress(app, key, label, payload);
     }
     let status = DOWNLOAD_CHILD
         .lock()
@@ -1655,6 +1821,9 @@ fn run_steamcmd(
         .and_then(|mut child| child.wait().ok());
     if secret {
         return Err("Sign in once with Steam, then try the download again.".into());
+    }
+    if let Some(outcome) = stop_outcome() {
+        return Ok(outcome);
     }
     if !status.is_some_and(|status| status.success()) {
         return Err("SteamCMD did not finish the download".into());
@@ -1665,10 +1834,10 @@ fn run_steamcmd(
             "key": key,
             "label": label,
             "done": true,
-            "progress": { "phase": "Ready", "component": label, "message": "Ready" }
+            "progress": { "phase": "Ready", "component": label, "message": "Installed" }
         }),
     );
-    Ok(())
+    Ok(DownloadOutcome::Completed)
 }
 
 fn steamcmd_command(binary: &Path) -> Command {

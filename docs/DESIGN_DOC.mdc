@@ -154,6 +154,16 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `hide_orbit_window` | — | `void` | During gameplay |
 | `show_orbit_window` | — | `void` | After session ends |
 
+### Downloads
+
+| Command | Args | Returns | Notes |
+| ------- | ---- | ------- | ----- |
+| `enqueue_steam_download` | `appId` | `void` | Adds an owned title to the FIFO queue; progress arrives as `steam-download-progress` |
+| `get_download_queue` | — | `DownloadQueue` | `{ active, pending[] }`; changes emit `download-queue-changed` |
+| `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
+| `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |
+| `pause_active_download` | — | `void` | Stops SteamCMD and requeues the title at the front, paused |
+
 ### Importers
 
 | Command | Args | Returns | Notes |

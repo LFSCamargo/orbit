@@ -1,9 +1,7 @@
-import { useCallback, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { useQueryClient } from '@tanstack/react-query'
 import { Focusable } from '@/components/focus/Focusable'
+import { useSteamSignIn } from '@/hooks/useSteamSignIn'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
-import type { SteamLoginPoll } from '@/types/steam'
 import { SteamClientSignIn } from './SteamClientSignIn'
 
 const STEAM_BUTTON =
@@ -19,30 +17,11 @@ export function SteamWindowsAccount({
 }: {
   focusGroup?: string
 }) {
-  const client = useQueryClient()
   const { status, signOut } = useSteamWindows()
+  const signIn = useSteamSignIn()
   const account = status.data
   const shareable = account?.sessionReady === true
-  const [qrOpen, setQrOpen] = useState(false)
-  const [attempt, setAttempt] = useState(0)
-  const [libraryError, setLibraryError] = useState<string | null>(null)
-  const starting = useRef(false)
   const error = signOut.error ?? status.error
-  const finish = useCallback(
-    (result: SteamLoginPoll) => {
-      starting.current = false
-      if (result.status) {
-        client.setQueryData(['steam-windows-status'], result.status)
-      }
-      void client.invalidateQueries({ queryKey: ['steam-windows-library'] })
-      void client.invalidateQueries({ queryKey: ['library'] })
-      void client.invalidateQueries({ queryKey: ['library-entry'] })
-      void client.invalidateQueries({ queryKey: ['games'] })
-      setLibraryError(result.libraryError)
-      setQrOpen(false)
-    },
-    [client],
-  )
 
   return (
     <section
@@ -95,22 +74,16 @@ export function SteamWindowsAccount({
             order={1}
             noScale
             className={STEAM_BUTTON}
-            onClick={() => {
-              if (starting.current || qrOpen) return
-              starting.current = true
-              setLibraryError(null)
-              setAttempt((value) => value + 1)
-              setQrOpen(true)
-            }}
-            disabled={qrOpen}
+            onClick={signIn.start}
+            disabled={signIn.open}
           >
             Sign in with Steam
           </Focusable>
         </>
       )}
-      {libraryError && (
+      {signIn.libraryError && (
         <p className={AUTH_ERROR} role="alert">
-          {libraryError}
+          {signIn.libraryError}
         </p>
       )}
       {error && (
@@ -119,13 +92,10 @@ export function SteamWindowsAccount({
         </p>
       )}
       <SteamClientSignIn
-        open={qrOpen}
-        attempt={attempt}
-        onSignedIn={finish}
-        onClose={() => {
-          starting.current = false
-          setQrOpen(false)
-        }}
+        open={signIn.open}
+        attempt={signIn.attempt}
+        onSignedIn={signIn.finish}
+        onClose={signIn.close}
       />
     </section>
   )
