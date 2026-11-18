@@ -227,6 +227,9 @@ mod tests {
         let paths = resolve(&root, &ActiveComponents::new());
         let settings = super::super::settings::CompatibilitySettings {
             graphics: super::super::settings::GraphicsBackend::Dxvk,
+            // Launch sanitizes the upscaling default off before validating;
+            // a raw DXVK profile never carries MetalFX on.
+            upscaling: false,
             ..Default::default()
         };
         settings.validate_launchable(&paths).unwrap();

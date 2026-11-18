@@ -90,11 +90,11 @@ vi.mock('@/lib/tauri', () => ({
   }),
   getCompatibilitySettings: vi.fn().mockResolvedValue({
     graphics: 'auto',
-    synchronization: 'default',
+    synchronization: 'msync',
     retinaMode: false,
     metalHud: false,
-    avx: false,
-    upscaling: false,
+    avx: true,
+    upscaling: true,
     upscaleRatio: 0,
     frameGeneration: false,
     frameGenerationVsync: false,
@@ -240,10 +240,10 @@ it('keeps DXMT options locked until DXMT is installed', async () => {
 it('keeps graphics edits local until Save and supports Discard', async () => {
   renderSettings(true)
   const sync = await screen.findByLabelText('Default synchronization')
-  await chooseSync('MSync')
+  await chooseSync('Default')
   expect(updateCompatibilitySettings).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
-  expect(sync).toHaveTextContent('Default · Recommended')
+  expect(sync).toHaveTextContent('MSync · Recommended')
   await chooseSync('ESync')
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   await waitFor(() =>
@@ -260,10 +260,10 @@ it('retains edits after a save failure so the user can retry', async () => {
   )
   renderSettings(true)
   const sync = await screen.findByLabelText('Default synchronization')
-  await chooseSync('MSync')
+  await chooseSync('Default')
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Disk unavailable')
-  expect(sync).toHaveTextContent('MSync')
+  expect(sync).toHaveTextContent('Default')
   expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled()
 })
 
@@ -286,11 +286,11 @@ it('shows a simple ready state for a managed installation', async () => {
 
 it('preserves an unsaved draft when the graphics page is reopened', async () => {
   const first = renderSettings(true)
-  await chooseSync('MSync')
+  await chooseSync('Default')
   first.unmount()
   renderSettings(true)
   expect(await screen.findByLabelText('Default synchronization')).toHaveTextContent(
-    'MSync',
+    'Default',
   )
   expect(updateCompatibilitySettings).not.toHaveBeenCalled()
 })

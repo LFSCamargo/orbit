@@ -29,15 +29,23 @@ test('graphics defaults save explicitly and drafts survive section navigation', 
   await page.goto('/')
   await page.locator('[data-focus-id="macos-nav-settings"]').click()
   await page.getByRole('button', { name: 'Game graphics', exact: true }).click()
+  // A fresh install ships with MSync, AVX, and MetalFX on; Automatic picks
+  // GPTK once the Apple package is imported.
+  await expect(page.getByLabel('Default synchronization')).toHaveText(
+    'MSync · Recommended',
+  )
+  await expect(
+    page.getByRole('switch', { name: 'AVX instructions', exact: true }),
+  ).toBeChecked()
   await page.getByLabel('Default synchronization').click()
-  await page.getByRole('option', { name: 'MSync', exact: true }).click()
+  await page.getByRole('option', { name: 'ESync', exact: true }).click()
   await expect(page.getByText('You have unsaved changes')).toBeVisible()
   await page.getByRole('button', { name: 'General', exact: true }).click()
   await page.getByRole('button', { name: 'Game graphics', exact: true }).click()
-  await expect(page.getByLabel('Default synchronization')).toHaveText('MSync')
+  await expect(page.getByLabel('Default synchronization')).toHaveText('ESync')
   await page.getByRole('button', { name: 'Discard changes' }).click()
   await expect(page.getByLabel('Default synchronization')).toHaveText(
-    'Default · Recommended',
+    'MSync · Recommended',
   )
   await page.getByRole('switch', { name: 'High Resolution Mode', exact: true }).click()
   await page.getByRole('button', { name: 'Save changes' }).click()

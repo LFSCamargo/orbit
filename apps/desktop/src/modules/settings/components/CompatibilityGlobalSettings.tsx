@@ -62,11 +62,11 @@ const SAVE_BAR = clsx(
 
 const recommended: CompatibilitySettings = {
   graphics: 'auto',
-  synchronization: 'default',
+  synchronization: 'msync',
   retinaMode: false,
   metalHud: false,
-  avx: false,
-  upscaling: false,
+  avx: true,
+  upscaling: true,
   upscaleRatio: 0,
   frameGeneration: false,
   frameGenerationVsync: false,
@@ -234,9 +234,9 @@ export function CompatibilityGlobalSettings() {
                   })
                 }
               >
-                <option value="default">Default · Recommended</option>
+                <option value="default">Default</option>
                 <option value="esync">ESync</option>
-                <option value="msync">MSync</option>
+                <option value="msync">MSync · Recommended</option>
               </OptionSelect>
             </Field>
           </div>

@@ -36,35 +36,21 @@ pub enum Resolution {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompatibilitySettings {
-    #[serde(default)]
     pub graphics: GraphicsBackend,
-    #[serde(default)]
     pub synchronization: Synchronization,
-    #[serde(default)]
     pub retina_mode: bool,
-    #[serde(default)]
     pub metal_hud: bool,
-    #[serde(default)]
     pub avx: bool,
-    #[serde(default)]
     pub upscaling: bool,
-    #[serde(default)]
     pub upscale_ratio: u32,
-    #[serde(default)]
     pub frame_generation: bool,
-    #[serde(default)]
     pub frame_generation_vsync: bool,
-    #[serde(default)]
     pub frame_rate_limit: Option<u32>,
-    #[serde(default)]
     pub dxmt_nvidia_extensions: bool,
-    #[serde(default)]
     pub resolution: Resolution,
-    #[serde(default = "default_width")]
     pub resolution_width: u32,
-    #[serde(default = "default_height")]
     pub resolution_height: u32,
 }
 
@@ -75,15 +61,20 @@ const fn default_height() -> u32 {
     1080
 }
 
+/// The fresh-install defaults, used verbatim until the user saves a global
+/// row: Automatic picks GPTK (D3DMetal, the current Apple package is 4.0
+/// beta 3) then DXMT, MSync, Rosetta AVX, and MetalFX upscaling are on.
+/// `sanitize_for_engine` still drops upscaling at launch when no engine that
+/// reads it is installed, so these defaults never fail a Wine-only machine.
 impl Default for CompatibilitySettings {
     fn default() -> Self {
         Self {
             graphics: GraphicsBackend::Auto,
-            synchronization: Synchronization::Default,
+            synchronization: Synchronization::Msync,
             retina_mode: false,
             metal_hud: false,
-            avx: false,
-            upscaling: false,
+            avx: true,
+            upscaling: true,
             upscale_ratio: 0,
             frame_generation: false,
             frame_generation_vsync: false,
@@ -417,19 +408,125 @@ pub fn resolve_profile_in(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtimes::components::{ComponentKind, InstalledComponent};
     use std::fs;
+
+    /// A manifest-only component install, mirroring `selections.rs` tests, so
+    /// the launch resolver can find a fake GPTK payload without a real dmg.
+    fn write_installed(root: &Path, id: &str, version: &str, installed_at: &str) {
+        let dir = crate::runtimes::components::components_root(root)
+            .join(id)
+            .join(version);
+        fs::create_dir_all(&dir).unwrap();
+        let component = InstalledComponent {
+            id: id.into(),
+            version: version.into(),
+            kind: ComponentKind::Gptk,
+            path: dir.to_string_lossy().into_owned(),
+            installed_at: installed_at.into(),
+        };
+        fs::write(
+            dir.join("orbit-component.json"),
+            serde_json::to_vec(&component).unwrap(),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn per_game_values_override_globals_without_mutating_defaults() {
         let global = CompatibilitySettings::default();
         let resolved = global.merged(&CompatibilityOverrides {
-            synchronization: Some(Synchronization::Msync),
+            synchronization: Some(Synchronization::Esync),
             metal_hud: Some(true),
             ..Default::default()
         });
-        assert_eq!(resolved.synchronization, Synchronization::Msync);
+        assert_eq!(resolved.synchronization, Synchronization::Esync);
         assert!(resolved.metal_hud);
-        assert_eq!(global.synchronization, Synchronization::Default);
+        assert_eq!(global.synchronization, Synchronization::Msync);
+    }
+
+    #[test]
+    fn fresh_install_defaults_turn_on_msync_avx_and_metalfx_on_gptk() {
+        // A new database stores no settings row, so launch resolves the
+        // built-in defaults. With Apple's GPTK package (4.0 beta 3) imported,
+        // Automatic picks D3DMetal and the MSync, AVX, and MetalFX defaults
+        // reach the game environment.
+        let root =
+            std::env::temp_dir().join(format!("orbit-settings-defaults-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        write_installed(&root, "gptk", "4.0 beta 3", "2026-11-12T00:00:00Z");
+        let repo = GameRepository::open(&root.join("library.sqlite")).unwrap();
+        let resolved = resolve_profile_in(&root, &repo, &WineProfile::default()).unwrap();
+        assert_eq!(resolved.effective.graphics, GraphicsBackend::D3dmetal);
+        assert!(resolved.selections["gptk"].ends_with("gptk/4.0 beta 3"));
+        assert_eq!(resolved.environment.get("WINEMSYNC").unwrap(), "1");
+        assert_eq!(resolved.environment.get("WINEESYNC").unwrap(), "0");
+        assert_eq!(
+            resolved.environment.get("ROSETTA_ADVERTISE_AVX").unwrap(),
+            "1"
+        );
+        assert_eq!(
+            resolved.environment.get("D3DM_ENABLE_METALFX").unwrap(),
+            "1"
+        );
+        drop(repo);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn fresh_install_defaults_degrade_gracefully_without_gptk_or_dxmt() {
+        // Nothing that reads MetalFX is installed yet, so launch sanitizes the
+        // upscaling default off instead of failing, and the other defaults
+        // still apply.
+        let root = std::env::temp_dir().join(format!(
+            "orbit-settings-defaults-bare-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let repo = GameRepository::open(&root.join("library.sqlite")).unwrap();
+        let resolved = resolve_profile_in(&root, &repo, &WineProfile::default()).unwrap();
+        assert_eq!(resolved.effective.graphics, GraphicsBackend::Auto);
+        assert!(!resolved.effective.upscaling);
+        assert!(resolved.effective.avx);
+        assert_eq!(resolved.environment.get("WINEMSYNC").unwrap(), "1");
+        assert_eq!(
+            resolved.environment.get("ROSETTA_ADVERTISE_AVX").unwrap(),
+            "1"
+        );
+        drop(repo);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn stored_settings_missing_new_fields_inherit_the_fresh_defaults() {
+        // A row saved by an older build without avx/upscaling keys must not
+        // silently deserialize them as off.
+        let root = std::env::temp_dir().join(format!(
+            "orbit-settings-defaults-json-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let repo = GameRepository::open(&root.join("library.sqlite")).unwrap();
+        let partial = serde_json::json!({
+            "graphics": "auto",
+            "retinaMode": false,
+            "metalHud": false,
+            "upscaleRatio": 0,
+            "frameGeneration": false,
+            "frameGenerationVsync": false,
+            "frameRateLimit": null,
+            "dxmtNvidiaExtensions": false,
+            "resolution": "auto",
+            "resolutionWidth": 1920,
+            "resolutionHeight": 1080,
+        });
+        repo.set_setting(GLOBAL_SETTINGS_KEY, &partial).unwrap();
+        let settings = load_global(&repo).unwrap();
+        assert_eq!(settings.synchronization, Synchronization::Msync);
+        assert!(settings.avx);
+        assert!(settings.upscaling);
+        drop(repo);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

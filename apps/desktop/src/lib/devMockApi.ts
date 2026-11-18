@@ -357,11 +357,11 @@ export async function mockInvoke<T>(
     case 'compatibility_settings':
       return (settings.get('windows-compatibility-settings-v1') ?? {
         graphics: 'auto',
-        synchronization: 'default',
+        synchronization: 'msync',
         retinaMode: false,
         metalHud: false,
-        avx: false,
-        upscaling: false,
+        avx: true,
+        upscaling: true,
         upscaleRatio: 0,
         frameGeneration: false,
         frameGenerationVsync: false,

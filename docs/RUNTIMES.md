@@ -184,7 +184,10 @@ reference and licensing preservation only.
 ## Global defaults and per-game overrides
 
 `CompatibilitySettings` is stored once under the SQLite setting
-`windows-compatibility-settings-v1`. Each `WineProfile.compatibility` contains
+`windows-compatibility-settings-v1`. Until a row is saved, launch uses the
+built-in fresh-install defaults: Automatic graphics (which picks GPTK 4.0
+beta 3 D3DMetal once the Apple package is imported), MSync, Rosetta AVX on,
+and MetalFX upscaling on. Each `WineProfile.compatibility` contains
 only explicit per-game overrides; missing fields inherit the current global
 values at launch rather than copying them. The resolved settings are never
 written back to the game's JSON.
@@ -196,7 +199,8 @@ Implemented launch behavior:
   component is installed; a menu selection alone never claims to enable DirectX
   translation.
 - Synchronization: Default, ESync (`WINEESYNC`), or MSync (`WINEMSYNC`), mutually
-  exclusive. Explicit advanced environment values retain highest priority.
+  exclusive; the default is MSync. Wine builds without MSync support downgrade
+  it at spawn. Explicit advanced environment values retain highest priority.
 - High Resolution Mode: Wine's documented `HKCU\Software\Wine\Mac Driver`
   `RetinaMode` value via `reg add ... /d`.
 - Display: automatic or a bounded virtual-desktop resolution through Wine's
@@ -205,9 +209,12 @@ Implemented launch behavior:
 - Global save and per-game resolution happen only for new launches, not a running
   session.
 
-Frame rate limit, MetalFX upscaling, and DXMT NVIDIA extensions unlock when
+Frame rate limit, MetalFX upscaling (on by default), and DXMT NVIDIA
+extensions unlock when
 DXVK, DXMT, or D3DMetal is installed. Automatic launch prefers GPTK, then DXMT,
-then DXVK, and Play sanitizes options that do not apply to that engine. An
+then DXVK, and Play sanitizes options that do not apply to that engine; with no
+MetalFX-capable engine installed, the upscaling default is dropped at launch
+rather than failing the game. An
 explicit Wine, DXMT, or DXVK choice still wins. Upscale ratio and frame generation stay disabled:
 DXMT has no ratio control, and frame generation needs a GPTK 4 Metal 4 package
 that Orbit does not launch. `validate_launchable` still rejects an option whose
