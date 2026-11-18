@@ -2,7 +2,8 @@
 # Build Orbit Wine (CrossOver sources: MSync + D3DMetal hooks) for x86_64 macOS
 # and install it as an Orbit compatibility component. Runs on Apple Silicon
 # through Rosetta. Needs: Xcode CLT, Homebrew mingw-w64, bison, freetype,
-# gnutls (headers only), and an existing Gcenx Wine for its x86_64 libraries.
+# gnutls (headers only), and an existing Gcenx Wine for its x86_64 libraries
+# (including libSDL2, which winebus uses to pass controllers to games).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -14,6 +15,9 @@ MONO_VERSION="$(node -p "require('$SOURCES').mono.version")"
 MONO_URL="$(node -p "require('$SOURCES').mono.url")"
 MONO_SHA256="$(node -p "require('$SOURCES').mono.sha256")"
 GECKO_VERSION="$(node -p "require('$SOURCES').gecko.version")"
+SDL_VERSION="$(node -p "require('$SOURCES').sdl2.version")"
+SDL_URL="$(node -p "require('$SOURCES').sdl2.url")"
+SDL_SHA256="$(node -p "require('$SOURCES').sdl2.sha256")"
 WORK="${ORBIT_WINE_WORK:-$HOME/work/orbit-wine-build}"
 ORBIT="$HOME/Library/Application Support/Orbit"
 DEST="${ORBIT_WINE_DEST:-$ORBIT/runtimes/components/orbit-wine/$VERSION}"
@@ -22,6 +26,10 @@ BREW="$(brew --prefix)"
 
 if [[ ! -d "$DEPS_FROM" ]]; then
   echo "x86_64 libraries not found at $DEPS_FROM (sign in to Steam in Orbit once, or set ORBIT_WINE_DEPS)" >&2
+  exit 2
+fi
+if [[ ! -f "$DEPS_FROM/libSDL2-2.0.0.dylib" ]]; then
+  echo "libSDL2-2.0.0.dylib not found in $DEPS_FROM; games would get no controllers" >&2
   exit 2
 fi
 
@@ -38,6 +46,14 @@ if [[ ! -f "$MONO_TARBALL" ]]; then
   mv "$MONO_TARBALL.part" "$MONO_TARBALL"
 fi
 echo "$MONO_SHA256  $MONO_TARBALL" | shasum -a 256 -c -
+# SDL2 headers for winebus' SDL backend (controllers → XInput). Only the
+# headers are used; the library is the Gcenx bundle's x86_64 build.
+SDL_TARBALL="$WORK/SDL2-$SDL_VERSION.tar.gz"
+if [[ ! -f "$SDL_TARBALL" ]]; then
+  curl -fL --proto '=https' -o "$SDL_TARBALL.part" "$SDL_URL"
+  mv "$SDL_TARBALL.part" "$SDL_TARBALL"
+fi
+echo "$SDL_SHA256  $SDL_TARBALL" | shasum -a 256 -c -
 if [[ ! -d "$WORK/src/sources/wine" ]]; then
   tar -xzf "$TARBALL" -C "$WORK/src" sources/wine
 fi
@@ -56,6 +72,9 @@ done
 cp -a "$DEPS_FROM"/*.dylib "$WORK/deps/lib/"
 ln -sfn "$BREW/include/freetype2" "$WORK/deps/include/freetype2"
 ln -sfn "$BREW/include/gnutls" "$WORK/deps/include/gnutls"
+rm -rf "$WORK/deps/include/SDL2"
+mkdir -p "$WORK/deps/include/SDL2"
+tar -xzf "$SDL_TARBALL" -C "$WORK/deps/include/SDL2" --strip-components=2 "SDL2-$SDL_VERSION/include"
 
 TOOLS_PATH="$BREW/opt/bison/bin:$BREW/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 build_env=(/usr/bin/env -i HOME="$HOME" PATH="$TOOLS_PATH" MACOSX_DEPLOYMENT_TARGET=11.0)
@@ -64,23 +83,31 @@ cd "$WORK/build"
 # Build tools such as sfnt2fon load freetype by its bare install name, and SIP
 # strips DYLD_* from make, so dyld only finds it in the working directory.
 ln -sfn "$WORK/deps/lib/libfreetype.dylib" libfreetype.dylib
-if [[ ! -f Makefile ]] || grep -q '^FREETYPE_LIBS = -L/opt/homebrew' Makefile; then
+# Reconfigure a tree from before SDL was enabled, so controllers are not lost.
+if [[ ! -f Makefile ]] || grep -q '^FREETYPE_LIBS = -L/opt/homebrew' Makefile ||
+  ! grep -q '^SDL2_LIBS = .*-lSDL2' Makefile; then
   arch -x86_64 "${build_env[@]}" \
     CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
     CPPFLAGS="-I$WORK/deps/include -I$WORK/deps/include/freetype2" \
     LDFLAGS="-L$WORK/deps/lib" PKG_CONFIG=false \
     FREETYPE_CFLAGS="-I$WORK/deps/include/freetype2" FREETYPE_LIBS="-L$WORK/deps/lib -lfreetype" \
     GNUTLS_CFLAGS="-I$WORK/deps/include" GNUTLS_LIBS="-L$WORK/deps/lib -lgnutls" \
+    SDL2_CFLAGS="-I$WORK/deps/include/SDL2" SDL2_LIBS="-L$WORK/deps/lib -lSDL2" \
     ac_cv_lib_soname_freetype=libfreetype.6.dylib ac_cv_lib_soname_gnutls=libgnutls.30.dylib \
+    ac_cv_lib_soname_SDL2=libSDL2-2.0.0.dylib \
     ac_cv_lib_soname_vulkan=libvulkan.1.dylib \
     ../src/sources/wine/configure --prefix="$WORK/install" \
     --enable-archs=i386,x86_64 --disable-tests --without-x \
     --without-alsa --without-capi --without-dbus --without-fontconfig \
     --without-gphoto --without-gssapi --without-krb5 --without-netapi \
     --without-oss --without-pulse --without-sane --without-udev --without-usb \
-    --without-v4l2 --without-pcap --without-inotify --without-sdl \
+    --without-v4l2 --without-pcap --without-inotify --with-sdl \
     --without-gstreamer --with-gnutls --with-freetype --with-mingw \
     --with-vulkan --with-opencl --with-coreaudio
+fi
+if ! grep -q '^SDL2_LIBS = .*-lSDL2' Makefile; then
+  echo "configure did not enable SDL; winebus would drop controllers" >&2
+  exit 1
 fi
 arch -x86_64 "${build_env[@]}" make -j"$(sysctl -n hw.ncpu)"
 rm -rf "$WORK/install"

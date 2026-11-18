@@ -1049,7 +1049,8 @@ pub(crate) fn steam_runtime_command(wine: &Path, prefix: &Path) -> Command {
         .env("LC_ALL", "en_US.UTF-8")
         .env("WINEPREFIX", prefix)
         .env("WINEDEBUG", "-all")
-        .envs(runtimes::wine_capabilities::container_sync_env(wine));
+        .envs(runtimes::wine_capabilities::container_sync_env(wine))
+        .envs(runtimes::controllers::container_controller_env());
     command
 }
 

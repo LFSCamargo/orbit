@@ -13,6 +13,9 @@ pub struct WineCapabilities {
     pub msync: bool,
     pub metal_view: bool,
     pub d3dmetal: bool,
+    /// winebus has its SDL backend, which maps HID controllers (Bluetooth or
+    /// USB) to XInput. Without it generic gamepads never reach the game.
+    pub controllers: bool,
 }
 
 impl WineCapabilities {
@@ -54,7 +57,8 @@ pub fn container_sync_env(wine: &Path) -> [(&'static str, &'static str); 2] {
 pub const ORBIT_WINE_DIR: &str = "components/orbit-wine";
 const BUNDLED_LOADER: &str = "Orbit Wine.app/Contents/MacOS/wine";
 
-/// The newest installed Orbit Wine that passes the CrossOver-class probe.
+/// The newest installed Orbit Wine that passes the CrossOver-class probe,
+/// preferring one whose winebus passes controllers to games. O(v) probes.
 pub fn installed_crossover(runtimes_root: &Path) -> Option<PathBuf> {
     let entries = fs::read_dir(runtimes_root.join(ORBIT_WINE_DIR)).ok()?;
     let mut versions: Vec<PathBuf> = entries
@@ -64,10 +68,22 @@ pub fn installed_crossover(runtimes_root: &Path) -> Option<PathBuf> {
         .filter(|path| !path.is_symlink())
         .collect();
     versions.sort_by_key(|path| std::cmp::Reverse(version_key(path)));
-    versions
+    let mut first_without_controllers = None;
+    for wine in versions
         .into_iter()
         .flat_map(|version| [version.join(BUNDLED_LOADER), version.join("bin/wine")])
-        .find(|wine| wine.is_file() && inspect(wine).is_ok_and(|caps| caps.crossover_class()))
+        .filter(|wine| wine.is_file())
+    {
+        let Ok(caps) = inspect(&wine) else { continue };
+        if !caps.crossover_class() {
+            continue;
+        }
+        if caps.controllers {
+            return Some(wine);
+        }
+        first_without_controllers.get_or_insert(wine);
+    }
+    first_without_controllers
 }
 
 fn version_key(path: &Path) -> Vec<u32> {
@@ -98,7 +114,13 @@ pub fn inspect(wine: &Path) -> Result<WineCapabilities> {
             read_capped(&candidate, &mut haystack)?;
         }
     }
-    Ok(scan(&haystack))
+    let mut caps = scan(&haystack);
+    let mut winebus = Vec::new();
+    let path = root.join("lib/wine/x86_64-unix/winebus.so");
+    caps.controllers = path.is_file()
+        && read_capped(&path, &mut winebus).is_ok()
+        && contains(&winebus, b"SDL_GameControllerOpen");
+    Ok(caps)
 }
 
 fn scan(bytes: &[u8]) -> WineCapabilities {
@@ -106,6 +128,7 @@ fn scan(bytes: &[u8]) -> WineCapabilities {
         msync: contains(bytes, b"WINEMSYNC"),
         metal_view: contains(bytes, b"metal_view") || contains(bytes, b"macdrv_create_metal"),
         d3dmetal: contains(bytes, b"D3DMetal") || contains(bytes, b"libd3dshared"),
+        controllers: false,
     }
 }
 
@@ -202,6 +225,45 @@ mod tests {
         assert_eq!(
             installed_crossover(&root).map(|wine| wine.canonicalize().unwrap()),
             Some(contents.join("MacOS/wine").canonicalize().unwrap())
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn controllers_need_winebus_built_with_sdl() {
+        // Regression: Orbit Wine was configured --without-sdl, so winebus
+        // ignored every generic HID gamepad and XInput games saw no controller.
+        let root = std::env::temp_dir().join(format!("orbit-sdl-{}", uuid::Uuid::new_v4()));
+        let wine = fake_wine(&root, "26.3.0", b"libd3dshared");
+        let winebus = root
+            .join(ORBIT_WINE_DIR)
+            .join("26.3.0/lib/wine/x86_64-unix/winebus.so");
+        fs::write(&winebus, b"sdl_bus_init SDL support not compiled in!").unwrap();
+        assert!(!inspect(&wine).unwrap().controllers);
+        fs::write(
+            &winebus,
+            b"sdl_bus_init SDL_GameControllerOpen libSDL2-2.0.0.dylib",
+        )
+        .unwrap();
+        assert!(inspect(&wine).unwrap().controllers);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn play_prefers_an_orbit_wine_that_passes_controllers_to_games() {
+        let root = std::env::temp_dir().join(format!("orbit-sdl-pick-{}", uuid::Uuid::new_v4()));
+        let with_sdl = fake_wine(&root, "26.3.0", b"libd3dshared");
+        fs::write(
+            root.join(ORBIT_WINE_DIR)
+                .join("26.3.0/lib/wine/x86_64-unix/winebus.so"),
+            b"SDL_GameControllerOpen",
+        )
+        .unwrap();
+        // Newer, but built without SDL: games would get no controller.
+        fake_wine(&root, "26.4.0", b"libd3dshared");
+        assert_eq!(
+            installed_crossover(&root).map(|wine| wine.canonicalize().unwrap()),
+            Some(with_sdl.canonicalize().unwrap())
         );
         let _ = fs::remove_dir_all(root);
     }

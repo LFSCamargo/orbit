@@ -135,7 +135,8 @@ pub fn command(executable: &Path, prefix: &Path) -> Command {
         .env("WINEDEBUG", "-all")
         .env("LANG", "en_US.UTF-8")
         .env("LC_ALL", "en_US.UTF-8")
-        .envs(super::wine_capabilities::container_sync_env(executable));
+        .envs(super::wine_capabilities::container_sync_env(executable))
+        .envs(super::controllers::container_controller_env());
     if let Some(bin) = executable.parent() {
         let mut path = bin.as_os_str().to_owned();
         path.push(":/usr/bin:/bin:/usr/sbin:/sbin");

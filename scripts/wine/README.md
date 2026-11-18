@@ -27,7 +27,14 @@ against a private copy of the Gcenx bundle's x86_64 libraries (so arm64
 Homebrew libraries are never linked), and installs a self-contained component
 at `runtimes/components/orbit-wine/<version>/`. Needs Xcode CLT and Homebrew
 `mingw-w64`, `bison`, `freetype`, and `gnutls` (headers). EGL, Wayland, FFmpeg,
-SDL, and GStreamer are not built.
+and GStreamer are not built.
+
+SDL is built in: winebus' SDL backend is what maps Bluetooth and USB
+controllers to XInput on macOS. Without it winebus ignores generic HID gamepads
+and games see no controller. The script pins SDL2 2.32.8 headers in
+`sources.json` and links against the Gcenx bundle's x86_64 `libSDL2` (same
+version), which ships in `Contents/lib`. It stops if configure does not enable
+SDL, and reconfigures an older build tree that lacks it.
 
 The component is `Orbit Wine.app` (`com.orbit.wine`, games category,
 `LSSupportsGameMode`): the loader is `Contents/MacOS/wine`, Wine's tree sits in

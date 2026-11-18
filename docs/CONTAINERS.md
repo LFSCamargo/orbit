@@ -88,6 +88,31 @@ Steam → "Steam overlay in games" (off by default; it hooks every frame),
 (2 on, 0 off) from "Steam Input for controllers" (on by default). A file Orbit
 cannot round-trip, or one over 256 KB, is left alone.
 
+## Controllers in games
+
+Games see controllers through Wine's `winebus`. On macOS its IOHID backend
+only passes a HID gamepad through when SDL is off, so a Wine built without SDL
+drops every generic Bluetooth or USB controller, and XInput (most Steam games)
+sees nothing. Steam Input cannot help: the container's Steam reads controllers
+through the same `winebus`. Orbit Wine is therefore built with SDL
+(`scripts/wine/build.sh`, SDL2 2.32.8 headers against the Gcenx bundle's
+x86_64 `libSDL2`). SDL maps each controller it knows to an XInput gamepad
+(`WINEXINPUT\...&IG_00`) and the raw HID copy is suppressed, so one
+controller shows up once.
+
+`runtimes/wine_capabilities.rs` reports `controllers` when `winebus.so` has the
+SDL backend, and Play prefers such an Orbit Wine over a newer one without it.
+
+Known limit: a receiver that reports a vendor HID page instead of a gamepad
+(for example the 8BitDo Ultimate 2 2.4 GHz receiver, `2DC8:6013`, usage page
+`0xFFA0`) is not a controller to macOS, its GameController framework, or SDL
+2.32, so no Wine setting can pass it to a game. Bluetooth works for that pad.
+
+To check what a Wine passes through, run it in a throwaway prefix with
+`WINEDEBUG=+hid,+plugplay` and look for `sdl_add_device ... is_gamepad 1` and a
+`WINEXINPUT` device per controller. `SDL support not compiled in!` means the
+build drops controllers.
+
 ## Native Steam client
 
 `crates/orbit-steam` holds session, product, owned-library, depot, cloud, and
