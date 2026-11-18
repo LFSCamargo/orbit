@@ -13,6 +13,10 @@ export type DownloadTask = {
   label: string
   progress: SetupProgress | null
   startedAt: string
+  /** Smoothed bytes per second while downloading; null when not measurable. */
+  rate?: number | null
+  /** Last byte sample the rate was measured from. */
+  sample?: { at: number; bytes: number }
 }
 
 type DownloadStore = {
@@ -24,6 +28,8 @@ type DownloadStore = {
   finish: (key: string) => void
   fail: (key: string, error: string) => void
   clear: (key: string) => void
+  /** Drops every finished transfer; running ones and failures stay. */
+  clearCompleted: () => void
 }
 
 export const useDownloadStore = create<DownloadStore>((set) => ({
@@ -33,7 +39,13 @@ export const useDownloadStore = create<DownloadStore>((set) => ({
     set((state) => ({
       tasks: {
         ...state.tasks,
-        [key]: { key, label, progress: null, startedAt: new Date().toISOString() },
+        [key]: {
+          key,
+          label,
+          progress: null,
+          startedAt: new Date().toISOString(),
+          rate: null,
+        },
       },
       failures: omit(state.failures, key),
     })),
@@ -41,7 +53,12 @@ export const useDownloadStore = create<DownloadStore>((set) => ({
     set((state) => {
       const task = state.tasks[key]
       if (!task) return state
-      return { tasks: { ...state.tasks, [key]: { ...task, progress } } }
+      return {
+        tasks: {
+          ...state.tasks,
+          [key]: { ...task, progress, ...measure(task, progress) },
+        },
+      }
     }),
   finish: (key) =>
     set((state) => {
@@ -67,7 +84,38 @@ export const useDownloadStore = create<DownloadStore>((set) => ({
       tasks: omit(state.tasks, key),
       failures: omit(state.failures, key),
     })),
+  clearCompleted: () =>
+    set((state) => ({
+      tasks: Object.fromEntries(
+        Object.entries(state.tasks).filter(([, task]) => !isFinished(task)),
+      ),
+    })),
 }))
+
+/** Weight of the newest sample in the smoothed rate. */
+const RATE_SMOOTHING = 0.4
+
+/** Rate fields after a progress update. O(1). */
+function measure(
+  task: DownloadTask,
+  progress: SetupProgress,
+): Pick<DownloadTask, 'rate' | 'sample'> {
+  if (progress.phase !== 'Downloading') return { rate: null, sample: undefined }
+  const next = { at: Date.now(), bytes: progress.downloadedBytes }
+  const measured = transferRate(task.sample ?? null, next)
+  if (measured === null) {
+    // Too soon after the last sample: keep it so the next one spans longer.
+    return task.sample && next.at - task.sample.at < 200
+      ? { rate: task.rate ?? null, sample: task.sample }
+      : { rate: task.rate ?? null, sample: next }
+  }
+  const previous = task.rate ?? null
+  const rate =
+    previous === null
+      ? measured
+      : previous * (1 - RATE_SMOOTHING) + measured * RATE_SMOOTHING
+  return { rate: Math.round(rate), sample: next }
+}
 
 function omit<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record }
@@ -75,37 +123,75 @@ function omit<T>(record: Record<string, T>, key: string): Record<string, T> {
   return next
 }
 
-/** Percentage 0-100 for a running download, or null when the total is unknown. */
+function isFinished(task: DownloadTask): boolean {
+  return task.progress?.phase === 'Ready'
+}
+
+/** Byte counters when the phase reports them, regardless of which phase it is. */
+function progressBytes(
+  progress: SetupProgress | null,
+): { downloaded: number; total: number } | null {
+  if (!progress || !('totalBytes' in progress)) return null
+  const total = progress.totalBytes ?? 0
+  return { downloaded: progress.downloadedBytes ?? 0, total }
+}
+
+/**
+ * Percentage 0-100 for any phase that reports a known total, 100 once ready,
+ * or null while the amount of work is unknown (the bar is indeterminate).
+ */
 export function downloadPercent(progress: SetupProgress | null): number | null {
-  if (progress?.phase !== 'Downloading' || progress.totalBytes <= 0) return null
-  return Math.min(100, Math.round((progress.downloadedBytes / progress.totalBytes) * 100))
+  if (progress?.phase === 'Ready') return 100
+  const bytes = progressBytes(progress)
+  if (!bytes || bytes.total <= 0) return null
+  return Math.min(100, Math.round((bytes.downloaded / bytes.total) * 100))
 }
 
 /** One-line status a screen can read out, always including a percentage when known. */
 export function downloadStatus(task: DownloadTask): string {
   const { progress, label } = task
   if (!progress) return `Preparing ${label}…`
+  const percent = downloadPercent(progress)
   switch (progress.phase) {
     case 'Downloading': {
-      const percent = downloadPercent(progress)
-      const transferred = `${megabytes(progress.downloadedBytes)} of ${megabytes(progress.totalBytes)} MB`
-      return percent === null
-        ? `Downloading ${label} · ${transferred}`
-        : `Downloading ${label} · ${percent}% · ${transferred}`
+      if (percent === null)
+        return `Downloading ${label} · ${formatTransferSize(progress.downloadedBytes)}`
+      return `Downloading ${label} · ${percent}% · ${transferredOf(progress)}`
     }
     case 'Verifying':
-      return `Checking the download of ${label}…`
+      return percent === null
+        ? `Checking the download of ${label}…`
+        : `Checking the download of ${label} · ${percent}%`
     case 'Extracting':
       return `Unpacking ${label}…`
-    case 'Installing':
+    case 'Installing': {
+      const step = progress.message ? `${progress.message} · ${label}` : null
+      if (step) return percent === null ? `${step}…` : `${step} · ${percent}%`
       return `Finishing setup for ${label}…`
+    }
     case 'Ready':
       return `${label} · ${progress.message}`
   }
 }
 
-function megabytes(bytes: number): number {
-  return Math.round(bytes / 1_000_000)
+/** "42.1 GB / 74.6 GB" for a download with a known total, else null. */
+export function transferredOf(progress: SetupProgress | null): string | null {
+  const bytes = progressBytes(progress)
+  if (!bytes || bytes.total <= 0) return null
+  return `${formatTransferSize(bytes.downloaded)} / ${formatTransferSize(bytes.total)}`
+}
+
+/** Decimal units, matching how Steam and transfer rates report sizes. */
+export function formatTransferSize(bytes: number): string {
+  if (bytes < 1_000) return `${Math.max(0, Math.round(bytes))} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes / 1_000
+  let unit = 0
+  while (value >= 1_000 && unit < units.length - 1) {
+    value /= 1_000
+    unit += 1
+  }
+  return `${value.toFixed(1)} ${units[unit]}`
 }
 
 export function transferRate(
@@ -127,7 +213,56 @@ export function formatTransferRate(bytesPerSecond: number | null): string {
   return `${(bytesPerSecond / 1_000_000).toFixed(1)} MB/s`
 }
 
-/** True while any tracked transfer is active; screens use this to block duplicates. */
+const STEAM_STEPS = [
+  'Preparing',
+  'Signing in to Steam',
+  'Allocating disk space',
+  'Downloading',
+  'Verifying',
+  'Installing files',
+] as const
+
+export type DownloadStep = { index: number; count: number; label: string }
+
+/**
+ * Where a Steam game download is: 1-based step of six, from preparing the
+ * container to installing files. Null for transfers without Steam steps.
+ */
+export function downloadStep(task: DownloadTask): DownloadStep | null {
+  if (!/^steam:\d+$/.test(task.key)) return null
+  const step = (index: number, label?: string) => ({
+    index,
+    count: STEAM_STEPS.length,
+    label: label ?? STEAM_STEPS[index - 1],
+  })
+  const progress = task.progress
+  if (!progress) return step(1)
+  switch (progress.phase) {
+    case 'Downloading':
+      return step(4)
+    case 'Verifying':
+      return step(5)
+    case 'Extracting':
+      return step(6)
+    case 'Ready':
+      return step(6, 'Installed')
+    case 'Installing': {
+      const index = STEAM_STEPS.findIndex((label) => label === progress.message)
+      return index > 0 ? step(index + 1) : step(1)
+    }
+  }
+}
+
+/** Transfers still running, in the order they started. */
+export function selectActive(tasks: Record<string, DownloadTask>): DownloadTask[] {
+  return Object.values(tasks).filter((task) => !isFinished(task))
+}
+
+export function selectCompleted(tasks: Record<string, DownloadTask>): DownloadTask[] {
+  return Object.values(tasks).filter(isFinished)
+}
+
+/** True while any tracked transfer is still running; finished ones never block. */
 export function selectBusy(tasks: Record<string, DownloadTask>): boolean {
-  return Object.keys(tasks).length > 0
+  return selectActive(tasks).length > 0
 }

@@ -115,7 +115,19 @@ export type SetupProgress =
       downloadedBytes: number
       totalBytes: number
     }
-  | { phase: 'Verifying'; component: string }
+  | {
+      phase: 'Verifying'
+      component: string
+      downloadedBytes?: number
+      totalBytes?: number
+    }
   | { phase: 'Extracting'; component: string }
-  | { phase: 'Installing'; component: string }
+  | {
+      phase: 'Installing'
+      component: string
+      /** Native step shown instead of the generic setup copy, e.g. "Updating SteamCMD". */
+      message?: string
+      downloadedBytes?: number
+      totalBytes?: number
+    }
   | { phase: 'Ready'; component: string; message: string }

@@ -58,6 +58,7 @@ export default {
         'macos-drift': 'macos-drift 24s ease-in-out infinite alternate',
         'steam-spin': 'steam-qr-spin 0.8s linear infinite',
         'artwork-shimmer': 'artwork-shimmer 1.5s ease-in-out infinite',
+        'progress-sweep': 'progress-sweep 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite',
         'backdrop-enter':
           'orbit-backdrop-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both',
         'backdrop-leave': 'orbit-backdrop-leave 220ms ease-out both',
@@ -75,6 +76,10 @@ export default {
         },
         'artwork-shimmer': {
           to: { transform: 'translateX(100%)' },
+        },
+        'progress-sweep': {
+          from: { transform: 'translateX(-100%)' },
+          to: { transform: 'translateX(250%)' },
         },
         'orbit-backdrop-enter': {
           from: { opacity: '0' },

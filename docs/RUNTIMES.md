@@ -52,12 +52,19 @@ download.
 
 - Rust emits `Downloading { component, downloadedBytes, totalBytes }`,
   `Verifying`, `Extracting`, `Installing` and `Ready { component, message }`.
-- `downloadPercent` clamps to 0-100 and returns `null` when the total is
-  unknown; `downloadStatus` renders a sentence that always includes the
-  percentage plus MB transferred when both sizes are known.
-- `src/components/ui/download-progress.tsx` renders the accessible bar and
-  live-region text; `RuntimeSettings` and every component row use the same
-  component.
+- `downloadPercent` clamps to 0-100 for any phase that reports bytes
+  (Steam's `Verifying` and `Installing` may), returns 100 once `Ready`, and
+  `null` while the amount of work is unknown. `downloadStatus` renders a
+  sentence with the percentage and `x / y` in decimal units; an unknown total
+  shows bytes so far instead of "0 of 0". `Installing { message }` shows the
+  native step.
+- `src/components/ui/progress-bar.tsx` is the styled track: a filled bar with
+  `aria-valuenow`, or a sweeping indeterminate segment when the value is
+  `null` (a pulse with Reduce Motion). `download-progress.tsx` wraps it with
+  the live-region text; `RuntimeSettings`, every component row, details and
+  the downloads sidebar use it.
+- Finished tasks stay listed as completed until **Clear completed**;
+  `selectBusy` and the toolbar dot count only running transfers.
 - Download events are throttled to about one percent so a slow mirror cannot
   flood IPC, and the final byte count is always reported.
 

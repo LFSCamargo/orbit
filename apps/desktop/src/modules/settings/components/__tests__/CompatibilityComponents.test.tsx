@@ -81,9 +81,9 @@ it('shows a percentage progress bar while a component downloads', async () => {
   renderRows()
   expect(await screen.findByText(/Not installed/)).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: /Install/ }))
-  expect(await screen.findByRole('progressbar')).toHaveAttribute('value', '50')
+  expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
   expect(
-    await screen.findByText('Downloading wine-stable 11.0_1 · 50% · 0 of 0 MB'),
+    await screen.findByText('Downloading wine-stable 11.0_1 · 50% · 50 B / 100 B'),
   ).toBeVisible()
   settle()
   await waitFor(() => expect(installComponent).toHaveBeenCalledTimes(1))
