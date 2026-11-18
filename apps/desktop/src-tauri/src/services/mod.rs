@@ -16,6 +16,7 @@ pub mod steamgrid;
 pub mod switch_library;
 pub mod thegamesdb;
 pub mod theme_files;
+pub mod uninstall;
 
 pub use library_sync::LibrarySyncService;
 pub use metadata_enrichment::MetadataEnrichmentService;

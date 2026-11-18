@@ -55,3 +55,28 @@ export function entryInstallStatus(entry: LibraryEntry) {
 export function entryCanSave(entry: LibraryEntry) {
   return entry.installations.some((item) => !item.gameId.startsWith('steam:'))
 }
+
+/** Game files Orbit downloaded itself (per-game container or legacy Steam folder). */
+export function isOrbitManagedDownload(path: string | null | undefined) {
+  return Boolean(
+    path?.includes('/containers/games/') || path?.includes('/steam-windows/games/'),
+  )
+}
+
+/** Windows game files Orbit may delete: its own downloads, or a Steam library
+ * folder (`steamapps/common`), never the Steam client's `steam-windows` prefix. */
+export function isUninstallablePath(path: string | null | undefined) {
+  if (!path) return false
+  if (isOrbitManagedDownload(path)) return true
+  return path.includes('/steamapps/common/') && !path.includes('/steam-windows/')
+}
+
+/** The Steam app id when Orbit may uninstall this title's Windows install. */
+export function uninstallAppId(entry: LibraryEntry): string | null {
+  if (!entry.steamAppId) return null
+  const removable = entry.installations.some(
+    (item) =>
+      item.available && item.launchType === 'wine' && isUninstallablePath(item.path),
+  )
+  return removable ? entry.steamAppId : null
+}

@@ -196,7 +196,9 @@ Shared components in `src/components/`:
 | Component | Path | Notes |
 | --------- | ---- | ----- |
 | `Focusable` | `focus/Focusable.tsx` | Registers node in focus graph |
-| `ConfirmDialog` | `feedback/ConfirmDialog.tsx` | Delete/clear confirmations |
+| `ConfirmDialog` | `feedback/ConfirmDialog.tsx` | Delete/clear confirmations; `busyLabel` and an option slot; closes on back |
+| `ProgressBar` | `ui/progress-bar.tsx` | Determinate fill or indeterminate sweep |
+| `UninstallDialog` | `game/UninstallDialog.tsx` | Uninstall confirm with the keep/delete saves switch |
 
 ---
 

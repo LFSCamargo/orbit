@@ -1,4 +1,4 @@
-import { selectInstallation } from './libraryEntries'
+import { isOrbitManagedDownload, selectInstallation } from './libraryEntries'
 import type { LibraryEntry, LibraryInstallation } from '@/types/library'
 
 export type DetailsActionKind =
@@ -76,8 +76,4 @@ function needsSteamAccount(entry: LibraryEntry, installation: LibraryInstallatio
   )
 }
 
-export function isOrbitManagedDownload(path: string | null | undefined) {
-  return Boolean(
-    path?.includes('/containers/games/') || path?.includes('/steam-windows/games/'),
-  )
-}
+export { isOrbitManagedDownload }

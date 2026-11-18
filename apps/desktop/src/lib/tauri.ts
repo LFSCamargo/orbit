@@ -12,7 +12,7 @@ import type { SwitchLibraryScan } from '@/types/switch'
 import type { HomeContentInventory } from '@/types/gameContent'
 import type { ThemeDefinition } from '@/themes/types'
 
-import type { DownloadQueue } from '@/types/downloads'
+import type { DownloadQueue, UninstallReport } from '@/types/downloads'
 async function run<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauriRuntime()) {
     return mockInvoke<T>(cmd, args)
@@ -485,6 +485,13 @@ export async function startQueuedDownloadNow(appId: string): Promise<void> {
 
 export async function pauseActiveDownload(): Promise<void> {
   return run('pause_active_download')
+}
+
+export async function uninstallSteamGame(
+  appId: string,
+  deletePrefix: boolean,
+): Promise<UninstallReport> {
+  return run('uninstall_steam_game', { appId, deletePrefix })
 }
 
 export async function cancelSteamWindowsDownload(): Promise<void> {

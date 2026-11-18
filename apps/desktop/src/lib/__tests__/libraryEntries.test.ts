@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   isPlaceholderDescription,
+  uninstallAppId,
   overlayCatalogCopy,
   selectInstallation,
 } from '../libraryEntries'
@@ -113,5 +114,47 @@ describe('catalog copy', () => {
       recommended: '8 GB RAM',
       protonTier: 'platinum',
     })
+  })
+})
+
+describe('uninstall', () => {
+  const entry = (path: string | null, launchType = 'wine') =>
+    ({
+      steamAppId: '312990',
+      preferredInstallationId: null,
+      installations: [{ id: 'a', available: true, launchType, path }],
+    }) as unknown as LibraryEntry
+
+  it('offers uninstall for Orbit downloads and Windows games in a Steam library', () => {
+    expect(
+      uninstallAppId(
+        entry('/Orbit/runtimes/containers/games/steam-312990/install/x.exe'),
+      ),
+    ).toBe('312990')
+    expect(uninstallAppId(entry('/Orbit/steam-windows/games/312990/x.exe'))).toBe(
+      '312990',
+    )
+    expect(
+      uninstallAppId(
+        entry(
+          '/Users/me/GameHub/steamapps/common/Broforce The Expendables Missions/Expendabros.exe',
+        ),
+      ),
+    ).toBe('312990')
+  })
+
+  it('never offers it for the Steam client prefix, Mac Steam games or unknown paths', () => {
+    expect(
+      uninstallAppId(
+        entry('/Orbit/steam-windows/prefix/drive_c/Steam/steamapps/common/Game/x.exe'),
+      ),
+    ).toBeNull()
+    expect(
+      uninstallAppId(
+        entry('/Users/me/Library/Steam/steamapps/common/Game/Game.app', 'steam'),
+      ),
+    ).toBeNull()
+    expect(uninstallAppId(entry('/Users/me/Games/x.exe'))).toBeNull()
+    expect(uninstallAppId(entry(null))).toBeNull()
   })
 })

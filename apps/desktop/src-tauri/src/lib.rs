@@ -128,6 +128,7 @@ pub fn run() {
             commands::downloads::remove_queued_download,
             commands::downloads::start_queued_download_now,
             commands::downloads::pause_active_download,
+            commands::uninstall::uninstall_steam_game,
             commands::steam_windows::play_steam_windows_game,
             commands::importers::scan_steam_library,
             commands::importers::scan_astris_folder,

@@ -154,7 +154,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `hide_orbit_window` | — | `void` | During gameplay |
 | `show_orbit_window` | — | `void` | After session ends |
 
-### Downloads
+### Downloads & uninstall
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
@@ -163,6 +163,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
 | `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |
 | `pause_active_download` | — | `void` | Stops SteamCMD and requeues the title at the front, paused |
+| `uninstall_steam_game` | `appId`, `deletePrefix` | `UninstallReport` | Orbit downloads and Windows copies in Steam library folders (never `steam-windows`); saves kept unless asked and never when the prefix holds a Steam login |
 
 ### Importers
 
