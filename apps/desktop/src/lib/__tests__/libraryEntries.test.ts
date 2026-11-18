@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  entrySizes,
   isPlaceholderDescription,
   uninstallAppId,
   overlayCatalogCopy,
@@ -114,6 +115,33 @@ describe('catalog copy', () => {
       recommended: '8 GB RAM',
       protonTier: 'platinum',
     })
+  })
+})
+
+describe('install sizes', () => {
+  it('reads disk and download sizes from the installation that would launch', () => {
+    const entry = {
+      preferredInstallationId: null,
+      game: { installSizeBytes: 9 },
+      installations: [
+        { id: 'a', available: true, sizeBytes: 4_000, downloadSizeBytes: 3_000 },
+      ],
+    } as unknown as LibraryEntry
+    expect(entrySizes(entry)).toEqual({ diskBytes: 4_000, downloadBytes: 3_000 })
+  })
+  it('falls back to the game size and reports nothing for uninstalled titles', () => {
+    const imported = {
+      preferredInstallationId: null,
+      game: { installSizeBytes: 9 },
+      installations: [{ id: 'a', available: true }],
+    } as unknown as LibraryEntry
+    expect(entrySizes(imported)).toEqual({ diskBytes: 9, downloadBytes: null })
+    const owned = {
+      preferredInstallationId: null,
+      game: { installSizeBytes: 9 },
+      installations: [],
+    } as unknown as LibraryEntry
+    expect(entrySizes(owned)).toEqual({ diskBytes: null, downloadBytes: null })
   })
 })
 

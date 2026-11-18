@@ -10,7 +10,14 @@ import {
 } from '@/lib/format'
 import type { Game } from '@/types/game'
 
-export function MetaGrid({ game }: { game: Game }) {
+export function MetaGrid({
+  game,
+  sizes,
+}: {
+  game: Game
+  sizes?: { diskBytes: number | null; downloadBytes: number | null; measuring?: boolean }
+}) {
+  const diskBytes = sizes ? sizes.diskBytes : (game.installSizeBytes ?? null)
   const achievements = game.achievements ?? []
   const stats = [
     {
@@ -24,8 +31,13 @@ export function MetaGrid({ game }: { game: Game }) {
       icon: History,
     },
     {
-      label: 'Install size',
-      value: game.installSizeBytes ? formatBytes(game.installSizeBytes) : 'Not available',
+      label: 'Disk usage',
+      value: diskBytes ? formatBytes(diskBytes) : 'Not available',
+      detail: sizes?.measuring
+        ? 'Measuring…'
+        : sizes?.downloadBytes
+          ? `${formatBytes(sizes.downloadBytes)} download`
+          : undefined,
       icon: HardDrive,
     },
     {
@@ -37,12 +49,14 @@ export function MetaGrid({ game }: { game: Game }) {
       icon: Trophy,
     },
   ]
-  const content = stats.map(({ label, value, icon: Icon }) => (
+  const content = stats.map(({ label, value, detail, icon: Icon }) => (
     <StatCard
       key={label}
       icon={<Icon size={15} />}
       label={label}
       value={value}
+      detail={detail}
+      detailClassName="mt-1 text-[11px] text-white/[0.45]"
       className={clsx(
         'details-stat relative px-[26px] py-[25px]',
         "before:absolute before:left-0 before:top-1/4 before:h-1/2 before:w-px before:bg-white/[0.07] before:content-[''] first:before:hidden",

@@ -13,6 +13,8 @@ import type { HomeContentInventory } from '@/types/gameContent'
 import type { ThemeDefinition } from '@/themes/types'
 
 import type { DownloadQueue, UninstallReport } from '@/types/downloads'
+import type { StorageOverview } from '@/types/storage'
+import type { InstallSize } from '@/types/library'
 async function run<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauriRuntime()) {
     return mockInvoke<T>(cmd, args)
@@ -492,6 +494,21 @@ export async function uninstallSteamGame(
   deletePrefix: boolean,
 ): Promise<UninstallReport> {
   return run('uninstall_steam_game', { appId, deletePrefix })
+}
+
+export async function getInstallSizes(
+  entryId: string,
+  refresh = false,
+): Promise<InstallSize[]> {
+  return run('get_install_sizes', { entryId, refresh })
+}
+
+export async function getStorageOverview(refresh = false): Promise<StorageOverview> {
+  return run('get_storage_overview', { refresh })
+}
+
+export async function removeComponent(id: string, version: string): Promise<void> {
+  return run('remove_component', { id, version })
 }
 
 export async function cancelSteamWindowsDownload(): Promise<void> {

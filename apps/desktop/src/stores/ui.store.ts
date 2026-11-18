@@ -2,7 +2,14 @@ import { create } from 'zustand'
 import type { AppScreen, LibraryFilters } from '@/types/game'
 
 export type SettingsTab =
-  'general' | 'themes' | 'library' | 'steam' | 'runtimes' | 'graphics' | 'metadata'
+  | 'general'
+  | 'themes'
+  | 'library'
+  | 'steam'
+  | 'runtimes'
+  | 'graphics'
+  | 'storage'
+  | 'metadata'
 
 export type SteamLibraryGame = {
   appId: string

@@ -19,12 +19,15 @@ import { focusManager } from '@/controllers/FocusManager'
 import { useLibraryActions, useLibraryEntry } from '@/hooks/useLibrary'
 import { useGameActions } from '@/hooks/useGames'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
+import { useInstallSizes } from '@/hooks/useInstallSizes'
 import { backTarget, focusRestoreId } from '@/lib/navigation'
 import { formatRelativeDate, providerLabel } from '@/lib/format'
 import {
   entryCanSave,
   entryInstallStatus,
+  entrySizes,
   isPlaceholderDescription,
+  uninstallAppId as findUninstallAppId,
   selectInstallation,
 } from '@/lib/libraryEntries'
 import { isOrbitManagedDownload } from '@/lib/libraryActions'
@@ -32,11 +35,14 @@ import { downloadSteamWindowsGame, enrichGameMetadata, revealPath } from '@/lib/
 import { AchievementList } from './components/AchievementList'
 import { DetailsHero } from './components/DetailsHero'
 import { DetailsPrimaryAction } from './components/DetailsPrimaryAction'
+import { DetailsDownloadStatus } from './components/DetailsDownloadStatus'
 import { DetailsSettings } from './components/DetailsSettings'
 import { InstallationPicker } from './components/InstallationPicker'
 import { DetailsRunInfo } from './components/DetailsRunInfo'
 import { MetaGrid } from './components/MetaGrid'
+import { UninstallAction } from './components/UninstallAction'
 import { useSessionStore } from '@/stores/session.store'
+import { notify } from '@/lib/toast'
 import { useUiStore } from '@/stores/ui.store'
 
 const EYEBROWS = {
@@ -64,13 +70,18 @@ export function GameDetailsPage() {
   const setSelectedGameId = useUiStore((s) => s.setSelectedGameId)
   const setHeroGameId = useUiStore((s) => s.setHeroGameId)
   const { data: entry, isLoading, error: loadError } = useLibraryEntry(selectedGameId)
+  const installSize = useInstallSizes(entry)
   const { update, remove } = useLibraryActions()
   const { launch, playEntry } = useGameActions()
   const steam = useSteamWindows()
   const queryClient = useQueryClient()
   const activeSession = useSessionStore((s) => s.activeSession)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
+  const actionError = update.error || remove.error || launch.error || playEntry.error
+  useEffect(() => {
+    if (actionError)
+      notify.error({ title: 'That did not work', message: errorText(actionError) })
+  }, [actionError])
   useEffect(() => {
     if (!entry) return
     let attempts = 0
@@ -135,45 +146,53 @@ export function GameDetailsPage() {
   const installation = selectInstallation(entry)
   const canSave = entryCanSave(entry)
   const installStatus = entryInstallStatus(entry)
+  const uninstallAppId = findUninstallAppId(entry)
+  const known = entrySizes(entry)
+  const sizes = {
+    diskBytes: installSize.measured?.sizeBytes ?? known.diskBytes,
+    downloadBytes: known.downloadBytes,
+    measuring: installSize.measuring,
+  }
   const running = Boolean(
     activeSession &&
     (activeSession.gameId === installation?.gameId || activeSession.gameId === game.id),
   )
-  const error = update.error || remove.error || launch.error || playEntry.error
   const refresh = async () => {
-    setStatus(null)
+    const id = notify.loading({ title: 'Refreshing metadata', message: game.title })
     try {
       const result = await enrichGameMetadata(game.id)
       await queryClient.invalidateQueries({ queryKey: ['games'] })
       await queryClient.invalidateQueries({ queryKey: ['library'] })
       await queryClient.invalidateQueries({ queryKey: ['library-entry'] })
-      setStatus(result.message)
+      notify.success({ title: 'Metadata refreshed', message: result.message }, { id })
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err))
+      notify.error({ title: 'Metadata refresh failed', message: errorText(err) }, { id })
     }
   }
   const verify = async () => {
     if (!entry.steamAppId) return
-    setStatus(null)
     try {
       await downloadSteamWindowsGame(entry.steamAppId)
-      setStatus('Verification started.')
+      notify.success({ title: 'Verification queued', message: game.title })
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err))
+      notify.error({ title: 'Could not verify files', message: errorText(err) })
     }
   }
   const showFolder = async () => {
     if (!installation?.path) return
-    setStatus(null)
     try {
       await revealPath(installation.path)
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err))
+      notify.error({ title: 'Could not show the folder', message: errorText(err) })
     }
   }
   return (
     <div className={PAGE} data-theme="macos">
-      <DetailsHero game={game} eyebrow={EYEBROWS[installStatus]}>
+      <DetailsHero
+        game={game}
+        eyebrow={EYEBROWS[installStatus]}
+        aside={<DetailsDownloadStatus entry={entry} />}
+      >
         <DetailsPrimaryAction
           entry={entry}
           game={game}
@@ -204,7 +223,7 @@ export function GameDetailsPage() {
         </Focusable>
       </DetailsHero>
       <div className="details-content relative z-[1] mt-[-27px] px-[var(--console-gutter)] max-[520px]:px-[22px]">
-        <MetaGrid game={game} />
+        <MetaGrid game={game} sizes={sizes} />
         <TabList label="Game details" className="mb-4 mt-6">
           {(['overview', 'settings'] as const).map((item, order) => (
             <Focusable
@@ -232,22 +251,6 @@ export function GameDetailsPage() {
           aria-label="Overview"
           hidden={tab !== 'overview'}
         >
-          {error && (
-            <p
-              role="alert"
-              className="details-error orbit-glass-control mt-[22px] rounded-[14px] border border-[#fb718533] bg-[#fb718511] px-5 py-4 text-xs text-[#fda4af]"
-            >
-              {String(error)}
-            </p>
-          )}
-          {status && (
-            <p
-              role="status"
-              className="details-error orbit-glass-control mt-[22px] rounded-[14px] border border-[#fb718533] bg-[#fb718511] px-5 py-4 text-xs text-[#fda4af]"
-            >
-              {status}
-            </p>
-          )}
           <div
             className={clsx(
               'details-body-grid mt-9 grid grid-cols-[minmax(0,1fr)_300px] items-start gap-8',
@@ -333,6 +336,14 @@ export function GameDetailsPage() {
                   <dt>Added</dt>
                   <dd>{formatRelativeDate(game.dateAdded)}</dd>
                 </div>
+                {installSize.measured && (
+                  <div>
+                    <dt>Game folder</dt>
+                    <dd className="min-w-0 truncate" title={installSize.measured.root}>
+                      {installSize.measured.root.split('/').pop()}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Visibility</dt>
                   <dd>{game.hidden ? 'Hidden' : 'In library'}</dd>
@@ -405,10 +416,19 @@ export function GameDetailsPage() {
                     </span>
                   </Focusable>
                 )}
+                {uninstallAppId && (
+                  <UninstallAction
+                    appId={uninstallAppId}
+                    title={game.title}
+                    sizeBytes={sizes.diskBytes}
+                    disabled={running}
+                    order={4}
+                  />
+                )}
                 <Focusable
                   focusId="details-hide"
                   group="details-management"
-                  order={4}
+                  order={5}
                   noScale
                   disabled={update.isPending}
                   onClick={() =>
@@ -429,7 +449,7 @@ export function GameDetailsPage() {
                 <Focusable
                   focusId="details-delete"
                   group="details-management"
-                  order={5}
+                  order={6}
                   noScale
                   disabled={running || remove.isPending}
                   onClick={() => setConfirmDelete(true)}
@@ -471,4 +491,8 @@ export function GameDetailsPage() {
       />
     </div>
   )
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

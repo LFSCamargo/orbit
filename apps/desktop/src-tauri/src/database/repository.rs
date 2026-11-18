@@ -368,6 +368,16 @@ impl GameRepository {
             .ok_or_else(|| anyhow::anyhow!("Game not found"))
     }
 
+    /// Records a measured install size. A game id with no saved row is a no-op.
+    pub fn set_install_size(&self, game_id: &str, bytes: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE games SET install_size_bytes = ?1 WHERE id = ?2",
+            params![bytes, game_id],
+        )?;
+        Ok(())
+    }
+
     pub fn set_hidden(&self, game_id: &str, hidden: bool) -> Result<Game> {
         {
             let conn = self.conn.lock().unwrap();

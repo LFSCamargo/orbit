@@ -7,6 +7,19 @@ export interface LibraryInstallation {
   path: string | null
   available: boolean
   launchType: string
+  /** Bytes on disk, when Orbit knows them. */
+  sizeBytes?: number | null
+  /** Bytes SteamCMD downloaded for an Orbit install. */
+  downloadSizeBytes?: number | null
+}
+/** One installed copy measured from its real game folder. */
+export interface InstallSize {
+  installationId: string
+  /** The game folder, symlinks resolved. */
+  root: string
+  sizeBytes: number
+  /** The walk hit its budget; the size is a lower bound. */
+  truncated: boolean
 }
 export interface LibraryRunInfo {
   minimum?: string | null

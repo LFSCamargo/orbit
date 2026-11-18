@@ -5,7 +5,7 @@ import { RuntimeSettings } from './components/RuntimeSettings'
 import { SettingsInsights } from './components/SettingsInsights'
 import type { ComponentType, ReactNode } from 'react'
 import { clsx } from 'clsx'
-import { LayoutGrid, Library, Monitor, Palette, Play } from 'lucide-react'
+import { HardDrive, LayoutGrid, Library, Monitor, Palette, Play } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { SteamIcon } from '@/components/game/SourceIcon'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
@@ -16,6 +16,7 @@ import { ApiKeySettings } from '@/modules/settings/components/ApiKeySettings'
 import { LibrarySettings } from '@/modules/settings/components/LibrarySettings'
 import { SteamLibraryFolders } from '@/modules/settings/components/SteamLibraryFolders'
 import { SteamSettings } from '@/modules/settings/components/SteamSettings'
+import { StorageSettings } from '@/modules/settings/components/storage/StorageSettings'
 import { ThemeSettings } from '@/modules/settings/components/ThemeSettings'
 
 const TABS: {
@@ -29,6 +30,7 @@ const TABS: {
   { id: 'steam', label: 'Steam', icon: SteamIcon },
   { id: 'graphics', label: 'Game graphics', icon: Monitor },
   { id: 'runtimes', label: 'Compatibility', icon: Play },
+  { id: 'storage', label: 'Storage', icon: HardDrive },
 ]
 
 const SETTINGS_LAYOUT = clsx(
@@ -169,6 +171,21 @@ export function SettingsPage() {
             )}
 
             {tab === 'runtimes' && <RuntimeSettings />}
+
+            {tab === 'storage' && (
+              <section className={PANEL}>
+                <div className={PANEL_HEADER}>
+                  <div className={PANEL_TITLE}>
+                    <HardDrive size={20} />
+                    <h2 className={PANEL_H2}>Storage</h2>
+                  </div>
+                  <p className="m-0 text-[13px] font-normal leading-[1.6] text-orbit-muted">
+                    Disk used by games, tools and runtimes Orbit downloaded.
+                  </p>
+                </div>
+                <StorageSettings />
+              </section>
+            )}
 
             {tab === 'themes' && (
               <section className={PANEL} data-testid="settings-themes-view">

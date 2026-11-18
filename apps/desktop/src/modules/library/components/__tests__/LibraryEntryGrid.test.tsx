@@ -70,3 +70,24 @@ it('splits the library into source sections only when sources are mixed', () => 
   rerender(<LibrarySections entries={[entry]} />)
   expect(screen.queryByRole('heading', { name: /Steam · Mac/ })).toBeNull()
 })
+
+it('shows how much disk an installed game takes', () => {
+  const installed: LibraryEntry = {
+    ...entry,
+    id: 'steam:2',
+    installations: [
+      {
+        id: 'i1',
+        gameId: 'g1',
+        platform: 'windows',
+        path: '/Orbit/runtimes/containers/games/steam-2/install/game.exe',
+        available: true,
+        launchType: 'wine',
+        sizeBytes: 64_424_509_440,
+      },
+    ],
+  }
+  render(<LibraryEntryGrid entries={[installed, entry]} />)
+  expect(screen.getByText('Installed · 60 GB')).toBeTruthy()
+  expect(screen.getByText('Not installed')).toBeTruthy()
+})

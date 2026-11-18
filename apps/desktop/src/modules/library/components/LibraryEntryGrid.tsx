@@ -6,7 +6,8 @@ import { SourceIcon } from '@/components/game/SourceIcon'
 import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { gameTileFit, gameTileImage } from '@/lib/artwork'
 import { gameSource, SOURCE_LABELS } from '@/lib/gameSource'
-import { placeholderGradient } from '@/lib/format'
+import { formatBytes, placeholderGradient } from '@/lib/format'
+import { entrySizes } from '@/lib/libraryEntries'
 import { useUiStore } from '@/stores/ui.store'
 import type { LibraryEntry } from '@/types/library'
 import { useLibraryViewportFade } from '../hooks/useLibraryViewportFade'
@@ -107,7 +108,7 @@ export function LibraryEntryGrid({
                 >
                   {available ? <HardDrive size={14} /> : <Download size={14} />}
                   {available
-                    ? 'Installed'
+                    ? installedLabel(entry)
                     : entry.installations.length
                       ? 'Unavailable'
                       : 'Not installed'}
@@ -121,4 +122,9 @@ export function LibraryEntryGrid({
       })}
     </div>
   )
+}
+
+function installedLabel(entry: LibraryEntry): string {
+  const { diskBytes } = entrySizes(entry)
+  return diskBytes ? `Installed · ${formatBytes(diskBytes)}` : 'Installed'
 }

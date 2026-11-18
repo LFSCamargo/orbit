@@ -27,7 +27,7 @@ pub struct LibraryPage {
     next_cursor: Option<usize>,
 }
 
-fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, String> {
+pub(crate) fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, String> {
     steam_windows::ensure_owned_snapshot(&state.repo)?;
     let games = state.repo.list_games().map_err(|e| e.to_string())?;
     let stubs = library::placeholder_game_ids(&games);
@@ -40,6 +40,11 @@ fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, String> {
         &crate::services::steam_library_paths::index(&paths),
     );
     library::apply_playtimes(&mut result, &steam_windows::play_records());
+    crate::services::install_roots::apply_measured(&mut result);
+    library::apply_download_sizes(
+        &mut result,
+        &crate::services::download_queue::download_sizes(&state.repo),
+    );
     for entry in &mut result {
         if let Some(saved) = states.get(&entry.id) {
             if let Some(favorite) = saved.favorite {
@@ -214,4 +219,40 @@ pub async fn delete_library_entry(app: AppHandle, entry_id: String) -> Result<()
     })
     .await
     .map_err(|_| "Library delete stopped".to_string())?
+}
+
+/// Measures each installed copy of one title from its real game folder.
+/// Walks the folders off the main thread; repeat calls reuse the measurement.
+#[tauri::command]
+pub async fn get_install_sizes(
+    app: AppHandle,
+    entry_id: String,
+    refresh: bool,
+) -> Result<Vec<crate::services::install_roots::InstallSize>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        if refresh {
+            crate::services::install_roots::forget_measurements();
+        }
+        let entry = entries(&state)?
+            .into_iter()
+            .find(|e| e.id == entry_id)
+            .ok_or("Game not found")?;
+        let sizes = crate::services::install_roots::measure_entry(&entry);
+        for size in &sizes {
+            let Some(install) = entry
+                .installations
+                .iter()
+                .find(|item| item.id == size.installation_id)
+            else {
+                continue;
+            };
+            let bytes = i64::try_from(size.size_bytes).unwrap_or(i64::MAX);
+            // Saved rows keep the size across restarts; catalog-only rows have no row.
+            let _ = state.repo.set_install_size(&install.game_id, bytes);
+        }
+        Ok(sizes)
+    })
+    .await
+    .map_err(|_| "Size check stopped".to_string())?
 }

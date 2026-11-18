@@ -17,6 +17,82 @@ let steamPreferences: SteamWindowsPreferences = {
   steamOverlay: false,
 }
 
+function mockStorageOverview() {
+  const items = [
+    {
+      id: 'game:730',
+      name: 'Counter-Strike 2',
+      kind: 'game',
+      sizeBytes: 34_600_000_000,
+      installedAt: '2026-11-10T12:00:00.000Z',
+      path: '/Orbit/runtimes/containers/games/steam-730/install',
+      artwork: 'https://cdn.akamai.steamstatic.com/steam/apps/730/library_600x900_2x.jpg',
+      removal: { type: 'game', appId: '730' },
+      entryId: 'steam:730',
+      source: 'Orbit',
+      onDataVolume: true,
+    },
+    {
+      id: 'tool:steam-windows:prefix',
+      name: 'Steam for Windows',
+      kind: 'tool',
+      sizeBytes: 2_400_000_000,
+      installedAt: '2026-11-03T12:00:00.000Z',
+      path: '/Orbit/steam-windows/prefix',
+      artwork: null,
+      removal: { type: 'none' },
+      entryId: null,
+      source: 'Orbit',
+      onDataVolume: true,
+    },
+    {
+      id: 'component:dxvk:2.3',
+      name: 'DXVK 2.3',
+      kind: 'runtime',
+      sizeBytes: 120_000_000,
+      installedAt: '2026-10-28T12:00:00.000Z',
+      path: '/Orbit/runtimes/components/dxvk/2.3',
+      artwork: null,
+      removal: { type: 'component', id: 'dxvk', version: '2.3' },
+      entryId: null,
+      source: 'Orbit',
+      onDataVolume: true,
+    },
+    {
+      id: 'other:artwork-cache',
+      name: 'Artwork cache',
+      kind: 'other',
+      sizeBytes: 161_000_000,
+      installedAt: null,
+      path: '/Orbit/artwork-cache',
+      artwork: null,
+      removal: { type: 'none' },
+      entryId: null,
+      source: 'Orbit',
+      onDataVolume: true,
+    },
+  ]
+  const sum = (kind: string) =>
+    items
+      .filter((item) => item.kind === kind)
+      .reduce((total, item) => total + item.sizeBytes, 0)
+  const totals = {
+    games: sum('game'),
+    tools: sum('tool'),
+    runtimes: sum('runtime'),
+    other: sum('other'),
+  }
+  return {
+    volumeTotalBytes: 1_860_000_000_000,
+    volumeFreeBytes: 620_000_000_000,
+    orbitBytes: totals.games + totals.tools + totals.runtimes + totals.other,
+    totals,
+    items,
+    truncated: false,
+    scannedAt: '2026-11-17T12:00:00.000Z',
+  }
+}
+
 function steamStatus() {
   return {
     signedIn: steamAccount !== null,
@@ -661,7 +737,30 @@ export async function mockInvoke<T>(
     case 'cancel_steam_windows_sign_in':
     case 'cancel_steam_windows_download':
     case 'download_steam_windows_game':
+    case 'enqueue_steam_download':
+    case 'remove_queued_download':
+    case 'start_queued_download_now':
+    case 'pause_active_download':
+    case 'remove_component':
       return undefined as T
+    case 'get_download_queue':
+      return { active: null, pending: [] } as T
+    case 'uninstall_steam_game':
+      return { removedBytes: 0, keptPrefix: false } as T
+    case 'get_storage_overview':
+      return mockStorageOverview() as T
+    case 'get_install_sizes': {
+      const catalog = await mockInvoke<SteamOwnedGame[]>('steam_windows_library')
+      const entry = mockLibrary(games, catalog).find((item) => item.id === args?.entryId)
+      return (entry?.installations ?? [])
+        .filter((item) => item.available)
+        .map((item) => ({
+          installationId: item.id,
+          root: item.path ?? `/Games/${entry?.game.title ?? 'Game'}`,
+          sizeBytes: 64_424_509_440,
+          truncated: false,
+        })) as T
+    }
     case 'play_steam_windows_game':
       throw new Error('Playing a Windows Steam game requires the Orbit desktop app.')
     default:

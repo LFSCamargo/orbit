@@ -56,6 +56,19 @@ export function entryCanSave(entry: LibraryEntry) {
   return entry.installations.some((item) => !item.gameId.startsWith('steam:'))
 }
 
+/** Disk and download size of the installation that would launch. O(installations). */
+export function entrySizes(entry: LibraryEntry): {
+  diskBytes: number | null
+  downloadBytes: number | null
+} {
+  const installation = selectInstallation(entry)
+  if (!installation) return { diskBytes: null, downloadBytes: null }
+  return {
+    diskBytes: installation.sizeBytes ?? entry.game.installSizeBytes ?? null,
+    downloadBytes: installation.downloadSizeBytes ?? null,
+  }
+}
+
 /** Game files Orbit downloaded itself (per-game container or legacy Steam folder). */
 export function isOrbitManagedDownload(path: string | null | undefined) {
   return Boolean(

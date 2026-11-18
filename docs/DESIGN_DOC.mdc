@@ -154,7 +154,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `hide_orbit_window` | — | `void` | During gameplay |
 | `show_orbit_window` | — | `void` | After session ends |
 
-### Downloads & uninstall
+### Downloads, uninstall & storage
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
@@ -164,6 +164,9 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |
 | `pause_active_download` | — | `void` | Stops SteamCMD and requeues the title at the front, paused |
 | `uninstall_steam_game` | `appId`, `deletePrefix` | `UninstallReport` | Orbit downloads and Windows copies in Steam library folders (never `steam-windows`); saves kept unless asked and never when the prefix holds a Steam login |
+| `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder and every library game's real folder, by category, plus volume totals |
+| `get_install_sizes` | `entryId`, `refresh` | `InstallSize[]` | Disk usage of each installed copy measured from its real game folder; saved to the game row |
+| `remove_component` | `id`, `version` | `void` | Refuses a version that games are set to use |
 
 ### Importers
 

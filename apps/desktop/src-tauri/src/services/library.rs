@@ -17,6 +17,12 @@ pub struct Installation {
     pub path: Option<String>,
     pub available: bool,
     pub launch_type: String,
+    /// Bytes on disk, when known.
+    #[serde(default)]
+    pub size_bytes: Option<i64>,
+    /// Bytes SteamCMD downloaded for an Orbit install, when known.
+    #[serde(default)]
+    pub download_size_bytes: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +106,8 @@ fn installation(game: &Game) -> Installation {
         path,
         available,
         launch_type,
+        size_bytes: game.install_size_bytes,
+        download_size_bytes: None,
     }
 }
 
@@ -342,6 +350,8 @@ pub fn attach_windows_installs(entries: &mut [LibraryEntry], index: &SteamInstal
             path: Some(path),
             available: true,
             launch_type: "wine".into(),
+            size_bytes: install.size_on_disk,
+            download_size_bytes: None,
         });
         entry.installations.sort_by_key(|item| {
             (
@@ -352,6 +362,37 @@ pub fn attach_windows_installs(entries: &mut [LibraryEntry], index: &SteamInstal
             )
         });
     }
+}
+
+/// Fills download sizes recorded by the queue. O(n · i) over entries and
+/// their installations with an O(1) map lookup; no I/O.
+pub fn apply_download_sizes(entries: &mut [LibraryEntry], sizes: &HashMap<String, i64>) {
+    for entry in entries {
+        let Some(bytes) = entry.steam_app_id.as_ref().and_then(|id| sizes.get(id)) else {
+            continue;
+        };
+        for install in &mut entry.installations {
+            if install.launch_type == "wine" && is_orbit_managed(install.path.as_deref()) {
+                install.download_size_bytes = Some(*bytes);
+            }
+        }
+    }
+}
+
+/// True for game files Orbit downloaded itself, which Orbit may uninstall.
+pub fn is_orbit_managed(path: Option<&str>) -> bool {
+    path.is_some_and(|path| {
+        path.contains("/runtimes/containers/games/steam-") || path.contains("/steam-windows/games/")
+    })
+}
+
+/// Orbit downloads plus Windows games in a Steam library folder; never the
+/// `steam-windows` client prefix.
+pub fn is_uninstallable(path: Option<&str>) -> bool {
+    is_orbit_managed(path)
+        || path.is_some_and(|path| {
+            path.contains("/steamapps/common/") && !path.contains("/steam-windows/")
+        })
 }
 
 pub fn apply_playtimes(
