@@ -13,7 +13,10 @@ import { useFullscreen } from '@/hooks/useFullscreen'
 import { useUiStore, type SettingsTab } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import { ApiKeySettings } from '@/modules/settings/components/ApiKeySettings'
-import { LibrarySettings } from '@/modules/settings/components/LibrarySettings'
+import {
+  LibrarySettings,
+  SwitchContentCard,
+} from '@/modules/settings/components/LibrarySettings'
 import { SteamLibraryFolders } from '@/modules/settings/components/SteamLibraryFolders'
 import { SteamSettings } from '@/modules/settings/components/SteamSettings'
 import { StorageSettings } from '@/modules/settings/components/storage/StorageSettings'
@@ -78,7 +81,6 @@ export function SettingsPage() {
   const { fullscreen, setFullscreen } = useFullscreen()
   const activeTab = useUiStore((s) => s.settingsTab)
   const setActiveTab = useUiStore((s) => s.setSettingsTab)
-  const setScreen = useUiStore((s) => s.setScreen)
   const tab = TABS.some((item) => item.id === activeTab) ? activeTab : 'general'
 
   return (
@@ -211,31 +213,15 @@ export function SettingsPage() {
                       <Library size={20} />
                       <h2 className={PANEL_H2}>Library</h2>
                     </div>
+                    <p className="m-0 text-[13px] font-normal leading-[1.6] text-orbit-muted">
+                      Where Orbit looks for your games, and tools to manage them.
+                    </p>
                   </div>
-                  <SettingsCard>
+                  <div className="grid gap-4">
                     <SteamLibraryFolders />
-                  </SettingsCard>
-                  <SettingsCard className="mt-4">
-                    <Focusable
-                      focusId="imports-switch-library"
-                      group="settings-library"
-                      order={20}
-                      noScale
-                      onClick={() => setScreen('switch-library')}
-                      className="block rounded-card bg-white/5 p-5 text-left"
-                    >
-                      <h3 className="font-display text-lg font-semibold">
-                        Switch content visualizer
-                      </h3>
-                      <p className="mt-2 text-sm text-orbit-muted">
-                        See base games, updates, and DLC for titles already in your
-                        library.
-                      </p>
-                    </Focusable>
-                  </SettingsCard>
-                  <SettingsCard className="mt-4">
+                    <SwitchContentCard />
                     <LibrarySettings />
-                  </SettingsCard>
+                  </div>
                 </section>
               </div>
             )}
