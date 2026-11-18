@@ -4,6 +4,7 @@ import { Search, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
 import { useModalFocus } from '@/hooks/useModalFocus'
+import { useOverlayBack } from '@/controllers/overlayStack'
 import { fetchThemeArtwork } from '@/lib/tauri'
 import { searchThemeStudioArtwork } from '@/lib/themeArtwork'
 import type { ArtworkSlot } from '@/lib/artwork'
@@ -89,14 +90,12 @@ export function ImageSearchModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialQuery, slot, gameId, themeArtwork])
 
+  useOverlayBack(open, onClose)
+
   useEffect(() => {
     if (!open) return
     const escape = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-      }
       if (event.key !== 'Tab') return
       const elements = [
         ...(dialog.current?.querySelectorAll<HTMLElement>(

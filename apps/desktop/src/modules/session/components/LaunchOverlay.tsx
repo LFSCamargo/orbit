@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { useGame } from '@/hooks/useGames'
 import { useModalFocus } from '@/hooks/useModalFocus'
+import { useOverlayBack } from '@/controllers/overlayStack'
 import { artworkPlaceholder, gameHeroImage, gameLogoImage } from '@/lib/artwork'
 import { launchCaption } from '@/lib/launchProgress'
 import { cssUrl } from '@/lib/media'
@@ -18,6 +19,8 @@ export function LaunchOverlay() {
   const [failedLogo, setFailedLogo] = useState<string>()
   const closeId = launch?.failed ? 'launch-dismiss' : 'launch-cancel'
   useModalFocus(Boolean(launch), 'launch-overlay', closeId)
+  // Back dismisses a failed launch; it never cancels one that is starting.
+  useOverlayBack(Boolean(launch?.failed), clear)
   if (!launch) return null
 
   const title = game?.title ?? launch.title ?? 'Your game'

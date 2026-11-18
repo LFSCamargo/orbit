@@ -7,6 +7,7 @@ import { Focusable } from '@/components/focus/Focusable'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
 import { glyphFor } from '@/controllers/ControllerGlyphs'
 import { useModalFocus } from '@/hooks/useModalFocus'
+import { useOverlayBack } from '@/controllers/overlayStack'
 import { useGame, useGameActions } from '@/hooks/useGames'
 import { hideOrbitWindow, quitOrbit } from '@/lib/tauri'
 import { useSessionStore } from '@/stores/session.store'
@@ -39,6 +40,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
   const reduce = useReducedMotion()
   const dialogRef = useRef<HTMLDivElement>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  useOverlayBack(open, closeHomeMenu)
 
   const items = useMemo(() => {
     const navigate = (screen: AppScreen) => {
@@ -161,11 +163,6 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
             first.focus()
           }
         }
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        closeHomeMenu()
       }
     }
     window.addEventListener('keydown', onKeyDown, { capture: true })

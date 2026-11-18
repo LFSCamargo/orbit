@@ -8,6 +8,7 @@ import { backTarget, focusRestoreId, screenEntryFocusId } from '@/lib/navigation
 import { applyPageScroll } from '@/lib/pageScroll'
 import { showOrbitWindow, isTauriRuntime } from '@/lib/tauri'
 import { useUiStore } from '@/stores/ui.store'
+import { closeTopOverlay } from './overlayStack'
 import { useNavigationInput } from './useNavigationInput'
 import type { AppScreen } from '@/types/game'
 
@@ -120,6 +121,8 @@ export function useControllerNavigation() {
           break
         }
         case 'back': {
+          // An open drawer, dialog or modal closes before the screen changes.
+          if (closeTopOverlay()) break
           if (useUiStore.getState().homeMenuOpen) {
             useUiStore.getState().closeHomeMenu()
             break

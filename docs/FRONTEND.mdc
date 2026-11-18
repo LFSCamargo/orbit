@@ -140,6 +140,7 @@ src/
     ControllerGlyphs.ts    # Platform-specific button icons
     useController.ts       # Hook wiring actions → UI store
     useNavigationInput.ts  # Root input modality for rings, including portals
+    overlayStack.ts        # Back / Escape closes the topmost overlay first
   hooks/
     useGames.ts            # TanStack Query wrappers for installed games
     useLibrary.ts          # Unified LibraryEntry list, detail, and title state
@@ -225,6 +226,8 @@ When adding a command: update Rust handler → register in `lib.rs` → add wrap
 4. `FocusManager` maintains spatial focus graph; `Focusable` registers focusable elements.
 
 Keyboard equivalents handled in the same hook.
+
+**Back closes overlays first.** `controllers/overlayStack.ts` keeps a stack of open overlays. A drawer, dialog or modal registers with `useOverlayBack(open, onClose)`. Controller B / Circle (`back`) and Escape close only the top entry; the screen changes only when no overlay is open. One capture-phase Escape listener serves every overlay (it yields to an open Radix Select list), so overlays do not add their own Escape handlers. Registered: downloads sidebar, `ConfirmDialog`, `ImageSearchModal`, `SteamClientSignIn`, the Home menu, and a failed launch banner (back never cancels a launch that is starting).
 
 ## Testing
 

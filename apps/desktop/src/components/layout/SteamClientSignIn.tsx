@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Focusable } from '@/components/focus/Focusable'
+import { useOverlayBack } from '@/controllers/overlayStack'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import {
   cancelSteamWindowsSignIn,
@@ -61,6 +62,8 @@ export function SteamClientSignIn({
   }, [attempt, open])
 
   useModalFocus(open, 'steam-client-sign-in', 'steam-client-sign-in-cancel')
+  const cancelRef = useRef<() => void>(() => undefined)
+  useOverlayBack(open, () => cancelRef.current())
   if (!open) return null
 
   const close = async () => {
@@ -73,6 +76,7 @@ export function SteamClientSignIn({
       onClose()
     }
   }
+  cancelRef.current = () => void close()
 
   return createPortal(
     <div className="bg-black/46 fixed inset-0 z-[90] grid place-items-center p-6">
