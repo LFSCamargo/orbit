@@ -1,4 +1,5 @@
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -19,6 +20,9 @@ export function useLibrary(query: LibraryQuery) {
     initialPageParam: 0,
     queryFn: ({ pageParam }) => listLibraryEntries({ ...query, cursor: pageParam }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    // A new search or view keeps the current results on screen until its own
+    // arrive, instead of flashing the loading skeleton.
+    placeholderData: keepPreviousData,
     select: withoutNonGameEntries,
   })
 }
