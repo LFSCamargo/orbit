@@ -65,7 +65,7 @@ export function ImportsSection() {
           noScale
           noRing
           onClick={openAddGame}
-          className={buttonClass({ size: 'lg', shape: 'card' })}
+          className={buttonClass({ size: 'lg' })}
         >
           Add game journey
         </Focusable>

@@ -107,7 +107,7 @@ export function RuntimeSettings() {
                     order={0}
                     disabled={busy || compatibility.isLoading}
                     onClick={() => void install()}
-                    className={buttonClass({ shape: 'card' })}
+                    className={buttonClass({})}
                   >
                     {busy ? (
                       <LoaderCircle size={16} className="animate-spin" />
@@ -168,7 +168,7 @@ export function RuntimeSettings() {
                   order={1}
                   disabled={busy}
                   onClick={() => void register()}
-                  className="orbit-glass-control rounded-card px-4 py-3"
+                  className="orbit-glass-control rounded-full px-4 py-3"
                 >
                   Choose installed Wine
                 </Focusable>
@@ -178,7 +178,7 @@ export function RuntimeSettings() {
                   order={2}
                   disabled={runtimes.isFetching || busy}
                   onClick={() => void refresh()}
-                  className="orbit-glass-control rounded-card px-4 py-3"
+                  className="orbit-glass-control rounded-full px-4 py-3"
                 >
                   Detect again
                 </Focusable>

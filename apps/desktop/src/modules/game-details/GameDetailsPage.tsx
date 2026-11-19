@@ -128,7 +128,7 @@ export function GameDetailsPage() {
           group="details-actions"
           order={0}
           noScale
-          className="details-secondary orbit-glass-control rounded-xl bg-white/10 px-[18px] py-3 text-[13px]"
+          className="details-secondary orbit-glass-control rounded-full bg-white/10 px-[18px] py-3 text-[13px]"
           onClick={goBack}
         >
           Back to library
@@ -357,6 +357,7 @@ export function GameDetailsPage() {
               >
                 <Focusable
                   focusId="details-edit"
+                  data-shape="row"
                   group="details-management"
                   order={0}
                   noScale
@@ -371,6 +372,7 @@ export function GameDetailsPage() {
                 {canSave && (
                   <Focusable
                     focusId="details-refresh"
+                    data-shape="row"
                     group="details-management"
                     order={1}
                     noScale
@@ -421,6 +423,7 @@ export function GameDetailsPage() {
                 )}
                 <Focusable
                   focusId="details-hide"
+                  data-shape="row"
                   group="details-management"
                   order={5}
                   noScale
@@ -442,6 +445,7 @@ export function GameDetailsPage() {
                 </Focusable>
                 <Focusable
                   focusId="details-delete"
+                  data-shape="row"
                   group="details-management"
                   order={6}
                   noScale

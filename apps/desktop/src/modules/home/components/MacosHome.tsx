@@ -301,7 +301,7 @@ export function MacosHome({
             onClick={() => navigate('library')}
             className={clsx(
               'macos-view-all',
-              'flex items-center gap-2 p-2 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.55)]',
+              'flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.55)]',
               'max-[520px]:hidden',
             )}
           >

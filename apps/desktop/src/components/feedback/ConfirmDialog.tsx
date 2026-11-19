@@ -63,7 +63,7 @@ export function ConfirmDialog({
                 order={0}
                 disabled={busy}
                 onClick={onCancel}
-                className="orbit-glass-control rounded-card bg-white/10 px-5 py-3 font-semibold"
+                className="orbit-glass-control rounded-full bg-white/10 px-5 py-3 font-semibold"
               >
                 Cancel
               </Focusable>
@@ -73,7 +73,7 @@ export function ConfirmDialog({
                 order={1}
                 disabled={busy}
                 onClick={onConfirm}
-                className="rounded-card bg-rose-500 px-5 py-3 font-semibold text-white"
+                className="rounded-full bg-rose-500 px-5 py-3 font-semibold text-white"
               >
                 {busy ? busyLabel : confirmLabel}
               </Focusable>

@@ -3,7 +3,6 @@ import type { ButtonHTMLAttributes } from 'react'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'lg'
-export type ButtonShape = 'pill' | 'card'
 
 const VARIANT: Record<ButtonVariant, string> = {
   // The brand fire gradient; fixed in every theme (see `.orbit-btn-fire`).
@@ -19,29 +18,22 @@ const SIZE: Record<ButtonSize, string> = {
   lg: 'min-h-14 gap-2.5 px-8 text-base',
 }
 
-const SHAPE: Record<ButtonShape, string> = {
-  pill: 'rounded-full',
-  card: 'rounded-card',
-}
-
-/** Classes for a button; `Focusable` call sites pass the result as `className`. */
+/** Classes for a button; `Focusable` call sites pass the result as `className`.
+ * Every button is a pill (rounded-full). */
 export function buttonClass({
   variant = 'primary',
   size = 'md',
-  shape = 'pill',
   className,
 }: {
   variant?: ButtonVariant
   size?: ButtonSize
-  shape?: ButtonShape
   className?: string
 } = {}) {
   return clsx(
-    'inline-flex items-center justify-center whitespace-nowrap font-semibold transition disabled:cursor-not-allowed',
+    'inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold transition disabled:cursor-not-allowed',
     variant !== 'primary' && 'disabled:opacity-50',
     VARIANT[variant],
     SIZE[size],
-    SHAPE[shape],
     className,
   )
 }
@@ -50,19 +42,17 @@ export function buttonClass({
 export function Button({
   variant,
   size,
-  shape,
   className,
   type = 'button',
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant
   size?: ButtonSize
-  shape?: ButtonShape
 }) {
   return (
     <button
       type={type}
-      className={buttonClass({ variant, size, shape, className })}
+      className={buttonClass({ variant, size, className })}
       {...props}
     />
   )

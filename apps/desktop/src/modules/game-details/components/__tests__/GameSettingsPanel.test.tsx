@@ -17,12 +17,14 @@ vi.mock('@/components/focus/Focusable', () => ({
     children,
     onClick,
     disabled,
+    className,
   }: {
     children: React.ReactNode
     onClick?: () => void
     disabled?: boolean
+    className?: string
   }) => (
-    <button type="button" onClick={onClick} disabled={disabled}>
+    <button type="button" onClick={onClick} disabled={disabled} className={className}>
       {children}
     </button>
   ),
@@ -63,4 +65,12 @@ it('confirms a save', async () => {
   mutateAsync.mockResolvedValue({})
   editAndSave()
   expect(await screen.findByText('Saved. Used the next time you play.')).toBeTruthy()
+})
+
+it('shows Discard and Save as pills', () => {
+  // Regression: "Discard changes" had rounded corners beside a pill Save.
+  render(<GameSettingsPanel game={game} />)
+  for (const name of ['Discard changes', 'Save settings']) {
+    expect(screen.getByRole('button', { name }).className).toContain('rounded-full')
+  }
 })

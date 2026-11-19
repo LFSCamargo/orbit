@@ -55,7 +55,7 @@ const PRIMARY_BUTTON = clsx(
 )
 
 const SECONDARY_BUTTON = clsx(
-  'settings-secondary-button whitespace-nowrap rounded-[10px] border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
+  'settings-secondary-button whitespace-nowrap rounded-full border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
   'disabled:cursor-not-allowed disabled:opacity-40',
 )
 
@@ -168,7 +168,7 @@ export function CompatibilityGlobalSettings() {
               setDraft(recommended)
               setNotice('')
             }}
-            className="orbit-glass-control flex items-center gap-2 rounded-card px-3 py-2 text-xs"
+            className="orbit-glass-control flex items-center gap-2 rounded-full px-3 py-2 text-xs"
           >
             <RotateCcw size={13} />
             Restore recommended

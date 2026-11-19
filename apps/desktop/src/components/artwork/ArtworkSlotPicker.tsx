@@ -95,7 +95,7 @@ export function ArtworkSlotPicker({
           noScale
           disabled={disabled}
           onClick={() => void pickFile()}
-          className={buttonClass({ shape: 'card' })}
+          className={buttonClass({})}
         >
           <ImagePlus className="h-4 w-4" />
           File
@@ -107,7 +107,7 @@ export function ArtworkSlotPicker({
           noScale
           disabled={disabled}
           onClick={onSearch}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-3 py-2 text-sm"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm"
         >
           <Search className="h-4 w-4" />
           Browse images
@@ -120,7 +120,7 @@ export function ArtworkSlotPicker({
             noScale
             disabled={disabled}
             onClick={onRandom}
-            className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-3 py-2 text-sm"
+            className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm"
             aria-label={`Random SteamGridDB ${meta.label.toLowerCase()}`}
           >
             <Shuffle className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
@@ -135,7 +135,7 @@ export function ArtworkSlotPicker({
             noScale
             disabled={disabled}
             onClick={() => onChange(undefined)}
-            className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-rose-500/10 px-3 py-2 text-sm text-rose-300"
+            className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-2 text-sm text-rose-300"
           >
             <Trash2 className="h-4 w-4" />
             Clear

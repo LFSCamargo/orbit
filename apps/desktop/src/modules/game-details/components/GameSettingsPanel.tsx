@@ -70,7 +70,7 @@ export function GameSettingsPanel({ game }: { game: Game }) {
             setDraft(baseline)
             setMessage('')
           }}
-          className="orbit-glass-control rounded-xl px-4 py-3 disabled:cursor-wait disabled:opacity-40"
+          className="orbit-glass-control rounded-full px-4 py-3 disabled:cursor-wait disabled:opacity-40"
         >
           Discard changes
         </Focusable>
@@ -82,7 +82,6 @@ export function GameSettingsPanel({ game }: { game: Game }) {
           onClick={() => void save()}
           className={buttonClass({
             size: 'lg',
-            shape: 'card',
             className: 'disabled:cursor-wait',
           })}
         >

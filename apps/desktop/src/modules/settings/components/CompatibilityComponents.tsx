@@ -46,7 +46,7 @@ const COMPONENT_ICON =
   'compatibility-component-icon grid size-[34px] place-items-center rounded-xl border border-orbit-border bg-orbit-foreground/[0.04] text-orbit-foreground/70'
 
 const SECONDARY_BUTTON = clsx(
-  'settings-secondary-button flex items-center gap-2 whitespace-nowrap rounded-[10px] border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
+  'settings-secondary-button flex items-center gap-2 whitespace-nowrap rounded-full border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
   'disabled:cursor-not-allowed disabled:opacity-40',
 )
 

@@ -116,7 +116,7 @@ export function ThemeSettings() {
           noScale
           noRing
           onClick={() => void refreshCustomThemes()}
-          className="orbit-glass-control mt-3 rounded-card bg-white/10 px-4 py-2 text-sm"
+          className="orbit-glass-control mt-3 rounded-full bg-white/10 px-4 py-2 text-sm"
         >
           Reload custom themes
         </Focusable>

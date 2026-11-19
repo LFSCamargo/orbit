@@ -28,7 +28,7 @@ export function RuntimeDiagnostics({ gameId }: { gameId: string }) {
         order={12}
         disabled={busy}
         onClick={() => void load()}
-        className="orbit-glass-control rounded-card px-4 py-2 disabled:cursor-wait disabled:opacity-40"
+        className="orbit-glass-control rounded-full px-4 py-2 disabled:cursor-wait disabled:opacity-40"
       >
         <BusyLabel busy={busy}>Compatibility diagnostics</BusyLabel>
       </Focusable>

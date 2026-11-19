@@ -52,7 +52,7 @@ export function XboxCloudSettings() {
           noRing
           onClick={() => void open()}
           aria-label="Open Xbox Cloud Gaming"
-          className={buttonClass({ shape: 'card' })}
+          className={buttonClass({})}
         >
           Open
         </Focusable>
@@ -64,7 +64,7 @@ export function XboxCloudSettings() {
             noScale
             noRing
             onClick={() => void update({ xboxCloudConnected: false })}
-            className={buttonClass({ variant: 'secondary', shape: 'card' })}
+            className={buttonClass({ variant: 'secondary' })}
           >
             Remove from Orbit
           </Focusable>

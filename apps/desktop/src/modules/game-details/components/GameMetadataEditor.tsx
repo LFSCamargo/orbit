@@ -181,7 +181,7 @@ export function GameMetadataEditor({
           noScale
           disabled={busy || !persisted}
           onClick={() => (dirty ? setConfirmFetch(true) : void fetchMetadata())}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-3 disabled:cursor-wait disabled:opacity-40"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-3 disabled:cursor-wait disabled:opacity-40"
         >
           {enriching ? <Spinner size={16} /> : <Download className="h-4 w-4" />}
           Refresh metadata
@@ -195,7 +195,6 @@ export function GameMetadataEditor({
           onClick={() => void save()}
           className={buttonClass({
             size: 'lg',
-            shape: 'card',
             className: 'disabled:cursor-wait',
           })}
         >

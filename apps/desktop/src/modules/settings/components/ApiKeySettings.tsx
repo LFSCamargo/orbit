@@ -58,7 +58,7 @@ function KeyField({
               noScale
               noRing
               onClick={() => void onSave()}
-              className={buttonClass({ shape: 'card' })}
+              className={buttonClass({})}
             >
               Save key
             </Focusable>
@@ -246,7 +246,7 @@ export function ApiKeySettings() {
           noScale
           noRing
           onClick={() => void toggleAutoEnrich()}
-          className="orbit-glass-control rounded-card bg-white/10 px-4 py-2 text-sm"
+          className="orbit-glass-control rounded-full bg-white/10 px-4 py-2 text-sm"
         >
           {autoEnrichOnImport ? 'On' : 'Off'}
         </Focusable>
@@ -268,7 +268,7 @@ export function ApiKeySettings() {
           noRing
           disabled={retrying}
           onClick={() => void retryMetadata()}
-          className="orbit-glass-control rounded-card bg-white/10 px-4 py-2 text-sm"
+          className="orbit-glass-control rounded-full bg-white/10 px-4 py-2 text-sm"
         >
           {retrying ? 'Retrying…' : 'Retry metadata'}
         </Focusable>
@@ -290,7 +290,7 @@ export function ApiKeySettings() {
             noScale
             noRing
             onClick={() => void runApiTest()}
-            className="orbit-glass-control flex items-center gap-2 rounded-card bg-white/10 px-4 py-2 text-sm"
+            className="orbit-glass-control flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm"
           >
             <TestTube size={15} />
             Test connections

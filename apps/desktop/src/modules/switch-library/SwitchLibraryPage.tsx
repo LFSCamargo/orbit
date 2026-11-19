@@ -50,7 +50,7 @@ export function SwitchLibraryPage() {
           order={0}
           noScale
           onClick={() => setScreen('settings')}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-2"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -62,7 +62,7 @@ export function SwitchLibraryPage() {
           noScale
           disabled={busy}
           onClick={() => void refreshFromLibrary()}
-          className={buttonClass({ shape: 'card' })}
+          className={buttonClass({})}
         >
           <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
           Rescan from library
@@ -74,7 +74,7 @@ export function SwitchLibraryPage() {
           noScale
           disabled={busy}
           onClick={() => void browseFolder()}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-2"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2"
         >
           <FolderOpen className="h-4 w-4" />
           Scan a folder…

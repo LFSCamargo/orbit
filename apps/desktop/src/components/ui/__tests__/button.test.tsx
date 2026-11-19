@@ -19,11 +19,12 @@ it('keeps secondary, quiet and danger off the gradient', () => {
 })
 
 it('defaults to a medium primary pill', () => {
-  expect(buttonClass()).toBe(
-    buttonClass({ variant: 'primary', size: 'md', shape: 'pill' }),
-  )
+  expect(buttonClass()).toBe(buttonClass({ variant: 'primary', size: 'md' }))
   expect(buttonClass()).toContain('rounded-full')
-  expect(buttonClass({ shape: 'card' })).toContain('rounded-card')
+  // Every button is a pill, whatever its variant or size.
+  for (const variant of ['primary', 'secondary', 'quiet', 'danger'] as const)
+    for (const size of ['sm', 'md', 'lg'] as const)
+      expect(buttonClass({ variant, size })).toContain('rounded-full')
 })
 
 it('sizes small, medium and large', () => {

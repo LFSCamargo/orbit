@@ -233,7 +233,7 @@ export function AddGamePage() {
                   order={0}
                   disabled={busy}
                   onClick={() => void pickPath()}
-                  className={buttonClass({ size: 'lg', shape: 'card' })}
+                  className={buttonClass({ size: 'lg' })}
                 >
                   <FolderOpen className="h-4 w-4" />
                   {source.folder ? 'Choose folder' : 'Choose file'}
@@ -243,7 +243,7 @@ export function AddGamePage() {
                   group="add-path"
                   order={1}
                   onClick={() => setStep('source')}
-                  className="orbit-glass-control rounded-card bg-white/10 px-5 py-3"
+                  className="orbit-glass-control rounded-full bg-white/10 px-5 py-3"
                 >
                   Change source
                 </Focusable>
@@ -295,7 +295,7 @@ export function AddGamePage() {
                       !wineProfile.runtimePath)
                   }
                   onClick={() => void saveManual()}
-                  className={buttonClass({ size: 'lg', shape: 'card' })}
+                  className={buttonClass({ size: 'lg' })}
                 >
                   Add to library
                 </Focusable>
@@ -304,7 +304,7 @@ export function AddGamePage() {
                   group="add-details"
                   order={1}
                   onClick={() => setStep('path')}
-                  className="orbit-glass-control rounded-card bg-white/10 px-5 py-3"
+                  className="orbit-glass-control rounded-full bg-white/10 px-5 py-3"
                 >
                   Back
                 </Focusable>
@@ -325,7 +325,7 @@ export function AddGamePage() {
                   group="add-done"
                   order={0}
                   onClick={() => setScreen('library')}
-                  className={buttonClass({ size: 'lg', shape: 'card' })}
+                  className={buttonClass({ size: 'lg' })}
                 >
                   Open library
                 </Focusable>
@@ -341,7 +341,7 @@ export function AddGamePage() {
                     setDescription('')
                     setStatus(null)
                   }}
-                  className="orbit-glass-control rounded-card bg-white/10 px-5 py-3"
+                  className="orbit-glass-control rounded-full bg-white/10 px-5 py-3"
                 >
                   Add another
                 </Focusable>

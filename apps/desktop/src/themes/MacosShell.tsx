@@ -307,7 +307,7 @@ export function MacosShell({
               }}
               className={clsx(
                 'macos-back',
-                'flex items-center gap-[5px] py-2 text-[13px] text-[#ffffff99]',
+                '-ml-3 flex items-center gap-[5px] rounded-full px-3 py-2 text-[13px] text-[#ffffff99]',
               )}
             >
               <ChevronLeft size={18} />

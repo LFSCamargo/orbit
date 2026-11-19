@@ -82,7 +82,7 @@ export function GeneralPreferences() {
           noScale
           noRing
           onClick={openOnboarding}
-          className={buttonClass({ variant: 'secondary', shape: 'card' })}
+          className={buttonClass({ variant: 'secondary' })}
         >
           Show onboarding
         </Focusable>
