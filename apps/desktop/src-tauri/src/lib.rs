@@ -48,6 +48,7 @@ pub fn run() {
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
             services::install_locations::restore(&app.state::<AppState>().repo);
+            services::game_fixes::restore(&app.state::<AppState>().repo);
             services::download_queue::restore(&app.state::<AppState>().repo);
             services::network_monitor::start(app.handle().clone());
             Ok(())

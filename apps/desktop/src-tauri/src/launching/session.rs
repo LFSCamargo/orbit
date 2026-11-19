@@ -116,6 +116,13 @@ impl SessionManager {
                                 .ok_or_else(|| {
                                     anyhow::anyhow!("This game's Steam id must be a number")
                                 })?;
+                            // A game that crashed while starting launches with
+                            // the next fallback graphics layer.
+                            resolved.effective.graphics = crate::services::game_fixes::graphics_for(
+                                &app_id,
+                                resolved.effective.graphics,
+                                &resolved.selections,
+                            );
                             let preferences = crate::services::steam_windows::preferences(repo)
                                 .unwrap_or_default();
                             *last_step.lock() = "container".to_string();
@@ -343,9 +350,57 @@ impl SessionManager {
                 finalize_session(tracked.session, SessionStopReason::ProcessExited, exit_code);
             let _ = repo.record_play_end(&ended);
             let _ = app.emit("game-session-ended", &ended);
+            record_crash_fallback(app, repo, &ended);
             after_session(app);
         }
     }
+}
+
+/// A Windows game that crashed while starting gets the next fallback on its
+/// next launch; the launch card says what changed instead of only the code.
+fn record_crash_fallback(app: &AppHandle, repo: &GameRepository, ended: &GameSession) {
+    use crate::services::game_fixes::{self, Fallback};
+    if !game_fixes::is_startup_crash(ended.exit_code, ended.duration_seconds.unwrap_or(i64::MAX)) {
+        return;
+    }
+    let (app_id, install_dir, title) =
+        if let Some(app_id) = ended.game_id.strip_prefix("steam-windows:") {
+            (
+                app_id.to_string(),
+                crate::services::steam_client_download::client_install_dir(app_id),
+                None,
+            )
+        } else {
+            let Ok(Some(game)) = repo.get_game(&ended.game_id) else {
+                return;
+            };
+            let crate::models::LaunchConfiguration::Wine { profile } = &game.launch_config else {
+                return;
+            };
+            let Some(app_id) = game.source_id.clone() else {
+                return;
+            };
+            let dir = std::path::Path::new(&profile.executable)
+                .parent()
+                .map(std::path::Path::to_path_buf);
+            (app_id, dir, Some(game.title))
+        };
+    let Some(next) = game_fixes::record_startup_crash(repo, &app_id, install_dir.as_deref()) else {
+        return;
+    };
+    let change = match next {
+        Fallback::DirectX11 => "switched it to DirectX 11",
+        Fallback::Dxvk => "switched it to the DXVK graphics layer",
+        Fallback::None => return,
+    };
+    let name = title.unwrap_or_else(|| "The game".into());
+    let _ = app.emit(
+        "game-crash-fallback",
+        serde_json::json!({
+            "gameId": ended.game_id,
+            "message": format!("{name} crashed while starting. Orbit {change}. Press Play to try again."),
+        }),
+    );
 }
 
 fn finalize_session(

@@ -47,10 +47,11 @@ pub fn launch_owned_with(
         profile.runtime_path = path.to_string_lossy().into_owned();
     }
     let preferences = steam_windows::preferences(repo).unwrap_or_default();
-    let resolved = crate::runtimes::settings::resolve_profile(repo, &profile)
+    let mut resolved = crate::runtimes::settings::resolve_profile(repo, &profile)
         .map_err(|err| format!("{err:#}"))?;
+    resolved.effective.graphics =
+        super::game_fixes::graphics_for(app_id, resolved.effective.graphics, &resolved.selections);
     let prefix = play_environment(&resolved, app_id, cancel, &preferences, progress)?;
-    let mut resolved = resolved;
     resolved.shared_prefix = Some(prefix.to_string_lossy().into_owned());
     start_title(&resolved, &game.id, app_id, cancel, progress)
 }
@@ -140,7 +141,7 @@ fn environment(
         app_id,
         super::steam_play_config::PlayConfig {
             steam_input: preferences.steam_input,
-            overlay: preferences.steam_overlay,
+            overlay: super::game_fixes::overlay_allowed(app_id, preferences.steam_overlay),
         },
         cancel,
         wait,
@@ -167,6 +168,9 @@ pub fn start_title(
     let prepared = WineAdapter
         .prepare(profile, game_id, &crate::runtimes::root(), cancel, progress)
         .map_err(|err| format!("{err:#}"))?;
+    if let Some(dir) = Path::new(&profile.executable).parent() {
+        super::game_fixes::apply(app_id, dir);
+    }
     progress("spawn");
     prepared
         .spawn(Some(app_id), cancel)

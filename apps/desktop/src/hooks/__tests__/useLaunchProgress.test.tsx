@@ -103,3 +103,31 @@ it('does not reopen the banner for a normal exit, user stop, or an older game', 
   })
   expect(useLaunchStore.getState().launch).toMatchObject({ gameId: 'g2', failed: false })
 })
+
+it('explains the graphics fallback after a startup crash', async () => {
+  // Regression: Devil May Cry 5 crashed at start and the card only showed
+  // the exit code; Orbit now says what it changed for the next launch.
+  renderHook(useLaunchProgress)
+  await waitFor(() => expect(callbacks.has('game-crash-fallback')).toBe(true))
+  act(() => {
+    useLaunchStore.getState().begin('g1')
+    callbacks.get('game-session-ended')?.({
+      payload: { gameId: 'g1', exitCode: -1073741819, stopReason: 'process-exited' },
+    })
+    callbacks.get('game-crash-fallback')?.({
+      payload: {
+        gameId: 'g1',
+        message:
+          'DmC crashed while starting. Orbit switched it to DirectX 11. Press Play to try again.',
+      },
+    })
+  })
+  expect(useLaunchStore.getState().launch).toMatchObject({ gameId: 'g1', failed: true })
+  expect(useLaunchStore.getState().launch?.message).toMatch(/switched it to DirectX 11/)
+  act(() => {
+    callbacks.get('game-crash-fallback')?.({
+      payload: { gameId: 'g9', message: 'other' },
+    })
+  })
+  expect(useLaunchStore.getState().launch?.message).toMatch(/DirectX 11/)
+})

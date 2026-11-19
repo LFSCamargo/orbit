@@ -42,6 +42,18 @@ export function useLaunchProgress() {
         store.fail(session.gameId, 'spawn', playExitMessage(session.exitCode))
       }),
     )
+    register(
+      // Sent right after a startup crash: what Orbit changed for the next
+      // launch replaces the bare exit code on the card.
+      listen<{ gameId: string; message: string }>(
+        'game-crash-fallback',
+        ({ payload }) => {
+          const store = useLaunchStore.getState()
+          if (store.launch && store.launch.gameId !== payload.gameId) return
+          store.fail(payload.gameId, 'spawn', payload.message)
+        },
+      ),
+    )
     return () => {
       disposed = true
       for (const unlisten of unlisteners) unlisten()
