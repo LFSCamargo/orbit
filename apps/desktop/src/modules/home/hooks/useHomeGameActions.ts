@@ -1,3 +1,4 @@
+import { selectInstallation } from '@/lib/libraryEntries'
 import type { GameSession } from '@/types/game'
 import type { LibraryEntry } from '@/types/library'
 import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
@@ -42,6 +43,10 @@ export function createHomeGameHandlers(
     setHero(entry.id)
     if (activeSession?.gameId === homeLaunchId(entry)) {
       onStop()
+    } else if (selectInstallation(entry)?.available !== true) {
+      // Not on this Mac: the hero offers Install instead of a launch that
+      // can only end in "Game not found".
+      return
     } else if (!isWindowsSteamPlay(entry) || steamReady) {
       onPlay(entry)
     }

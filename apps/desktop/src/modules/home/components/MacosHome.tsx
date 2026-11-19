@@ -1,7 +1,7 @@
 import { useInfiniteCarousel, shouldLoopCarousel } from '../hooks/useInfiniteCarousel'
 import { useShelfWheel } from '../hooks/useShelfWheel'
 import { HeroLogo } from './HeroLogo'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFittedTitle } from '../hooks/useFittedTitle'
 import { useShelfEdgeFade } from '../hooks/useShelfEdgeFade'
 import { shelfFadeMaskClass, SHELF_FOOTER_DISSOLVE_MASK } from '../lib/carouselFade'
@@ -11,10 +11,20 @@ import {
   prefersReducedMotion,
 } from '../lib/shelfScroll'
 import { clsx } from 'clsx'
-import { ArrowUpRight, Clock3, HardDrive, Heart, Play, Square } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  ArrowUpRight,
+  Clock3,
+  HardDrive,
+  Heart,
+  Play,
+  Square,
+} from 'lucide-react'
 import { focusManager } from '@/controllers/FocusManager'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { Focusable } from '@/components/focus/Focusable'
+import { InstallLocationDialog } from '@/components/game/InstallLocationDialog'
+import { selectInstallation } from '@/lib/libraryEntries'
 import { CarouselArtwork } from './CarouselArtwork'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
 import { artworkPlaceholder, gameLogoImage, gameSquareTileImage } from '@/lib/artwork'
@@ -60,6 +70,12 @@ export function MacosHome({
   )
   const running = activeSession?.gameId === homeLaunchId(heroEntry)
   const steamBlocked = isWindowsSteamPlay(heroEntry) && !steamReady && !running
+  // Regression: "Jump back in" on a game that is not on this Mac ended in
+  // "Game not found". Such a game installs (Steam) or opens its details.
+  const notInstalled = !running && selectInstallation(heroEntry)?.available !== true
+  const [installing, setInstalling] = useState<{ appId: string; title: string } | null>(
+    null,
+  )
   const visible = useMemo(() => entries.filter((entry) => !entry.game.hidden), [entries])
   const tiles = useMemo(
     () => shelfEntries.filter((entry) => !entry.game.hidden).slice(0, 12),
@@ -159,7 +175,14 @@ export function MacosHome({
                   noScale
                   onClick={() => {
                     if (running) onStop()
-                    else if (steamBlocked) {
+                    else if (notInstalled) {
+                      if (heroEntry.steamAppId && steamReady)
+                        setInstalling({
+                          appId: heroEntry.steamAppId,
+                          title: heroGame.title,
+                        })
+                      else details(heroEntry.id)
+                    } else if (steamBlocked) {
                       setSettingsTab('steam')
                       navigate('settings')
                     } else onPlay(heroEntry)
@@ -172,14 +195,20 @@ export function MacosHome({
                 >
                   {running ? (
                     <Square size={16} />
+                  ) : notInstalled ? (
+                    <ArrowDownToLine size={16} />
                   ) : (
                     <Play size={16} fill="currentColor" />
                   )}
                   {running
                     ? 'Stop game'
-                    : steamBlocked
-                      ? 'Sign in to Steam'
-                      : 'Jump back in'}
+                    : notInstalled
+                      ? heroEntry.steamAppId && steamReady
+                        ? 'Install'
+                        : 'View details'
+                      : steamBlocked
+                        ? 'Sign in to Steam'
+                        : 'Jump back in'}
                 </Focusable>
                 <Focusable
                   focusId="macos-details"
@@ -198,6 +227,12 @@ export function MacosHome({
                 </Focusable>
               </div>
             </LiquidGlass>
+            {installing && (
+              <InstallLocationDialog
+                game={installing}
+                onClose={() => setInstalling(null)}
+              />
+            )}
             <div
               className={clsx(
                 'macos-game-meta',

@@ -254,3 +254,26 @@ it('keeps inactive shelf filters and View library readable as white text', () =>
   const viewLibrary = screen.getByRole('button', { name: /View library/ })
   expect(viewLibrary.className).toMatch(/(^|\s)text-white(\s|$)/)
 })
+
+it('offers Install, not "Jump back in", for a game that is not on this Mac', () => {
+  // Regression: Jump back in on Marvel vs. Capcom: Infinite (not installed)
+  // opened the launch card only to fail with "Game not found".
+  const missing: LibraryEntry = {
+    ...entry,
+    installations: entry.installations.map((item) => ({ ...item, available: false })),
+  }
+  const onPlay = vi.fn()
+  render(
+    <MacosHome
+      entries={[missing]}
+      heroEntry={missing}
+      activeSession={null}
+      onPlay={onPlay}
+      onStop={vi.fn()}
+      onFavorite={vi.fn()}
+    />,
+  )
+  expect(screen.queryByText('Jump back in')).toBeNull()
+  expect(document.querySelector('.macos-play')?.textContent).toContain('Install')
+  expect(onPlay).not.toHaveBeenCalled()
+})

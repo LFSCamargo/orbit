@@ -199,7 +199,7 @@ CSS variables: `--orbit-font-display`, `--orbit-font-body`.
 ┌─────────────────────────────────────────────┐
 │ Theme logo     [ Play Library Search Set ] + ⤢ │  floating Liquid Glass header
 │                                             │
-│  Hero copy + Jump back in / Details         │  selected game's hero art full-bleed
+│  Hero copy + Jump back in (Install / View details when not on this Mac) / Details │  selected game's hero art full-bleed
 │  Your next escape ─► tile tile tile tile    │
 │ tagline            Orbit.         A Select  │  footer (Orbit logo on branded themes)
 └─────────────────────────────────────────────┘
