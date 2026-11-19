@@ -125,20 +125,60 @@ fn preserve_valve_exe(steam: &Path) -> Result<(), String> {
 
 /// `drive_c/users/<user>/AppData/Local/Steam/local.vdf` for the container's one
 /// real user (never `Public`), as both a disk path and a Wine `C:` path.
-fn local_vdf_paths(prefix: &Path) -> Result<(PathBuf, String), String> {
-    let users = prefix.join("drive_c/users");
-    let entries = std::fs::read_dir(&users).map_err(|_| "Container has no users".to_string())?;
-    for entry in entries.take(16).flatten() {
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue };
-        if name == "Public" || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
-            continue;
-        }
-        let disk = entry.path().join("AppData/Local/Steam/local.vdf");
-        let win = format!(r"C:\users\{name}\AppData\Local\Steam\local.vdf");
-        return Ok((disk, win));
+/// Largest `user.reg` read to find the profile Wine runs as.
+const USER_REG_LIMIT: u64 = 8 * 1024 * 1024;
+
+/// The Windows user Wine runs Steam as, from `APPDATA` in the prefix's
+/// `user.reg`. Orbit Wine runs as `crossover` while the clone also carries a
+/// profile named after the Mac user; Steam only reads the active one.
+pub(crate) fn profile_user(prefix: &Path) -> Option<String> {
+    let path = prefix.join("user.reg");
+    if std::fs::metadata(&path).ok()?.len() > USER_REG_LIMIT {
+        return None;
     }
-    Err("Container has no Steam user profile".into())
+    let text = std::fs::read_to_string(&path).ok()?;
+    text.lines().find_map(|line| {
+        let rest = line.strip_prefix(r#""APPDATA"="C:\\users\\"#)?;
+        let name = rest.split(r"\\").next()?;
+        let usable = !name.is_empty()
+            && name.len() <= 64
+            && name != "Public"
+            && !name.contains(['/', '"'])
+            && !name.starts_with('.')
+            && prefix.join("drive_c/users").join(name).is_dir();
+        usable.then(|| name.to_string())
+    })
+}
+
+/// The active profile's `local.vdf`, on disk and as Wine sees it. Without a
+/// readable `user.reg`, the first real profile in name order.
+fn local_vdf_paths(prefix: &Path) -> Result<(PathBuf, String), String> {
+    let name = match profile_user(prefix) {
+        Some(name) => name,
+        None => {
+            let users = prefix.join("drive_c/users");
+            let entries =
+                std::fs::read_dir(&users).map_err(|_| "Container has no users".to_string())?;
+            let mut names: Vec<String> = entries
+                .take(16)
+                .flatten()
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                .filter_map(|entry| entry.file_name().to_str().map(str::to_string))
+                .filter(|name| name != "Public")
+                .collect();
+            names.sort();
+            names
+                .into_iter()
+                .next()
+                .ok_or("Container has no Steam user profile")?
+        }
+    };
+    let disk = prefix
+        .join("drive_c/users")
+        .join(&name)
+        .join("AppData/Local/Steam/local.vdf");
+    let win = format!(r"C:\users\{name}\AppData\Local\Steam\local.vdf");
+    Ok((disk, win))
 }
 
 /// Start the agent and wait until it reports Logged On. The game is launched by
@@ -403,6 +443,45 @@ mod tests {
         let (disk, win) = local_vdf_paths(&root).unwrap();
         assert!(disk.ends_with("player/AppData/Local/Steam/local.vdf"));
         assert_eq!(win, r"C:\users\player\AppData\Local\Steam\local.vdf");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn seeds_the_profile_wine_runs_steam_as() {
+        // Regression: a clone holds `crossover` (Orbit Wine's user) and the
+        // Mac user's profile. The token went to whichever the folder listing
+        // gave first; Steam, running as `crossover`, waited for credentials
+        // and "Steam did not sign in for this game" followed.
+        let root = std::env::temp_dir().join(format!("orbit-agent-user-{}", uuid::Uuid::new_v4()));
+        for name in ["Public", "crossover", "aaa-mac-user"] {
+            fs::create_dir_all(root.join("drive_c/users").join(name)).unwrap();
+        }
+        fs::write(
+            root.join("user.reg"),
+            "[Volatile Environment] 1794889129\n\"APPDATA\"=\"C:\\\\users\\\\crossover\\\\AppData\\\\Roaming\"\n",
+        )
+        .unwrap();
+        assert_eq!(profile_user(&root).as_deref(), Some("crossover"));
+        let (disk, win) = local_vdf_paths(&root).unwrap();
+        assert!(disk.ends_with("crossover/AppData/Local/Steam/local.vdf"));
+        assert_eq!(win, r"C:\users\crossover\AppData\Local\Steam\local.vdf");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn an_unusable_profile_in_user_reg_is_ignored() {
+        let root = std::env::temp_dir().join(format!("orbit-agent-user-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("drive_c/users/player")).unwrap();
+        fs::write(
+            root.join("user.reg"),
+            "\"APPDATA\"=\"C:\\\\users\\\\..\\\\AppData\\\\Roaming\"\n",
+        )
+        .unwrap();
+        assert_eq!(profile_user(&root), None);
+        assert!(local_vdf_paths(&root)
+            .unwrap()
+            .0
+            .ends_with("player/AppData/Local/Steam/local.vdf"));
         let _ = fs::remove_dir_all(root);
     }
 
