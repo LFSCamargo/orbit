@@ -114,6 +114,18 @@ Onboarding always opens over the splash (replaying it brings the splash back: it
 
 `Focusable`'s ring (`ring-2` in the focus colour) and the switch's ring sit flush on the control. They used to have a 2 px offset filled with the canvas colour, which showed as a dark border between the control and its ring.
 
+### Drawers
+
+Every drawer uses `Drawer` (`components/ui/drawer.tsx`), the downloads panel's style:
+- **Sheet:** a floating dark liquid glass panel (inset 12 px, 28 px radius, `.orbit-drawer` dims the page behind), springing in from `side` (right by default) at `width`.
+- **Backdrop:** fades in with a 14 px blur; clicking it closes the drawer.
+- **Header:** pinned, with an optional icon chip, the title (which names the dialog), an optional description and a round close button.
+- **Toolbar:** optional, pinned under the header (search fields, filters).
+- **Body:** scrolls beneath a soft top fade; sections cascade in with `DrawerReveal`.
+- **Behaviour:** B / Escape closes it and controller focus stays inside. Render it inside `AnimatePresence` (`DrawerProvider` does) so it plays its exit.
+
+The downloads panel (right, 440 px) and the artwork picker (`ImageSearchModal`: left, 960 px, above the editor) use it.
+
 ### Downloads sidebar
 
 `SteamActivitySidebar` is a floating liquid glass sheet (inset 12 px from the window edge, 28 px radius, clear tint, bright top and left rims, light pooling inside the top edge) that springs in from the right over a blur overlay. The overlay fades in while its backdrop blur ramps to 14 px (animated through `--scrim-blur`, which both `backdrop-filter` spellings read, so older WebKit works); clicking it closes the sheet. The header, sections and network card cascade in, empty-state icons bob gently (`float-soft`), and the cards and rows share the glass control material. Sections, top to bottom: Network (live transfer speed), Downloads, Queue, and "Played, not installed" (up to five games you have played that have no available installation, most played first, then by recency; Steam ones install into the queue, others open their details). Each section has a one-line description under its title (`SectionHeading`). The header (title and close button) stays put; the sections scroll beneath it with a short fade at the top. The sheet's tint is dark (`rgb(10 8 14 / 0.66)`) and its glass dims the page behind it (`brightness(0.7)`), so it reads deeper than the blurred backdrop. Closing plays the exit through `DrawerProvider`'s `AnimatePresence` (drawers without an exit animation, such as Theme Studio, still close at once). Reduced motion swaps the spring, blur ramp and cascade for short fades and stops the bob.

@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Search, X } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
+import { Search } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { LiquidGlass } from '@/components/ui/liquid-glass'
-import { useModalFocus } from '@/hooks/useModalFocus'
-import { useOverlayBack } from '@/controllers/overlayStack'
+import { Drawer } from '@/components/ui/drawer'
 import { fetchThemeArtwork } from '@/lib/tauri'
 import { searchThemeStudioArtwork } from '@/lib/themeArtwork'
 import type { ArtworkSlot } from '@/lib/artwork'
@@ -52,7 +50,6 @@ export function ImageSearchModal({
   const [error, setError] = useState<string | null>(null)
   const request = useRef(0)
   const dialog = useRef<HTMLDivElement>(null)
-  useModalFocus(open, 'image-picker', 'image-search-close')
 
   const runSearch = async (term: string) => {
     const ticket = ++request.current
@@ -93,8 +90,6 @@ export function ImageSearchModal({
     // Search on each new editing context, not on each keystroke or callback render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialQuery, slot, gameId, themeArtwork])
-
-  useOverlayBack(open, onClose)
 
   useEffect(() => {
     if (!open) return
@@ -148,67 +143,34 @@ export function ImageSearchModal({
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          className="fixed inset-0 z-[200] flex justify-start"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-        >
-          <div
-            className="absolute inset-0 backdrop-blur-sm"
-            style={{
-              background: 'linear-gradient(to right, rgb(0 0 0 / 0.1), rgb(0 0 0 / 0.7))',
-            }}
-            aria-hidden="true"
-          />
-          <motion.div
-            ref={dialog}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="image-picker-title"
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 240 }}
-            onClick={(event) => event.stopPropagation()}
-            className="image-search-drawer relative h-dvh max-h-dvh w-[min(960px,100vw)] shadow-[20px_0_60px_rgb(0_0_0/0.45)] max-[640px]:w-screen"
-          >
-            <LiquidGlass className="flex h-full flex-col overflow-hidden" radius={0}>
-              <header className="flex items-start justify-between gap-4 border-b border-orbit-border/60 px-6 py-5">
-                <div>
-                  <h2
-                    id="image-picker-title"
-                    className="font-display text-2xl font-semibold"
-                  >
-                    Choose {slot} artwork
-                  </h2>
-                  <p className="text-sm text-orbit-muted">
-                    {themeArtwork
-                      ? slot === 'logo'
-                        ? 'Choose a SteamGridDB logo.'
-                        : 'Browse connected sources for a background.'
-                      : 'SteamGridDB · TheGamesDB · RAWG · Wikimedia · Steam Store. Choose an image, then save your changes.'}
-                  </p>
-                </div>
-                <Focusable
-                  focusId="image-search-close"
-                  group="image-picker"
-                  order={0}
-                  noScale
-                  onClick={onClose}
-                  aria-label="Close artwork picker"
-                  className="orbit-glass-control rounded-full bg-white/10 p-2"
-                >
-                  <X className="h-5 w-5" />
-                </Focusable>
-              </header>
+        <Drawer
+          id="image-search"
+          title={`Choose ${slot} artwork`}
+          description={
+            themeArtwork
+              ? slot === 'logo'
+                ? 'Choose a SteamGridDB logo.'
+                : 'Browse connected sources for a background.'
+              : 'SteamGridDB · TheGamesDB · RAWG · Wikimedia · Steam Store. Choose an image, then save your changes.'
+          }
+          closeLabel="Close artwork picker"
+          onClose={onClose}
+          side="left"
+          width="min(960px, 100vw)"
+          zIndex={200}
+          focusGroup="image-picker"
+          closeFocusId="image-search-close"
+          dialogRef={dialog}
+          bodyBusy={loading || selecting !== null}
+          bodyClassName="block"
+          toolbar={
+            <>
               <form
                 onSubmit={(event) => {
                   event.preventDefault()
                   void runSearch(query)
                 }}
-                className="flex gap-3 px-6 py-4"
+                className="flex gap-3 pb-3"
               >
                 <label className="relative min-w-0 flex-1">
                   <span className="sr-only">Game title to search</span>
@@ -228,13 +190,13 @@ export function ImageSearchModal({
                   noScale
                   disabled={loading || selecting !== null || !query.trim()}
                   onClick={() => void runSearch(query)}
-                  className={buttonClass({ shape: 'card' })}
+                  className={buttonClass({})}
                 >
                   <BusyLabel busy={loading}>Search</BusyLabel>
                 </Focusable>
               </form>
               <div
-                className="flex flex-wrap gap-2 border-b border-orbit-border/40 px-6 pb-4"
+                className="flex flex-wrap gap-2 pb-2"
                 role="group"
                 aria-label="Artwork sources"
               >
@@ -248,7 +210,7 @@ export function ImageSearchModal({
                     disabled={selecting !== null}
                     aria-pressed={source === item}
                     onClick={() => setSource(item)}
-                    className={`rounded-card px-3 py-2 text-sm ${source === item ? 'bg-orbit-accent text-orbit-canvas' : 'orbit-glass-control bg-white/10'}`}
+                    className={`rounded-full px-3 py-2 text-sm ${source === item ? 'bg-orbit-accent text-orbit-canvas' : 'orbit-glass-control bg-white/10'}`}
                   >
                     {item} (
                     {item === 'All sources'
@@ -258,80 +220,76 @@ export function ImageSearchModal({
                   </Focusable>
                 ))}
               </div>
-              <div
-                className="scrollbar-none flex-1 overflow-y-auto px-6 py-4"
-                aria-busy={loading || selecting !== null}
+            </>
+          }
+        >
+          {error && (
+            <p role="alert" className="mb-4 text-sm text-rose-300">
+              {error}
+            </p>
+          )}
+          {warnings.length > 0 && (
+            <div className="mb-4 space-y-1 text-sm text-orbit-muted">
+              {warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          )}
+          {loading && (
+            <div
+              role="status"
+              aria-label="Searching artwork sources"
+              className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+            >
+              {Array.from({ length: 8 }, (_, index) => (
+                <SkeletonBlock key={index} className="aspect-[2/3] rounded-card" />
+              ))}
+            </div>
+          )}
+          <p
+            role="status"
+            aria-label={selecting ? 'Downloading your selection' : undefined}
+            className="mb-4 text-sm text-orbit-muted"
+            hidden={loading}
+          >
+            {selecting ? (
+              <Spinner size={16} />
+            ) : !visible.length ? (
+              'No qualifying images found. Try the exact game title or configure provider keys in Settings.'
+            ) : (
+              `${visible.length} images available`
+            )}
+          </p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {visible.map((hit, index) => (
+              <Focusable
+                key={hit.id}
+                focusId={`image-hit-${hit.id}`}
+                group="image-picker"
+                order={100 + index}
+                noScale
+                disabled={selecting !== null}
+                onClick={() => void choose(hit)}
+                aria-label={`${hit.title} — ${hit.source}`}
+                className="overflow-hidden rounded-card bg-orbit-surface text-left ring-1 ring-orbit-border/50"
               >
-                {error && (
-                  <p role="alert" className="mb-4 text-sm text-rose-300">
-                    {error}
+                <img
+                  src={hit.previewUrl}
+                  alt=""
+                  loading="lazy"
+                  className={`w-full bg-orbit-panel object-contain ${SLOT_ASPECT[slot]}`}
+                />
+                <div className="p-3">
+                  <p className="line-clamp-2 text-sm font-medium">{hit.title}</p>
+                  <p className="mt-1 text-xs text-orbit-muted">
+                    {hit.source}
+                    {hit.width ? ` · ${hit.width} × ${hit.height}` : ''}
                   </p>
-                )}
-                {warnings.length > 0 && (
-                  <div className="mb-4 space-y-1 text-sm text-orbit-muted">
-                    {warnings.map((warning) => (
-                      <p key={warning}>{warning}</p>
-                    ))}
-                  </div>
-                )}
-                {loading && (
-                  <div
-                    role="status"
-                    aria-label="Searching artwork sources"
-                    className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-                  >
-                    {Array.from({ length: 8 }, (_, index) => (
-                      <SkeletonBlock key={index} className="aspect-[2/3] rounded-card" />
-                    ))}
-                  </div>
-                )}
-                <p
-                  role="status"
-                  aria-label={selecting ? 'Downloading your selection' : undefined}
-                  className="mb-4 text-sm text-orbit-muted"
-                  hidden={loading}
-                >
-                  {selecting ? (
-                    <Spinner size={16} />
-                  ) : !visible.length ? (
-                    'No qualifying images found. Try the exact game title or configure provider keys in Settings.'
-                  ) : (
-                    `${visible.length} images available`
-                  )}
-                </p>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {visible.map((hit, index) => (
-                    <Focusable
-                      key={hit.id}
-                      focusId={`image-hit-${hit.id}`}
-                      group="image-picker"
-                      order={100 + index}
-                      noScale
-                      disabled={selecting !== null}
-                      onClick={() => void choose(hit)}
-                      aria-label={`${hit.title} — ${hit.source}`}
-                      className="overflow-hidden rounded-card bg-orbit-surface text-left ring-1 ring-orbit-border/50"
-                    >
-                      <img
-                        src={hit.previewUrl}
-                        alt=""
-                        loading="lazy"
-                        className={`w-full bg-orbit-panel object-contain ${SLOT_ASPECT[slot]}`}
-                      />
-                      <div className="p-3">
-                        <p className="line-clamp-2 text-sm font-medium">{hit.title}</p>
-                        <p className="mt-1 text-xs text-orbit-muted">
-                          {hit.source}
-                          {hit.width ? ` · ${hit.width} × ${hit.height}` : ''}
-                        </p>
-                      </div>
-                    </Focusable>
-                  ))}
                 </div>
-              </div>
-            </LiquidGlass>
-          </motion.div>
-        </motion.div>
+              </Focusable>
+            ))}
+          </div>
+        </Drawer>
       )}
     </AnimatePresence>
   )

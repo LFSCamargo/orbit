@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react'
+import type { HTMLAttributes, Ref } from 'react'
 import { clsx } from 'clsx'
 import { useReducedTransparency } from '@/hooks/useReducedTransparency'
 
@@ -6,6 +6,7 @@ export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
   contentClassName?: string
   radius?: number
   surface?: 'toolbar' | 'panel'
+  ref?: Ref<HTMLDivElement>
 }
 
 /** Shared compositor surface using the Rust-prepared material when available. */
