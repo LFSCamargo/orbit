@@ -212,7 +212,13 @@ pub fn run(
     // A new container is created (and signed in) once before the request is
     // written, so the manifest lands in the Steam library the client reads.
     if !steamapps.parent().is_some_and(Path::is_dir) {
-        super::steam_play::play_environment(&profile, app_id, cancel, &preferences, &mut progress)?;
+        super::steam_play::download_environment(
+            &profile,
+            app_id,
+            cancel,
+            &preferences,
+            &mut progress,
+        )?;
         if let Some(outcome) = steam_windows::stop_outcome() {
             container_steam::shutdown(&host);
             return Ok(outcome);
@@ -234,7 +240,7 @@ pub fn run(
     queue_install(&steamapps, app_id, label)?;
     // Only lines this client run writes count; earlier runs are in the log too.
     let mut log = ContentLog::from_end(&steamapps.with_file_name("logs").join("content_log.txt"));
-    super::steam_play::play_environment(&profile, app_id, cancel, &preferences, &mut progress)?;
+    super::steam_play::download_environment(&profile, app_id, cancel, &preferences, &mut progress)?;
 
     let result = watch(app, &steamapps, app_id, key, label, &mut log);
     container_steam::shutdown(&host);

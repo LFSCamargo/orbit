@@ -31,6 +31,16 @@ const SIGN_IN_AGAIN: &str = "Your saved Steam sign-in is no longer valid. Sign i
 const SHARE_SIGN_IN: &str =
     "Sign in with Steam’s own window from Settings → Steam. Orbit closes that window after the account is saved.";
 
+/// How far the client must get before the caller goes on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientWait {
+    /// Fully started: a game attaching earlier exits 53.
+    Startup,
+    /// Logged on: Steam starts queued downloads from here, so a download
+    /// does not wait for the rest of the client's start-up.
+    LoggedOn,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum SessionLaunch {
     /// `ORBIT_STEAM_AGENT=1`: the in-container agent tries first.
@@ -71,6 +81,7 @@ pub fn ensure_running(
     app_id: &str,
     config: super::steam_play_config::PlayConfig,
     cancel: &AtomicBool,
+    wait: ClientWait,
 ) -> Result<(), String> {
     let session_dir = super::steam_windows::session_dir(&crate::utils::paths::app_data_dir());
     // Settings may have signed in without Orbit storing the token yet (or with
@@ -106,7 +117,7 @@ pub fn ensure_running(
         .parent()
         .map(Path::to_path_buf)
         .ok_or(NO_CLIENT)?;
-    if !ready(&host.prefix, &root, LogMarks::default()) {
+    if !ready(&host.prefix, &root, LogMarks::default(), wait) {
         super::steam_native::agent_host::seed_saved_login(&host.wine, &host.prefix, &credentials)?;
         // Steam reads these at start and rewrites them on exit, so only now.
         if let Err(err) =
@@ -115,7 +126,7 @@ pub fn ensure_running(
             eprintln!("Steam play options were not applied: {err}");
         }
     }
-    start_silent_client(host, cancel)
+    start_silent_client(host, cancel, wait)
 }
 
 fn start_agent(
@@ -145,7 +156,11 @@ fn start_agent(
     }
 }
 
-fn start_silent_client(host: &SteamHost, cancel: &AtomicBool) -> Result<(), String> {
+fn start_silent_client(
+    host: &SteamHost,
+    cancel: &AtomicBool,
+    wait: ClientWait,
+) -> Result<(), String> {
     let steam = steam_exe_in(&host.prefix);
     let root = steam
         .parent()
@@ -165,7 +180,7 @@ fn start_silent_client(host: &SteamHost, cancel: &AtomicBool) -> Result<(), Stri
         enable_auto_login(host, &account)?;
     }
     repair_library_folders(&root);
-    if ready(&host.prefix, &root, LogMarks::default()) {
+    if ready(&host.prefix, &root, LogMarks::default(), wait) {
         return Ok(());
     }
     // Not ready means not usable: a client stuck on a refused login, or one
@@ -206,7 +221,7 @@ fn start_silent_client(host: &SteamHost, cancel: &AtomicBool) -> Result<(), Stri
         if cancel.load(Ordering::Relaxed) {
             return Err("Launch cancelled".into());
         }
-        if ready(&host.prefix, &root, since) {
+        if ready(&host.prefix, &root, since, wait) {
             return Ok(());
         }
         if logon_refused(&read_log_from(
@@ -271,7 +286,7 @@ struct ClientLogs<'a> {
     console: &'a str,
 }
 
-fn ready(prefix: &Path, root: &Path, since: LogMarks) -> bool {
+fn ready(prefix: &Path, root: &Path, since: LogMarks, wait: ClientWait) -> bool {
     let connection = read_log_from(root, "connection_log.txt", since.connection);
     let console = read_log_from(root, "console_log.txt", since.console);
     client_ready(
@@ -283,15 +298,22 @@ fn ready(prefix: &Path, root: &Path, since: LogMarks) -> bool {
             connection: &connection,
             console: &console,
         },
+        wait,
     )
 }
 
-fn client_ready(commands: &str, prefix: &Path, server_alive: bool, logs: &ClientLogs) -> bool {
+fn client_ready(
+    commands: &str,
+    prefix: &Path,
+    server_alive: bool,
+    logs: &ClientLogs,
+    wait: ClientWait,
+) -> bool {
     steam_running(commands, prefix)
         && server_alive
         && !bootstrap_busy(logs.bootstrap)
         && steam_account::connection_logged_on(logs.connection)
-        && startup_finished(logs.console)
+        && (wait == ClientWait::LoggedOn || startup_finished(logs.console))
 }
 
 /// Steam logs on before it serves games. A game that starts in between cannot
@@ -612,30 +634,51 @@ mod tests {
             running,
             prefix,
             true,
-            &logs("", logged, started)
+            &logs("", logged, started),
+            ClientWait::Startup
         ));
         assert!(
-            !client_ready(other, prefix, true, &logs("", logged, started)),
+            !client_ready(
+                other,
+                prefix,
+                true,
+                &logs("", logged, started),
+                ClientWait::Startup
+            ),
             "another container's Steam"
         );
         assert!(
-            !client_ready(running, prefix, false, &logs("", logged, started)),
+            !client_ready(
+                running,
+                prefix,
+                false,
+                &logs("", logged, started),
+                ClientWait::Startup
+            ),
             "a client whose server is gone (a crashed session) is never ready"
         );
         assert!(!client_ready(
             running,
             prefix,
             true,
-            &logs("Updating Steam...", logged, started)
+            &logs("Updating Steam...", logged, started),
+            ClientWait::Startup
         ));
         assert!(!client_ready(
             running,
             prefix,
             true,
-            &logs("", "[Logged Off, 0, 0] [U:1:0]", started)
+            &logs("", "[Logged Off, 0, 0] [U:1:0]", started),
+            ClientWait::Startup
         ));
         assert!(
-            !client_ready(running, prefix, true, &logs("", "", started)),
+            !client_ready(
+                running,
+                prefix,
+                true,
+                &logs("", "", started),
+                ClientWait::Startup
+            ),
             "no fresh logon yet"
         );
     }
@@ -654,10 +697,57 @@ mod tests {
             connection: logged,
             console,
         };
-        assert!(!client_ready(running, prefix, true, &logs(starting)));
+        assert!(!client_ready(
+            running,
+            prefix,
+            true,
+            &logs(starting),
+            ClientWait::Startup
+        ));
         let started =
             format!("{starting}\n[2026-11-17 09:57:37] System startup time: 36.21 seconds");
-        assert!(client_ready(running, prefix, true, &logs(&started)));
+        assert!(client_ready(
+            running,
+            prefix,
+            true,
+            &logs(&started),
+            ClientWait::Startup
+        ));
+    }
+
+    #[test]
+    fn a_download_goes_on_as_soon_as_the_client_is_logged_on() {
+        // Steam starts a queued download at "Logged On"; waiting for the
+        // rest of start-up kept the panel on "Signing in to Steam".
+        let prefix = Path::new("/c/games/steam-883710/prefix");
+        let running = "/wine /c/games/steam-883710/prefix/drive_c/Program Files (x86)/Steam/steam.exe -silent";
+        let logged = "[2026-11-17 09:57:30] [Logged On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : processing complete";
+        let logs = |connection| ClientLogs {
+            bootstrap: "",
+            connection,
+            console: "",
+        };
+        assert!(client_ready(
+            running,
+            prefix,
+            true,
+            &logs(logged),
+            ClientWait::LoggedOn
+        ));
+        assert!(!client_ready(
+            running,
+            prefix,
+            true,
+            &logs(""),
+            ClientWait::LoggedOn
+        ));
+        assert!(!client_ready(
+            running,
+            prefix,
+            false,
+            &logs(logged),
+            ClientWait::LoggedOn
+        ));
     }
 
     #[test]

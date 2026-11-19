@@ -2008,6 +2008,7 @@ mod tests {
                 overlay: false,
             },
             &AtomicBool::new(false),
+            crate::services::container_steam::ClientWait::Startup,
         );
         crate::services::container_steam::shutdown(&host);
         result.unwrap();

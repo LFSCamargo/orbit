@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
+use super::container_steam::ClientWait;
 use super::steam_windows::{self, steam_exe_in, steam_prefix};
 use crate::database::GameRepository;
 use crate::models::LaunchConfiguration;
@@ -55,13 +56,49 @@ pub fn launch_owned_with(
 }
 
 /// Clone a per-game container from the signed-in prefix, seed the saved login,
-/// and wait until that container's Steam client is logged on.
+/// and wait until that container's Steam client has fully started.
 pub fn play_environment(
     profile: &crate::runtimes::WineProfile,
     app_id: &str,
     cancel: &AtomicBool,
     preferences: &steam_windows::SteamWindowsPreferences,
     progress: &mut impl FnMut(&str),
+) -> Result<PathBuf, String> {
+    environment(
+        profile,
+        app_id,
+        cancel,
+        preferences,
+        progress,
+        ClientWait::Startup,
+    )
+}
+
+/// The same container for a download, ready once its client is logged on.
+pub fn download_environment(
+    profile: &crate::runtimes::WineProfile,
+    app_id: &str,
+    cancel: &AtomicBool,
+    preferences: &steam_windows::SteamWindowsPreferences,
+    progress: &mut impl FnMut(&str),
+) -> Result<PathBuf, String> {
+    environment(
+        profile,
+        app_id,
+        cancel,
+        preferences,
+        progress,
+        ClientWait::LoggedOn,
+    )
+}
+
+fn environment(
+    profile: &crate::runtimes::WineProfile,
+    app_id: &str,
+    cancel: &AtomicBool,
+    preferences: &steam_windows::SteamWindowsPreferences,
+    progress: &mut impl FnMut(&str),
+    wait: ClientWait,
 ) -> Result<PathBuf, String> {
     let extra_libraries = &preferences.additional_library_paths;
     let wine = Path::new(&profile.runtime_path);
@@ -106,6 +143,7 @@ pub fn play_environment(
             overlay: preferences.steam_overlay,
         },
         cancel,
+        wait,
     )?;
     Ok(prepared.container.prefix)
 }
