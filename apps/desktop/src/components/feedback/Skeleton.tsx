@@ -1,11 +1,19 @@
+import type { CSSProperties } from 'react'
 import { clsx } from 'clsx'
 
 /** A soft block with the artwork loader's shimmer sweep. */
-export function SkeletonBlock({ className }: { className?: string }) {
+export function SkeletonBlock({
+  className,
+  style,
+}: {
+  className?: string
+  style?: CSSProperties
+}) {
   return (
     <span
       aria-hidden="true"
       data-skeleton
+      style={style}
       className={clsx(
         'relative block overflow-hidden bg-orbit-foreground/[0.06]',
         'after:absolute after:inset-0 after:-translate-x-full after:animate-artwork-shimmer after:bg-[linear-gradient(100deg,transparent_15%,rgb(255_255_255/0.1)_48%,transparent_80%)] after:content-[""]',

@@ -24,7 +24,7 @@ import { useGraphicsDraft } from '@/stores/graphics-draft.store'
 import { buttonClass } from '@/components/ui/button'
 import { BusyLabel } from '@/components/feedback/BusyLabel'
 import { Spinner } from '@/components/feedback/Spinner'
-import { SkeletonPanel } from '@/components/feedback/Skeleton'
+import { CompatibilitySettingsSkeleton } from './CompatibilitySkeleton'
 
 const field = clsx(
   'settings-row-control w-full min-w-0 rounded-lg !border-0 !bg-transparent !p-2 text-right text-sm text-orbit-foreground/80 !shadow-none',
@@ -128,7 +128,7 @@ export function CompatibilityGlobalSettings() {
     return error ? (
       <p className="text-sm text-orbit-muted">{String(error)}</p>
     ) : (
-      <SkeletonPanel label="Loading settings" rows={4} />
+      <CompatibilitySettingsSkeleton />
     )
   }
 

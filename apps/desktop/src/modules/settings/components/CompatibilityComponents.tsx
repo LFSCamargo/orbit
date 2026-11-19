@@ -26,7 +26,7 @@ import { useComponentViews } from '../hooks/useComponentViews'
 import { useComponentInstall } from '../hooks/useComponentInstall'
 import { ComponentVersionPicker, type ComponentVersion } from './ComponentVersionPicker'
 import { buttonClass } from '@/components/ui/button'
-import { SkeletonPanel } from '@/components/feedback/Skeleton'
+import { ComponentRowsSkeleton } from './CompatibilitySkeleton'
 
 const graphicsIds = new Set(['dxvk', 'dxmt', 'gptk'])
 
@@ -135,7 +135,7 @@ export function CompatibilityComponents({
             {String(error)}
           </p>
         ) : (
-          <SkeletonPanel label="Loading online versions" rows={4} />
+          <ComponentRowsSkeleton />
         ))}
       {activeError && (
         <p role="alert" className="text-xs leading-relaxed text-red-400">

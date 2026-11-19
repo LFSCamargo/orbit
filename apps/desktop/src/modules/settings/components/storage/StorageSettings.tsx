@@ -12,6 +12,7 @@ import { LargestInstalls } from './LargestInstalls'
 import { StorageDistribution } from './StorageDistribution'
 import { StorageItemsTable } from './StorageItemsTable'
 import { StorageOverviewCard } from './StorageOverviewCard'
+import { StorageSkeleton } from './StorageSkeleton'
 import type { StorageFilter, StorageSort } from './storageModel'
 import { useStorageOverview } from './useStorageOverview'
 
@@ -84,6 +85,7 @@ export function StorageSettings() {
             : String(overview.error)}
         </p>
       )}
+      {!data && !overview.error && <StorageSkeleton />}
       {data && (
         <>
           <div className="grid gap-4 min-[1100px]:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

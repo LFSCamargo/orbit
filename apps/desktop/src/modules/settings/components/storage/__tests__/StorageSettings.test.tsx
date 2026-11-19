@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -88,7 +89,7 @@ vi.mock('@/lib/tauri', () => ({
     keptPrefix: false,
   })),
 }))
-import { removeComponent, uninstallSteamGame } from '@/lib/tauri'
+import { getStorageOverview, removeComponent, uninstallSteamGame } from '@/lib/tauri'
 vi.mock('@/lib/toast', () => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), loading: vi.fn() },
 }))
@@ -150,4 +151,19 @@ it('removes an unused component version after confirming', async () => {
       message: 'Freed 477 MB.',
     }),
   )
+})
+
+it('shows every card as a skeleton while the first scan runs', async () => {
+  let finish: (value: typeof overview) => void = () => undefined
+  vi.mocked(getStorageOverview).mockImplementationOnce(
+    () => new Promise((resolve) => (finish = resolve)),
+  )
+  renderStorage()
+  const loading = screen.getByRole('status', { name: 'Loading storage' })
+  for (const card of ['overview', 'largest', 'distribution', 'items'])
+    expect(within(loading).getByTestId(`storage-skeleton-${card}`)).toBeTruthy()
+  expect(loading.textContent).toBe('')
+  await act(async () => finish(overview))
+  expect(await screen.findByRole('region', { name: 'Storage overview' })).toBeTruthy()
+  expect(screen.queryByRole('status', { name: 'Loading storage' })).toBeNull()
 })
