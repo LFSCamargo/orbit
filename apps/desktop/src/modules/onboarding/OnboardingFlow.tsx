@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { focusManager } from '@/controllers/FocusManager'
 import { useOverlayBack } from '@/controllers/overlayStack'
@@ -8,7 +8,10 @@ import { useModalFocus } from '@/hooks/useModalFocus'
 import { screenEntryFocusId } from '@/lib/navigation'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useSplashHold } from '@/app/splash/useSplashHold'
 import { OnboardingFrame } from './components/OnboardingFrame'
+import { useOnboardingReady } from './hooks/useOnboardingReady'
+import { graphicsTier } from './lib/graphicsSupport'
 import { ONBOARDING_PRIMARY_ID } from './components/OnboardingFooter'
 import { nextStep, previousStep, type OnboardingStep } from './lib/onboardingSteps'
 import { AccountStep } from './steps/AccountStep'
@@ -57,6 +60,11 @@ export function OnboardingFlow() {
   const updatePreferences = usePreferencesStore((s) => s.update)
   const closeOnboarding = useUiStore((s) => s.closeOnboarding)
   const setScreen = useUiStore((s) => s.setScreen)
+  // Shown only once whole: the startup splash, or a spinner when replayed,
+  // covers the wait.
+  const gpu = useMemo(() => graphicsTier() === 'gpu', [])
+  const { ready, onSceneReady } = useOnboardingReady(gpu)
+  useSplashHold(!ready)
 
   const back = () => setStep((current) => previousStep(current) ?? current)
   const next = () => setStep((current) => nextStep(current) ?? current)
@@ -78,7 +86,12 @@ export function OnboardingFlow() {
   }
 
   return (
-    <OnboardingFrame step={step} onSkip={() => setConfirmSkip(true)}>
+    <OnboardingFrame
+      step={step}
+      onSkip={() => setConfirmSkip(true)}
+      ready={ready}
+      onSceneReady={onSceneReady}
+    >
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={step}

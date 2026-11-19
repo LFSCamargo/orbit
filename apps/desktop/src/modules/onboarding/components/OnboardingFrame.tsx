@@ -1,3 +1,5 @@
+import { motion, useReducedMotion } from 'framer-motion'
+import { Spinner } from '@/components/feedback/Spinner'
 import type { ReactNode } from 'react'
 import { Minus, X } from 'lucide-react'
 import orbitLogo from '@/assets/brand/orbit-logo.png'
@@ -16,12 +18,19 @@ const WINDOW_CONTROL =
 export function OnboardingFrame({
   step,
   onSkip,
+  ready = true,
+  onSceneReady,
   children,
 }: {
   step: OnboardingStep
   onSkip: () => void
+  /** Everything has loaded: until then the card stays hidden behind the
+   * backdrop and a spinner, so it appears whole rather than filling in. */
+  ready?: boolean
+  onSceneReady?: () => void
   children: ReactNode
 }) {
+  const reduceMotion = useReducedMotion()
   return (
     <div
       className="onboarding fixed inset-0 z-[60] grid place-items-center overflow-clip p-6"
@@ -33,8 +42,28 @@ export function OnboardingFrame({
         aria-hidden="true"
         className="absolute inset-0 bg-[rgb(6_5_8/0.62)] backdrop-blur-[14px]"
       />
-      <div className="onboarding-card relative isolate flex h-[min(700px,calc(100vh-48px))] w-[min(1080px,calc(100vw-48px))] flex-col overflow-clip rounded-[28px] border border-white/[0.1] bg-[linear-gradient(180deg,#1a1215,#0e0b0e_55%,#0a0809)] shadow-[0_50px_140px_rgb(0_0_0/0.7),inset_0_1px_0_rgb(255_255_255/0.07)] [container-type:size]">
-        <OnboardingEffects />
+      {!ready && (
+        <div
+          role="status"
+          aria-label="Preparing setup"
+          className="absolute inset-0 grid place-items-center text-[rgb(var(--orbit-fire-via))]"
+        >
+          <Spinner size={34} />
+        </div>
+      )}
+      <motion.div
+        data-ready={ready}
+        inert={!ready}
+        initial={false}
+        animate={
+          ready
+            ? { opacity: 1, scale: 1, y: 0 }
+            : { opacity: 0, scale: reduceMotion ? 1 : 0.97, y: reduceMotion ? 0 : 14 }
+        }
+        transition={{ duration: reduceMotion ? 0.15 : 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="onboarding-card relative isolate flex h-[min(700px,calc(100vh-48px))] w-[min(1080px,calc(100vw-48px))] flex-col overflow-clip rounded-[28px] border border-white/[0.1] bg-[linear-gradient(180deg,#1a1215,#0e0b0e_55%,#0a0809)] shadow-[0_50px_140px_rgb(0_0_0/0.7),inset_0_1px_0_rgb(255_255_255/0.07)] [container-type:size]"
+      >
+        <OnboardingEffects onSceneReady={onSceneReady} />
         <header className="relative z-10 flex items-center justify-between px-7 pt-6">
           <img src={orbitLogo} alt="Orbit" className="h-[26px] w-auto" />
           <div className="flex items-center gap-1">
@@ -72,7 +101,7 @@ export function OnboardingFrame({
         <main className="onboarding-step relative z-10 mt-[clamp(10px,3cqh,28px)] flex min-h-0 flex-1 flex-col overflow-y-auto px-[clamp(20px,4cqw,44px)] pb-[clamp(16px,4cqh,30px)]">
           {children}
         </main>
-      </div>
+      </motion.div>
     </div>
   )
 }

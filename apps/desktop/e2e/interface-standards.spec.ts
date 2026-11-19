@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('library toolbar sticks with a fade under the search bar', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 520 })

@@ -13,6 +13,7 @@ import { normalizeArtwork } from '@/lib/artworkApi'
 import { enrichGameMetadata, getGame } from '@/lib/tauri'
 import type { Game } from '@/types/game'
 import { buttonClass } from '@/components/ui/button'
+import { Spinner } from '@/components/feedback/Spinner'
 
 export function GameMetadataEditor({
   game,
@@ -182,8 +183,8 @@ export function GameMetadataEditor({
           onClick={() => (dirty ? setConfirmFetch(true) : void fetchMetadata())}
           className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-3 disabled:cursor-wait disabled:opacity-40"
         >
-          <Download className="h-4 w-4" />
-          {enriching ? 'Fetching…' : 'Refresh metadata'}
+          {enriching ? <Spinner size={16} /> : <Download className="h-4 w-4" />}
+          Refresh metadata
         </Focusable>
         <Focusable
           focusId="edit-save"
@@ -198,8 +199,8 @@ export function GameMetadataEditor({
             className: 'disabled:cursor-wait',
           })}
         >
-          <Save className="h-4 w-4" />
-          {saving ? 'Saving…' : 'Save changes'}
+          {saving ? <Spinner size={16} /> : <Save className="h-4 w-4" />}
+          Save changes
         </Focusable>
       </div>
       <ConfirmDialog

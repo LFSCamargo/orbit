@@ -44,6 +44,7 @@ import { UninstallAction } from './components/UninstallAction'
 import { useSessionStore } from '@/stores/session.store'
 import { notify } from '@/lib/toast'
 import { useUiStore } from '@/stores/ui.store'
+import { DetailsSkeleton } from './components/DetailsSkeleton'
 
 const EYEBROWS = {
   installed: 'IN YOUR COLLECTION',
@@ -103,7 +104,8 @@ export function GameDetailsPage() {
     setScreen(target)
     focusManager.restoreFocus(focusRestoreId(target, entry?.id ?? selectedGameId))
   }
-  if (isLoading || !entry)
+  if (isLoading) return <DetailsSkeleton className={PAGE} />
+  if (!entry)
     return (
       <section
         className={clsx(
@@ -114,31 +116,23 @@ export function GameDetailsPage() {
       >
         <Library size={32} className="text-white/[0.44]" />
         <h1 className="text-[25px]">
-          {isLoading
-            ? 'Loading your game…'
-            : loadError
-              ? 'Could not load this game'
-              : 'Game not found'}
+          {loadError ? 'Could not load this game' : 'Game not found'}
         </h1>
         <p className="text-white/[0.44]">
-          {isLoading
-            ? 'Getting everything ready.'
-            : loadError
-              ? 'Return to your library and try again.'
-              : 'It may have been removed from your library.'}
+          {loadError
+            ? 'Return to your library and try again.'
+            : 'It may have been removed from your library.'}
         </p>
-        {!isLoading && (
-          <Focusable
-            focusId="details-back-missing"
-            group="details-actions"
-            order={0}
-            noScale
-            className="details-secondary orbit-glass-control rounded-xl bg-white/10 px-[18px] py-3 text-[13px]"
-            onClick={goBack}
-          >
-            Back to library
-          </Focusable>
-        )}
+        <Focusable
+          focusId="details-back-missing"
+          group="details-actions"
+          order={0}
+          noScale
+          className="details-secondary orbit-glass-control rounded-xl bg-white/10 px-[18px] py-3 text-[13px]"
+          onClick={goBack}
+        >
+          Back to library
+        </Focusable>
       </section>
     )
   const game = entry.game

@@ -31,7 +31,7 @@ import { useStartupScan } from './startup/useStartupScan'
 
 const pageTransition = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }
 
-export function App() {
+export function App({ onMounted }: { onMounted?: () => void } = {}) {
   const reduceMotion = useReducedMotion()
   const screen = useUiStore((s) => s.screen)
   const homeMenuOpen = useUiStore((s) => s.homeMenuOpen)
@@ -50,6 +50,9 @@ export function App() {
   useSteamClientEvents()
   useStartupScan()
   useRuntimeAutoUpdate()
+
+  // Screens below take their own splash holds as they mount, first.
+  useEffect(() => onMounted?.(), [onMounted])
 
   useEffect(() => {
     setActiveSession(activeSession ?? null)

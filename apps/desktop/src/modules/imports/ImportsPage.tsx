@@ -4,6 +4,7 @@ import { useImporters } from '@/hooks/useGames'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
 import { buttonClass } from '@/components/ui/button'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
 
 const IMPORTERS = [
   {
@@ -89,14 +90,11 @@ export function ImportsSection() {
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         {IMPORTERS.map((item, index) => {
           const status = statusFor(item.id)
-          const label =
-            busyId === item.id
-              ? 'Scanning…'
-              : status?.detected
-                ? 'Detected'
-                : item.id === 'manual'
-                  ? 'Guided'
-                  : 'Choose path'
+          const label = status?.detected
+            ? 'Detected'
+            : item.id === 'manual'
+              ? 'Guided'
+              : 'Choose path'
           return (
             <Focusable
               key={item.id}
@@ -112,7 +110,7 @@ export function ImportsSection() {
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-display text-lg font-semibold">{item.title}</h3>
                 <span className="orbit-glass-control bg-white/8 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-orbit-muted">
-                  {label}
+                  <BusyLabel busy={busyId === item.id}>{label}</BusyLabel>
                 </span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-orbit-muted">{item.body}</p>

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 for (const theme of ['liquid-glass', 'cyberpunk-2077']) {
   test(`${theme} session controls and quick menu`, async ({ page }) => {

@@ -1,20 +1,6 @@
 import { clsx } from 'clsx'
+import { SkeletonBlock as Shimmer } from '@/components/feedback/Skeleton'
 import { LIBRARY_CARD_SHELL, LIBRARY_ENTRY_GRID } from './libraryGrid'
-
-/** A soft block with the artwork loader's shimmer sweep. */
-function Shimmer({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={clsx(
-        'relative block overflow-hidden bg-orbit-foreground/[0.06]',
-        'after:absolute after:inset-0 after:-translate-x-full after:animate-artwork-shimmer after:bg-[linear-gradient(100deg,transparent_15%,rgb(255_255_255/0.1)_48%,transparent_80%)] after:content-[""]',
-        'motion-reduce:after:translate-x-0 motion-reduce:after:animate-none motion-reduce:after:opacity-35',
-        className,
-      )}
-    />
-  )
-}
 
 /** Loading placeholders shaped like the library's cards, in the same grid:
  * a section heading, then glass cards with square art, a title line and a

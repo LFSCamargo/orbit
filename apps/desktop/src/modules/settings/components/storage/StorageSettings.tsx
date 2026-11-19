@@ -74,7 +74,7 @@ export function StorageSettings() {
             size={14}
             className={rescan.isPending ? 'animate-spin' : undefined}
           />
-          {rescan.isPending ? 'Scanning…' : 'Rescan'}
+          Rescan
         </Focusable>
       </div>
       {overview.error && (

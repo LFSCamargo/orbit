@@ -11,6 +11,9 @@ import type { ArtworkSlot } from '@/lib/artwork'
 import type { ArtworkSearchHit } from '@/lib/artworkApi'
 import { fetchArtworkFromUrl, searchGameArtwork } from '@/lib/artworkApi'
 import { buttonClass } from '@/components/ui/button'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
+import { SkeletonBlock } from '@/components/feedback/Skeleton'
+import { Spinner } from '@/components/feedback/Spinner'
 
 const SLOT_ASPECT: Record<ArtworkSlot, string> = {
   cover: 'aspect-[2/3]',
@@ -227,7 +230,7 @@ export function ImageSearchModal({
                   onClick={() => void runSearch(query)}
                   className={buttonClass({ shape: 'card' })}
                 >
-                  {loading ? 'Searching…' : 'Search'}
+                  <BusyLabel busy={loading}>Search</BusyLabel>
                 </Focusable>
               </form>
               <div
@@ -271,14 +274,30 @@ export function ImageSearchModal({
                     ))}
                   </div>
                 )}
-                <p role="status" className="mb-4 text-sm text-orbit-muted">
-                  {loading
-                    ? 'Searching artwork sources…'
-                    : selecting
-                      ? 'Downloading your selection…'
-                      : !visible.length
-                        ? 'No qualifying images found. Try the exact game title or configure provider keys in Settings.'
-                        : `${visible.length} images available`}
+                {loading && (
+                  <div
+                    role="status"
+                    aria-label="Searching artwork sources"
+                    className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+                  >
+                    {Array.from({ length: 8 }, (_, index) => (
+                      <SkeletonBlock key={index} className="aspect-[2/3] rounded-card" />
+                    ))}
+                  </div>
+                )}
+                <p
+                  role="status"
+                  aria-label={selecting ? 'Downloading your selection' : undefined}
+                  className="mb-4 text-sm text-orbit-muted"
+                  hidden={loading}
+                >
+                  {selecting ? (
+                    <Spinner size={16} />
+                  ) : !visible.length ? (
+                    'No qualifying images found. Try the exact game title or configure provider keys in Settings.'
+                  ) : (
+                    `${visible.length} images available`
+                  )}
                 </p>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {visible.map((hit, index) => (

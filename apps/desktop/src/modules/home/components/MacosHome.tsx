@@ -23,6 +23,7 @@ import { homeLaunchId } from '../lib/homeHero'
 import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
 import { useUiStore } from '@/stores/ui.store'
 import { createHomeGameHandlers, type ThemeHomeProps } from '../hooks/useHomeGameActions'
+import { SkeletonBlock } from '@/components/feedback/Skeleton'
 
 export function MacosHome({
   entries,
@@ -342,9 +343,18 @@ export function MacosHome({
           />
         )}
         {shelfPending && (
-          <p role="status" className="py-8 text-orbit-muted">
-            Loading games…
-          </p>
+          <div
+            role="status"
+            aria-label="Loading games"
+            className="flex gap-4 overflow-hidden py-4"
+          >
+            {[0, 1, 2, 3, 4, 5].map((index) => (
+              <SkeletonBlock
+                key={index}
+                className="aspect-square w-[clamp(150px,15vw,230px)] shrink-0 rounded-[22px]"
+              />
+            ))}
+          </div>
         )}
         {shelfError && (
           <div role="alert">

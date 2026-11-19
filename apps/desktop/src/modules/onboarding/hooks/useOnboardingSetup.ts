@@ -12,6 +12,18 @@ import {
   type SetupRowId,
 } from '../lib/setupPlan'
 
+/** What Setup reads; onboarding prefetches these before it shows. */
+export const SETUP_QUERIES = {
+  catalog: {
+    queryKey: ['compatibility-catalog'],
+    queryFn: () => getCompatibilityCatalog(),
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: false,
+  },
+  installed: { queryKey: ['component-status'], queryFn: getComponentStatus },
+  orbitWine: { queryKey: ['orbit-wine'], queryFn: orbitWineStatus },
+} as const
+
 export type SetupPhase = 'loading' | 'ready' | 'installing' | 'failed' | 'complete'
 
 /** The Setup step: which components to install, one run that installs them
@@ -20,20 +32,9 @@ export type SetupPhase = 'loading' | 'ready' | 'installing' | 'failed' | 'comple
  * downloads sidebar show the same progress.
  */
 export function useOnboardingSetup() {
-  const catalog = useQuery({
-    queryKey: ['compatibility-catalog'],
-    queryFn: () => getCompatibilityCatalog(),
-    staleTime: 6 * 60 * 60 * 1000,
-    retry: false,
-  })
-  const installed = useQuery({
-    queryKey: ['component-status'],
-    queryFn: getComponentStatus,
-  })
-  const orbitWine = useQuery({
-    queryKey: ['orbit-wine'],
-    queryFn: orbitWineStatus,
-  })
+  const catalog = useQuery(SETUP_QUERIES.catalog)
+  const installed = useQuery(SETUP_QUERIES.installed)
+  const orbitWine = useQuery(SETUP_QUERIES.orbitWine)
   const wine = useOrbitWineSetup()
   const components = useComponentInstall()
   const tasks = useDownloadStore((s) => s.tasks)

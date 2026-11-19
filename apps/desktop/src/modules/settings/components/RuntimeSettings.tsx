@@ -16,6 +16,7 @@ import { DownloadProgress } from '@/components/ui/download-progress'
 import { useCompatibilitySetup } from '../hooks/useCompatibilitySetup'
 import { CompatibilityComponents } from './CompatibilityComponents'
 import { buttonClass } from '@/components/ui/button'
+import { SkeletonPanel } from '@/components/feedback/Skeleton'
 
 export function RuntimeSettings() {
   const queryClient = useQueryClient()
@@ -153,13 +154,13 @@ export function RuntimeSettings() {
                   </p>
                 </div>
               ))}
-              {status?.supported && !runtimes.data?.length && (
-                <p className="text-orbit-muted">
-                  {runtimes.isFetching
-                    ? 'Detecting runtimes…'
-                    : 'No Wine runtime detected.'}
-                </p>
-              )}
+              {status?.supported &&
+                !runtimes.data?.length &&
+                (runtimes.isFetching ? (
+                  <SkeletonPanel label="Detecting runtimes" rows={2} />
+                ) : (
+                  <p className="text-orbit-muted">No Wine runtime detected.</p>
+                ))}
               <div className="flex flex-wrap gap-3">
                 <Focusable
                   focusId="runtime-register"

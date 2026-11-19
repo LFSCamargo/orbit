@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('translucent panels and controls share Liquid Glass without SVG refraction', async ({
   page,

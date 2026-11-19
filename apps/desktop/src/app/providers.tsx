@@ -19,13 +19,8 @@ function ThemeBootstrap({ children }: { children: ReactNode }) {
     void hydratePreferences()
   }, [hydrate, hydratePreferences])
 
-  if (!themeReady || !preferencesReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-orbit-canvas font-body text-orbit-muted">
-        Starting Orbit…
-      </div>
-    )
-  }
+  // The splash screen (index.html) covers Orbit until it is ready.
+  if (!themeReady || !preferencesReady) return null
 
   return children
 }

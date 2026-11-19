@@ -28,6 +28,8 @@ import { OnboardingFlow } from '../OnboardingFlow'
 // Each test walks several steps; under a full parallel run the default 1 s
 // wait per step is too tight.
 configure({ asyncUtilTimeout: 4000 })
+// jsdom never loads images, so their decode would only end at the preload's cap.
+HTMLImageElement.prototype.decode = () => Promise.resolve()
 vi.setConfig({ testTimeout: 20_000 })
 
 vi.mock('@/lib/appPreferences', async (importOriginal) => ({
@@ -330,7 +332,7 @@ it('hands focus back to the primary action when a wait ends', async () => {
   fireEvent.click(primary())
   await screen.findByRole('heading', { name: 'Scan Games' })
   fireEvent.click(primary())
-  // The disabled "Scanning…" sends focus to Back; it returns afterwards.
+  // The busy, disabled primary sends focus to Back; it returns afterwards.
   focusManager.setFocus('onboarding-back')
   await screen.findByRole('heading', { name: 'Scan complete' })
   await waitFor(() =>
@@ -382,8 +384,13 @@ it('waits for the component check before listing rows or offering Continue', asy
   // Regression: rows showed unchecked/unavailable and a disabled "Continue"
   // until the catalog arrived.
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-  expect(primary()).toHaveTextContent('Checking…')
+  // A spinner on the real label, not "Checking…" text, and shimmer rows.
+  expect(primary()).toHaveTextContent('Continue')
+  expect(primary().querySelector('[data-busy="true"]')).not.toBeNull()
   expect(primary()).toBeDisabled()
+  expect(
+    screen.getByRole('status', { name: 'Checking your components' }),
+  ).toHaveTextContent('')
   release(catalog)
   await waitFor(() =>
     expect(screen.getByRole('checkbox', { name: 'Install DXMT' })).toHaveAttribute(
@@ -392,4 +399,26 @@ it('waits for the component check before listing rows or offering Continue', asy
     ),
   )
   expect(primary()).toHaveTextContent('Download & Continue')
+})
+
+it('shows the card only once Setup data and the scene are ready, with a spinner meanwhile', async () => {
+  let release: (
+    value: Awaited<ReturnType<typeof getCompatibilityCatalog>>,
+  ) => void = () => {}
+  const catalog = await getCompatibilityCatalog()
+  vi.mocked(getCompatibilityCatalog).mockReturnValue(
+    new Promise((resolve) => {
+      release = resolve
+    }),
+  )
+  renderFlow()
+  const card = document.querySelector('.onboarding-card') as HTMLElement
+  expect(card).toHaveAttribute('data-ready', 'false')
+  expect(card).toHaveAttribute('inert')
+  const waiting = screen.getByRole('status', { name: 'Preparing setup' })
+  expect(waiting.textContent).toBe('')
+  release(catalog)
+  await waitFor(() => expect(card).toHaveAttribute('data-ready', 'true'))
+  expect(card).not.toHaveAttribute('inert')
+  expect(screen.queryByRole('status', { name: 'Preparing setup' })).toBeNull()
 })

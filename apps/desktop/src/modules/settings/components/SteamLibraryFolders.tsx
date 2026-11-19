@@ -68,7 +68,7 @@ export function SteamLibraryFolders() {
               className={scan.isPending ? 'animate-spin' : undefined}
               aria-hidden
             />
-            {scan.isPending ? 'Scanning installed games…' : 'Scan installed games'}
+            Scan installed games
           </Focusable>
         )}
       </div>

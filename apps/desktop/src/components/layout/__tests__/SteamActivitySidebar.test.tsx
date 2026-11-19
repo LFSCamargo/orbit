@@ -293,3 +293,15 @@ it('suggests played games that are not installed, and installs Steam ones', asyn
   fireEvent.click(within(section).getByRole('button', { name: 'Install Dota 2' }))
   expect(enqueueSteamDownload).toHaveBeenCalledWith('570')
 })
+
+it('keeps the header and close button fixed while the sections scroll', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  renderSidebar()
+  await screen.findByText('No downloads yet')
+  const list = screen.getByTestId('steam-activity-scroll')
+  expect(list.className).toContain('overflow-auto')
+  expect(list).toContainElement(screen.getByRole('region', { name: 'Network' }))
+  const close = screen.getByRole('button', { name: 'Close downloads' })
+  expect(list).not.toContainElement(close)
+  expect(screen.getByRole('dialog', { name: 'Downloads' })).toContainElement(close)
+})

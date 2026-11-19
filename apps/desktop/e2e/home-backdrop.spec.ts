@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 const activeImage = '.macos-hero-layer[data-layer="active"]'
 

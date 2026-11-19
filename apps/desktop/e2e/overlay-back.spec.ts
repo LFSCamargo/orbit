@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('back closes the downloads drawer without leaving the screen', async ({ page }) => {
   await page.goto('/')

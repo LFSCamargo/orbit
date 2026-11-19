@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { detectRuntimes } from '@/lib/tauri'
 import type { WineProfile } from '@/types/runtime'
 import { CompatibilityOverridesEditor } from './CompatibilityOverridesEditor'
+import { Spinner } from '@/components/feedback/Spinner'
 
 const field =
   'mt-2 w-full rounded-card border border-orbit-border bg-orbit-surface px-4 py-3 text-orbit-foreground'
@@ -33,7 +34,10 @@ export function WineProfileEditor({
         where they are.
       </p>
       <label className="block text-sm text-orbit-muted">
-        Compatibility runtime
+        <span className="inline-flex items-center gap-2">
+          Compatibility runtime
+          {isPending && <Spinner size={13} />}
+        </span>
         <OptionSelect
           aria-label="Compatibility runtime"
           className={field}
@@ -42,9 +46,7 @@ export function WineProfileEditor({
             onChange({ ...value, runtimePath: selectedValue })
           }
         >
-          <option value="">
-            {isPending ? 'Detecting runtimes…' : 'Choose a runtime'}
-          </option>
+          <option value="">Choose a runtime</option>
           {value.runtimePath && !runtimes.some((r) => r.path === value.runtimePath) && (
             <option value={value.runtimePath}>
               Saved runtime (currently unavailable)

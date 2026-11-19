@@ -14,6 +14,7 @@ import {
 } from '../components/styles'
 import { useOnboardingSetup } from '../hooks/useOnboardingSetup'
 import type { RowStatus, SetupBadge } from '../lib/setupPlan'
+import { SkeletonPanel } from '@/components/feedback/Skeleton'
 
 const HEADERS = {
   loading: [
@@ -48,7 +49,7 @@ function statusText(status: RowStatus): { text: string; tone: keyof typeof STATU
       return { text: 'Installed', tone: 'done' }
     case 'installing':
       return {
-        text: status.percent === null ? 'Installing…' : `Installing ${status.percent}%`,
+        text: status.percent === null ? 'Installing' : `Installing ${status.percent}%`,
         tone: 'active',
       }
     case 'failed':
@@ -103,13 +104,13 @@ export function SetupStep({
 
   const primary =
     phase === 'installing'
-      ? { label: 'Installing…', onClick: () => {}, disabled: true }
+      ? { label: 'Download & Continue', onClick: () => {}, busy: true }
       : phase === 'failed'
         ? { label: 'Retry Download', onClick: () => void setup.retry() }
         : phase === 'ready' && anySelected
           ? { label: 'Download & Continue', onClick: () => void setup.install() }
           : phase === 'loading'
-            ? { label: 'Checking…', onClick: () => {}, disabled: true }
+            ? { label: 'Continue', onClick: () => {}, busy: true }
             : { label: 'Continue', onClick: onNext }
 
   return (
@@ -117,9 +118,11 @@ export function SetupStep({
       <StepHeader title={title} subtitle={subtitle} />
       <div className="mx-auto mt-[clamp(12px,3.4cqh,28px)] w-full max-w-[860px]">
         {phase === 'loading' && (
-          <p className="py-10 text-center text-[16px] text-white/60" role="status">
-            Checking your components…
-          </p>
+          <SkeletonPanel
+            label="Checking your components"
+            rows={4}
+            className={clsx(ONBOARDING_PANEL, 'p-5')}
+          />
         )}
         {phase === 'ready' && (
           <ul className={clsx(ONBOARDING_PANEL, PANEL_ROWS, 'px-2')}>

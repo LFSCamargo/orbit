@@ -22,6 +22,9 @@ import type { CompatibilitySettings } from '@/types/runtime'
 import { Switch } from '@/components/ui/switch'
 import { useGraphicsDraft } from '@/stores/graphics-draft.store'
 import { buttonClass } from '@/components/ui/button'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
+import { Spinner } from '@/components/feedback/Spinner'
+import { SkeletonPanel } from '@/components/feedback/Skeleton'
 
 const field = clsx(
   'settings-row-control w-full min-w-0 rounded-lg !border-0 !bg-transparent !p-2 text-right text-sm text-orbit-foreground/80 !shadow-none',
@@ -122,10 +125,10 @@ export function CompatibilityGlobalSettings() {
   }
 
   if (!data) {
-    return (
-      <p className="text-sm text-orbit-muted">
-        {error ? String(error) : 'Loading settings…'}
-      </p>
+    return error ? (
+      <p className="text-sm text-orbit-muted">{String(error)}</p>
+    ) : (
+      <SkeletonPanel label="Loading settings" rows={4} />
     )
   }
 
@@ -442,11 +445,13 @@ export function CompatibilityGlobalSettings() {
         <div>
           <p role={saveError ? 'alert' : 'status'} className="text-sm font-medium">
             {saveError ||
-              (saving
-                ? 'Saving changes…'
-                : dirty
-                  ? 'You have unsaved changes'
-                  : notice || 'All changes saved')}
+              (saving ? (
+                <Spinner size={15} />
+              ) : dirty ? (
+                'You have unsaved changes'
+              ) : (
+                notice || 'All changes saved'
+              ))}
           </p>
           <p className="mt-1 text-xs text-orbit-muted">
             Applies on the next game launch.
@@ -477,7 +482,7 @@ export function CompatibilityGlobalSettings() {
             disabled={!dirty || saving}
             className={PRIMARY_BUTTON}
           >
-            {saving ? 'Saving…' : 'Save changes'}
+            <BusyLabel busy={saving}>Save changes</BusyLabel>
           </Focusable>
         </div>
       </div>

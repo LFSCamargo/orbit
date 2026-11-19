@@ -77,7 +77,7 @@ export function ScanStep({
     status === 'ready'
       ? { label: 'Start Scan', onClick: () => void scan.run() }
       : status === 'scanning'
-        ? { label: 'Scanning…', onClick: () => {}, disabled: true }
+        ? { label: 'Start Scan', onClick: () => {}, busy: true }
         : status === 'error'
           ? { label: 'Retry Scan', onClick: () => void scan.run() }
           : {
@@ -106,7 +106,7 @@ export function ScanStep({
                 {status === 'complete'
                   ? `${found.total} ${found.total === 1 ? 'game' : 'games'} found`
                   : status === 'scanning'
-                    ? 'Scanning your games…'
+                    ? 'Scanning your games'
                     : 'Ready to scan'}
               </h2>
               <p className="mt-0.5 text-[15px] text-white/60" role="status">

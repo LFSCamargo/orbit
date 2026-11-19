@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 for (const theme of ['liquid-glass', 'god-of-war']) {
   test(`${theme} details offer complete controls and achievement filters`, async ({

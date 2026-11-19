@@ -15,7 +15,9 @@ Completion lives in app preferences (`lib/appPreferences.ts`), one JSON value un
 | `autoUpdateRuntimes`  | `true`                    | `false`                                  |
 | `xboxCloudConnected`  | `false`                   | `false`                                  |
 
-Upgrades keep the new background work off, so updating Orbit changes nothing it did before. Missing fields merge from the defaults, so new fields are safe. The browser build (and e2e) reads the same JSON from `localStorage` `orbit.app-preferences-v1`. `preferences.store.ts` hydrates next to the theme in `providers.tsx`; "Starting Orbit…" waits for both.
+Upgrades keep the new background work off, so updating Orbit changes nothing it did before. Missing fields merge from the defaults, so new fields are safe. The browser build (and e2e) reads the same JSON from `localStorage` `orbit.app-preferences-v1`. `preferences.store.ts` hydrates next to the theme in `providers.tsx`; the startup splash covers the wait for both.
+
+Onboarding appears whole. `useOnboardingReady` preloads, before the card shows: Setup's queries (`SETUP_QUERIES`: catalog, installed components, Orbit Wine), the scene's code split chunks (`space/sceneModules.ts`: the Three.js globe and tsParticles, on a GPU), the first screens' images (app icon, logo, Earth textures or the CSS planet's photo) and fonts, then waits for the WebGL globe's first textured frame (`Globe3D` `onReady`). Until then the backdrop shows with a spinner and the card is hidden and `inert`; it then fades and rises in. On first run the startup splash covers that wait instead. Nothing holds it back for long: the preload stops waiting after 6 s and the scene after 4 s more.
 
 The shell behind is `inert` and `aria-hidden` while onboarding shows, so pointer, Tab and screen readers stay in the card. Skip (✕, top right) asks first, then marks onboarding completed and opens Home; finishing does the same. — (top right) minimizes Orbit's window.
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { runtimeDiagnostics } from '@/lib/tauri'
 import { Focusable } from '@/components/focus/Focusable'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
 export function RuntimeDiagnostics({ gameId }: { gameId: string }) {
   const [log, setLog] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -29,7 +30,7 @@ export function RuntimeDiagnostics({ gameId }: { gameId: string }) {
         onClick={() => void load()}
         className="orbit-glass-control rounded-card px-4 py-2 disabled:cursor-wait disabled:opacity-40"
       >
-        {busy ? 'Reading…' : 'Compatibility diagnostics'}
+        <BusyLabel busy={busy}>Compatibility diagnostics</BusyLabel>
       </Focusable>
       {log !== null && (
         <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">

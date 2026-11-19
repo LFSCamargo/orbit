@@ -65,7 +65,7 @@ export function SwitchLibraryPage() {
           className={buttonClass({ shape: 'card' })}
         >
           <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
-          {busy ? 'Scanning…' : 'Rescan from library'}
+          Rescan from library
         </Focusable>
         <Focusable
           focusId="switch-library-browse"

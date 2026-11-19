@@ -12,12 +12,13 @@ import globe from '@/assets/onboarding/globe.webp'
 import { graphicsTier } from '../lib/graphicsSupport'
 import { planetGeometry } from '../lib/planetGeometry'
 import { Meteors } from './space/Meteors'
+import { loadSparkles, loadSpaceGlobe } from './space/sceneModules'
 
 /** Three.js and tsParticles load only when onboarding shows, not with the
- * rest of Orbit. */
-const SpaceGlobe = lazy(() => import('./space/SpaceGlobe'))
+ * rest of Orbit (preloaded by useOnboardingReady). */
+const SpaceGlobe = lazy(loadSpaceGlobe)
 const Sparkles = lazy(() =>
-  import('./space/Sparkles').then((module) => ({ default: module.Sparkles })),
+  loadSparkles().then((module) => ({ default: module.Sparkles })),
 )
 
 /** Small deterministic PRNG, so the star field is the same on every render. */
@@ -68,8 +69,10 @@ function useCardSize() {
   useLayoutEffect(() => {
     const element = ref.current
     if (!element) return
+    // Layout size, not getBoundingClientRect: the card's reveal scales it,
+    // and a size taken mid-scale would stick (scaling fires no resize).
     const measure = () => {
-      const { width, height } = element.getBoundingClientRect()
+      const { offsetWidth: width, offsetHeight: height } = element
       if (width && height) setSize({ width, height })
     }
     measure()
@@ -148,7 +151,12 @@ const RIM =
  * is sized from the measured card so its rim always leaves through the
  * bottom edge.
  */
-export function OnboardingEffects() {
+export function OnboardingEffects({
+  onSceneReady,
+}: {
+  /** The 3D globe has drawn its first frame. */
+  onSceneReady?: () => void
+}) {
   const [ref, size] = useCardSize()
   const planet = planetGeometry(size.width, size.height)
   const still = useReducedMotion() ?? false
@@ -209,7 +217,12 @@ export function OnboardingEffects() {
       {gpu ? (
         <>
           <Suspense fallback={null}>
-            <SpaceGlobe width={size.width} height={size.height} still={still} />
+            <SpaceGlobe
+              width={size.width}
+              height={size.height}
+              still={still}
+              onReady={onSceneReady}
+            />
           </Suspense>
           <div className={RIM} style={{ width: planet.radius * 2, top: planet.top }} />
         </>

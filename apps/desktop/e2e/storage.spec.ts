@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('Storage settings show usage, filter items and confirm an uninstall', async ({
   page,

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('compatibility settings keep setup simple and advanced options optional', async ({
   page,

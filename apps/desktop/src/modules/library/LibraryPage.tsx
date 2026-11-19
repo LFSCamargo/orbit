@@ -17,6 +17,7 @@ import { useSettingsControllerFocus } from '@/modules/settings/hooks/useSettings
 import { LibrarySections } from './components/LibrarySections'
 import { LibrarySkeleton } from './components/LibrarySkeleton'
 import { LibraryToolbar } from './components/LibraryToolbar'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
 
 const workspaceButtonClass =
   'workspace-button inline-flex min-h-12 items-center justify-center gap-2.5 border border-white/[0.16] bg-white/[0.08] px-5 py-3 font-[550] disabled:opacity-45'
@@ -103,8 +104,11 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
               className={clsx(workspaceButtonClass, 'orbit-glass-control rounded-2xl')}
               aria-label="Refresh library"
             >
-              <RefreshCw size={19} />
-              {refresh.isPending ? 'Scanning…' : 'Refresh'}
+              <RefreshCw
+                size={19}
+                className={refresh.isPending ? 'animate-spin' : undefined}
+              />
+              Refresh
             </Focusable>
             <Focusable
               focusId="library-add"
@@ -230,7 +234,7 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
             className={clsx(workspaceButtonClass, 'mt-6 rounded-2xl')}
             onClick={() => void library.fetchNextPage()}
           >
-            {library.isFetchingNextPage ? 'Loading…' : 'Show more games'}
+            <BusyLabel busy={library.isFetchingNextPage}>Show more games</BusyLabel>
           </Focusable>
         )}
       </div>

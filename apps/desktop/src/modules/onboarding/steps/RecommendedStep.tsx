@@ -283,9 +283,9 @@ export function RecommendedStep({
       <OnboardingFooter
         onBack={onBack}
         primary={{
-          label: saving ? 'Saving…' : 'Continue',
+          label: 'Continue',
           onClick: () => void save(),
-          disabled: saving,
+          busy: saving,
         }}
       />
     </>

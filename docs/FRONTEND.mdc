@@ -358,7 +358,9 @@ Settings presentation uses Tailwind on the settings and Steam components, keepin
 an explicit draft initialized per game. `GamePropertiesEditor` owns metadata and
 artwork drafts, keyed by game identity; refetches do not reinitialize these fields.
 `LibrarySkeleton` renders a fixed eight placeholders without registering controller
-focus targets. Runtime option lists use the existing Orbit-styled Radix Select.
+focus targets. Loading never shows text: panels use `SkeletonBlock`/`SkeletonPanel`,
+busy buttons `BusyLabel`, and startup the `index.html` splash, which
+`app/splash/splash.ts` dismisses once no screen holds it (`useSplashHold`). Runtime option lists use the existing Orbit-styled Radix Select.
 
 Settings owns `useSettingsControllerFocus`, which registers native form controls
 not already registered by shared components. Its observer and focus subscription

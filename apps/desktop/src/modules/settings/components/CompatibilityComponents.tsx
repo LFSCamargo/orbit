@@ -26,6 +26,7 @@ import { useComponentViews } from '../hooks/useComponentViews'
 import { useComponentInstall } from '../hooks/useComponentInstall'
 import { ComponentVersionPicker, type ComponentVersion } from './ComponentVersionPicker'
 import { buttonClass } from '@/components/ui/button'
+import { SkeletonPanel } from '@/components/feedback/Skeleton'
 
 const graphicsIds = new Set(['dxvk', 'dxmt', 'gptk'])
 
@@ -128,11 +129,14 @@ export function CompatibilityComponents({
           </Focusable>
         </div>
       </div>
-      {!data && (
-        <p role="status" className="text-sm text-orbit-muted">
-          {error ? String(error) : 'Loading online versions…'}
-        </p>
-      )}
+      {!data &&
+        (error ? (
+          <p role="status" className="text-sm text-orbit-muted">
+            {String(error)}
+          </p>
+        ) : (
+          <SkeletonPanel label="Loading online versions" rows={4} />
+        ))}
       {activeError && (
         <p role="alert" className="text-xs leading-relaxed text-red-400">
           Could not read which component versions are active: {activeError}

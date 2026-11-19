@@ -1,4 +1,4 @@
-import { chromium, expect, test, type Page } from '@playwright/test'
+import { chromium, expect, test, type Page } from './fixtures'
 
 /** A fresh install: onboarding not completed yet. */
 async function freshInstall(page: Page) {
@@ -168,9 +168,25 @@ test('on a GPU the 3D globe turns and the sparkles draw', async () => {
   await freshInstall(page)
   await page.goto('/')
   await expect(heading(page, 'Welcome to Orbit')).toBeVisible()
-  const globe = page.locator('.space-globe canvas')
+  // The startup splash has its own globe; this is the onboarding card's.
+  await expect(page.locator('#orbit-splash')).toHaveCount(0, { timeout: 15_000 })
+  const globe = page.locator('.onboarding-effects .space-globe canvas')
   await expect(globe).toBeVisible()
   await expect(page.locator('.onboarding-effects canvas')).toHaveCount(2)
+  // The canvas covers the whole card once the reveal has settled, with no
+  // strip left at the bottom or right.
+  await expect(page.locator('.onboarding-card')).toHaveAttribute('data-ready', 'true')
+  await page.waitForTimeout(800)
+  const [canvas, effects] = await Promise.all([
+    globe.evaluate((el) => [el.clientWidth, el.clientHeight]),
+    page
+      .locator('.onboarding-effects')
+      .evaluate((el) => [
+        (el as HTMLElement).offsetWidth,
+        (el as HTMLElement).offsetHeight,
+      ]),
+  ])
+  expect(canvas).toEqual(effects)
   const first = await globe.screenshot()
   await expect
     .poll(async () => Buffer.compare(first, await globe.screenshot()) !== 0, {
@@ -211,4 +227,57 @@ test('the primary action is liquid glass with no sweeping sheen', async ({ page 
   expect(look.sheen).toBe('none')
   expect(look.backdrop).toContain('blur')
   expect(look.layers).toBe(2)
+})
+
+// Regression: the card's reveal scaled it, the scene measured it mid-scale
+// (getBoundingClientRect includes transforms) and kept that smaller size, so
+// the planet stopped short of the card's bottom and right edges.
+test('the planet fills the card once it has appeared', async ({ page }) => {
+  await freshInstall(page)
+  await page.goto('/')
+  const card = page.locator('.onboarding-card')
+  await expect(card).toHaveAttribute('data-ready', 'true')
+  await page.waitForTimeout(800)
+  const sizes = await card.evaluate((el) => {
+    const card = el as HTMLElement
+    const effects = card.querySelector('.onboarding-effects') as HTMLElement
+    const planet = card.querySelector('.planet') as HTMLElement | null
+    return {
+      card: [card.clientWidth, card.clientHeight],
+      effects: [effects.offsetWidth, effects.offsetHeight],
+      transform: getComputedStyle(card).transform,
+      planetBottom: planet ? planet.offsetTop + planet.offsetHeight : null,
+    }
+  })
+  expect(sizes.effects).toEqual(sizes.card)
+  // Fully in place: no scale left on the card.
+  expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(sizes.transform)
+  // The planet's rim leaves through the bottom edge, not above it.
+  if (sizes.planetBottom !== null)
+    expect(sizes.planetBottom).toBeGreaterThan(sizes.card[1])
+})
+
+test('the scene measures the card without its reveal transform', async ({ page }) => {
+  await freshInstall(page)
+  await page.goto('/')
+  const card = page.locator('.onboarding-card')
+  await expect(card).toHaveAttribute('data-ready', 'true')
+  await page.waitForTimeout(800)
+  const width = await card.evaluate((el) => (el as HTMLElement).offsetWidth)
+  // The CSS planet is sized from the measured card (planetGeometry); scale the
+  // card as the reveal did and the planet must not shrink.
+  const planet = page.locator('.onboarding-effects .planet')
+  const before = await planet.evaluate((el) => (el as HTMLElement).offsetWidth)
+  await card.evaluate((el) => {
+    ;(el as HTMLElement).style.transform = 'scale(0.9)'
+  })
+  await card.evaluate((el) => {
+    // A resize notification while scaled, as when the card first mounts.
+    const fx = el.querySelector('.onboarding-effects') as HTMLElement
+    fx.style.paddingRight = '1px'
+  })
+  await page.waitForTimeout(300)
+  const after = await planet.evaluate((el) => (el as HTMLElement).offsetWidth)
+  expect(after).toBe(before)
+  expect(width).toBeGreaterThan(0)
 })

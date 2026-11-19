@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('Steam sign-in stays in a modal host and closes cleanly at the minimum desktop size', async ({
   page,

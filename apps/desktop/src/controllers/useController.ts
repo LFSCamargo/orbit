@@ -1,5 +1,6 @@
 import { keyboardControllerAction } from './keyboard'
 import { useEffect, useState } from 'react'
+import { splashActive } from '@/app/splash/splash'
 import { listen } from '@tauri-apps/api/event'
 import type { ControllerAction, ControllerFamily } from './ControllerMapping'
 import { focusManager } from './FocusManager'
@@ -40,6 +41,9 @@ export function useControllerNavigation() {
 
     const handleAction = (action: ControllerAction) => {
       setFamily(gamepadManager.getFamily())
+      // Orbit is still starting behind the splash: presses there would land
+      // on a screen that is still moving into place.
+      if (splashActive()) return
       // A portaled Select owns directional input until it closes.
       const menu = document.querySelector('[role="listbox"]')
       const menuKeys: Partial<Record<ControllerAction, string>> = {

@@ -19,7 +19,7 @@ const ORBIT_GLOBE: Globe3DConfig = {
   lightColor: '#ffb27a',
   fillLightColor: '#ff5a2a',
   cameraElevation: -340,
-  atmosphereColor: '#ffffff',
+  atmosphereColor: '#ffb27a',
   // The rim is huge on screen; more segments keep it a smooth curve.
   segments: 256,
   autoRotateSpeed: 1.5,
@@ -32,20 +32,26 @@ export default function SpaceGlobe({
   width,
   height,
   still,
+  speed = ORBIT_GLOBE.autoRotateSpeed,
+  onReady,
 }: {
   width: number
   height: number
   still: boolean
+  /** Turn speed; the splash spins faster so it reads in a couple of seconds. */
+  speed?: number
+  onReady?: () => void
 }) {
   const config = useMemo(
-    () => ({ ...ORBIT_GLOBE, autoRotateSpeed: still ? 0 : ORBIT_GLOBE.autoRotateSpeed }),
-    [still],
+    () => ({ ...ORBIT_GLOBE, autoRotateSpeed: still ? 0 : speed }),
+    [still, speed],
   )
   return (
     <Globe3D
       className="space-globe pointer-events-none !absolute inset-0 h-full"
       config={config}
       viewOffset={globeViewOffset(width, height)}
+      onReady={onReady}
     />
   )
 }

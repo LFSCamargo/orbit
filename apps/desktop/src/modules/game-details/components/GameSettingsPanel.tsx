@@ -11,6 +11,7 @@ import {
 } from '@/lib/launchConfig'
 import { RuntimeDiagnostics } from './RuntimeDiagnostics'
 import { buttonClass } from '@/components/ui/button'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
 
 /** An explicit editor draft: query refreshes never replace user input. */
 export function GameSettingsPanel({ game }: { game: Game }) {
@@ -85,7 +86,7 @@ export function GameSettingsPanel({ game }: { game: Game }) {
             className: 'disabled:cursor-wait',
           })}
         >
-          {update.isPending ? 'Saving…' : 'Save settings'}
+          <BusyLabel busy={update.isPending}>Save settings</BusyLabel>
         </Focusable>
       </div>
       {message && (

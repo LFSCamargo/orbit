@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('search text accepts shortcut letters, brackets, deletion, and caret navigation', async ({
   page,

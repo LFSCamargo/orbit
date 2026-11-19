@@ -137,11 +137,12 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
           radius={28}
           role="dialog"
           aria-label="Downloads"
-          className="steam-activity-drawer size-full bg-[rgb(22_18_26/0.3)] shadow-[inset_0_1px_0_rgb(255_255_255/0.3),inset_1px_0_0_rgb(255_255_255/0.2),inset_0_18px_32px_-22px_rgb(255_255_255/0.22),inset_0_-20px_34px_-24px_rgb(0_0_0/0.45),-24px_0_70px_rgb(0_0_0/0.5)]"
-          contentClassName="steam-activity-content flex h-full flex-col gap-4 overflow-auto px-[18px] pb-7 pt-[22px] text-[#f4f6fb]"
+          className="steam-activity-drawer size-full bg-[rgb(10_8_14/0.66)] shadow-[inset_0_1px_0_rgb(255_255_255/0.3),inset_1px_0_0_rgb(255_255_255/0.2),inset_0_18px_32px_-22px_rgb(255_255_255/0.22),inset_0_-20px_34px_-24px_rgb(0_0_0/0.45),-24px_0_70px_rgb(0_0_0/0.5)]"
+          contentClassName="steam-activity-content flex h-full flex-col text-[#f4f6fb]"
         >
           <Reveal index={0} still={still}>
-            <header className="steam-activity-header flex items-center justify-between gap-3">
+            {/* Stays put while the sections scroll beneath it. */}
+            <header className="steam-activity-header flex shrink-0 items-center justify-between gap-3 px-[18px] pb-3 pt-[22px]">
               <div className="flex items-center gap-3">
                 <span className="grid size-9 place-items-center rounded-full bg-white/10">
                   <ArrowDownToLine size={17} aria-hidden />
@@ -164,178 +165,185 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
             </header>
           </Reveal>
 
-          {status.data && !connected ? (
-            <Reveal index={1} still={still}>
-              <ConnectSteamCard />
-            </Reveal>
-          ) : (
-            <>
+          <div
+            data-testid="steam-activity-scroll"
+            className="steam-activity-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-[18px] pb-7 pt-2 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)]"
+          >
+            {status.data && !connected ? (
               <Reveal index={1} still={still}>
-                <NetworkCard connected={connected} rate={rate} samples={samples} />
+                <ConnectSteamCard />
               </Reveal>
+            ) : (
+              <>
+                <Reveal index={1} still={still}>
+                  <NetworkCard connected={connected} rate={rate} samples={samples} />
+                </Reveal>
 
-              <Reveal
-                as="section"
-                index={2}
-                still={still}
-                className="grid gap-2"
-                aria-label="Active downloads"
-              >
-                <SectionHeading
-                  title="Downloads"
-                  count={downloads.length > 0 ? active.length : undefined}
-                  description="Games and components installing now."
-                />
-                {downloads.length === 0 && failed.length === 0 && (
-                  <EmptyCard
-                    icon={Download}
-                    title="No downloads yet"
-                    copy="Your active downloads will appear here."
-                  />
-                )}
-                {downloads.map((task, index) => {
-                  const appId = steamAppId(task.key)
-                  const running = task.progress?.phase !== 'Ready'
-                  const isQueued = appId !== null && queue.active?.appId === appId
-                  return (
-                    <DownloadRow
-                      key={task.key}
-                      task={task}
-                      appId={appId}
-                      coverUrl={isQueued ? queue.active?.coverUrl : null}
-                      rate={rate}
-                      order={10 + index}
-                      onPause={
-                        isQueued && running ? () => void pauseActiveDownload() : undefined
-                      }
-                      onCancel={
-                        isQueued && running
-                          ? () => void removeQueuedDownload(appId)
-                          : undefined
-                      }
-                      onDismiss={running ? undefined : () => clear(task.key)}
-                    />
-                  )
-                })}
-                {failed.map(([key, failure], index) => {
-                  const appId = steamAppId(key)
-                  return (
-                    <div key={key} className={ROW} role="alert">
-                      <p className="m-0 min-w-0 flex-1 text-[12px] leading-[1.4] text-[#ffb4b4]">
-                        {failure}
-                      </p>
-                      {appId && (
-                        <Focusable
-                          focusId={`steam-retry-${key}`}
-                          group="steam-activity"
-                          order={40 + index}
-                          noScale
-                          aria-label="Retry download"
-                          className={ICON_BUTTON}
-                          onClick={() => {
-                            clear(key)
-                            void enqueueSteamDownload(appId)
-                          }}
-                        >
-                          <RotateCw size={14} />
-                        </Focusable>
-                      )}
-                      <Focusable
-                        focusId={`steam-dismiss-${key}`}
-                        group="steam-activity"
-                        order={40 + index}
-                        noScale
-                        aria-label="Dismiss"
-                        className={ICON_BUTTON}
-                        onClick={() => clear(key)}
-                      >
-                        <X size={14} />
-                      </Focusable>
-                    </div>
-                  )
-                })}
-              </Reveal>
-
-              <Reveal
-                as="section"
-                index={3}
-                still={still}
-                className="grid gap-2"
-                aria-label="Queue"
-              >
-                <SectionHeading
-                  title="Queue"
-                  count={queue.pending.length}
-                  description="Up next, in order. Start one now or take it out."
-                  action={
-                    completed.length > 0 && (
-                      <Focusable
-                        focusId="steam-activity-clear-completed"
-                        group="steam-activity"
-                        order={60}
-                        noScale
-                        className="shrink-0 text-[12px] text-white/70 underline underline-offset-2"
-                        onClick={clearCompleted}
-                      >
-                        Clear completed
-                      </Focusable>
-                    )
-                  }
-                />
-                {queue.pending.length === 0 ? (
-                  <EmptyCard
-                    icon={Layers}
-                    title="Queue is empty"
-                    copy="Games added to download will appear here in order."
-                  />
-                ) : (
-                  queue.pending.map((item, index) => (
-                    <QueueRow
-                      key={item.appId}
-                      item={item}
-                      position={index + 1}
-                      order={70 + index}
-                      onStart={() => void startQueuedDownloadNow(item.appId)}
-                      onRemove={() => void removeQueuedDownload(item.appId)}
-                    />
-                  ))
-                )}
-              </Reveal>
-
-              {played.data && played.data.length > 0 && (
                 <Reveal
                   as="section"
-                  index={4}
+                  index={2}
                   still={still}
                   className="grid gap-2"
-                  aria-label="Played, not installed"
+                  aria-label="Active downloads"
                 >
                   <SectionHeading
-                    title="Played, not installed"
-                    description="Your most played games that aren’t on this Mac."
+                    title="Downloads"
+                    count={downloads.length > 0 ? active.length : undefined}
+                    description="Games and components installing now."
                   />
-                  {played.data.map((entry, index) => {
-                    const appId = entry.steamAppId
+                  {downloads.length === 0 && failed.length === 0 && (
+                    <EmptyCard
+                      icon={Download}
+                      title="No downloads yet"
+                      copy="Your active downloads will appear here."
+                    />
+                  )}
+                  {downloads.map((task, index) => {
+                    const appId = steamAppId(task.key)
+                    const running = task.progress?.phase !== 'Ready'
+                    const isQueued = appId !== null && queue.active?.appId === appId
                     return (
-                      <PlayedRow
-                        key={entry.id}
-                        entry={entry}
-                        order={90 + index}
-                        queued={appId !== null && queuedIds.has(appId)}
-                        onInstall={
-                          appId ? () => void enqueueSteamDownload(appId) : undefined
+                      <DownloadRow
+                        key={task.key}
+                        task={task}
+                        appId={appId}
+                        coverUrl={isQueued ? queue.active?.coverUrl : null}
+                        rate={rate}
+                        order={10 + index}
+                        onPause={
+                          isQueued && running
+                            ? () => void pauseActiveDownload()
+                            : undefined
                         }
-                        onOpen={() => {
-                          onClose()
-                          openGameDetails(entry.id)
-                        }}
+                        onCancel={
+                          isQueued && running
+                            ? () => void removeQueuedDownload(appId)
+                            : undefined
+                        }
+                        onDismiss={running ? undefined : () => clear(task.key)}
                       />
                     )
                   })}
+                  {failed.map(([key, failure], index) => {
+                    const appId = steamAppId(key)
+                    return (
+                      <div key={key} className={ROW} role="alert">
+                        <p className="m-0 min-w-0 flex-1 text-[12px] leading-[1.4] text-[#ffb4b4]">
+                          {failure}
+                        </p>
+                        {appId && (
+                          <Focusable
+                            focusId={`steam-retry-${key}`}
+                            group="steam-activity"
+                            order={40 + index}
+                            noScale
+                            aria-label="Retry download"
+                            className={ICON_BUTTON}
+                            onClick={() => {
+                              clear(key)
+                              void enqueueSteamDownload(appId)
+                            }}
+                          >
+                            <RotateCw size={14} />
+                          </Focusable>
+                        )}
+                        <Focusable
+                          focusId={`steam-dismiss-${key}`}
+                          group="steam-activity"
+                          order={40 + index}
+                          noScale
+                          aria-label="Dismiss"
+                          className={ICON_BUTTON}
+                          onClick={() => clear(key)}
+                        >
+                          <X size={14} />
+                        </Focusable>
+                      </div>
+                    )
+                  })}
                 </Reveal>
-              )}
-            </>
-          )}
+
+                <Reveal
+                  as="section"
+                  index={3}
+                  still={still}
+                  className="grid gap-2"
+                  aria-label="Queue"
+                >
+                  <SectionHeading
+                    title="Queue"
+                    count={queue.pending.length}
+                    description="Up next, in order. Start one now or take it out."
+                    action={
+                      completed.length > 0 && (
+                        <Focusable
+                          focusId="steam-activity-clear-completed"
+                          group="steam-activity"
+                          order={60}
+                          noScale
+                          className="shrink-0 text-[12px] text-white/70 underline underline-offset-2"
+                          onClick={clearCompleted}
+                        >
+                          Clear completed
+                        </Focusable>
+                      )
+                    }
+                  />
+                  {queue.pending.length === 0 ? (
+                    <EmptyCard
+                      icon={Layers}
+                      title="Queue is empty"
+                      copy="Games added to download will appear here in order."
+                    />
+                  ) : (
+                    queue.pending.map((item, index) => (
+                      <QueueRow
+                        key={item.appId}
+                        item={item}
+                        position={index + 1}
+                        order={70 + index}
+                        onStart={() => void startQueuedDownloadNow(item.appId)}
+                        onRemove={() => void removeQueuedDownload(item.appId)}
+                      />
+                    ))
+                  )}
+                </Reveal>
+
+                {played.data && played.data.length > 0 && (
+                  <Reveal
+                    as="section"
+                    index={4}
+                    still={still}
+                    className="grid gap-2"
+                    aria-label="Played, not installed"
+                  >
+                    <SectionHeading
+                      title="Played, not installed"
+                      description="Your most played games that aren’t on this Mac."
+                    />
+                    {played.data.map((entry, index) => {
+                      const appId = entry.steamAppId
+                      return (
+                        <PlayedRow
+                          key={entry.id}
+                          entry={entry}
+                          order={90 + index}
+                          queued={appId !== null && queuedIds.has(appId)}
+                          onInstall={
+                            appId ? () => void enqueueSteamDownload(appId) : undefined
+                          }
+                          onOpen={() => {
+                            onClose()
+                            openGameDetails(entry.id)
+                          }}
+                        />
+                      )
+                    })}
+                  </Reveal>
+                )}
+              </>
+            )}
+          </div>
         </LiquidGlass>
       </motion.div>
     </>

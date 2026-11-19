@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './fixtures'
 import { BUILT_IN_THEMES } from '../src/themes/catalog'
 
 async function openSettings(page: Page) {

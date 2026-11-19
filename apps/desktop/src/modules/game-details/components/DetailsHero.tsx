@@ -114,9 +114,13 @@ export function DetailsHero({
             {aside}
           </div>
         </div>
+        {/* Its own GPU layer: WebKit then draws the cover upright and rotates
+            it with filtering, instead of painting it tilted, which looked
+            pixelated with jagged edges on 1x monitors. */}
         <div
           className={clsx(
             'details-cover-wrap mr-10 w-[165px] shrink-0 rotate-[5deg] motion-reduce:rotate-0',
+            'transform-gpu will-change-transform [backface-visibility:hidden]',
             'min-[1700px]:w-[200px]',
             'min-[761px]:max-[1000px]:mr-1.5 min-[761px]:max-[1000px]:w-[140px]',
             'max-[760px]:mr-1.5 max-[760px]:w-[110px]',

@@ -98,6 +98,20 @@ interface Globe3DProps {
   onMarkerHover?: (marker: GlobeMarker | null) => void
   /** Orbit: draw only this window of a larger virtual frame */
   viewOffset?: GlobeViewOffset
+  /** Orbit: called once, after the textured globe has drawn its first frame */
+  onReady?: () => void
+}
+
+/** Orbit: mounts with the scene, so only once its textures have loaded, and
+ * reports after the first frame that includes them has been drawn. */
+function FirstFrame({ onReady }: { onReady?: () => void }) {
+  const done = useRef(false)
+  useFrame(() => {
+    if (done.current) return
+    done.current = true
+    requestAnimationFrame(() => onReady?.())
+  })
+  return null
 }
 
 // ============================================================================
@@ -499,16 +513,10 @@ function Scene({
 // Loading Fallback
 // ============================================================================
 
+// Orbit: nothing while the textures load. Onboarding stays hidden until the
+// globe has drawn (onReady), so a placeholder would never be seen.
 function LoadingFallback() {
-  return (
-    <Html center>
-      <div className="flex shrink-0 flex-col items-center gap-3">
-        <span className="inline-block shrink-0 text-sm text-neutral-400">
-          Loading globe...
-        </span>
-      </div>
-    </Html>
-  )
+  return null
 }
 
 // ============================================================================
@@ -550,6 +558,7 @@ export function Globe3D({
   onMarkerClick,
   onMarkerHover,
   viewOffset,
+  onReady,
 }: Globe3DProps) {
   const mergedConfig = useMemo(() => ({ ...defaultConfig, ...config }), [config])
 
@@ -562,6 +571,9 @@ export function Globe3D({
           powerPreference: 'high-performance',
         }}
         dpr={[1, 2]}
+        // Orbit: size from layout, not getBoundingClientRect, so a parent's
+        // scale (onboarding's reveal) cannot leave the canvas short.
+        resize={{ offsetSize: true }}
         camera={{
           fov: 45,
           near: 0.1,
@@ -580,6 +592,7 @@ export function Globe3D({
             onMarkerHover={onMarkerHover}
             viewOffset={viewOffset}
           />
+          <FirstFrame onReady={onReady} />
         </Suspense>
       </Canvas>
     </div>

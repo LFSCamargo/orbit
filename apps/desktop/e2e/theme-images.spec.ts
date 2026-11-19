@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('theme artwork fills equal frames and contains logos without moving card headers', async ({
   page,
