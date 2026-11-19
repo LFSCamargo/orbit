@@ -47,6 +47,10 @@ pub struct SteamCatalogEntry {
     /// `None` until the store has been asked.
     #[serde(default)]
     pub app_type: Option<String>,
+    /// Steam store `controller_support`: `full`, `partial` or `none`.
+    /// `None` until the store has been asked.
+    #[serde(default)]
+    pub controller_support: Option<String>,
 }
 
 impl SteamCatalogEntry {
@@ -129,6 +133,7 @@ pub fn needs_metadata(entry: &SteamCatalogEntry, can_fetch_art: bool) -> bool {
     is_stale(entry)
         || is_placeholder_title(&entry.title, &entry.app_id)
         || is_thin_description(entry.description.as_deref())
+        || entry.controller_support.is_none()
         || (can_fetch_art && !has_square_cover(entry))
 }
 
@@ -278,6 +283,7 @@ pub fn merge_api_snapshot(
                 entry.recommended_requirements = saved.recommended_requirements.clone();
                 entry.proton_tier = saved.proton_tier.clone();
                 entry.app_type = saved.app_type.clone();
+                entry.controller_support = saved.controller_support.clone();
             }
             entry
         })
@@ -319,6 +325,16 @@ struct StorePayload {
     minimum: Option<String>,
     recommended: Option<String>,
     app_type: Option<String>,
+    controller_support: String,
+}
+
+/// `full` / `partial` from the store; anything else (absent) is `none`.
+pub fn controller_support_of(data: &Value) -> String {
+    match data.get("controller_support").and_then(Value::as_str) {
+        Some("full") => "full".into(),
+        Some("partial") => "partial".into(),
+        _ => "none".into(),
+    }
 }
 
 pub fn apply_store_details(entry: &mut SteamCatalogEntry, value: &Value) -> bool {
@@ -328,8 +344,13 @@ pub fn apply_store_details(entry: &mut SteamCatalogEntry, value: &Value) -> bool
             .and_then(|item| item.get("success"))
             .and_then(Value::as_bool)
             == Some(false);
-        if delisted && entry.app_type.is_none() {
-            entry.app_type = Some(steam_app_types::UNLISTED.into());
+        if delisted && (entry.app_type.is_none() || entry.controller_support.is_none()) {
+            entry
+                .app_type
+                .get_or_insert_with(|| steam_app_types::UNLISTED.into());
+            entry
+                .controller_support
+                .get_or_insert_with(|| "none".into());
             return true;
         }
         return false;
@@ -338,6 +359,10 @@ pub fn apply_store_details(entry: &mut SteamCatalogEntry, value: &Value) -> bool
     changed |= apply_requirements(entry, payload.minimum, payload.recommended);
     if payload.app_type.is_some() && payload.app_type != entry.app_type {
         entry.app_type = payload.app_type;
+        changed = true;
+    }
+    if entry.controller_support.as_deref() != Some(payload.controller_support.as_str()) {
+        entry.controller_support = Some(payload.controller_support);
         changed = true;
     }
     changed
@@ -375,6 +400,7 @@ fn parse_store_payload(app_id: &str, value: &Value) -> Option<StorePayload> {
             .get("type")
             .and_then(Value::as_str)
             .and_then(steam_app_types::clean),
+        controller_support: controller_support_of(data),
     })
 }
 
@@ -677,6 +703,10 @@ fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
                 proton_tier: parsed
                     .proton_tier
                     .filter(|tier| parse_proton_tier(&json!({ "tier": tier })).is_some()),
+                // Stored rows are untrusted: only the three known values.
+                controller_support: parsed
+                    .controller_support
+                    .filter(|value| matches!(value.as_str(), "full" | "partial" | "none")),
                 playtime_seconds: parsed.playtime_seconds.max(0),
                 last_played_at: parsed
                     .last_played_at
@@ -1060,6 +1090,7 @@ mod tests {
             cover_url: Some("https://cdn.steamgriddb.com/grid/cs2.png".into()),
             last_hydrated_at: Some(chrono::Utc::now().to_rfc3339()),
             app_type: Some("game".into()),
+            controller_support: Some("full".into()),
             ..SteamCatalogEntry::default()
         };
         let mut installed_thin = SteamCatalogEntry::from_app_id("570").unwrap();
@@ -1155,6 +1186,7 @@ mod tests {
         entry.title = "Steam".into();
         entry.description = Some("x".repeat(THIN_DESCRIPTION + 1));
         entry.last_hydrated_at = Some(chrono::Utc::now().to_rfc3339());
+        entry.controller_support = Some("none".into());
         assert!(catalog_needs_hydrate(std::slice::from_ref(&entry)));
         assert!(!needs_metadata(&entry, false));
 
@@ -1199,5 +1231,22 @@ mod tests {
         let refreshed =
             merge_api_snapshot(&stored, vec![SteamCatalogEntry::from_app_id("1").unwrap()]);
         assert_eq!(refreshed[0].app_type.as_deref(), Some("application"));
+    }
+
+    #[test]
+    fn store_details_record_controller_support() {
+        let mut entry = SteamCatalogEntry::from_app_id("1593500").unwrap();
+        assert!(needs_metadata(&entry, false), "never asked yet");
+        let value = json!({ "1593500": { "success": true, "data": {
+            "name": "God of War", "controller_support": "full"
+        }}});
+        assert!(apply_store_details(&mut entry, &value));
+        assert_eq!(entry.controller_support.as_deref(), Some("full"));
+        let none = json!({ "type": "game" });
+        assert_eq!(controller_support_of(&none), "none");
+        assert_eq!(
+            controller_support_of(&json!({ "controller_support": "partial" })),
+            "partial"
+        );
     }
 }

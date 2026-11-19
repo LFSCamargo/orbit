@@ -135,6 +135,7 @@ pub fn run() {
             commands::downloads::start_queued_download_now,
             commands::downloads::pause_active_download,
             commands::network::get_network_stats,
+            commands::steam_windows::steam_controller_support,
             commands::downloads::list_install_locations,
             commands::downloads::add_install_location,
             commands::downloads::remove_install_location,

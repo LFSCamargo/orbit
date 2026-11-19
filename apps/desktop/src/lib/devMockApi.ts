@@ -752,6 +752,8 @@ export async function mockInvoke<T>(
       return undefined as T
     case 'get_download_queue':
       return { active: null, pending: [], waitingForNetwork: false } as T
+    case 'steam_controller_support':
+      return 'full' as T
     case 'list_install_locations':
       return [
         {

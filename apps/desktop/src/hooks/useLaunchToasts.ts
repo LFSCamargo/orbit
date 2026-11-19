@@ -1,5 +1,11 @@
 import { useEffect } from 'react'
-import { LAUNCH_STEPS, launchStepIndex, type LaunchProgress } from '@/lib/launchProgress'
+import {
+  LAUNCH_STEP_COUNT,
+  LAUNCH_STEPS,
+  launchStepIndex,
+  launchStepPercent,
+  type LaunchProgress,
+} from '@/lib/launchProgress'
 import { notify } from '@/lib/toast'
 import { useLaunchStore } from '@/stores/launch.store'
 
@@ -32,7 +38,7 @@ export function syncLaunchToast(
     return
   }
   const index = launchStepIndex(next.step)
-  const count = LAUNCH_STEPS.length - 1
+  const count = LAUNCH_STEP_COUNT
   notify.progress({
     id: LAUNCH_TOAST,
     title,
@@ -41,7 +47,7 @@ export function syncLaunchToast(
       next.message && next.message !== LAUNCH_STEPS[index].label
         ? next.message
         : undefined,
-    value: Math.round(((index + 1) / count) * 100),
+    value: launchStepPercent(next.step),
   })
 }
 

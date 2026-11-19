@@ -220,7 +220,7 @@ Shared components in `src/components/`:
 | Component | Path | Notes |
 | --------- | ---- | ----- |
 | `AppShell` | `layout/AppShell.tsx` | Renders `PlayingScreen` during a session, otherwise `MacosShell` |
-| `LaunchOverlay` | `session/components/LaunchOverlay.tsx` | Centered landscape banner of hero art with the game's horizontal Steam wordmark (`logo.png`) when the stored logo slot is empty, the Orbit logo image, a circular close control, and a single startup caption; no card border or inset focus rectangle |
+| `LaunchOverlay` | `session/components/LaunchOverlay.tsx` | Centered warm glass card (orange-lit rim): Orbit logo and a round close control; square game art (decorative; Steam's library capsule for synthetic Steam launches), "Launching game…" ("Could not start" when failed), the title, and chips for what runs it (Wine plus DXVK / DXMT / GPTK from the profile's graphics, Native for Mac apps, Full / Partial controller support from Steam's store details via `steam_controller_support`); a red-to-yellow glowing bar with the percent (`launchStepPercent`, shared with the launch toast so both agree) and a spinner beside the live step; meteors falling from the top right and the splash's sunlit planet rim (`globe.webp`) rising in the bottom right; no WebGL |
 | `DrawerProvider` | `layout/DrawerProvider.tsx` | Root-level drawer host; portals overlays above transformed pages |
 | `LiquidGlass` | `ui/liquid-glass.tsx` | Clear glass whose refraction is built from light (WebKit cannot displace a backdrop): light blur, a lens-like saturation and brightness lift, a bright rim, light pooling inside the top edge and a darker lower edge. |
 

@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { LaunchOverlay } from '../LaunchOverlay'
+import { LaunchOverlay, controllerLabel, runtimeChips } from '../LaunchOverlay'
+import { launchStepPercent } from '@/lib/launchProgress'
 import { useLaunchProgress } from '@/hooks/useLaunchProgress'
 import { useLaunchStore } from '@/stores/launch.store'
 import type { Game } from '@/types/game'
@@ -57,8 +58,10 @@ vi.mock('@/hooks/useGames', () => ({
 }))
 
 const cancelGameLaunch = vi.fn().mockResolvedValue(undefined)
+const steamControllerSupport = vi.fn().mockResolvedValue('full')
 vi.mock('@/lib/tauri', () => ({
   cancelGameLaunch: (...args: unknown[]) => cancelGameLaunch(...args),
+  steamControllerSupport: (...args: unknown[]) => steamControllerSupport(...args),
 }))
 
 function wrap(node: ReactNode) {
@@ -73,7 +76,22 @@ afterEach(() => {
   useGame.mockReturnValue({ data: game })
 })
 
-it('shows a landscape banner with hero art, logo, and the current caption', () => {
+it('shows the art, title, what runs it and a percent bar for the current step', async () => {
+  useGame.mockReturnValue({
+    data: {
+      ...game,
+      launchConfig: {
+        type: 'wine',
+        profile: {
+          executable: '/g.exe',
+          runtimePath: '/wine',
+          arguments: [],
+          environment: {},
+          compatibility: { graphics: 'd3dmetal' },
+        },
+      },
+    } as Game,
+  })
   useLaunchStore.setState({
     launch: {
       gameId: 'g1',
@@ -85,32 +103,31 @@ it('shows a landscape banner with hero art, logo, and the current caption', () =
     },
   })
   render(wrap(<LaunchOverlay />))
-  expect(screen.getByRole('img', { name: 'God of War' })).toHaveAttribute(
+  expect(screen.getByTestId('launch-art-image')).toHaveAttribute(
     'src',
-    'https://cdn.example/logo.png',
+    'https://cdn.example/icon.png',
   )
-  expect(screen.getByTestId('launch-hero')).toHaveStyle({
-    backgroundImage: 'url("https://cdn.example/hero.jpg")',
-  })
-  const banner = screen.getByTestId('launch-banner')
-  expect(banner.className).not.toMatch(/\bborder\b/)
+  expect(screen.getByRole('heading', { name: 'God of War' })).toBeInTheDocument()
+  expect(screen.getByText('Launching game…')).toBeInTheDocument()
+  const chips = screen.getByRole('list', { name: 'Runs with' })
+  expect(chips).toHaveTextContent('Wine')
+  expect(chips).toHaveTextContent('GPTK')
+  expect(await screen.findByText('Full controller support')).toBeInTheDocument()
+  expect(steamControllerSupport).toHaveBeenCalledWith('1593500')
+  // prefix is step 8 of 10, the same as the launch toast.
+  expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '80')
+  expect(screen.getByText('80%')).toBeInTheDocument()
+  expect(screen.getByTestId('launch-planet')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Cancel launch' }).parentElement).toHaveClass(
     'launch-overlay-close-host',
-  )
-  expect(screen.getByRole('img', { name: 'Orbit' })).toHaveAttribute(
-    'src',
-    expect.stringContaining('orbit-logo'),
   )
   expect(screen.getByRole('status')).toHaveTextContent(
     'Preparing the Windows environment…',
   )
-  expect(screen.queryByText('Checking Steam for Windows')).not.toBeInTheDocument()
-  expect(screen.queryByText('Finding the Windows install')).not.toBeInTheDocument()
 })
 
-it('shows the title when the logo fails to load', () => {
-  // Regression: The Expendabros has no Steam logo.png, so the banner showed
-  // a broken image instead of the game's name.
+it('hides controller support Steam does not list', async () => {
+  steamControllerSupport.mockResolvedValueOnce('none')
   useLaunchStore.setState({
     launch: {
       gameId: 'g1',
@@ -122,31 +139,25 @@ it('shows the title when the logo fails to load', () => {
     },
   })
   render(wrap(<LaunchOverlay />))
-  fireEvent.error(screen.getByRole('img', { name: 'God of War' }))
-  expect(screen.queryByRole('img', { name: 'God of War' })).toBeNull()
-  expect(screen.getByRole('heading', { name: 'God of War' })).toBeInTheDocument()
+  await waitFor(() => expect(steamControllerSupport).toHaveBeenCalled())
+  expect(screen.queryByText(/controller support/)).toBeNull()
 })
 
-it('uses the Steam horizontal logo when the stored logo slot is empty', () => {
-  useGame.mockReturnValue({
-    data: { ...game, artwork: { hero: 'https://cdn.example/hero.jpg' } },
-  })
-  useLaunchStore.setState({
-    launch: {
-      gameId: 'g1',
-      step: 'prefix',
-      message: 'Preparing the Windows environment',
-      index: 2,
-      total: 6,
-      failed: false,
-    },
-  })
-  render(wrap(<LaunchOverlay />))
-  expect(screen.getByRole('img', { name: 'God of War' })).toHaveAttribute(
-    'src',
-    'https://cdn.akamai.steamstatic.com/steam/apps/1593500/logo.png',
-  )
-  expect(screen.queryByRole('heading', { name: 'God of War' })).not.toBeInTheDocument()
+it('names controller support levels, runtimes and progress', () => {
+  expect(controllerLabel('full')).toBe('Full controller support')
+  expect(controllerLabel('partial')).toBe('Partial controller support')
+  expect(controllerLabel('none')).toBeNull()
+  expect(controllerLabel(null)).toBeNull()
+  expect(runtimeChips(undefined, true).map((chip) => chip.label)).toEqual(['Wine'])
+  expect(
+    runtimeChips(
+      { ...game, platform: 'macos', launchConfig: { type: 'native' } } as never,
+      false,
+    ).map((chip) => chip.label),
+  ).toEqual(['Native'])
+  expect(launchStepPercent('resolve')).toBe(10)
+  expect(launchStepPercent('spawn')).toBe(100)
+  expect(launchStepPercent('running')).toBe(100)
 })
 
 it('keeps the failed caption on the banner and lets the user dismiss', () => {
@@ -203,7 +214,7 @@ it('shows a dismissible error after the game closes during startup', async () =>
   expect(useLaunchStore.getState().launch).toBeNull()
 })
 
-it('shows the payload title and Steam logo for a synthetic Steam for Windows launch', () => {
+it('shows the payload title and Steam art for a synthetic Steam for Windows launch', () => {
   useGame.mockReturnValue({ data: undefined as unknown as Game })
   useLaunchStore.setState({
     launch: {
@@ -217,9 +228,11 @@ it('shows the payload title and Steam logo for a synthetic Steam for Windows lau
     },
   })
   render(wrap(<LaunchOverlay />))
-  expect(screen.getByRole('img', { name: 'God of War' })).toHaveAttribute(
+  expect(screen.getByTestId('launch-art-image')).toHaveAttribute(
     'src',
-    'https://cdn.akamai.steamstatic.com/steam/apps/1593500/logo.png',
+    'https://cdn.akamai.steamstatic.com/steam/apps/1593500/library_600x900.jpg',
   )
+  expect(screen.getByRole('heading', { name: 'God of War' })).toBeInTheDocument()
+  expect(screen.getByText('Could not start')).toBeInTheDocument()
   expect(screen.queryByText('Your game')).not.toBeInTheDocument()
 })

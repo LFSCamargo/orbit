@@ -288,3 +288,19 @@ pub async fn play_steam_windows_game(
     .await
     .map_err(|_| "Steam play stopped".to_string())?
 }
+
+/// Steam's controller support for an owned title (`full`, `partial`,
+/// `none`), from the cached store details; None until they were fetched.
+#[tauri::command]
+pub fn steam_controller_support(
+    state: State<'_, AppState>,
+    app_id: String,
+) -> Result<Option<String>, String> {
+    if !crate::services::steam_download::valid_app_id(&app_id) {
+        return Err("Steam app id must be a number".into());
+    }
+    Ok(steam_windows::stored_entries(&state.repo)?
+        .into_iter()
+        .find(|entry| entry.app_id == app_id)
+        .and_then(|entry| entry.controller_support))
+}

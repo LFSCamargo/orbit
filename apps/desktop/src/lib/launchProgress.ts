@@ -32,6 +32,17 @@ export function launchStepIndex(step: string) {
   return index >= 0 ? index : 0
 }
 
+/** Steps shown while starting: every step but the final "Game is running". */
+export const LAUNCH_STEP_COUNT = LAUNCH_STEPS.length - 1
+
+/** 0–100 for a startup step, the same in the launch card and toast. */
+export function launchStepPercent(step: string): number {
+  return Math.min(
+    100,
+    Math.round(((launchStepIndex(step) + 1) / LAUNCH_STEP_COUNT) * 100),
+  )
+}
+
 export function launchStepStatus(
   progress: Pick<LaunchProgress, 'step' | 'failed'>,
   stepId: string,

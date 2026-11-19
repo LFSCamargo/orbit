@@ -516,6 +516,11 @@ export async function enqueueSteamDownload(
   return run('enqueue_steam_download', { appId, location: location ?? null })
 }
 
+/** Steam's controller support for a title: `full`, `partial`, `none`, or null until known. */
+export async function steamControllerSupport(appId: string): Promise<string | null> {
+  return run('steam_controller_support', { appId })
+}
+
 export async function listInstallLocations(): Promise<InstallLocation[]> {
   return run('list_install_locations')
 }
