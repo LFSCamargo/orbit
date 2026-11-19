@@ -3,6 +3,7 @@ import { ArrowDownToLine, Download, Layers, RotateCw, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { Drawer, DrawerReveal } from '@/components/ui/drawer'
 import { useDownloadQueue } from '@/hooks/useDownloadQueue'
+import { useNetworkStats } from '@/hooks/useNetworkStats'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
 import { useUiStore } from '@/stores/ui.store'
 import { selectActive, selectCompleted, useDownloadStore } from '@/lib/downloadProgress'
@@ -22,7 +23,6 @@ import { playedNotInstalled } from './downloads/playedNotInstalled'
 import { SectionHeading } from './downloads/SectionHeading'
 import { QueueRow } from './downloads/QueueRow'
 import { ICON_BUTTON, ROW } from './downloads/styles'
-import { useTransferRate } from './downloads/useTransferRate'
 
 /** `steam:<appid>` for game downloads; Steam setup and components have none. */
 function steamAppId(key: string): string | null {
@@ -40,7 +40,7 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
   const failures = useDownloadStore((state) => state.failures)
   const clear = useDownloadStore((state) => state.clear)
   const clearCompleted = useDownloadStore((state) => state.clearCompleted)
-  const { rate, samples } = useTransferRate()
+  const network = useNetworkStats()
 
   const active = selectActive(tasks)
   const completed = selectCompleted(tasks)
@@ -71,7 +71,7 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           <DrawerReveal index={1}>
-            <NetworkCard connected={connected} rate={rate} samples={samples} />
+            <NetworkCard stats={network.stats} samples={network.samples} />
           </DrawerReveal>
 
           <DrawerReveal
@@ -103,7 +103,6 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
                   task={task}
                   appId={appId}
                   coverUrl={isQueued ? queue.active?.coverUrl : null}
-                  rate={rate}
                   order={10 + index}
                   onPause={
                     isQueued && running ? () => void pauseActiveDownload() : undefined
@@ -194,6 +193,7 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
                   key={item.appId}
                   item={item}
                   position={index + 1}
+                  waitingForNetwork={queue.waitingForNetwork === true}
                   order={70 + index}
                   onStart={() => void startQueuedDownloadNow(item.appId)}
                   onRemove={() => void removeQueuedDownload(item.appId)}

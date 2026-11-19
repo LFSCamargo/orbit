@@ -12,7 +12,7 @@ import type { SwitchLibraryScan } from '@/types/switch'
 import type { HomeContentInventory } from '@/types/gameContent'
 import type { ThemeDefinition } from '@/themes/types'
 
-import type { DownloadQueue, UninstallReport } from '@/types/downloads'
+import type { DownloadQueue, NetworkStats, UninstallReport } from '@/types/downloads'
 import type { StorageOverview } from '@/types/storage'
 import type { InstallSize } from '@/types/library'
 async function run<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -518,6 +518,11 @@ export async function startQueuedDownloadNow(appId: string): Promise<void> {
 
 export async function pauseActiveDownload(): Promise<void> {
   return run('pause_active_download')
+}
+
+/** Latest network sample; later ones arrive as `network-stats` events. */
+export async function getNetworkStats(): Promise<NetworkStats> {
+  return run('get_network_stats')
 }
 
 export async function uninstallSteamGame(

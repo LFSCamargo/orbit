@@ -1,23 +1,27 @@
 import { Pause, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { ProgressBar } from '@/components/ui/progress-bar'
+import { useNow } from '@/hooks/useNow'
 import {
   downloadPercent,
   downloadStatus,
   downloadStep,
+  elapsedSeconds,
+  formatDuration,
   formatTransferRate,
+  timeLeft,
   transferredOf,
   type DownloadTask,
 } from '@/lib/downloadProgress'
 import { DownloadArtwork } from './DownloadArtwork'
 import { ICON_BUTTON, ROW } from './styles'
 
-/** One running transfer: cover, title, speed, bytes and a live bar. */
+/** One running transfer: cover, title, step, speed, bytes, elapsed and
+ * remaining time, and a live bar. The clock ticks every second while it runs. */
 export function DownloadRow({
   task,
   appId,
   coverUrl,
-  rate,
   order,
   onPause,
   onCancel,
@@ -26,7 +30,6 @@ export function DownloadRow({
   task: DownloadTask
   appId: string | null
   coverUrl?: string | null
-  rate: number | null
   order: number
   onPause?: () => void
   onCancel?: () => void
@@ -38,6 +41,17 @@ export function DownloadRow({
   const done = task.progress?.phase === 'Ready'
   const step = downloadStep(task)
   const bytes = transferredOf(task.progress)
+  const now = useNow(1_000, !done)
+  const rate = task.rate ?? null
+  const left = timeLeft(task.progress, rate)
+  const timing = done
+    ? null
+    : [
+        `Elapsed ${formatDuration(elapsedSeconds(task.startedAt, now))}`,
+        left === null ? null : `${formatDuration(left)} left`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
   const detail = done
     ? 'Installed'
     : step
@@ -51,11 +65,19 @@ export function DownloadRow({
           <strong className="truncate text-[13px] font-[650]">{task.label}</strong>
           {downloading && (
             <span className="shrink-0 text-[11px] tabular-nums text-white/70">
-              {formatTransferRate(task.rate ?? rate)}
+              {formatTransferRate(rate)}
             </span>
           )}
         </div>
         <span className="truncate text-[11px] text-white/60">{detail}</span>
+        {timing && (
+          <span
+            className="truncate text-[11px] tabular-nums text-white/45"
+            data-testid="download-timing"
+          >
+            {timing}
+          </span>
+        )}
         <div className="flex items-center gap-2">
           <ProgressBar
             label={`${task.label} progress`}

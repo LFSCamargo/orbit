@@ -751,7 +751,9 @@ export async function mockInvoke<T>(
     case 'remove_component':
       return undefined as T
     case 'get_download_queue':
-      return { active: null, pending: [] } as T
+      return { active: null, pending: [], waitingForNetwork: false } as T
+    case 'get_network_stats':
+      return { online: true, downloadRate: 0, uploadRate: 0 } as T
     case 'uninstall_steam_game':
       return { removedBytes: 0, keptPrefix: false } as T
     case 'get_storage_overview':

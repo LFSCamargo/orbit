@@ -8,12 +8,15 @@ import { ICON_BUTTON, ROW } from './styles'
 export function QueueRow({
   item,
   position,
+  waitingForNetwork = false,
   order,
   onStart,
   onRemove,
 }: {
   item: QueuedDownload
   position: number
+  /** Offline: an unpaused title resumes on its own once the network is back. */
+  waitingForNetwork?: boolean
   order: number
   onStart: () => void
   onRemove: () => void
@@ -27,7 +30,7 @@ export function QueueRow({
       <div className="grid min-w-0 flex-1 gap-0.5">
         <strong className="truncate text-[13px] font-[650]">{item.title}</strong>
         <span className="text-[11px] text-white/60">
-          {item.paused ? 'Paused' : 'Waiting'}
+          {item.paused ? 'Paused' : waitingForNetwork ? 'Waiting for network' : 'Waiting'}
         </span>
       </div>
       <Focusable

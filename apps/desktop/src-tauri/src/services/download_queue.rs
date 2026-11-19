@@ -1,6 +1,8 @@
 //! FIFO queue for Steam game downloads. SteamCMD runs one download at a time;
 //! the rest wait in order. The queue is saved in settings so it survives a
 //! restart; restored items come back paused so nothing starts on its own.
+//! Losing the network stops the running title and holds the queue; the
+//! network monitor resumes it once the Mac is back online.
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -36,6 +38,9 @@ pub struct QueuedDownload {
 pub struct DownloadQueue {
     pub active: Option<QueuedDownload>,
     pub pending: VecDeque<QueuedDownload>,
+    /// The Mac is offline: nothing starts until the network is back.
+    #[serde(default)]
+    pub waiting_for_network: bool,
 }
 
 impl DownloadQueue {
@@ -94,7 +99,7 @@ impl DownloadQueue {
 
     /// Starts the first title that is not paused.
     pub fn take_next(&mut self) -> Option<QueuedDownload> {
-        if self.active.is_some() {
+        if self.active.is_some() || self.waiting_for_network {
             return None;
         }
         let index = self.pending.iter().position(|item| !item.paused)?;
@@ -103,19 +108,36 @@ impl DownloadQueue {
         Some(item)
     }
 
-    /// Clears the active slot. A paused title goes back to the front.
+    /// Clears the active slot. A paused title goes back to the front; one
+    /// stopped by the network goes back unpaused, to resume on its own.
     pub fn finish_active(&mut self, outcome: Option<DownloadOutcome>) {
         let Some(mut item) = self.active.take() else {
             return;
         };
-        if outcome == Some(DownloadOutcome::Paused) {
-            item.paused = true;
-            self.pending.push_front(item);
+        match outcome {
+            Some(DownloadOutcome::Paused) => {
+                item.paused = true;
+                self.pending.push_front(item);
+            }
+            Some(DownloadOutcome::Offline) => self.pending.push_front(item),
+            _ => {}
         }
     }
 
     pub fn has_runnable(&self) -> bool {
-        self.pending.iter().any(|item| !item.paused)
+        !self.waiting_for_network && self.pending.iter().any(|item| !item.paused)
+    }
+
+    /// Something is downloading or will once the network allows it.
+    pub fn has_work(&self) -> bool {
+        self.active.is_some() || self.pending.iter().any(|item| !item.paused)
+    }
+
+    /// Records the network state. Returns true when it changed.
+    pub fn set_online(&mut self, online: bool) -> bool {
+        let changed = self.waiting_for_network == online;
+        self.waiting_for_network = !online;
+        changed
     }
 
     /// The persisted form: everything still to do, all paused.
@@ -151,6 +173,7 @@ impl DownloadQueue {
 static QUEUE: Mutex<DownloadQueue> = Mutex::new(DownloadQueue {
     active: None,
     pending: VecDeque::new(),
+    waiting_for_network: false,
 });
 static WORKER: AtomicBool = AtomicBool::new(false);
 
@@ -162,7 +185,10 @@ pub fn restore(repo: &GameRepository) {
         .flatten()
         .and_then(|value| serde_json::from_value::<Vec<QueuedDownload>>(value).ok())
         .unwrap_or_default();
-    *QUEUE.lock() = DownloadQueue::restore(items);
+    let mut queue = QUEUE.lock();
+    let waiting = queue.waiting_for_network;
+    *queue = DownloadQueue::restore(items);
+    queue.waiting_for_network = waiting;
 }
 
 pub fn snapshot() -> DownloadQueue {
@@ -206,6 +232,29 @@ pub fn start_now(app: &AppHandle, app_id: &str) {
 
 pub fn pause_active() {
     steam_windows::pause_download();
+}
+
+pub fn has_work() -> bool {
+    QUEUE.lock().has_work()
+}
+
+/// Called by the network monitor when the Mac goes offline or comes back.
+/// Offline stops the running title (it waits at the front, unpaused);
+/// online starts the queue again. Steam resumes from its partial download.
+pub fn network_changed(app: &AppHandle, online: bool) {
+    let (changed, active) = {
+        let mut queue = QUEUE.lock();
+        (queue.set_online(online), queue.active.is_some())
+    };
+    if !changed {
+        return;
+    }
+    changed_queue(app);
+    if online {
+        ensure_worker(app);
+    } else if active {
+        steam_windows::stop_for_network();
+    }
 }
 
 pub fn is_queued(app_id: &str) -> bool {
@@ -313,6 +362,15 @@ fn run_one(app: &AppHandle, item: &QueuedDownload) -> Option<DownloadOutcome> {
             );
             Some(outcome)
         }
+        // Steam fails in many ways when the network drops mid-step; while
+        // offline that is a stop to resume, not an error to show.
+        Err(_) if !crate::services::network_monitor::online() => {
+            let _ = app.emit(
+                "steam-download-progress",
+                json!({ "key": key, "label": item.title, "done": true, "stopped": true }),
+            );
+            Some(DownloadOutcome::Offline)
+        }
         Err(error) => {
             let _ = app.emit(
                 "steam-download-progress",
@@ -404,6 +462,34 @@ mod tests {
         queue.finish_active(None);
         assert!(queue.active.is_none());
         assert!(queue.pending.is_empty());
+    }
+
+    #[test]
+    fn going_offline_holds_the_queue_and_requeues_the_active_title_unpaused() {
+        let mut queue = DownloadQueue::default();
+        queue.enqueue(item("1"));
+        queue.enqueue(item("2"));
+        queue.take_next();
+        assert!(queue.set_online(false));
+        assert!(!queue.set_online(false), "no change the second time");
+        queue.finish_active(Some(DownloadOutcome::Offline));
+        assert_eq!(ids(&queue), ["1", "2"]);
+        assert!(!queue.pending[0].paused, "it resumes on its own");
+        assert!(queue.take_next().is_none(), "nothing starts offline");
+        assert!(!queue.has_runnable());
+        assert!(queue.has_work(), "the probe keeps watching");
+        assert!(queue.set_online(true));
+        assert_eq!(queue.take_next().unwrap().app_id, "1");
+    }
+
+    #[test]
+    fn paused_titles_alone_are_not_work_for_the_network_probe() {
+        let mut queue = DownloadQueue::default();
+        assert!(!queue.has_work());
+        queue.enqueue(item("1"));
+        queue.take_next();
+        queue.finish_active(Some(DownloadOutcome::Paused));
+        assert!(!queue.has_work());
     }
 
     #[test]

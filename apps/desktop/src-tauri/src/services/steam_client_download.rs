@@ -6,7 +6,8 @@
 //! marked "update required" while that client is stopped; on start the client
 //! downloads the game into `steamapps/common` and keeps the manifest's byte
 //! counters current, which Orbit reads for progress. Stopping the client
-//! pauses; Steam resumes from its partial download.
+//! pauses; Steam resumes from its partial download. Progress is reported at
+//! least once a second, with the measured rate, so the panel never goes stale.
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -27,6 +28,12 @@ const FULLY_INSTALLED: u64 = 4;
 /// Update required: Steam downloads the app as soon as the client is up.
 const QUEUE_INSTALL: u64 = 1026;
 const POLL: Duration = Duration::from_millis(500);
+/// Longest gap between progress events, so rate and elapsed time stay live.
+const HEARTBEAT: Duration = Duration::from_secs(1);
+/// How often the downloading folder is measured; walking it is the costly part.
+const MEASURE_EVERY: Duration = Duration::from_secs(1);
+/// Weight of the newest sample in the smoothed rate.
+const RATE_SMOOTHING: f64 = 0.4;
 /// How long the client may sit without starting the download.
 const START_TIMEOUT: Duration = Duration::from_secs(240);
 const MANIFEST_LIMIT: u64 = 256 * 1024;
@@ -159,7 +166,7 @@ fn step_message(step: &str) -> &'static str {
     match step {
         "container" | "compatibility" => "Preparing the game container",
         "steam" | "login" | "cloud" => "Signing in to Steam",
-        _ => "Preparing download",
+        _ => "Preparing",
     }
 }
 
@@ -246,6 +253,95 @@ pub fn download_estimate(staged: u64, download_total: u64, stage_total: u64) -> 
     (staged.min(total), total)
 }
 
+/// Where download bytes come from. The downloading folder's allocated blocks
+/// count, unless that folder already held most of the staged size when the
+/// download began: Steam preallocated real blocks (or resumed a large partial
+/// download), so the folder cannot show growth. Then the bytes the Mac has
+/// received since that moment stand in, on top of what Steam said it had.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ByteSource {
+    Disk,
+    Network { since: u64 },
+}
+
+impl ByteSource {
+    pub fn choose(staged_at_start: u64, stage_total: u64, received_now: u64) -> Self {
+        if stage_total > 0 && staged_at_start.saturating_mul(2) > stage_total {
+            Self::Network {
+                since: received_now,
+            }
+        } else {
+            Self::Disk
+        }
+    }
+
+    /// (downloaded, total) network bytes, never past the total.
+    pub fn bytes(self, staged: u64, received_now: u64, update: &UpdateLog) -> (u64, u64) {
+        match self {
+            Self::Disk => download_estimate(staged, update.download_total, update.stage_total),
+            Self::Network { since } => {
+                let total = if update.download_total > 0 {
+                    update.download_total
+                } else {
+                    update.stage_total
+                };
+                let got = update
+                    .download_start
+                    .saturating_add(received_now.saturating_sub(since));
+                (got.min(total), total)
+            }
+        }
+    }
+}
+
+/// Smoothed bytes per second from successive byte counts.
+#[derive(Debug, Default)]
+pub struct RateMeter {
+    last: Option<(Instant, u64)>,
+    rate: Option<f64>,
+}
+
+impl RateMeter {
+    /// The rate after this sample; samples closer than 0.9 s keep the last one.
+    pub fn sample(&mut self, bytes: u64, now: Instant) -> u64 {
+        let Some((at, previous)) = self.last else {
+            self.last = Some((now, bytes));
+            return 0;
+        };
+        let elapsed = now.saturating_duration_since(at).as_secs_f64();
+        if elapsed < 0.9 {
+            return self.rate.map_or(0, |rate| rate.round() as u64);
+        }
+        let measured = bytes.saturating_sub(previous) as f64 / elapsed;
+        self.last = Some((now, bytes));
+        let rate = self.rate.map_or(measured, |rate| {
+            rate * (1.0 - RATE_SMOOTHING) + measured * RATE_SMOOTHING
+        });
+        self.rate = Some(rate);
+        rate.round() as u64
+    }
+}
+
+/// The step event for the panel, without the rate. Waiting (signed in, Steam
+/// not started yet) already counts as starting, so sign-in never lingers.
+fn step_event(step: UpdateStep, label: &str, bytes: (u64, u64)) -> Option<serde_json::Value> {
+    let message =
+        |text: &str| json!({ "phase": "Installing", "component": label, "message": text });
+    match step {
+        UpdateStep::Waiting | UpdateStep::Preparing => Some(message("Starting download")),
+        UpdateStep::Preallocating => Some(message("Allocating disk space")),
+        UpdateStep::Downloading => Some(json!({
+            "phase": "Downloading",
+            "component": label,
+            "downloadedBytes": bytes.0,
+            "totalBytes": bytes.1,
+        })),
+        UpdateStep::Verifying => Some(json!({ "phase": "Verifying", "component": label })),
+        UpdateStep::Committing => Some(message("Installing files")),
+        UpdateStep::Installed => None,
+    }
+}
+
 /// Follows the client's content log (each step, totals, failures) and the
 /// game's download folder (bytes) until Steam reports the game installed.
 fn watch(
@@ -261,7 +357,12 @@ fn watch(
     let started = Instant::now();
     let mut update = UpdateLog::default();
     let mut downloaded = 0u64;
+    let mut staged = 0u64;
+    let mut source: Option<ByteSource> = None;
+    let mut measured_at: Option<Instant> = None;
+    let mut meter = RateMeter::default();
     let mut last_event = serde_json::Value::Null;
+    let mut emitted_at = Instant::now();
     loop {
         if let Some(outcome) = steam_windows::stop_outcome() {
             return Ok(outcome);
@@ -278,39 +379,30 @@ fn watch(
             steam_windows::note_download_total(update.download_total.max(state.to_download));
             return Ok(DownloadOutcome::Completed);
         }
-        let event = match update.step {
-            UpdateStep::Waiting => None,
-            UpdateStep::Preparing => Some(json!({
-                "phase": "Installing", "component": label, "message": "Preparing the download",
-            })),
-            UpdateStep::Preallocating => Some(json!({
-                "phase": "Installing", "component": label, "message": "Allocating disk space",
-            })),
-            UpdateStep::Downloading => {
+        let mut total = 0u64;
+        if update.step == UpdateStep::Downloading {
+            if measured_at.is_none_or(|at| at.elapsed() >= MEASURE_EVERY) {
                 let mut budget = 200_000;
-                let staged =
-                    crate::services::install_roots::disk_usage(&downloading, &[], &mut budget)
-                        .max(state.staged);
-                let (bytes, total) =
-                    download_estimate(staged, update.download_total, update.stage_total);
-                downloaded = downloaded.max(bytes.max(state.downloaded.min(total)));
-                Some(json!({
-                    "phase": "Downloading",
-                    "component": label,
-                    "downloadedBytes": downloaded,
-                    "totalBytes": total,
-                }))
+                staged = crate::services::install_roots::disk_usage(&downloading, &[], &mut budget)
+                    .max(state.staged);
+                measured_at = Some(Instant::now());
             }
-            UpdateStep::Verifying => Some(json!({ "phase": "Verifying", "component": label })),
-            UpdateStep::Committing => Some(json!({
-                "phase": "Installing", "component": label, "message": "Installing files",
-            })),
-            UpdateStep::Installed => None,
-        };
-        if let Some(event) = event {
-            if event != last_event {
-                steam_windows::emit_game_progress(app, key, label, event.clone());
+            let received = crate::services::network_monitor::received_bytes();
+            let chosen = *source
+                .get_or_insert_with(|| ByteSource::choose(staged, update.stage_total, received));
+            let (bytes, of) = chosen.bytes(staged, received, &update);
+            total = of;
+            downloaded = downloaded.max(bytes.max(state.downloaded.min(of)));
+        }
+        if let Some(event) = step_event(update.step, label, (downloaded, total)) {
+            if event != last_event || emitted_at.elapsed() >= HEARTBEAT {
+                let mut payload = event.clone();
+                if update.step == UpdateStep::Downloading {
+                    payload["bytesPerSecond"] = json!(meter.sample(downloaded, Instant::now()));
+                }
+                steam_windows::emit_game_progress(app, key, label, payload);
                 last_event = event;
+                emitted_at = Instant::now();
             }
         }
         if !began && started.elapsed() > START_TIMEOUT {
@@ -389,6 +481,87 @@ mod tests {
         assert_eq!(read_state(&manifest).unwrap().flags, QUEUE_INSTALL);
         assert!(steamapps.join("common").is_dir());
         let _ = fs::remove_dir_all(steamapps);
+    }
+
+    fn update(start: u64, download: u64, stage: u64) -> UpdateLog {
+        UpdateLog {
+            download_start: start,
+            download_total: download,
+            stage_total: stage,
+            ..UpdateLog::default()
+        }
+    }
+
+    #[test]
+    fn preallocated_blocks_switch_progress_to_received_bytes() {
+        // Steam preallocated 634 MB of the 670 MB stage before any byte
+        // arrived; the folder read as 95% done and then never moved.
+        let log = update(0, 129_107_072, 669_975_131);
+        let source = ByteSource::choose(634_000_000, log.stage_total, 5_000);
+        assert_eq!(source, ByteSource::Network { since: 5_000 });
+        assert_eq!(source.bytes(634_000_000, 5_000, &log), (0, 129_107_072));
+        assert_eq!(
+            source.bytes(634_000_000, 10_005_000, &log),
+            (10_000_000, 129_107_072)
+        );
+        assert_eq!(
+            source.bytes(0, u64::MAX, &log).0,
+            129_107_072,
+            "never past the total"
+        );
+    }
+
+    #[test]
+    fn a_sparse_folder_keeps_counting_from_disk() {
+        let log = update(0, 129_107_072, 669_975_131);
+        let source = ByteSource::choose(1_000, log.stage_total, 0);
+        assert_eq!(source, ByteSource::Disk);
+        assert_eq!(
+            source.bytes(334_987_565, 0, &log),
+            (64_553_535, 129_107_072)
+        );
+    }
+
+    #[test]
+    fn a_resumed_download_starts_from_what_steam_already_had() {
+        let log = update(80_000_000, 129_107_072, 669_975_131);
+        let source = ByteSource::choose(420_000_000, log.stage_total, 1_000);
+        assert_eq!(source.bytes(420_000_000, 1_000, &log).0, 80_000_000);
+        assert_eq!(source.bytes(420_000_000, 2_001_000, &log).0, 82_000_000);
+    }
+
+    #[test]
+    fn the_rate_is_smoothed_and_falls_when_bytes_stop() {
+        let mut meter = RateMeter::default();
+        let start = Instant::now();
+        assert_eq!(meter.sample(0, start), 0);
+        assert_eq!(
+            meter.sample(10_000_000, start + Duration::from_secs(1)),
+            10_000_000
+        );
+        assert_eq!(
+            meter.sample(10_000_000, start + Duration::from_millis(1_500)),
+            10_000_000,
+            "too soon: the last rate stands"
+        );
+        assert_eq!(
+            meter.sample(10_000_000, start + Duration::from_secs(2)),
+            6_000_000
+        );
+        assert_eq!(
+            meter.sample(10_000_000, start + Duration::from_secs(3)),
+            3_600_000
+        );
+    }
+
+    #[test]
+    fn signed_in_but_not_started_reads_as_starting_the_download() {
+        let waiting = step_event(UpdateStep::Waiting, "Game", (0, 0)).unwrap();
+        assert_eq!(waiting["message"], "Starting download");
+        assert_eq!(step_message("login"), "Signing in to Steam");
+        let downloading = step_event(UpdateStep::Downloading, "Game", (5, 10)).unwrap();
+        assert_eq!(downloading["downloadedBytes"], 5);
+        assert!(step_event(UpdateStep::Installed, "Game", (0, 0)).is_none());
     }
 
     #[test]

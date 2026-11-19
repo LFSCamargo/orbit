@@ -102,6 +102,8 @@ function measure(
 ): Pick<DownloadTask, 'rate' | 'sample'> {
   if (progress.phase !== 'Downloading') return { rate: null, sample: undefined }
   const next = { at: Date.now(), bytes: progress.downloadedBytes }
+  if (typeof progress.bytesPerSecond === 'number')
+    return { rate: Math.max(0, Math.round(progress.bytesPerSecond)), sample: next }
   const measured = transferRate(task.sample ?? null, next)
   if (measured === null) {
     // Too soon after the last sample: keep it so the next one spans longer.
@@ -213,9 +215,36 @@ export function formatTransferRate(bytesPerSecond: number | null): string {
   return `${(bytesPerSecond / 1_000_000).toFixed(1)} MB/s`
 }
 
+/** Seconds until a download with a known total finishes, or null. */
+export function timeLeft(
+  progress: SetupProgress | null,
+  rate: number | null,
+): number | null {
+  if (progress?.phase !== 'Downloading' || !rate || rate <= 0) return null
+  if (progress.totalBytes <= 0) return null
+  return Math.max(0, Math.ceil((progress.totalBytes - progress.downloadedBytes) / rate))
+}
+
+/** Whole seconds since an ISO start time, never negative. */
+export function elapsedSeconds(startedAt: string, now: number): number {
+  const start = Date.parse(startedAt)
+  return Number.isNaN(start) ? 0 : Math.max(0, Math.floor((now - start) / 1000))
+}
+
+/** "0:42", "12:05", "1:02:03". */
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = String(total % 60).padStart(2, '0')
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${secs}`
+  return `${minutes}:${secs}`
+}
+
 const STEAM_STEPS = [
   'Preparing',
   'Signing in to Steam',
+  'Starting download',
   'Allocating disk space',
   'Downloading',
   'Verifying',
@@ -225,7 +254,7 @@ const STEAM_STEPS = [
 export type DownloadStep = { index: number; count: number; label: string }
 
 /**
- * Where a Steam game download is: 1-based step of six, from preparing the
+ * Where a Steam game download is: 1-based step of seven, from preparing the
  * container to installing files. Null for transfers without Steam steps.
  */
 export function downloadStep(task: DownloadTask): DownloadStep | null {
@@ -239,13 +268,13 @@ export function downloadStep(task: DownloadTask): DownloadStep | null {
   if (!progress) return step(1)
   switch (progress.phase) {
     case 'Downloading':
-      return step(4)
-    case 'Verifying':
       return step(5)
-    case 'Extracting':
+    case 'Verifying':
       return step(6)
+    case 'Extracting':
+      return step(7)
     case 'Ready':
-      return step(6, 'Installed')
+      return step(7, 'Installed')
     case 'Installing': {
       const index = STEAM_STEPS.findIndex((label) => label === progress.message)
       return index > 0 ? step(index + 1) : step(1)

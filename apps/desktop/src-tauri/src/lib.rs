@@ -48,6 +48,7 @@ pub fn run() {
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
             services::download_queue::restore(&app.state::<AppState>().repo);
+            services::network_monitor::start(app.handle().clone());
             Ok(())
         })
         .manage(AppState {
@@ -132,6 +133,7 @@ pub fn run() {
             commands::downloads::remove_queued_download,
             commands::downloads::start_queued_download_now,
             commands::downloads::pause_active_download,
+            commands::network::get_network_stats,
             commands::uninstall::uninstall_steam_game,
             commands::storage::get_storage_overview,
             commands::storage::remove_component,

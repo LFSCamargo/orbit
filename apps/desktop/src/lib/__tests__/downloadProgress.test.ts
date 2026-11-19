@@ -3,11 +3,14 @@ import {
   downloadPercent,
   downloadStatus,
   downloadStep,
+  elapsedSeconds,
+  formatDuration,
   formatTransferRate,
   formatTransferSize,
   selectActive,
   selectBusy,
   selectCompleted,
+  timeLeft,
   transferRate,
   useDownloadStore,
   type DownloadTask,
@@ -216,19 +219,60 @@ it('measures each download’s own speed from its byte updates', () => {
 it('names each step of a Steam game download', () => {
   const steam = (progress: DownloadTask['progress']) =>
     downloadStep(task({ key: 'steam:312990', progress }))
-  expect(steam(null)).toEqual({ index: 1, count: 6, label: 'Preparing' })
+  expect(steam(null)).toEqual({ index: 1, count: 7, label: 'Preparing' })
   expect(
     steam({ phase: 'Installing', component: 'x', message: 'Signing in to Steam' }),
   ).toMatchObject({ index: 2, label: 'Signing in to Steam' })
   expect(
+    steam({ phase: 'Installing', component: 'x', message: 'Starting download' }),
+  ).toMatchObject({ index: 3, label: 'Starting download' })
+  expect(
     steam({ phase: 'Installing', component: 'x', message: 'Allocating disk space' }),
-  ).toMatchObject({ index: 3 })
+  ).toMatchObject({ index: 4 })
   expect(
     steam({ phase: 'Downloading', component: 'x', downloadedBytes: 1, totalBytes: 2 }),
-  ).toMatchObject({ index: 4, label: 'Downloading' })
-  expect(steam({ phase: 'Verifying', component: 'x' })).toMatchObject({ index: 5 })
+  ).toMatchObject({ index: 5, label: 'Downloading' })
+  expect(steam({ phase: 'Verifying', component: 'x' })).toMatchObject({ index: 6 })
   expect(
     steam({ phase: 'Installing', component: 'x', message: 'Installing files' }),
-  ).toMatchObject({ index: 6, label: 'Installing files' })
+  ).toMatchObject({ index: 7, label: 'Installing files' })
   expect(downloadStep(task({ key: 'component:dxvk:2.3' }))).toBeNull()
+})
+
+it('uses the rate the backend measured, including a stalled zero', () => {
+  const store = useDownloadStore.getState()
+  store.start({ key: 'steam:312990', label: 'The Expendabros' })
+  const progress = (bytesPerSecond: number) =>
+    useDownloadStore.getState().update('steam:312990', {
+      phase: 'Downloading',
+      component: 'x',
+      downloadedBytes: 50,
+      totalBytes: 100,
+      bytesPerSecond,
+    })
+  progress(4_200_000)
+  expect(useDownloadStore.getState().tasks['steam:312990'].rate).toBe(4_200_000)
+  progress(0)
+  // Regression: an unchanged byte count used to keep the last speed forever.
+  expect(useDownloadStore.getState().tasks['steam:312990'].rate).toBe(0)
+})
+
+it('estimates time left and formats elapsed time', () => {
+  const downloading = {
+    phase: 'Downloading' as const,
+    component: 'x',
+    downloadedBytes: 40_000_000,
+    totalBytes: 100_000_000,
+  }
+  expect(timeLeft(downloading, 2_000_000)).toBe(30)
+  expect(timeLeft(downloading, 0)).toBeNull()
+  expect(timeLeft(downloading, null)).toBeNull()
+  expect(timeLeft({ phase: 'Verifying', component: 'x' }, 5)).toBeNull()
+  expect(
+    elapsedSeconds('2026-11-12T00:00:00.000Z', Date.parse('2026-11-12T00:01:05.900Z')),
+  ).toBe(65)
+  expect(elapsedSeconds('not a date', 0)).toBe(0)
+  expect(formatDuration(42)).toBe('0:42')
+  expect(formatDuration(725)).toBe('12:05')
+  expect(formatDuration(3723)).toBe('1:02:03')
 })

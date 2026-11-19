@@ -162,6 +162,8 @@ src/
     useLibraryPaths.ts     # Extra Steam library folders (Settings → Steam and onboarding)
     useSteamClientEvents.ts # steam-client phases patch steam-windows-status
     useSteamDownloadEvents.ts
+    useNetworkStats.ts     # network-stats: live download/upload rate, online, sparkline history
+    useNow.ts              # Ticking clock for elapsed / time-left readouts
     useHeroTone.ts
     useModalFocus.ts
     useCursorAutoHide.ts

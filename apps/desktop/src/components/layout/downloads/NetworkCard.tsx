@@ -1,5 +1,6 @@
-import { ArrowDown, ArrowUp, Wifi } from 'lucide-react'
+import { ArrowDown, ArrowUp, Wifi, WifiOff } from 'lucide-react'
 import { formatTransferRate } from '@/lib/downloadProgress'
+import type { NetworkStats } from '@/types/downloads'
 import { CARD, SECTION_TITLE } from './styles'
 
 const WIDTH = 220
@@ -19,26 +20,52 @@ export function sparklinePoints(samples: number[]): string {
     .join(' ')
 }
 
-/** Live download rate. SteamCMD reports no upload, so upload reads as a dash. */
+/** The Mac's live download and upload speed, with whether it is online. */
 export function NetworkCard({
-  connected,
-  rate,
+  stats,
   samples,
 }: {
-  connected: boolean
-  rate: number | null
+  stats: NetworkStats | null
   samples: number[]
 }) {
   const points = sparklinePoints(samples)
+  const offline = stats?.online === false
+  const rate = (value: number | undefined) =>
+    stats && !offline && value !== undefined ? formatTransferRate(value) : '—'
   return (
     <section className={CARD} aria-label="Network">
-      <div>
-        <h3 className={SECTION_TITLE}>Network</h3>
-        <p className="m-0 mt-0.5 text-[12px] leading-snug text-white/55">
-          Live transfer speed for Steam downloads.
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className={SECTION_TITLE}>Network</h3>
+          <p className="m-0 mt-0.5 text-[12px] leading-snug text-white/55">
+            Live speed of this Mac’s connection.
+          </p>
+        </div>
+        {stats && (
+          <span
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-[600] ${
+              offline
+                ? 'bg-[#ff6b6b]/15 text-[#ffb4b4]'
+                : 'bg-[#4ade80]/15 text-[#86efac]'
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`size-1.5 rounded-full ${offline ? 'bg-[#ff6b6b]' : 'bg-[#4ade80]'}`}
+            />
+            {offline ? 'Offline' : 'Online'}
+          </span>
+        )}
       </div>
-      {points ? (
+      {offline ? (
+        <p
+          role="status"
+          className="m-0 flex items-center gap-2 text-[12px] leading-snug text-white/70"
+        >
+          <WifiOff size={16} className="shrink-0 text-[#ffb4b4]" aria-hidden />
+          Downloads are paused and resume on their own when this Mac is back online.
+        </p>
+      ) : points ? (
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           className="h-11 w-full text-orbit-accent"
@@ -62,13 +89,14 @@ export function NetworkCard({
         <div className="grid gap-0.5">
           <strong className="inline-flex items-center justify-center gap-1 text-[15px] font-[650] tabular-nums">
             <ArrowDown size={14} aria-hidden />
-            {connected ? formatTransferRate(rate ?? 0) : '—'}
+            {rate(stats?.downloadRate)}
           </strong>
           <span className="text-[11px] text-white/55">Download</span>
         </div>
         <div className="grid gap-0.5">
           <strong className="inline-flex items-center justify-center gap-1 text-[15px] font-[650] tabular-nums">
-            <ArrowUp size={14} aria-hidden />—
+            <ArrowUp size={14} aria-hidden />
+            {rate(stats?.uploadRate)}
           </strong>
           <span className="text-[11px] text-white/55">Upload</span>
         </div>

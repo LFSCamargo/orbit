@@ -164,10 +164,11 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
 | `enqueue_steam_download` | `appId` | `void` | Adds an owned title to the FIFO queue; progress arrives as `steam-download-progress` |
-| `get_download_queue` | — | `DownloadQueue` | `{ active, pending[] }`; changes emit `download-queue-changed` |
+| `get_download_queue` | — | `DownloadQueue` | `{ active, pending[], waitingForNetwork }`; changes emit `download-queue-changed` |
 | `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
 | `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |
-| `pause_active_download` | — | `void` | Stops SteamCMD and requeues the title at the front, paused |
+| `pause_active_download` | — | `void` | Stops the container's Steam client and requeues the title at the front, paused |
+| `get_network_stats` | — | `NetworkStats` | `{ online, downloadRate, uploadRate }` from the Mac's interface counters; a new sample arrives every second as `network-stats` |
 | `uninstall_steam_game` | `appId`, `deletePrefix` | `UninstallReport` | Orbit downloads and Windows copies in Steam library folders (never `steam-windows`); saves kept unless asked and never when the prefix holds a Steam login |
 | `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder and every library game's real folder, by category, plus volume totals |
 | `get_install_sizes` | `entryId`, `refresh` | `InstallSize[]` | Disk usage of each installed copy measured from its real game folder; saved to the game row |

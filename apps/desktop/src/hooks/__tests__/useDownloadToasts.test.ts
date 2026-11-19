@@ -36,7 +36,7 @@ it('shows one progress toast per transfer and finishes it as success', () => {
   expect(notify.progress).toHaveBeenLastCalledWith({
     id: 'steam:312990',
     title: 'The Expendabros',
-    caption: 'Step 2 of 6 · Signing in to Steam',
+    caption: 'Step 2 of 7 · Signing in to Steam',
     message: undefined,
     value: null,
   })
@@ -56,7 +56,7 @@ it('shows one progress toast per transfer and finishes it as success', () => {
   expect(notify.progress).toHaveBeenLastCalledWith({
     id: 'steam:312990',
     title: 'The Expendabros',
-    caption: 'Step 4 of 6 · Downloading',
+    caption: 'Step 5 of 7 · Downloading',
     message: '12.3 MB/s · 64.0 MB / 128.0 MB',
     value: 50,
   })

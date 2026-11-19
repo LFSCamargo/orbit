@@ -28,6 +28,8 @@ pub struct UpdateLog {
     pub step: UpdateStep,
     /// Compressed bytes Steam fetches over the network.
     pub download_total: u64,
+    /// Network bytes already on disk when this run started (a resumed download).
+    pub download_start: u64,
     /// Bytes Steam writes into `steamapps/downloading/<appid>`.
     pub stage_total: u64,
     pub failure: Option<String>,
@@ -42,8 +44,12 @@ impl UpdateLog {
         };
         let text = &line[start + marker.len()..];
         if let Some(rest) = text.strip_prefix("update started : ") {
-            self.download_total = total_of(rest, "download").unwrap_or(self.download_total);
-            self.stage_total = total_of(rest, "stage").unwrap_or(self.stage_total);
+            if let Some((done, total)) = counts_of(rest, "download") {
+                self.download_start = done;
+                self.download_total = total;
+            }
+            self.stage_total =
+                counts_of(rest, "stage").map_or(self.stage_total, |(_, total)| total);
             self.step = UpdateStep::Downloading;
             return;
         }
@@ -51,7 +57,13 @@ impl UpdateLog {
             .strip_prefix("update canceled : ")
             .or_else(|| text.strip_prefix("update failed : "))
         {
-            self.failure = Some(reason.trim().to_string());
+            let reason = reason.trim();
+            if is_transient(reason) {
+                // Steam picks the update up again by itself.
+                self.step = UpdateStep::Waiting;
+            } else {
+                self.failure = Some(reason.to_string());
+            }
             return;
         }
         if text.starts_with("finished update") {
@@ -86,10 +98,31 @@ impl UpdateLog {
     }
 }
 
-/// `"download 0/129107072"` → `129107072`.
-fn total_of(text: &str, name: &str) -> Option<u64> {
-    let re = Regex::new(&format!(r"{name} \d+/(\d+)")).ok()?;
-    re.captures(text)?.get(1)?.as_str().parse().ok()
+/// `"download 64/129107072"` → `(64, 129107072)`.
+fn counts_of(text: &str, name: &str) -> Option<(u64, u64)> {
+    let re = Regex::new(&format!(r"{name} (\d+)/(\d+)")).ok()?;
+    let found = re.captures(text)?;
+    Some((
+        found.get(1)?.as_str().parse().ok()?,
+        found.get(2)?.as_str().parse().ok()?,
+    ))
+}
+
+/// Stops Steam retries on its own: another app took priority, or the
+/// connection dropped. Orbit's network monitor handles a real outage.
+pub fn is_transient(reason: &str) -> bool {
+    let lower = reason.to_ascii_lowercase();
+    [
+        "suspended",
+        "connection",
+        "network",
+        "timeout",
+        "timed out",
+        "unreachable",
+        "offline",
+    ]
+    .iter()
+    .any(|word| lower.contains(word))
 }
 
 /// Follows new lines appended to the client's content log.
@@ -197,6 +230,40 @@ mod tests {
             log.failure.as_deref(),
             Some("Disk write failure (Disk full)")
         );
+    }
+
+    #[test]
+    fn a_suspended_or_dropped_update_is_not_a_failure() {
+        let mut log = UpdateLog::default();
+        log.apply(
+            "[2026-11-19 12:07:38] AppID 228980 update canceled : Priority (Suspended)",
+            "228980",
+        );
+        assert!(log.failure.is_none());
+        assert_eq!(log.step, UpdateStep::Waiting);
+        log.apply("[x] AppID 228980 update canceled : No Connection", "228980");
+        log.apply(
+            "[x] AppID 228980 update canceled : Content Servers Unreachable",
+            "228980",
+        );
+        assert!(log.failure.is_none());
+        log.apply(
+            "[2026-11-19 12:07:43] AppID 228980 update canceled : Failed to preallocate (Not enough disk space) \"33.93 GB\"",
+            "228980",
+        );
+        assert!(log.failure.unwrap().contains("Not enough disk space"));
+    }
+
+    #[test]
+    fn a_resumed_download_reports_what_it_already_has() {
+        let mut log = UpdateLog::default();
+        log.apply(
+            "[x] AppID 312990 update started : download 64000000/129107072, store 0/0, reuse 0/0, delta 0/0, stage 300000000/669975131",
+            "312990",
+        );
+        assert_eq!(log.download_start, 64_000_000);
+        assert_eq!(log.download_total, 129_107_072);
+        assert_eq!(log.stage_total, 669_975_131);
     }
 
     #[test]

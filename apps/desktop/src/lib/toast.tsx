@@ -8,7 +8,7 @@ import { OrbitToast, type ToastKind } from '@/components/feedback/OrbitToast'
 export type ToastContent = {
   title: string
   message?: string
-  /** Small line above the message, e.g. "Step 4 of 6 · Downloading". */
+  /** Small line above the message, e.g. "Step 5 of 7 · Downloading". */
   caption?: string
 }
 

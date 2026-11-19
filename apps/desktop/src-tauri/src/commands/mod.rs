@@ -5,6 +5,7 @@ pub mod game_content;
 pub mod games;
 pub mod importers;
 pub mod metadata;
+pub mod network;
 pub mod session;
 pub mod storage;
 pub mod switch_library;

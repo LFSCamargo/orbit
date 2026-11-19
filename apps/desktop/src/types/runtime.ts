@@ -121,6 +121,8 @@ export type SetupProgress =
       component: string
       downloadedBytes: number
       totalBytes: number
+      /** Rate measured where the bytes are counted (Steam downloads report it). */
+      bytesPerSecond?: number
     }
   | {
       phase: 'Verifying'

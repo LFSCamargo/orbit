@@ -48,6 +48,7 @@ static DOWNLOAD_CANCEL: AtomicBool = AtomicBool::new(false);
 const STOP_NONE: u8 = 0;
 const STOP_CANCEL: u8 = 1;
 const STOP_PAUSE: u8 = 2;
+const STOP_OFFLINE: u8 = 3;
 /// Largest total SteamCMD reported for the current download, in bytes.
 static LAST_TOTAL: AtomicU64 = AtomicU64::new(0);
 
@@ -57,6 +58,8 @@ pub enum DownloadOutcome {
     Completed,
     Cancelled,
     Paused,
+    /// Stopped because the Mac went offline; the queue resumes it.
+    Offline,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -661,6 +664,11 @@ pub fn pause_download() {
     stop_download(STOP_PAUSE);
 }
 
+/// Stops the running game download because the network is gone.
+pub fn stop_for_network() {
+    stop_download(STOP_OFFLINE);
+}
+
 fn stop_download(reason: u8) {
     if !DOWNLOAD_ACTIVE.load(Ordering::SeqCst) {
         return;
@@ -691,6 +699,7 @@ pub(crate) fn stop_outcome() -> Option<DownloadOutcome> {
     match DOWNLOAD_STOP.load(Ordering::SeqCst) {
         STOP_CANCEL => Some(DownloadOutcome::Cancelled),
         STOP_PAUSE => Some(DownloadOutcome::Paused),
+        STOP_OFFLINE => Some(DownloadOutcome::Offline),
         _ => None,
     }
 }
@@ -737,7 +746,7 @@ fn prepare_and_run_download(
         app,
         key,
         label,
-        json!({ "phase": "Installing", "component": label, "message": "Preparing download" }),
+        json!({ "phase": "Installing", "component": label, "message": "Preparing" }),
     );
     stored_account(repo)?.ok_or("Sign in to Steam in Settings → Steam, then try again.")?;
     let outcome =

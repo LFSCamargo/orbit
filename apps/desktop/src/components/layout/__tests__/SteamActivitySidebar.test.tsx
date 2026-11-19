@@ -27,10 +27,11 @@ vi.mock('@/lib/tauri', () => ({
   cancelSteamWindowsDownload: vi.fn(),
   playSteamWindowsGame: vi.fn(),
   getDownloadQueue: vi.fn(),
-  enqueueSteamDownload: vi.fn(),
+  enqueueSteamDownload: vi.fn().mockResolvedValue(undefined),
   pauseActiveDownload: vi.fn(),
   removeQueuedDownload: vi.fn(),
   startQueuedDownloadNow: vi.fn(),
+  getNetworkStats: vi.fn(),
   listLibraryEntries: vi
     .fn()
     .mockResolvedValue({ entries: [], total: 0, nextCursor: null }),
@@ -187,11 +188,67 @@ it('shows cover, bytes and a live bar for the active download, with pause', asyn
   renderSidebar()
   const bar = screen.getByRole('progressbar', { name: 'Dota 2 progress' })
   expect(bar).toHaveAttribute('aria-valuenow', '25')
-  expect(screen.getByText('4/6 · Downloading · 25.0 MB / 100.0 MB')).toBeTruthy()
+  expect(screen.getByText('5/7 · Downloading · 25.0 MB / 100.0 MB')).toBeTruthy()
   fireEvent.click(await screen.findByRole('button', { name: 'Pause Dota 2' }))
   expect(pauseActiveDownload).toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Cancel Dota 2' }))
   expect(removeQueuedDownload).toHaveBeenCalledWith('570')
+})
+
+it('shows the step as soon as sign-in ends, with speed, elapsed and time left', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(new Date('2026-11-13T00:01:05.000Z'))
+  status.mockResolvedValue(AUTHORIZED)
+  queue.mockResolvedValue({ active: queued('570', 'Dota 2'), pending: [] })
+  useDownloadStore.setState({
+    tasks: {
+      'steam:570': {
+        key: 'steam:570',
+        label: 'Dota 2',
+        startedAt: '2026-11-13T00:00:00.000Z',
+        rate: 5_000_000,
+        progress: {
+          phase: 'Downloading',
+          component: 'Dota 2',
+          downloadedBytes: 25_000_000,
+          totalBytes: 100_000_000,
+          bytesPerSecond: 5_000_000,
+        },
+      },
+    },
+    failures: {},
+  })
+  renderSidebar()
+  expect(screen.getByText('5.0 MB/s')).toBeTruthy()
+  expect(screen.getByTestId('download-timing').textContent).toBe(
+    'Elapsed 1:05 · 0:15 left',
+  )
+  await act(async () => {
+    vi.advanceTimersByTime(2_000)
+  })
+  expect(screen.getByTestId('download-timing').textContent).toContain('Elapsed 1:07')
+  act(() => {
+    useDownloadStore.getState().update('steam:570', {
+      phase: 'Installing',
+      component: 'Dota 2',
+      message: 'Starting download',
+    })
+  })
+  expect(screen.getByText('3/7 · Starting download')).toBeTruthy()
+  vi.useRealTimers()
+})
+
+it('marks waiting titles as waiting for the network while offline', async () => {
+  status.mockResolvedValue(AUTHORIZED)
+  queue.mockResolvedValue({
+    active: null,
+    pending: [queued('570', 'Dota 2'), queued('730', 'Counter-Strike 2', true)],
+    waitingForNetwork: true,
+  })
+  renderSidebar()
+  const rows = await screen.findAllByTestId('queue-row')
+  expect(within(rows[0]).getByText('Waiting for network')).toBeTruthy()
+  expect(within(rows[1]).getByText('Paused')).toBeTruthy()
 })
 
 it('lists the queue in order and can run, resume or remove a title', async () => {
@@ -257,7 +314,7 @@ it('puts network first and describes each section', async () => {
   expect(
     network.compareDocumentPosition(downloads) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy()
-  expect(screen.getByText('Live transfer speed for Steam downloads.')).toBeTruthy()
+  expect(screen.getByText('Live speed of this Mac’s connection.')).toBeTruthy()
   expect(screen.getByText('Games and components installing now.')).toBeTruthy()
   expect(
     screen.getByText('Up next, in order. Start one now or take it out.'),

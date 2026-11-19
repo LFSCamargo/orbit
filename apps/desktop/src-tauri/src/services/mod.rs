@@ -9,6 +9,7 @@ pub mod install_roots;
 pub mod library_sync;
 pub mod metadata_enrichment;
 pub mod metadata_merge;
+pub mod network_monitor;
 pub mod public_artwork;
 pub mod steam_content;
 pub mod steam_content_log;

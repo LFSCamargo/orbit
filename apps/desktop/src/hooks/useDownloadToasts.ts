@@ -18,7 +18,7 @@ type Snapshot = {
 
 /**
  * Caption and message for a running transfer. Steam games name their step
- * ("Step 4 of 6 · Downloading") and read speed and bytes while downloading;
+ * ("Step 5 of 7 · Downloading") and read speed and bytes while downloading;
  * other transfers keep their one-line status.
  */
 export function progressLines(task: DownloadTask): {

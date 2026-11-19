@@ -51,7 +51,7 @@ it('shows bytes and a live bar while Steam downloads the game', () => {
     failures: {},
   })
   renderStatus()
-  expect(screen.getByText('4/6 · Downloading')).toBeTruthy()
+  expect(screen.getByText('5/7 · Downloading')).toBeTruthy()
   expect(screen.getByText('32.0 MB / 128.0 MB')).toBeTruthy()
   expect(screen.getByText('25%')).toBeTruthy()
   expect(
