@@ -830,9 +830,9 @@ pub fn register_download(repo: &GameRepository, app_id: &str) -> Result<String, 
 /// Sizes Steam recorded for an Orbit-managed install, read from the
 /// appmanifest SteamCMD writes next to the game files.
 pub fn orbit_install_sizes(app_id: &str) -> crate::services::steam_manifest::ManifestSizes {
-    let client_manifest = super::steam_client_download::container_paths(app_id)
+    let client_manifest = super::steam_client_download::game_steamapps(app_id)
         .ok()
-        .map(|(_, steamapps)| steamapps.join(format!("appmanifest_{app_id}.acf")));
+        .map(|steamapps| steamapps.join(format!("appmanifest_{app_id}.acf")));
     orbit_install_dirs(app_id)
         .iter()
         .map(|dir| dir.join(format!("steamapps/appmanifest_{app_id}.acf")))

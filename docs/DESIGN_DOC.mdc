@@ -163,7 +163,10 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
-| `enqueue_steam_download` | `appId` | `void` | Adds an owned title to the FIFO queue; progress arrives as `steam-download-progress` |
+| `enqueue_steam_download` | `appId`, `location?` | `void` | Adds an owned title to the FIFO queue; progress arrives as `steam-download-progress`. `location` is an install location id; without one the game keeps its current or last-used location, and a paused or installed copy always keeps its own |
+| `list_install_locations` | — | `InstallLocation[]` | This Mac, then each added folder with free/total bytes, `available`, `isDefault`, `gameCount` |
+| `add_install_location` | `path` | `InstallLocation` | Canonical absolute folder outside Orbit's data and not the disk root; prepares `<path>/Orbit Games/steamapps/common`; up to 8 |
+| `remove_install_location` | `id` | `void` | Refused while games are installed there; files are never deleted |
 | `get_download_queue` | — | `DownloadQueue` | `{ active, pending[], waitingForNetwork }`; changes emit `download-queue-changed` |
 | `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
 | `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |

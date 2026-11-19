@@ -111,6 +111,7 @@ src-tauri/src/
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
     download_queue.rs      # FIFO Steam download queue: one worker, pause/resume, waits offline, saved in settings
+    install_locations.rs   # This Mac or picked folders ("Orbit Games" Steam libraries), per-game choice
     network_monitor.rs     # Interface byte counters once a second, Steam reachability probe, network-stats event
     uninstall.rs           # Deletes Orbit-downloaded game folders inside allow-listed roots only
     storage.rs             # Disk usage of Orbit's data folder by game / tool / runtime / other

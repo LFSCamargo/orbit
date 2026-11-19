@@ -32,6 +32,20 @@ vi.mock('@/lib/tauri', () => ({
   removeQueuedDownload: vi.fn(),
   startQueuedDownloadNow: vi.fn(),
   getNetworkStats: vi.fn(),
+  listInstallLocations: vi.fn().mockResolvedValue([
+    {
+      id: 'this-mac',
+      label: 'This Mac',
+      path: null,
+      available: true,
+      freeBytes: null,
+      totalBytes: null,
+      isDefault: true,
+      gameCount: 0,
+    },
+  ]),
+  addInstallLocation: vi.fn(),
+  removeInstallLocation: vi.fn(),
   listLibraryEntries: vi
     .fn()
     .mockResolvedValue({ entries: [], total: 0, nextCursor: null }),
@@ -348,7 +362,12 @@ it('suggests played games that are not installed, and installs Steam ones', asyn
     expect.stringContaining('Portal 2'),
   ])
   fireEvent.click(within(section).getByRole('button', { name: 'Install Dota 2' }))
-  expect(enqueueSteamDownload).toHaveBeenCalledWith('570')
+  // The install picker asks where to put the game first.
+  expect(enqueueSteamDownload).not.toHaveBeenCalled()
+  const picker = await screen.findByRole('dialog', { name: 'Install Dota 2' })
+  await within(picker).findByRole('radio', { name: /This Mac/ })
+  fireEvent.click(within(picker).getByRole('button', { name: 'Install' }))
+  expect(enqueueSteamDownload).toHaveBeenCalledWith('570', 'this-mac')
 })
 
 it('keeps the header and close button fixed while the sections scroll', async () => {

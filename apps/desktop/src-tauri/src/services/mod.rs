@@ -5,6 +5,7 @@ pub mod download_queue;
 pub mod game_content;
 pub mod http;
 pub mod import_artwork;
+pub mod install_locations;
 pub mod install_roots;
 pub mod library_sync;
 pub mod metadata_enrichment;

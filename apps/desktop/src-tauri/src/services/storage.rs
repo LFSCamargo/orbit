@@ -483,7 +483,7 @@ pub fn scan(data_dir: &Path, context: &ScanContext) -> StorageOverview {
 }
 
 /// Total and available bytes of the volume holding `path`.
-fn volume(path: &Path) -> Option<(u64, u64)> {
+pub(crate) fn volume(path: &Path) -> Option<(u64, u64)> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     let c_path = CString::new(path.as_os_str().as_bytes()).ok()?;

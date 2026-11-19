@@ -26,9 +26,13 @@ pub async fn uninstall_steam_game(
         let mut plan =
             uninstall::removal_plan(&crate::runtimes::root(), &session, &app_id, delete_prefix)?;
         let mut libraries = steam_windows::windows_library_paths(&state.repo);
-        // Games the game container's own Steam client downloaded.
+        // Games the game container's own Steam client downloaded, on This
+        // Mac or in the install location the person picked.
         if let Ok((_, steamapps)) = crate::services::steam_client_download::container_paths(&app_id)
         {
+            libraries.push(steamapps.join("common").to_string_lossy().into_owned());
+        }
+        if let Ok(steamapps) = crate::services::steam_client_download::game_steamapps(&app_id) {
             libraries.push(steamapps.join("common").to_string_lossy().into_owned());
         }
         uninstall::add_library_installs(&mut plan, &libraries, &session, &app_id);
@@ -37,6 +41,7 @@ pub async fn uninstall_steam_game(
         }
         let report = uninstall::execute(&plan)?;
         uninstall::forget_installs(&state.repo, &plan)?;
+        crate::services::install_locations::forget_app(&state.repo, &app_id);
         download_queue::forget_download_size(&state.repo, &app_id);
         crate::services::storage::invalidate();
         crate::services::install_roots::forget_measurements();

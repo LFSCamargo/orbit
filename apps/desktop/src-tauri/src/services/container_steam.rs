@@ -179,7 +179,7 @@ fn start_silent_client(
     if let Some(account) = saved_account_name(&loginusers) {
         enable_auto_login(host, &account)?;
     }
-    repair_library_folders(&root);
+    repair_library_folders(&root, &orbit_libraries(&host.prefix));
     if ready(&host.prefix, &root, LogMarks::default(), wait) {
         return Ok(());
     }
@@ -397,28 +397,44 @@ fn restore_steam_exe(root: &Path) {
 /// A container sees extra libraries through links in its own `C:` library, so
 /// only that library is kept. Earlier builds appended the same drive library on
 /// every launch, which Steam then reports as "not mounted".
-fn repair_library_folders(root: &Path) {
+/// Wine drives this container maps to install locations the person picked.
+fn orbit_libraries(prefix: &Path) -> Vec<String> {
+    super::install_locations::libraries()
+        .iter()
+        .filter_map(|library| super::steam_client_library::mapped_wine_drive(prefix, library))
+        .collect()
+}
+
+fn repair_library_folders(root: &Path, keep: &[String]) {
     for file in ["steamapps/libraryfolders.vdf", "config/libraryfolders.vdf"] {
         let path = root.join(file);
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
-        if let Some(repaired) = only_main_library(&text) {
+        if let Some(repaired) = known_libraries(&text, keep) {
             let _ = std::fs::write(&path, repaired);
         }
     }
 }
 
-fn only_main_library(text: &str) -> Option<String> {
+/// Keeps the main library and Orbit's install-location drives, once each;
+/// drops every other drive library. O(libraries + keep).
+fn known_libraries(text: &str, keep: &[String]) -> Option<String> {
+    use super::steam_client_library::library_key;
     let mut fields = steam_vdf::parse(text).ok()?;
     let (_, steam_vdf::Value::Object(libraries)) = fields.first_mut()? else {
         return None;
     };
+    let keep: std::collections::HashSet<String> =
+        keep.iter().map(|path| library_key(path)).collect();
+    let mut seen = std::collections::HashSet::new();
     let before = libraries.len();
     libraries.retain(|(key, value)| match value {
         steam_vdf::Value::Object(entry) => entry.iter().any(|(name, path)| {
             name.eq_ignore_ascii_case("path")
-                && matches!(path, steam_vdf::Value::Text(text) if is_main_library(text))
+                && matches!(path, steam_vdf::Value::Text(text)
+                    if (is_main_library(text) || keep.contains(&library_key(text)))
+                        && seen.insert(library_key(text)))
         }),
         // Non-library keys (contentstatsid and similar) stay.
         steam_vdf::Value::Text(_) => !key.chars().all(|c| c.is_ascii_digit()),
@@ -595,12 +611,30 @@ mod tests {
             ));
         }
         text.push_str("}\n");
-        let repaired = only_main_library(&text).expect("changed");
+        let repaired = known_libraries(&text, &[]).expect("changed");
         assert_eq!(repaired.matches("\"path\"").count(), 1);
         assert!(repaired.contains("883710"));
         assert!(repaired.contains("contentstatsid"));
         assert!(!repaired.contains("\"S:\""));
-        assert_eq!(only_main_library(&repaired), None, "already clean");
+        assert_eq!(known_libraries(&repaired, &[]), None, "already clean");
+    }
+
+    #[test]
+    fn an_install_location_drive_stays_registered_once() {
+        let mut text = String::from(
+            "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"C:\\\\Program Files (x86)\\\\Steam\"\n\t}\n",
+        );
+        for (index, path) in ["S:\\\\", "S:", "T:\\\\"].iter().enumerate() {
+            text.push_str(&format!(
+                "\t\"{}\"\n\t{{\n\t\t\"path\"\t\t\"{path}\"\n\t}}\n",
+                index + 1
+            ));
+        }
+        text.push_str("}\n");
+        let repaired = known_libraries(&text, &["S:\\".to_string()]).expect("changed");
+        assert_eq!(repaired.matches("\"path\"").count(), 2, "{repaired}");
+        assert!(!repaired.contains("T:"), "another drive library goes");
+        assert_eq!(known_libraries(&repaired, &["S:\\".to_string()]), None);
     }
 
     #[test]

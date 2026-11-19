@@ -13,6 +13,22 @@ export interface DownloadQueue {
   waitingForNetwork?: boolean
 }
 
+/** A place a Steam game can be installed: This Mac or a folder the person added. */
+export interface InstallLocation {
+  /** `this-mac`, or the folder's path. */
+  id: string
+  label: string
+  path: string | null
+  /** The folder's drive is connected and writable. */
+  available: boolean
+  freeBytes: number | null
+  totalBytes: number | null
+  /** Used for the last download. */
+  isDefault: boolean
+  /** Games installed or downloading there; such a location cannot be removed. */
+  gameCount: number
+}
+
 /** One sample of the Mac's network links, emitted every second as `network-stats`. */
 export interface NetworkStats {
   online: boolean

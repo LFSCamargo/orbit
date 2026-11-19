@@ -752,6 +752,22 @@ export async function mockInvoke<T>(
       return undefined as T
     case 'get_download_queue':
       return { active: null, pending: [], waitingForNetwork: false } as T
+    case 'list_install_locations':
+      return [
+        {
+          id: 'this-mac',
+          label: 'This Mac',
+          path: null,
+          available: true,
+          freeBytes: 120_000_000_000,
+          totalBytes: 494_000_000_000,
+          isDefault: true,
+          gameCount: 0,
+        },
+      ] as T
+    case 'add_install_location':
+    case 'remove_install_location':
+      throw new Error('Install locations require the Orbit desktop app.')
     case 'get_network_stats':
       return { online: true, downloadRate: 0, uploadRate: 0 } as T
     case 'uninstall_steam_game':

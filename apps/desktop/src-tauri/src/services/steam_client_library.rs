@@ -30,13 +30,13 @@ fn merge(content: &str, paths: &[String]) -> Result<String, String> {
         if let Value::Object(entry) = value {
             for (key, value) in entry {
                 if let ("path", Value::Text(path)) = (key.as_str(), value) {
-                    known.insert(path.to_ascii_lowercase());
+                    known.insert(library_key(path));
                 }
             }
         }
     }
     for path in paths {
-        if !known.insert(path.to_ascii_lowercase()) {
+        if !known.insert(library_key(path)) {
             continue;
         }
         fields.push((
@@ -102,7 +102,15 @@ fn library_root(common: &Path) -> Result<PathBuf, String> {
         .map(Path::to_path_buf)
 }
 
-fn mapped_wine_drive(prefix: &Path, library: &Path) -> Option<String> {
+/// One spelling per library: Steam rewrites `S:\\` as `S:` and older lists
+/// hold doubled backslashes, which once let the same drive repeat 33 times.
+pub(crate) fn library_key(path: &str) -> String {
+    path.replace("\\\\", "\\")
+        .trim_end_matches('\\')
+        .to_ascii_lowercase()
+}
+
+pub(crate) fn mapped_wine_drive(prefix: &Path, library: &Path) -> Option<String> {
     let devices = prefix.join("dosdevices");
     let target = library.canonicalize().ok()?;
     for letter in b's'..=b'y' {
@@ -331,6 +339,69 @@ pub fn register(steam_root: &Path, prefix: &Path, paths: &[String]) -> Result<()
     write_vdf(&config_vdf, &updated)
 }
 
+/// The library list with `drive`'s entry carrying `contentid`, or None when
+/// it already does (or the drive is not listed).
+pub fn with_contentid(content: &str, drive: &str, contentid: u64) -> Option<String> {
+    let mut tree = steam_vdf::parse(content).ok()?;
+    let [(_, Value::Object(fields))] = tree.as_mut_slice() else {
+        return None;
+    };
+    let wanted = library_key(drive);
+    let id = contentid.to_string();
+    let mut changed = false;
+    for (_, value) in fields.iter_mut() {
+        let Value::Object(entry) = value else {
+            continue;
+        };
+        let listed = entry.iter().any(|(key, value)| {
+            key == "path" && matches!(value, Value::Text(path) if library_key(path) == wanted)
+        });
+        if !listed {
+            continue;
+        }
+        match entry.iter_mut().find(|(key, _)| key == "contentid") {
+            Some((_, Value::Text(existing))) if *existing == id => {}
+            Some((_, slot)) => {
+                *slot = Value::Text(id.clone());
+                changed = true;
+            }
+            None => {
+                entry.push(("contentid".into(), Value::Text(id.clone())));
+                changed = true;
+            }
+        }
+    }
+    changed.then(|| steam_vdf::write(&tree))
+}
+
+/// Gives the picked library's entry the id in its own `libraryfolder.vdf`.
+/// Steam reports a library whose ids differ as "not mounted" and ignores it;
+/// several game containers share one library, so the folder's id wins.
+/// Call while the client is stopped.
+pub fn set_library_contentid(
+    steam_root: &Path,
+    prefix: &Path,
+    library: &Path,
+    contentid: u64,
+) -> Result<(), String> {
+    let drive =
+        mapped_wine_drive(prefix, library).ok_or("Wine has not mapped the Steam library")?;
+    let root = steam_root
+        .canonicalize()
+        .map_err(|_| "Steam is not installed")?;
+    for path in [
+        root.join("steamapps/libraryfolders.vdf"),
+        root.join("config/libraryfolders.vdf"),
+    ] {
+        if let Some(content) = read_vdf(&path, &root)? {
+            if let Some(updated) = with_contentid(&content, &drive, contentid) {
+                write_vdf(&path, &updated)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Link extra installs into the prefix steamapps and register them with Steam.
 /// Returns true when anything changed so callers can restart a running client.
 pub fn publish(steam_root: &Path, prefix: &Path, paths: &[String]) -> Result<bool, String> {
@@ -361,6 +432,19 @@ mod tests {
         )
         .unwrap();
         apps.join("common").to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn a_library_entry_takes_the_folders_id() {
+        // Regression: Steam listed S: with its own id while the folder had
+        // none, logged "Install folder S: not mounted" and never downloaded.
+        let content = "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"C:\\\\Program Files (x86)\\\\Steam\"\n\t\t\"contentid\"\t\t\"1\"\n\t}\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"S:\"\n\t\t\"contentid\"\t\t\"9133512604164204669\"\n\t}\n}\n";
+        let updated = with_contentid(content, "S:\\", 42).expect("changed");
+        assert!(updated.contains("\"42\""));
+        assert!(!updated.contains("9133512604164204669"));
+        assert!(updated.contains("\"1\""), "the main library keeps its id");
+        assert_eq!(with_contentid(&updated, "S:", 42), None);
+        assert_eq!(with_contentid(&updated, "T:\\", 42), None);
     }
 
     #[test]

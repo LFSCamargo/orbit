@@ -47,6 +47,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
+            services::install_locations::restore(&app.state::<AppState>().repo);
             services::download_queue::restore(&app.state::<AppState>().repo);
             services::network_monitor::start(app.handle().clone());
             Ok(())
@@ -134,6 +135,9 @@ pub fn run() {
             commands::downloads::start_queued_download_now,
             commands::downloads::pause_active_download,
             commands::network::get_network_stats,
+            commands::downloads::list_install_locations,
+            commands::downloads::add_install_location,
+            commands::downloads::remove_install_location,
             commands::uninstall::uninstall_steam_game,
             commands::storage::get_storage_overview,
             commands::storage::remove_component,

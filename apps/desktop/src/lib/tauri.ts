@@ -12,7 +12,12 @@ import type { SwitchLibraryScan } from '@/types/switch'
 import type { HomeContentInventory } from '@/types/gameContent'
 import type { ThemeDefinition } from '@/themes/types'
 
-import type { DownloadQueue, NetworkStats, UninstallReport } from '@/types/downloads'
+import type {
+  DownloadQueue,
+  InstallLocation,
+  NetworkStats,
+  UninstallReport,
+} from '@/types/downloads'
 import type { StorageOverview } from '@/types/storage'
 import type { InstallSize } from '@/types/library'
 async function run<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -499,9 +504,28 @@ export async function downloadSteamWindowsGame(appId: string): Promise<void> {
   return run('download_steam_windows_game', { appId })
 }
 
-/** Queues an owned Steam title; progress arrives as `steam-download-progress` events. */
-export async function enqueueSteamDownload(appId: string): Promise<void> {
-  return run('enqueue_steam_download', { appId })
+/**
+ * Queues an owned Steam title; progress arrives as `steam-download-progress`
+ * events. `location` is an install location id; without one the game keeps
+ * its current location (or the last one used).
+ */
+export async function enqueueSteamDownload(
+  appId: string,
+  location?: string,
+): Promise<void> {
+  return run('enqueue_steam_download', { appId, location: location ?? null })
+}
+
+export async function listInstallLocations(): Promise<InstallLocation[]> {
+  return run('list_install_locations')
+}
+
+export async function addInstallLocation(path: string): Promise<InstallLocation> {
+  return run('add_install_location', { path })
+}
+
+export async function removeInstallLocation(id: string): Promise<void> {
+  return run('remove_install_location', { id })
 }
 
 export async function getDownloadQueue(): Promise<DownloadQueue> {

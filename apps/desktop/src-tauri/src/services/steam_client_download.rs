@@ -139,9 +139,81 @@ pub fn container_paths(app_id: &str) -> Result<(PathBuf, PathBuf), String> {
     Ok((prefix, steamapps))
 }
 
+/// The `steamapps` holding the game: its picked install location's Orbit
+/// library, or the container's own Steam library on This Mac.
+pub fn game_steamapps(app_id: &str) -> Result<PathBuf, String> {
+    match crate::services::install_locations::library_for_app(app_id) {
+        Some(library) => Ok(library.join("steamapps")),
+        None => container_paths(app_id).map(|(_, steamapps)| steamapps),
+    }
+}
+
+/// Mounts a picked location's library in the container as a Wine drive and
+/// lists it in Steam's libraries. Call while the container's client is stopped.
+fn register_library(prefix: &Path, library: &Path) -> Result<(), String> {
+    let common = library.join("steamapps/common");
+    fs::create_dir_all(&common).map_err(|_| {
+        "Orbit cannot write to the install location. Check the drive's permissions.".to_string()
+    })?;
+    let steam_root = crate::runtimes::containers::steam::steam_root(prefix);
+    super::steam_client_library::register(
+        &steam_root,
+        prefix,
+        &[common.to_string_lossy().into_owned()],
+    )?;
+    let contentid = write_library_identity(library)?;
+    super::steam_client_library::set_library_contentid(&steam_root, prefix, library, contentid)
+}
+
+/// The library's id in its `libraryfolder.vdf`, if it has one.
+fn identity_of(file: &Path) -> Option<u64> {
+    let text = fs::read_to_string(file).ok()?;
+    let id = vdf_number(&text, "contentid");
+    (id > 0).then_some(id)
+}
+
+/// Steam only mounts a secondary library whose identity file
+/// (`libraryfolder.vdf`, at the library root and in `steamapps`) carries the
+/// id its library list holds; otherwise the log says "Install folder S: not
+/// mounted" and the download never starts. The folder's id is kept once
+/// written, so every container sharing the library agrees. Returns the id.
+pub fn write_library_identity(library: &Path) -> Result<u64, String> {
+    let files = [
+        library.join("libraryfolder.vdf"),
+        library.join("steamapps/libraryfolder.vdf"),
+    ];
+    let id = files
+        .iter()
+        .find_map(|file| identity_of(file))
+        .unwrap_or_else(|| uuid::Uuid::new_v4().as_u64_pair().0 & 0x7fff_ffff_ffff_ffff);
+    let body =
+        format!("\"libraryfolder\"\n{{\n\t\"contentid\"\t\t\"{id}\"\n\t\"label\"\t\t\"\"\n}}\n");
+    for file in &files {
+        if identity_of(file) != Some(id) {
+            fs::write(file, &body).map_err(|_| {
+                "Orbit cannot write to the install location. Check the drive's permissions."
+                    .to_string()
+            })?;
+        }
+    }
+    Ok(id)
+}
+
+/// A game moving to a picked location leaves no unfinished copy in the
+/// container's own library: Steam would hold both and keep the old one
+/// paused. A finished install there is never touched. Only Orbit's container.
+pub fn drop_unfinished_copy(container_steamapps: &Path, app_id: &str) {
+    let manifest = container_steamapps.join(format!("appmanifest_{app_id}.acf"));
+    if read_state(&manifest).is_none_or(|state| state.installed()) {
+        return;
+    }
+    let _ = fs::remove_file(&manifest);
+    let _ = fs::remove_dir_all(container_steamapps.join("downloading").join(app_id));
+}
+
 /// The game folder the container's Steam installed, once fully installed.
 pub fn client_install_dir(app_id: &str) -> Option<PathBuf> {
-    let (_, steamapps) = container_paths(app_id).ok()?;
+    let steamapps = game_steamapps(app_id).ok()?;
     let manifest = steamapps.join(format!("appmanifest_{app_id}.acf"));
     if !read_state(&manifest)?.installed() {
         return None;
@@ -151,11 +223,43 @@ pub fn client_install_dir(app_id: &str) -> Option<PathBuf> {
     dir.is_dir().then_some(dir)
 }
 
-/// Writes the install request unless Steam already tracks the app; an
-/// existing manifest (a paused download) is left for Steam to resume.
+/// Steam's "update paused" state bit. Steam never resumes such an update on
+/// its own, so a request must clear it.
+const UPDATE_PAUSED: u64 = 0x200;
+
+/// An existing manifest made ready to download again: the paused bit and the
+/// last failure (for example "not enough disk space") are cleared, the byte
+/// counters stay so Steam resumes. None when nothing needs changing.
+pub fn resume_manifest(text: &str) -> Option<String> {
+    let state = parse_state(text);
+    if state.installed() {
+        return None;
+    }
+    let flags = (state.flags & !UPDATE_PAUSED) | 2;
+    let result = vdf_number(text, "UpdateResult");
+    if flags == state.flags && result == 0 {
+        return None;
+    }
+    let set = |text: &str, key: &str, value: u64| {
+        Regex::new(&format!(r#"("{key}"\s+")\d+(")"#))
+            .map(|re| {
+                re.replace(text, format!("${{1}}{value}${{2}}"))
+                    .into_owned()
+            })
+            .unwrap_or_else(|_| text.to_string())
+    };
+    Some(set(&set(text, "StateFlags", flags), "UpdateResult", 0))
+}
+
+/// Writes the install request. An existing manifest (a paused or failed
+/// download) is kept so Steam resumes it, with its pause cleared.
 pub fn queue_install(steamapps: &Path, app_id: &str, title: &str) -> Result<(), String> {
     let manifest = steamapps.join(format!("appmanifest_{app_id}.acf"));
     if manifest.exists() {
+        let text = fs::read_to_string(&manifest).map_err(|err| err.to_string())?;
+        if let Some(resumed) = resume_manifest(&text) {
+            fs::write(&manifest, resumed).map_err(|err| err.to_string())?;
+        }
         return Ok(());
     }
     fs::create_dir_all(steamapps.join("common")).map_err(|err| err.to_string())?;
@@ -195,7 +299,15 @@ pub fn run(
     )
     .map_err(|err| format!("{err:#}"))?;
     let preferences = steam_windows::preferences(repo)?;
-    let (prefix, steamapps) = container_paths(app_id)?;
+    let (prefix, container_steamapps) = container_paths(app_id)?;
+    let library = crate::services::install_locations::library_for_app(app_id);
+    if library.as_deref().is_some_and(|library| !library.is_dir()) {
+        return Err(
+            "The install location for this game is not connected. Connect its drive, or remove the game from the queue and choose another location."
+                .into(),
+        );
+    }
+    let steamapps = game_steamapps(app_id)?;
     let host = SteamHost {
         wine: wine.clone(),
         prefix: prefix.clone(),
@@ -211,7 +323,7 @@ pub fn run(
 
     // A new container is created (and signed in) once before the request is
     // written, so the manifest lands in the Steam library the client reads.
-    if !steamapps.parent().is_some_and(Path::is_dir) {
+    if !container_steamapps.parent().is_some_and(Path::is_dir) {
         super::steam_play::download_environment(
             &profile,
             app_id,
@@ -237,9 +349,18 @@ pub fn run(
     if container_steam::client_running(&prefix) {
         container_steam::shutdown(&host);
     }
+    if let Some(library) = &library {
+        register_library(&prefix, library)?;
+        drop_unfinished_copy(&container_steamapps, app_id);
+    }
     queue_install(&steamapps, app_id, label)?;
     // Only lines this client run writes count; earlier runs are in the log too.
-    let mut log = ContentLog::from_end(&steamapps.with_file_name("logs").join("content_log.txt"));
+    // The log lives with the container's client, wherever the game installs.
+    let mut log = ContentLog::from_end(
+        &container_steamapps
+            .with_file_name("logs")
+            .join("content_log.txt"),
+    );
     super::steam_play::download_environment(&profile, app_id, cancel, &preferences, &mut progress)?;
 
     let result = watch(app, &steamapps, app_id, key, label, &mut log);
@@ -568,6 +689,63 @@ mod tests {
         let downloading = step_event(UpdateStep::Downloading, "Game", (5, 10)).unwrap();
         assert_eq!(downloading["downloadedBytes"], 5);
         assert!(step_event(UpdateStep::Installed, "Game", (0, 0)).is_none());
+    }
+
+    #[test]
+    fn a_paused_failed_manifest_is_made_ready_to_resume() {
+        // Regression: Devil May Cry 5 failed once for disk space (StateFlags
+        // 1554 = 0x612, Update Paused; UpdateResult 12). Orbit kept the file
+        // and Steam never restarted a paused update: "Steam did not start
+        // the download" after four minutes.
+        let text = "\"AppState\"\n{\n\t\"StateFlags\"\t\t\"1554\"\n\t\"UpdateResult\"\t\t\"12\"\n\t\"BytesToDownload\"\t\t\"35526537552\"\n\t\"BytesDownloaded\"\t\t\"100\"\n}\n";
+        let resumed = resume_manifest(text).expect("changed");
+        let state = parse_state(&resumed);
+        assert_eq!(state.flags & UPDATE_PAUSED, 0);
+        assert_eq!(state.flags, 1026 | 0x10);
+        assert_eq!(vdf_number(&resumed, "UpdateResult"), 0);
+        assert_eq!(state.downloaded, 100, "partial bytes stay");
+        assert_eq!(resume_manifest(&resumed), None);
+        assert_eq!(resume_manifest("\"StateFlags\"\t\t\"4\"\n"), None);
+    }
+
+    #[test]
+    fn a_picked_library_keeps_one_identity_in_both_files() {
+        let library = std::env::temp_dir().join(format!("orbit-libid-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(library.join("steamapps")).unwrap();
+        let id = write_library_identity(&library).unwrap();
+        assert!(id > 0);
+        for file in ["libraryfolder.vdf", "steamapps/libraryfolder.vdf"] {
+            let text = fs::read_to_string(library.join(file)).unwrap();
+            assert!(text.starts_with("\"libraryfolder\""));
+            assert!(text.contains(&format!("\"{id}\"")));
+        }
+        assert_eq!(
+            write_library_identity(&library).unwrap(),
+            id,
+            "kept once written"
+        );
+        fs::remove_file(library.join("libraryfolder.vdf")).unwrap();
+        assert_eq!(
+            write_library_identity(&library).unwrap(),
+            id,
+            "restored from the other"
+        );
+        let _ = fs::remove_dir_all(library);
+    }
+
+    #[test]
+    fn moving_a_game_drops_only_an_unfinished_container_copy() {
+        let steamapps = std::env::temp_dir().join(format!("orbit-move-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(steamapps.join("downloading/601150")).unwrap();
+        let manifest = steamapps.join("appmanifest_601150.acf");
+        fs::write(&manifest, "\"StateFlags\"\t\t\"1554\"\n").unwrap();
+        drop_unfinished_copy(&steamapps, "601150");
+        assert!(!manifest.exists());
+        assert!(!steamapps.join("downloading/601150").exists());
+        fs::write(&manifest, "\"StateFlags\"\t\t\"4\"\n").unwrap();
+        drop_unfinished_copy(&steamapps, "601150");
+        assert!(manifest.exists(), "a finished install stays");
+        let _ = fs::remove_dir_all(steamapps);
     }
 
     #[test]

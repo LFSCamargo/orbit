@@ -232,7 +232,7 @@ pub fn download_steam_windows_game(
     state: State<'_, AppState>,
     app_id: String,
 ) -> Result<(), String> {
-    crate::commands::downloads::enqueue_steam_download(app, state, app_id)
+    crate::commands::downloads::enqueue_steam_download(app, state, app_id, None)
 }
 
 #[tauri::command]

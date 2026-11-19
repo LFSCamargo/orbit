@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { InstallLocationDialog } from '@/components/game/InstallLocationDialog'
 import { useDownloadStore } from '@/lib/downloadProgress'
 import { queuePosition, useDownloadQueue } from '@/hooks/useDownloadQueue'
 import { detailsPrimaryAction } from '@/lib/libraryActions'
-import { cancelGameLaunch, enqueueSteamDownload } from '@/lib/tauri'
+import { cancelGameLaunch } from '@/lib/tauri'
 import { open } from '@/lib/dialog'
 import { useUiStore } from '@/stores/ui.store'
 import { notify } from '@/lib/toast'
@@ -30,7 +31,9 @@ export function DetailsPrimaryAction({
   const setScreen = useUiStore((state) => state.setScreen)
   const setSettingsTab = useUiStore((state) => state.setSettingsTab)
   const [cancelling, setCancelling] = useState(false)
-  const start = useDownloadStore((state) => state.start)
+  const [installing, setInstalling] = useState<{ appId: string; title: string } | null>(
+    null,
+  )
   const tasks = useDownloadStore((state) => state.tasks)
   const queue = useDownloadQueue()
   const action = detailsPrimaryAction({
@@ -75,13 +78,7 @@ export function DetailsPrimaryAction({
       return
     }
     if (action.kind === 'install' && entry.steamAppId) {
-      start({ key: `steam:${entry.steamAppId}`, label: entry.game.title })
-      try {
-        await enqueueSteamDownload(entry.steamAppId)
-      } catch (err) {
-        const text = err instanceof Error ? err.message : String(err)
-        useDownloadStore.getState().fail(`steam:${entry.steamAppId}`, text)
-      }
+      setInstalling({ appId: entry.steamAppId, title: entry.game.title })
       return
     }
     if (action.kind === 'sign-in') {
@@ -122,6 +119,7 @@ export function DetailsPrimaryAction({
         )}
         <span>{label}</span>
       </Focusable>
+      <InstallLocationDialog game={installing} onClose={() => setInstalling(null)} />
     </div>
   )
 }
