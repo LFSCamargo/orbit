@@ -59,3 +59,16 @@ The Legend of Zelda: Ocarina of Time, Grand Theft Auto V, Grand Theft Auto VI,
 The Legend of Zelda: Breath of the Wild, and Super Mario Odyssey.
 Game names and artwork belong to their respective owners. SteamGridDB hosting
 does not itself grant redistribution rights.
+
+# Space scene (onboarding, splash and landing site)
+
+`apps/desktop/src/components/ui/3d-globe.tsx` and its copy in
+`apps/landing/src/components/space/Globe3D.tsx` adapt
+[Aceternity UI 3D Globe](https://ui.aceternity.com/components/3d-globe), and the meteor
+streaks adapt [Aceternity UI Meteors](https://ui.aceternity.com/components/meteors), by
+Manu Arora / Aceternity ([terms](https://ui.aceternity.com/terms)).
+
+The Earth textures (`earth-blue-marble.webp`, `earth-topology.webp`) come from
+[three-globe](https://github.com/vasturiano/three-globe) (MIT License, Copyright (c) 2019
+Vasco Asturiano), which redistributes NASA's Blue Marble imagery (public domain, NASA
+Earth Observatory).

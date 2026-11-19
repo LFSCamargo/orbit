@@ -2,18 +2,7 @@ import { formatBytes } from '@/lib/format'
 import { assetLabel } from '@/lib/labels'
 import type { AssetKind, ReleaseAsset } from '@/lib/releases'
 
-const KIND_ORDER: Record<AssetKind, number> = {
-  dmg: 0,
-  'app-archive': 1,
-  exe: 2,
-  msi: 3,
-  appimage: 4,
-  deb: 5,
-  rpm: 6,
-  'linux-archive': 7,
-  checksums: 8,
-  other: 9,
-}
+const KIND_ORDER: Record<AssetKind, number> = { dmg: 0, 'app-archive': 1, checksums: 2 }
 
 export function ReleaseAssets({ assets }: { assets: ReleaseAsset[] }) {
   if (assets.length === 0) {
@@ -23,7 +12,7 @@ export function ReleaseAssets({ assets }: { assets: ReleaseAsset[] }) {
   const ordered = [...assets].sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
 
   return (
-    <ul className="divide-y divide-orbit-border overflow-hidden rounded-card border border-orbit-border bg-orbit-surface">
+    <ul className="orbit-glass divide-y divide-white/[0.07] overflow-hidden rounded-[20px]">
       {ordered.map((asset) => (
         <li
           key={asset.name}

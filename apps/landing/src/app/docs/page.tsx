@@ -21,9 +21,12 @@ const CONTENTS = [
 
 export default function DocsPage() {
   return (
-    <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 lg:grid-cols-[14rem_1fr] lg:py-24">
+    <div className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-32 lg:grid-cols-[14rem_1fr] lg:pb-28 lg:pt-36">
       <aside>
-        <nav aria-label="Documentation" className="lg:sticky lg:top-28">
+        <nav
+          aria-label="Documentation"
+          className="orbit-glass rounded-[20px] p-5 lg:sticky lg:top-28"
+        >
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-orbit-accent">
             Orbit manual
           </p>
@@ -47,7 +50,7 @@ export default function DocsPage() {
         </nav>
       </aside>
 
-      <article className="min-w-0 max-w-3xl [&_a]:text-orbit-accent hover:[&_a]:text-orbit-focus [&_code]:rounded [&_code]:bg-white/[0.06] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_code]:text-orange-200 [&_h2]:mt-16 [&_h2]:scroll-mt-28 [&_h2]:text-3xl [&_h2]:font-medium [&_h2]:tracking-[-0.035em] [&_h2]:text-orbit-foreground [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-medium [&_h3]:text-orbit-foreground [&_li]:mt-4 [&_li]:text-sm [&_li]:leading-7 [&_li]:text-orbit-muted [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mt-4 [&_p]:text-sm [&_p]:leading-7 [&_p]:text-orbit-muted [&_strong]:font-medium [&_strong]:text-orbit-foreground [&_ul]:mt-4 [&_ul]:flex [&_ul]:list-disc [&_ul]:flex-col [&_ul]:gap-2 [&_ul]:pl-5">
+      <article className="orbit-glass min-w-0 max-w-3xl rounded-[28px] p-7 sm:p-10 [&_a]:text-orbit-accent hover:[&_a]:text-orbit-focus [&_code]:rounded [&_code]:bg-white/[0.06] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_code]:text-orange-200 [&_h2]:mt-16 [&_h2]:scroll-mt-28 [&_h2]:text-3xl [&_h2]:font-medium [&_h2]:tracking-[-0.035em] [&_h2]:text-orbit-foreground [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-medium [&_h3]:text-orbit-foreground [&_li]:mt-4 [&_li]:text-sm [&_li]:leading-7 [&_li]:text-orbit-muted [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mt-4 [&_p]:text-sm [&_p]:leading-7 [&_p]:text-orbit-muted [&_strong]:font-medium [&_strong]:text-orbit-foreground [&_ul]:mt-4 [&_ul]:flex [&_ul]:list-disc [&_ul]:flex-col [&_ul]:gap-2 [&_ul]:pl-5">
         <header>
           <p className="!mt-0 font-mono text-xs uppercase tracking-[0.24em] text-orbit-accent">
             Documentation

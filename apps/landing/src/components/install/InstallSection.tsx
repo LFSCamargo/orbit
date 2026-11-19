@@ -12,7 +12,7 @@ export function InstallSection({ id, title, step, children }: InstallSectionProp
     <section id={id} aria-labelledby={`${id}-heading`} className="scroll-mt-24">
       <h2 id={`${id}-heading`} className="flex items-center gap-3 text-2xl font-bold">
         {step !== undefined && (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orbit-accent text-base text-orbit-canvas">
+          <span className="orbit-btn-fire flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base">
             {step}
           </span>
         )}

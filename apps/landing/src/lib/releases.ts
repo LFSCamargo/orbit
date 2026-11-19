@@ -1,15 +1,6 @@
-export type AssetPlatform = 'macos' | 'windows' | 'linux'
-export type AssetKind =
-  | 'dmg'
-  | 'app-archive'
-  | 'exe'
-  | 'msi'
-  | 'appimage'
-  | 'deb'
-  | 'rpm'
-  | 'linux-archive'
-  | 'checksums'
-  | 'other'
+/** Orbit ships for macOS only: a disk image, an app archive, and checksums.
+ * Other files on a release (older Windows/Linux builds) are not offered. */
+export type AssetKind = 'dmg' | 'app-archive' | 'checksums'
 export type AssetArch = 'arm64' | 'x64' | 'universal'
 
 export interface ReleaseAsset {
@@ -18,7 +9,6 @@ export interface ReleaseAsset {
   size: number
   kind: AssetKind
   arch: AssetArch | null
-  platform: AssetPlatform | null
 }
 
 export interface Release {
@@ -64,28 +54,14 @@ function detectArch(name: string): AssetArch | null {
   return null
 }
 
-export function classifyAsset(
-  name: string,
-): Pick<ReleaseAsset, 'kind' | 'arch' | 'platform'> {
+/** The macOS file a release asset is, or null when it is not one. */
+export function classifyAsset(name: string): Pick<ReleaseAsset, 'kind' | 'arch'> | null {
   const lowerName = name.toLowerCase()
   const arch = detectArch(lowerName)
-  if (/sha256sums/i.test(lowerName)) {
-    return { kind: 'checksums', arch: null, platform: null }
-  }
-  if (lowerName.endsWith('.dmg')) return { kind: 'dmg', arch, platform: 'macos' }
-  if (lowerName.endsWith('.app.tar.gz')) {
-    return { kind: 'app-archive', arch, platform: 'macos' }
-  }
-  if (lowerName.endsWith('.exe')) return { kind: 'exe', arch, platform: 'windows' }
-  if (lowerName.endsWith('.msi')) return { kind: 'msi', arch, platform: 'windows' }
-  if (lowerName.endsWith('.appimage'))
-    return { kind: 'appimage', arch, platform: 'linux' }
-  if (lowerName.endsWith('.deb')) return { kind: 'deb', arch, platform: 'linux' }
-  if (lowerName.endsWith('.rpm')) return { kind: 'rpm', arch, platform: 'linux' }
-  if (/\.(?:tar\.gz|tgz|tar\.xz|zip)$/.test(lowerName)) {
-    return { kind: 'linux-archive', arch, platform: 'linux' }
-  }
-  return { kind: 'other', arch: null, platform: null }
+  if (/sha256sums/i.test(lowerName)) return { kind: 'checksums', arch: null }
+  if (lowerName.endsWith('.dmg')) return { kind: 'dmg', arch }
+  if (lowerName.endsWith('.app.tar.gz')) return { kind: 'app-archive', arch }
+  return null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,12 +73,9 @@ function parseAsset(raw: unknown): ReleaseAsset | null {
   const { name, browser_download_url: url, size } = raw
   if (typeof name !== 'string' || typeof url !== 'string') return null
   if (!url.startsWith(DOWNLOAD_HOST)) return null
-  return {
-    name,
-    url,
-    size: typeof size === 'number' ? size : 0,
-    ...classifyAsset(name),
-  }
+  const kind = classifyAsset(name)
+  if (!kind) return null
+  return { name, url, size: typeof size === 'number' ? size : 0, ...kind }
 }
 
 function parseRelease(raw: unknown): Release | null {
@@ -143,29 +116,15 @@ export function findRelease(releases: Release[], version: string): Release | und
   return releases.find((r) => r.version === version)
 }
 
-const DOWNLOAD_PRIORITY: Record<AssetPlatform, AssetKind[]> = {
-  macos: ['dmg', 'app-archive'],
-  windows: ['exe', 'msi'],
-  linux: ['appimage', 'deb', 'rpm', 'linux-archive'],
-}
+const DOWNLOAD_PRIORITY: AssetKind[] = ['dmg', 'app-archive']
+const ARCH_PRIORITY: Array<AssetArch | null> = ['arm64', 'universal', 'x64', null]
 
-const ARCH_PRIORITY: Record<AssetPlatform, Array<AssetArch | null>> = {
-  macos: ['arm64', 'universal', 'x64', null],
-  windows: ['x64', 'arm64', null],
-  linux: ['x64', 'arm64', null],
-}
-
-export function primaryDownload(
-  release: Release,
-  platform: AssetPlatform = 'macos',
-): ReleaseAsset | undefined {
-  for (const kind of DOWNLOAD_PRIORITY[platform]) {
-    for (const arch of ARCH_PRIORITY[platform]) {
+/** The file "Download for Mac" points at: the Apple Silicon disk image first. */
+export function primaryDownload(release: Release): ReleaseAsset | undefined {
+  for (const kind of DOWNLOAD_PRIORITY) {
+    for (const arch of ARCH_PRIORITY) {
       const match = release.assets.find(
-        (asset) =>
-          asset.platform === platform &&
-          asset.kind === kind &&
-          (arch === null || asset.arch === arch),
+        (asset) => asset.kind === kind && (arch === null || asset.arch === arch),
       )
       if (match) return match
     }

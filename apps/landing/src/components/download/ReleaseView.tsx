@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { formatReleaseDate } from '@/lib/format'
 import { latestStable, type Release } from '@/lib/releases'
 import { DownloadButton } from './DownloadButton'
+import { GlassPanel } from '@/components/ui/glass-panel'
 import { ReleaseAssets } from './ReleaseAssets'
 import { ReleaseNotes } from './ReleaseNotes'
 import { VersionList } from './VersionList'
@@ -20,7 +21,7 @@ export function ReleaseView({ releases, release }: ReleaseViewProps) {
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_16rem]">
       <div className="min-w-0 space-y-10">
-        <section className="space-y-6">
+        <GlassPanel as="section" className="space-y-6 p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold sm:text-4xl">Orbit {release.version}</h1>
@@ -37,18 +38,16 @@ export function ReleaseView({ releases, release }: ReleaseViewProps) {
             <VersionPicker versions={options} current={release.version} />
           </div>
           <div className="flex flex-wrap gap-3">
-            <DownloadButton release={release} platform="macos" compact />
-            <DownloadButton release={release} platform="windows" compact />
-            <DownloadButton release={release} platform="linux" compact />
+            <DownloadButton release={release} />
           </div>
           <p className="text-sm text-orbit-muted">
-            Available for macOS, Windows, and Linux. First time installing?{' '}
+            For Macs with Apple silicon, macOS 12 or later. First time installing?{' '}
             <Link href="/install" className="text-orbit-accent hover:underline">
               Read the install guide
             </Link>
             .
           </p>
-        </section>
+        </GlassPanel>
 
         <section aria-labelledby="files-heading" className="space-y-4">
           <h2 id="files-heading" className="text-xl font-semibold">

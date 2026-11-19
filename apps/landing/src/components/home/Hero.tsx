@@ -1,61 +1,45 @@
-import Image from 'next/image'
+import Link from 'next/link'
 import { DownloadButton } from '@/components/download/DownloadButton'
-import { DocsCta } from '@/components/home/DocsCta'
-import { LiquidGlass } from '@/components/ui/liquid-glass'
-import { Spotlight } from '@/components/ui/spotlight-new'
-import { TextGenerateEffect } from '@/components/ui/text-generate-effect'
+import { Planet } from '@/components/space/Planet'
+import { buttonClass } from '@/components/ui/button'
 import type { Release } from '@/lib/releases'
 
+/** The first screen, as Orbit's splash: the logo above a planet's horizon,
+ * under the page's sky of sparkles and meteors. */
 export function Hero({ latest }: { latest: Release | undefined }) {
   return (
-    <div className="relative overflow-hidden pt-28">
-      <Spotlight />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[52rem] bg-[linear-gradient(rgb(255_255_255/0.035)_1px,transparent_1px),linear-gradient(90deg,rgb(255_255_255/0.035)_1px,transparent_1px)] bg-[length:64px_64px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-      <div className="pointer-events-none absolute left-1/2 top-0 h-[32rem] w-[60rem] -translate-x-1/2 rounded-full bg-orange-600/10 blur-[140px]" />
-
-      <section className="relative mx-auto max-w-7xl px-6 pb-16 pt-12 text-center sm:pb-24 sm:pt-20">
-        <LiquidGlass
-          radius={999}
-          className="mx-auto mb-8 inline-flex items-center gap-2.5 px-4 py-2"
-          tint={0.08}
-        >
-          <Image
-            src="/assets/orbit-icon.png"
-            alt=""
-            width={20}
-            height={20}
-            className="rounded-md"
-          />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-orbit-muted">
-            Your games. Your machine. Your Orbit.
-          </span>
-        </LiquidGlass>
-
-        <h1 className="mx-auto mt-2 max-w-5xl text-[clamp(3.5rem,8vw,7.5rem)] font-medium leading-[0.9] tracking-[-0.065em]">
+    <section className="relative isolate flex min-h-[100svh] flex-col items-center overflow-hidden px-6 pb-[24svh] pt-32 text-center sm:pt-36">
+      <Planet />
+      <div className="relative flex flex-1 flex-col items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- brand mark, painted at once */}
+        <img
+          src="/assets/orbit-logo.png"
+          alt="Orbit"
+          className="float-soft h-auto w-[min(300px,62vw)] drop-shadow-[0_12px_30px_rgb(0_0_0/0.55)]"
+        />
+        <h1 className="mx-auto mt-8 max-w-5xl text-[clamp(2.8rem,7vw,6.5rem)] font-medium leading-[0.92] tracking-[-0.06em]">
           Every game.
           <br />
-          <span className="bg-gradient-to-r from-red-500 via-orange-400 to-yellow-300 bg-clip-text text-transparent">
-            One orbit.
-          </span>
+          <span className="fire-text">One orbit.</span>
         </h1>
-
-        <TextGenerateEffect
-          words="A controller-first home for your entire game library. Import what you own, make it beautiful, and get from the couch to playing in seconds."
-          className="mx-auto mt-8 max-w-2xl text-base leading-7 text-orbit-muted sm:text-lg"
-          filter={false}
-        />
-
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-5">
-          <DownloadButton release={latest} />
-          <DocsCta>
-            See how Orbit works <span aria-hidden="true">→</span>
-          </DocsCta>
-        </div>
-
-        <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-orbit-muted">
-          Open source · macOS · Windows · Linux · Local by default
+        <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-white/70 sm:text-lg">
+          The controller-first game launcher for your Mac. Steam, Windows games through
+          Orbit Wine and Apple&apos;s Game Porting Toolkit, and your Mac apps, in one
+          beautiful library.
         </p>
-      </section>
-    </div>
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <DownloadButton release={latest} />
+          <Link
+            href="/docs"
+            className={buttonClass({ variant: 'secondary', size: 'lg' })}
+          >
+            See how Orbit works <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-white/50">
+          Free and open source · Apple silicon · macOS 12+ · Local by default
+        </p>
+      </div>
+    </section>
   )
 }

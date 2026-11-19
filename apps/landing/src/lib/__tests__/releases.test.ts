@@ -11,47 +11,35 @@ import {
 import { githubRelease } from './fixtures'
 
 describe('classifyAsset', () => {
-  it('detects DMGs, app archives, and checksums with their architecture', () => {
+  it('detects macOS DMGs, app archives, and checksums with their architecture', () => {
     expect(classifyAsset('Orbit-0.3.0-aarch64.dmg')).toEqual({
       kind: 'dmg',
       arch: 'arm64',
-      platform: 'macos',
     })
     expect(classifyAsset('Orbit-0.3.0-x86_64.app.tar.gz')).toEqual({
       kind: 'app-archive',
       arch: 'x64',
-      platform: 'macos',
     })
     expect(classifyAsset('Orbit-0.3.0-universal.dmg')).toEqual({
       kind: 'dmg',
       arch: 'universal',
-      platform: 'macos',
     })
-    expect(classifyAsset('Orbit-0.3.0-x64-setup.exe')).toEqual({
-      kind: 'exe',
-      arch: 'x64',
-      platform: 'windows',
-    })
-    expect(classifyAsset('Orbit-0.3.0-amd64.AppImage')).toEqual({
-      kind: 'appimage',
-      arch: 'x64',
-      platform: 'linux',
-    })
-    expect(classifyAsset('Orbit-0.3.0-arm64.deb')).toEqual({
-      kind: 'deb',
-      arch: 'arm64',
-      platform: 'linux',
-    })
-    expect(classifyAsset('SHA256SUMS.txt')).toEqual({
-      kind: 'checksums',
-      arch: null,
-      platform: null,
-    })
-    expect(classifyAsset('notes.txt')).toEqual({
-      kind: 'other',
-      arch: null,
-      platform: null,
-    })
+    expect(classifyAsset('SHA256SUMS.txt')).toEqual({ kind: 'checksums', arch: null })
+  })
+
+  it('ignores files that are not for Orbit on macOS', () => {
+    for (const name of [
+      'Orbit-0.3.0-x64-setup.exe',
+      'Orbit-0.3.0-x64.msi',
+      'Orbit-0.3.0-amd64.AppImage',
+      'Orbit-0.3.0-arm64.deb',
+      'Orbit-0.3.0-x86_64.rpm',
+      'Orbit-0.3.0-linux-x64.tar.gz',
+      'orbit-wine-26.3.0.tar.zst',
+      'notes.txt',
+    ]) {
+      expect(classifyAsset(name)).toBeNull()
+    }
   })
 })
 
@@ -84,7 +72,6 @@ describe('parseReleases', () => {
       name: 'Orbit-0.3.0-aarch64.dmg',
       kind: 'dmg',
       arch: 'arm64',
-      platform: 'macos',
       size: 12_582_912,
     })
   })
@@ -121,6 +108,14 @@ describe('parseReleases', () => {
     expect(release.assets.map((a) => a.name)).toEqual(['Orbit-0.3.0-aarch64.dmg'])
   })
 
+  it('ignores Orbit Wine releases, which share the repository', () => {
+    const releases = parseReleases([
+      githubRelease('0.3.0', { tag_name: 'orbit-wine-v26.3.0' }),
+      githubRelease('0.2.0'),
+    ])
+    expect(releases.map((r) => r.version)).toEqual(['0.2.0'])
+  })
+
   it('returns an empty list for a non-array payload', () => {
     expect(parseReleases({ message: 'API rate limit exceeded' })).toEqual([])
   })
@@ -149,28 +144,20 @@ describe('primaryDownload', () => {
     expect(primaryDownload(release)?.name).toBe('Orbit-0.3.0-aarch64.dmg')
   })
 
-  it('selects Windows and Linux installers independently', () => {
+  it('lists only macOS files and checksums from a release', () => {
+    const url = (name: string) =>
+      `https://github.com/LFSCamargo/orbit/releases/download/v0.3.0/${name}`
     const [release] = parseReleases([
       githubRelease('0.3.0', {
         assets: [
-          {
-            name: 'Orbit-0.3.0-x64-setup.exe',
-            size: 1,
-            browser_download_url:
-              'https://github.com/LFSCamargo/orbit/releases/download/v0.3.0/Orbit-0.3.0-x64-setup.exe',
-          },
-          {
-            name: 'Orbit-0.3.0-amd64.AppImage',
-            size: 1,
-            browser_download_url:
-              'https://github.com/LFSCamargo/orbit/releases/download/v0.3.0/Orbit-0.3.0-amd64.AppImage',
-          },
-        ],
+          'Orbit-0.3.0-x64-setup.exe',
+          'Orbit-0.3.0-amd64.AppImage',
+          'SHA256SUMS.txt',
+        ].map((name) => ({ name, size: 1, browser_download_url: url(name) })),
       }),
     ])
-    expect(primaryDownload(release, 'windows')?.kind).toBe('exe')
-    expect(primaryDownload(release, 'linux')?.kind).toBe('appimage')
-    expect(primaryDownload(release, 'macos')).toBeUndefined()
+    expect(release.assets.map((a) => a.name)).toEqual(['SHA256SUMS.txt'])
+    expect(primaryDownload(release)).toBeUndefined()
   })
 
   it('falls back to the app archive when no DMG exists', () => {

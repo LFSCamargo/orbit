@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { GlassCard } from '@/components/ui/glass-card'
+import { GlassPanel } from '@/components/ui/glass-panel'
 import { Reveal } from '@/components/ui/reveal'
 
 const SWATCHES = [
@@ -10,7 +10,7 @@ const SWATCHES = [
 
 export function ThemesSection() {
   return (
-    <section className="border-y border-orbit-border bg-white/[0.015]">
+    <section>
       <div className="mx-auto grid max-w-7xl gap-14 px-6 py-24 sm:py-32 lg:grid-cols-2 lg:items-center">
         <Reveal>
           <div>
@@ -20,7 +20,7 @@ export function ThemesSection() {
             <h2 className="mt-5 max-w-xl text-4xl font-medium tracking-[-0.045em] sm:text-6xl">
               A front end with your signature.
             </h2>
-            <p className="mt-6 max-w-lg text-base leading-7 text-orbit-muted">
+            <p className="mt-6 max-w-lg text-base leading-7 text-white/65">
               Start with a console-inspired shell, then tune the color, motion, wallpaper,
               logo, and per-game accents. The built-in studio turns plain JSON into a home
               screen that feels unmistakably yours.
@@ -35,11 +35,7 @@ export function ThemesSection() {
         </Reveal>
 
         <Reveal delay={0.1}>
-          <GlassCard
-            radius={28}
-            className="relative min-h-[26rem] overflow-hidden p-6 sm:p-8"
-          >
-            <div className="absolute inset-0 bg-[linear-gradient(rgb(255_255_255/0.035)_1px,transparent_1px),linear-gradient(90deg,rgb(255_255_255/0.035)_1px,transparent_1px)] bg-[length:64px_64px] opacity-60" />
+          <GlassPanel className="relative min-h-[26rem] overflow-hidden p-6 sm:p-8">
             <div className="relative flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-6">
               <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-zinc-500">
                 <span>Orbit / Theme studio</span>
@@ -68,7 +64,7 @@ export function ThemesSection() {
                 ))}
               </div>
             </div>
-          </GlassCard>
+          </GlassPanel>
         </Reveal>
       </div>
     </section>
