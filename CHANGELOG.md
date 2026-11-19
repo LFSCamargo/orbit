@@ -20,6 +20,41 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-19
+
+Universal gaming experience for Mac
+
+### Added
+
+- First-run onboarding that sets up Orbit Wine containers, opening over an animated splash.
+- Orbit Wine containers with D3DMetal, Steam sign-in seeding, and Bluetooth/USB controller passthrough.
+- Windows Steam: sign in, download, play and uninstall games, with a download queue, live progress, offline pause/resume and a per-game install location.
+- Game Mode for Orbit Wine, staged launch progress, and a launch card showing runtime and controller.
+- Startup crash prevention for known and new games.
+- Windows compatibility settings and graphics components, including GameHub imports, vkd3d-proton and zink.
+- Storage settings with measured install sizes.
+- Toasts for downloads, launches and errors.
+- Controller stick navigation and pane scrolling; B cancels one step at a time.
+- Rebuilt macOS landing site.
+
+### Changed
+
+- One unified library that shows each game's source and groups mixed libraries by source. GameHub is no longer a separate provider.
+- The library shows only games, hiding software and tools such as Driver Booster.
+- Games start as their own macOS process, and Orbit's background work pauses during play.
+- Fresh installs default to MSync, AVX and MetalFX.
+- Library settings redesigned as cards, plus a shared side drawer, pill-shaped buttons, skeleton loaders and debounced search.
+
+### Fixed
+
+- Home offers Install, not Jump back in, for games not on this Mac.
+- Steam keeps exactly one Orbit client, stops it on quit, and reuses the saved sign-in.
+- Games get the screen instead of a black Space, and Orbit no longer toggles fullscreen.
+- Artwork loads reliably, isn't re-downloaded when unchanged, and broken logos are hidden.
+- Steam game launch settings save, and a failed save says why.
+
+[2.0.0]: https://github.com/LFSCamargo/orbit/releases/tag/v2.0.0
+
 ## [1.1.2] - 2026-11-15
 
 ### Fixed
