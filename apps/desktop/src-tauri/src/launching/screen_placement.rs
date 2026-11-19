@@ -11,9 +11,7 @@ pub fn screen_watcher_process_names(
     provider: GameProvider,
 ) -> Vec<String> {
     match config {
-        LaunchConfiguration::Gamehub { .. } => {
-            vec![crate::launching::gamehub_readiness::GAMEHUB_PROCESS_NAME.into()]
-        }
+        LaunchConfiguration::Wine { .. } => Vec::new(),
         LaunchConfiguration::Steam { .. } => vec![STEAM_PROCESS_NAME.into()],
         LaunchConfiguration::OpenApplication {
             application_path, ..
@@ -39,8 +37,6 @@ pub fn screen_watcher_process_names(
         LaunchConfiguration::OpenUrl { url } => {
             if url.starts_with("steam://") {
                 vec![STEAM_PROCESS_NAME.into()]
-            } else if url.starts_with("gamehub://") {
-                vec![crate::launching::gamehub_readiness::GAMEHUB_PROCESS_NAME.into()]
             } else {
                 Vec::new()
             }
@@ -110,18 +106,6 @@ mod tests {
     }
 
     #[test]
-    fn watcher_names_for_gamehub_config() {
-        let names = screen_watcher_process_names(
-            &LaunchConfiguration::Gamehub {
-                gamehub_app_path: "/Applications/GameHub.app".into(),
-                shortcut_app_path: "/Applications/Games/Hades.app".into(),
-            },
-            GameProvider::Gamehub,
-        );
-        assert_eq!(names, vec!["GameHub".to_string()]);
-    }
-
-    #[test]
     fn watcher_names_for_open_application() {
         let names = screen_watcher_process_names(
             &LaunchConfiguration::OpenApplication {
@@ -134,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn watcher_names_for_steam_and_gamehub_urls() {
+    fn watcher_names_for_steam_urls() {
         let steam = screen_watcher_process_names(
             &LaunchConfiguration::OpenUrl {
                 url: "steam://rungameid/570".into(),
@@ -142,14 +126,6 @@ mod tests {
             GameProvider::Manual,
         );
         assert_eq!(steam, vec!["Steam".to_string()]);
-
-        let gamehub = screen_watcher_process_names(
-            &LaunchConfiguration::OpenUrl {
-                url: "gamehub://launch/abc".into(),
-            },
-            GameProvider::Manual,
-        );
-        assert_eq!(gamehub, vec!["GameHub".to_string()]);
 
         let other = screen_watcher_process_names(
             &LaunchConfiguration::OpenUrl {

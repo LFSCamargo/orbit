@@ -114,7 +114,7 @@ export function SwitchTitleGroupCard({
               order={0}
               noScale
               onClick={() => onOpenGame(group.linkedGameId!)}
-              className="orbit-glass-control inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm"
+              className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm"
             >
               <Library className="h-4 w-4" />
               Open in library

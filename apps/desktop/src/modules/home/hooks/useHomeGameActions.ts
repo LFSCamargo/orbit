@@ -1,15 +1,29 @@
-import type { Game, GameSession } from '@/types/game'
+import { selectInstallation } from '@/lib/libraryEntries'
+import type { GameSession } from '@/types/game'
+import type { LibraryEntry } from '@/types/library'
+import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
+import { homeLaunchId } from '../lib/homeHero'
+
+export type HomeView = 'recent' | 'installed' | 'favorites'
 
 export interface ThemeHomeProps {
-  games: Game[]
-  heroGame: Game
+  view?: HomeView
+  onView?: (view: HomeView) => void
+  shelfEntries?: LibraryEntry[]
+  shelfPending?: boolean
+  shelfError?: boolean
+  onRetry?: () => void
+  entries: LibraryEntry[]
+  heroEntry: LibraryEntry
   activeSession: GameSession | null
-  onPlay: (game: Game) => void
+  onPlay: (entry: LibraryEntry) => void
   onStop: () => void
-  onFavorite: (game: Game) => void
+  onFavorite: (entry: LibraryEntry) => void
+  showFavorites?: boolean
+  steamReady?: boolean
 }
 
-export function gameStats(game: Game) {
+export function gameStats(game: LibraryEntry['game']) {
   const achievements = game.achievements ?? []
   const unlocked = achievements.filter((a) => a.unlocked).length
   return { achievements, unlocked }
@@ -18,27 +32,31 @@ export function gameStats(game: Game) {
 export function createHomeGameHandlers(
   activeSession: GameSession | null,
   setHero: (gameId: string) => void,
-  onPlay: (game: Game) => void,
+  onPlay: (entry: LibraryEntry) => void,
   onStop: () => void,
-  heroGameId: string,
+  heroEntryId: string,
+  steamReady = true,
 ) {
-  const selectGame = (game: Game) => setHero(game.id)
+  const selectGame = (entry: LibraryEntry) => setHero(entry.id)
 
-  const launchGame = (game: Game) => {
-    setHero(game.id)
-    if (activeSession?.gameId === game.id) {
+  const launchGame = (entry: LibraryEntry) => {
+    setHero(entry.id)
+    if (activeSession?.gameId === homeLaunchId(entry)) {
       onStop()
-    } else {
-      onPlay(game)
+    } else if (selectInstallation(entry)?.available !== true) {
+      // Not on this Mac: the hero offers Install instead of a launch that
+      // can only end in "Game not found".
+      return
+    } else if (!isWindowsSteamPlay(entry) || steamReady) {
+      onPlay(entry)
     }
   }
 
-  /** First press selects; confirming the already-selected tile launches. */
-  const activateGame = (game: Game) => {
-    if (game.id === heroGameId) {
-      launchGame(game)
+  const activateGame = (entry: LibraryEntry) => {
+    if (entry.id === heroEntryId) {
+      launchGame(entry)
     } else {
-      selectGame(game)
+      selectGame(entry)
     }
   }
 

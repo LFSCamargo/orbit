@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { clsx } from 'clsx'
 import { Heart } from 'lucide-react'
 import type { Game } from '@/types/game'
-import { gameTileImage } from '@/lib/artwork'
+import { gameTileFit, gameTileImage } from '@/lib/artwork'
 import { Focusable } from '@/components/focus/Focusable'
 import { SquareGameArt } from '@/components/game/SquareGameArt'
 import { placeholderGradient } from '@/lib/format'
@@ -36,7 +36,7 @@ function GameCardComponent({
   const isSquare = variant === 'square'
   const tileImage = image
   const tilePlaceholder = placeholderGradient(game.id)
-  const squareArtFit = game.artwork.icon ? 'contain' : 'cover'
+  const squareArtFit = gameTileFit(game.artwork, variant)
 
   const handleActivate = () => {
     onSelect(game.id)

@@ -1,5 +1,5 @@
 pub mod astris;
-pub mod gamehub;
+pub mod manual;
 pub mod native_apps;
 pub mod steam;
 
@@ -23,6 +23,9 @@ pub trait GameImporter: Send + Sync {
 }
 
 pub use astris::AstrisImporter;
-pub use gamehub::{detect_gamehub, import_manual_path, GameHubImporter};
+pub use manual::import_manual_path;
 pub use native_apps::NativeAppImporter;
 pub use steam::SteamImporter;
+
+pub mod steam_windows;
+pub use steam_windows::SteamWindowsImporter;

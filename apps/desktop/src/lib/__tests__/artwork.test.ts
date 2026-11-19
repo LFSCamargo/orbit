@@ -7,6 +7,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 import {
   artworkPreview,
   gameHeroImage,
+  gameLogoImage,
+  gameSquareTileImage,
+  gameTileFit,
   gameTileImage,
   isBase64Artwork,
 } from '@/lib/artwork'
@@ -37,7 +40,7 @@ describe('gameHeroImage', () => {
 })
 
 describe('gameTileImage', () => {
-  it('prefers icon for square tiles', () => {
+  it('prefers square icon art over portrait covers', () => {
     expect(
       gameTileImage(
         {
@@ -76,6 +79,59 @@ describe('gameTileImage', () => {
     expect(gameTileImage({ hero: 'https://cdn.example/hero.jpg' })).toBe(
       'https://cdn.example/hero.jpg',
     )
+  })
+})
+
+describe('gameSquareTileImage', () => {
+  it('uses only 1:1 icon art and never portrait cover or hero', () => {
+    expect(
+      gameSquareTileImage({
+        icon: 'https://cdn.example/icon.png',
+        cover: 'https://cdn.example/cover.jpg',
+        hero: 'https://cdn.example/hero.jpg',
+      }),
+    ).toBe('https://cdn.example/icon.png')
+    expect(
+      gameSquareTileImage({
+        cover: 'https://cdn.example/cover.jpg',
+        hero: 'https://cdn.example/hero.jpg',
+      }),
+    ).toBeUndefined()
+  })
+})
+
+describe('gameTileFit', () => {
+  it('contains square tiles that have icon art', () => {
+    expect(
+      gameTileFit(
+        { cover: 'https://cdn.example/cover.jpg', icon: 'https://cdn.example/icon.png' },
+        'square',
+      ),
+    ).toBe('contain')
+  })
+
+  it('cover-fits square tiles that fall back to portrait art', () => {
+    expect(gameTileFit({ cover: 'https://cdn.example/cover.jpg' }, 'square')).toBe(
+      'cover',
+    )
+  })
+})
+
+describe('gameLogoImage', () => {
+  it('prefers a stored logo over the Steam wordmark', () => {
+    expect(
+      gameLogoImage({ logo: 'https://cdn.example/custom-logo.png' }, '1593500'),
+    ).toBe('https://cdn.example/custom-logo.png')
+  })
+
+  it('uses the Steam horizontal logo when the logo slot is empty', () => {
+    expect(gameLogoImage({}, '1593500')).toBe(
+      'https://cdn.akamai.steamstatic.com/steam/apps/1593500/logo.png',
+    )
+  })
+
+  it('returns undefined when there is no logo and no Steam id', () => {
+    expect(gameLogoImage({ cover: 'https://cdn.example/cover.jpg' })).toBeUndefined()
   })
 })
 

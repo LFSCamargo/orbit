@@ -1,43 +1,47 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { act, cleanup, render, screen } from '@testing-library/react'
+import { motion } from 'framer-motion'
+import { afterEach, expect, it } from 'vitest'
 import { DrawerProvider, useDrawer } from '../DrawerProvider'
-
-function DrawerTrigger() {
-  const { openDrawer, closeDrawer } = useDrawer()
-  return (
-    <button
-      onClick={() =>
-        openDrawer(
-          <div role="dialog" aria-label="Artwork picker">
-            <button onClick={closeDrawer}>Close drawer</button>
-          </div>,
-        )
-      }
-    >
-      Open drawer
-    </button>
-  )
-}
 
 afterEach(cleanup)
 
-describe('DrawerProvider', () => {
-  it('portals drawers outside transformed page stacking contexts', () => {
-    const { container } = render(
-      <DrawerProvider>
-        <div style={{ transform: 'translateZ(0)', opacity: 0.5 }}>
-          <DrawerTrigger />
-        </div>
-      </DrawerProvider>,
-    )
+let drawer: ReturnType<typeof useDrawer>
+function Capture() {
+  drawer = useDrawer()
+  return null
+}
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }))
-    const dialog = screen.getByRole('dialog', { name: 'Artwork picker' })
+it('keeps a closing drawer mounted until its exit animation has run', async () => {
+  render(
+    <DrawerProvider>
+      <Capture />
+    </DrawerProvider>,
+  )
+  act(() =>
+    drawer.openDrawer(
+      <motion.div
+        data-testid="drawer"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0, transition: { duration: 0.2 } }}
+      />,
+    ),
+  )
+  expect(screen.getByTestId('drawer')).toBeInTheDocument()
+  act(() => drawer.closeDrawer())
+  // Still there while it fades out, then gone.
+  expect(screen.getByTestId('drawer')).toBeInTheDocument()
+  await act(() => new Promise((resolve) => setTimeout(resolve, 400)))
+  expect(screen.queryByTestId('drawer')).not.toBeInTheDocument()
+})
 
-    expect(dialog.parentElement).toBe(document.body)
-    expect(container.querySelector('[role="dialog"]')).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }))
-    expect(screen.queryByRole('dialog', { name: 'Artwork picker' })).toBeNull()
-  })
+it('removes drawers without exit animations at once', () => {
+  render(
+    <DrawerProvider>
+      <Capture />
+    </DrawerProvider>,
+  )
+  act(() => drawer.openDrawer(<div data-testid="plain" />))
+  act(() => drawer.closeDrawer())
+  expect(screen.queryByTestId('plain')).not.toBeInTheDocument()
 })

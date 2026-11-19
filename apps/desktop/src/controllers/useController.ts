@@ -1,5 +1,6 @@
 import { keyboardControllerAction } from './keyboard'
 import { useEffect, useState } from 'react'
+import { splashActive } from '@/app/splash/splash'
 import { listen } from '@tauri-apps/api/event'
 import type { ControllerAction, ControllerFamily } from './ControllerMapping'
 import { focusManager } from './FocusManager'
@@ -8,6 +9,12 @@ import { backTarget, focusRestoreId, screenEntryFocusId } from '@/lib/navigation
 import { applyPageScroll } from '@/lib/pageScroll'
 import { showOrbitWindow, isTauriRuntime } from '@/lib/tauri'
 import { useUiStore } from '@/stores/ui.store'
+import {
+  onboardingAllows,
+  onboardingVisible,
+} from '@/modules/onboarding/lib/onboardingVisibility'
+import { closeTopOverlay } from './overlayStack'
+import { leaveTextField } from './leaveTextField'
 import { useNavigationInput } from './useNavigationInput'
 import type { AppScreen } from '@/types/game'
 
@@ -34,9 +41,38 @@ export function useControllerNavigation() {
 
     const handleAction = (action: ControllerAction) => {
       setFamily(gamepadManager.getFamily())
+      // Orbit is still starting behind the splash: presses there would land
+      // on a screen that is still moving into place. Onboarding, shown over
+      // the splash on a first run, takes input.
+      if (splashActive() && !onboardingVisible()) return
+      // A portaled Select owns directional input until it closes.
+      const menu = document.querySelector('[role="listbox"]')
+      const menuKeys: Partial<Record<ControllerAction, string>> = {
+        'navigate-up': 'ArrowUp',
+        'navigate-down': 'ArrowDown',
+        confirm: 'Enter',
+        back: 'Escape',
+      }
+      if (
+        menu &&
+        document.activeElement instanceof HTMLElement &&
+        menu.contains(document.activeElement)
+      ) {
+        const key = menuKeys[action]
+        if (key)
+          document.activeElement.dispatchEvent(
+            new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+          )
+        return
+      }
       if (action !== 'section-prev' && action !== 'section-next' && action !== 'menu') {
         cancelScreenFocus()
       }
+
+      // Onboarding covers the app: B only steps back inside it (its overlay
+      // entry), and nothing switches the screen hidden behind it.
+      const onboarding = onboardingVisible()
+      if (onboarding && !onboardingAllows(action)) return
 
       const homeMenuOpen = useUiStore.getState().homeMenuOpen
       if (homeMenuOpen) {
@@ -50,6 +86,25 @@ export function useControllerNavigation() {
           'home',
         ]
         if (!allowed.includes(action)) return
+      }
+
+      if (screen === 'settings') {
+        const focused = focusManager.getFocusedNode()
+        if (action === 'navigate-left' && focused?.element.closest('.settings-content')) {
+          focusManager.setFocus(`settings-tab-${useUiStore.getState().settingsTab}`)
+          return
+        }
+        if (action === 'navigate-right' && focused?.group === 'settings-nav') {
+          const controls = document.querySelectorAll<HTMLElement>(
+            '.settings-content [data-focus-id]',
+          )
+          const first = Array.from(controls).find(
+            (element) =>
+              !element.matches(':disabled') && element.getClientRects().length > 0,
+          )
+          if (first?.dataset.focusId) focusManager.setFocus(first.dataset.focusId)
+          return
+        }
       }
 
       switch (action) {
@@ -67,10 +122,25 @@ export function useControllerNavigation() {
           break
         case 'confirm': {
           const node = focusManager.getFocusedNode()
-          node?.element.click()
+          if (node?.element.getAttribute('role') === 'combobox') {
+            node.element.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                bubbles: true,
+                cancelable: true,
+              }),
+            )
+          } else if (node?.element.matches('input, textarea, select'))
+            node.element.focus()
+          else node?.element.click()
           break
         }
         case 'back': {
+          // B unwinds one step at a time: leave typing, then the newest
+          // drawer, dialog or modal, then the screen.
+          if (leaveTextField()) break
+          if (closeTopOverlay()) break
+          if (onboarding) break
           if (useUiStore.getState().homeMenuOpen) {
             useUiStore.getState().closeHomeMenu()
             break
@@ -193,6 +263,8 @@ async function handleHomePress(wasFocused: boolean) {
     if (homeMenuOpen) closeHomeMenu()
     return
   }
+  // The Home menu would open behind onboarding.
+  if (onboardingVisible()) return
 
   if (homeMenuOpen) {
     closeHomeMenu()

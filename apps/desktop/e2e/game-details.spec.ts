@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 for (const theme of ['liquid-glass', 'god-of-war']) {
   test(`${theme} details offer complete controls and achievement filters`, async ({
@@ -10,7 +10,7 @@ for (const theme of ['liquid-glass', 'god-of-war']) {
     )
     await page.goto('/')
     await page.locator('[data-focus-id="macos-nav-library"]').click()
-    await page.locator('[data-focus-id="library-game-mock-cyberpunk"]').click()
+    await page.locator('[data-focus-id="library-game-steam:1091500"]').click()
     await expect(page.locator('#details-title')).toHaveText('Cyberpunk 2077')
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await expect(page.getByRole('heading', { name: 'About this game' })).toBeVisible()
@@ -36,8 +36,9 @@ for (const theme of ['liquid-glass', 'god-of-war']) {
     await page.locator('[data-focus-id="confirm-cancel"]').click()
     await expect(page.locator('#details-title')).toBeVisible()
     await page.locator('[data-focus-id="details-edit"]').click()
-    await expect(page.locator('[data-screen="game-edit"]')).toBeVisible()
-    await page.locator('[data-focus-id="edit-back"]').click()
+    await expect(page.locator('#details-settings')).toBeVisible()
+    await expect(page.getByLabel('Game title')).toBeVisible()
+    await page.getByRole('tab', { name: 'Overview' }).click()
     await expect(page.locator('#details-title')).toBeVisible()
     await page.locator('[data-focus-id="macos-back"]').click()
     await expect(page.locator('[data-screen="library"]')).toBeVisible()
@@ -51,7 +52,7 @@ test('Liquid Glass details stay useful in a compact window and respect reduced m
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
   await page.locator('[data-focus-id="macos-nav-library"]').click()
-  await page.locator('[data-focus-id="library-game-mock-re4"]').click()
+  await page.locator('[data-focus-id="library-game-steam:2050650"]').click()
   await expect(page.locator('#details-title')).toHaveText('Resident Evil 4')
   await expect(page.locator('.details-command-bar')).toHaveAttribute(
     'data-glass-mode',

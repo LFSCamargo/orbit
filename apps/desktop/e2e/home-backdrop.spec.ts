@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 const activeImage = '.macos-hero-layer[data-layer="active"]'
 
@@ -26,11 +26,11 @@ test('Home uses selected game art under a branded theme and adapts glass to ligh
       Number(getComputedStyle(el).backgroundColor.match(/, ([\d.]+)\)$/)?.[1] ?? 1),
     )
   await expect.poll(opacity).toBeLessThan(0.4)
-  await page.locator('[data-focus-id="macos-game-mock-re4"]').hover()
+  await page.locator('[data-focus-id="macos-game-steam:2050650"]').hover()
   await expect(page.locator(activeImage)).toHaveAttribute('src', /co5vmg/)
   await expect.poll(opacity).toBeGreaterThan(0.7)
   const radius = await page
-    .locator('[data-focus-id="macos-game-mock-re4"] .square-game-art')
+    .locator('[data-focus-id="macos-game-steam:2050650"] .square-game-art')
     .evaluate((el) => parseFloat(getComputedStyle(el).borderRadius))
   expect(radius).toBeGreaterThan(20)
   await page.getByRole('button', { name: 'Library', exact: true }).click()
@@ -57,7 +57,7 @@ test('keeps the current art while the next image loads and skips fades for reduc
   })
   await page.goto('/')
   await expect(page.locator(activeImage)).toHaveAttribute('src', /co2rpf/)
-  await page.locator('[data-focus-id="macos-game-mock-re4"]').hover()
+  await page.locator('[data-focus-id="macos-game-steam:2050650"]').hover()
   await expect(page.locator('#macos-feature-title')).toHaveText('Resident Evil 4')
   await expect(page.locator(activeImage)).toHaveAttribute('src', /co2rpf/)
   release()

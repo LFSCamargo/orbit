@@ -41,7 +41,7 @@ impl GameImporter for SteamImporter {
             return Ok(Vec::new());
         };
 
-        let playtime_map = load_steam_playtimes(root);
+        let playtime_map = crate::utils::steam_playtime::load_roots(&[root]);
         let achievement_map = load_steam_achievements(root);
 
         let mut library_paths = vec![root.clone()];
@@ -70,8 +70,8 @@ impl GameImporter for SteamImporter {
                 let content = fs::read_to_string(entry.path())?;
                 if let Some(mut game) = parse_appmanifest(&content, &steamapps) {
                     if let Some(app_id) = game.source_id.clone() {
-                        if let Some(seconds) = playtime_map.get(&app_id) {
-                            game.total_playtime_seconds = *seconds;
+                        if let Some(record) = playtime_map.get(&app_id) {
+                            game.total_playtime_seconds = record.seconds;
                         }
                         if let Some(achievements) = achievement_map.get(&app_id) {
                             game.achievements = achievements.clone();
@@ -175,58 +175,6 @@ fn local_steam_artwork(steamapps: &Path, app_id: &str) -> GameArtwork {
         hero,
         logo,
         icon: None,
-    }
-}
-
-/// Playtime minutes live in userdata/*/config/localconfig.vdf under apps/<id>/Playtime.
-fn load_steam_playtimes(steam_root: &Path) -> std::collections::HashMap<String, i64> {
-    let mut map = std::collections::HashMap::new();
-    let userdata = steam_root.join("userdata");
-    let Ok(entries) = fs::read_dir(userdata) else {
-        return map;
-    };
-
-    for entry in entries.flatten() {
-        let localconfig = entry.path().join("config/localconfig.vdf");
-        if !localconfig.exists() {
-            continue;
-        }
-        let Ok(content) = fs::read_to_string(&localconfig) else {
-            continue;
-        };
-        parse_playtimes_from_localconfig(&content, &mut map);
-    }
-
-    map
-}
-
-fn parse_playtimes_from_localconfig(
-    content: &str,
-    map: &mut std::collections::HashMap<String, i64>,
-) {
-    // Match app blocks: "123456" { ... "Playtime" "42" ... }
-    let app_re = Regex::new(r#""(\d+)"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}"#).unwrap();
-    let playtime_re = Regex::new(r#""Playtime"\s+"(\d+)""#).unwrap();
-
-    for capture in app_re.captures_iter(content) {
-        let Some(app_id) = capture.get(1).map(|m| m.as_str().to_string()) else {
-            continue;
-        };
-        let Some(block) = capture.get(2).map(|m| m.as_str()) else {
-            continue;
-        };
-        if let Some(pt) = playtime_re
-            .captures(block)
-            .and_then(|c| c.get(1))
-            .and_then(|m| m.as_str().parse::<i64>().ok())
-        {
-            // Steam stores Playtime in minutes.
-            let seconds = pt.saturating_mul(60);
-            let entry = map.entry(app_id).or_insert(0);
-            if seconds > *entry {
-                *entry = seconds;
-            }
-        }
     }
 }
 
@@ -490,39 +438,5 @@ mod tests {
         assert_eq!(game.stable_key, "steam:12345");
         assert_eq!(game.title, "Steam App 12345");
         assert_eq!(game.source_id.as_deref(), Some("12345"));
-    }
-
-    #[test]
-    fn parse_playtimes_from_localconfig_minutes_to_seconds() {
-        let content = r#"
-"UserLocalConfigStore"
-{
-	"Software"
-	{
-		"Valve"
-		{
-			"Steam"
-			{
-				"apps"
-				{
-					"570"
-					{
-						"Playtime"		"42"
-						"LastPlayed"		"1700000000"
-					}
-					"440"
-					{
-						"Playtime"		"10"
-					}
-				}
-			}
-		}
-	}
-}
-"#;
-        let mut map = std::collections::HashMap::new();
-        parse_playtimes_from_localconfig(content, &mut map);
-        assert_eq!(map.get("570"), Some(&2520));
-        assert_eq!(map.get("440"), Some(&600));
     }
 }

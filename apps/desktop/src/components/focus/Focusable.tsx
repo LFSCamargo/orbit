@@ -7,7 +7,6 @@ import {
 } from 'react'
 import { clsx } from 'clsx'
 import { focusManager } from '@/controllers/FocusManager'
-import './focus-ring.css'
 
 interface FocusableProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   focusId: string
@@ -75,11 +74,13 @@ export function Focusable({
         focused && !noScale && 'z-10 scale-[1.03]',
         focused &&
           !noRing &&
-          'shadow-focus ring-2 ring-orbit-focus ring-offset-2 ring-offset-orbit-canvas',
+          // Flush: an offset gap would show the dark canvas colour as a border.
+          'shadow-focus ring-2 ring-orbit-focus',
         className,
       )}
       onClick={(event) => {
-        focusManager.setFocus(focusId, { scroll: false })
+        // A click already put DOM focus where the browser wants it.
+        focusManager.setFocus(focusId, { scroll: false, dom: false })
         onClick?.(event)
       }}
       {...rest}

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test('translucent panels and controls share Liquid Glass without SVG refraction', async ({
   page,
@@ -7,7 +7,7 @@ test('translucent panels and controls share Liquid Glass without SVG refraction'
   const navigation = page.locator('.macos-navigation')
   await expect(navigation).toHaveAttribute('data-glass-mode', 'simple')
   const filter = await navigation.evaluate((el) => getComputedStyle(el).backdropFilter)
-  expect(filter).toMatch(/blur\(12px\)/)
+  expect(filter).toMatch(/blur\(7px\)/)
   expect(filter).not.toContain('url(')
   await expect(page.locator('.orbit-glass svg filter, .orbit-glass canvas')).toHaveCount(
     0,
@@ -17,19 +17,27 @@ test('translucent panels and controls share Liquid Glass without SVG refraction'
   await expect(cards.first()).toBeVisible()
   for (const card of await cards.all()) {
     expect(await card.evaluate((el) => getComputedStyle(el).backdropFilter)).toContain(
-      'blur(8px)',
+      'blur(5px)',
     )
   }
-  await expect(page.locator('[data-focus-id="library-steam-library"]')).toHaveClass(
+  await expect(page.locator('[data-focus-id="library-refresh"]')).toHaveClass(
     /orbit-glass-control/,
   )
   await page.getByRole('button', { name: 'Search', exact: true }).click()
-  await expect(page.getByPlaceholder('Find a game…')).toHaveClass(/orbit-glass-control/)
+  const searchSurface = page.locator('.library-search')
+  await expect(searchSurface).toHaveAttribute('data-glass-surface', 'toolbar')
+  await expect(searchSurface).toHaveCSS('backdrop-filter', /blur/)
+  await expect(searchSurface.getByPlaceholder('Search games…')).toBeVisible()
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.locator('.settings-tabs')).toHaveAttribute(
+    'data-glass-surface',
+    'panel',
+  )
   await expect(page.locator('.settings-content')).toHaveAttribute(
     'data-glass-surface',
     'panel',
   )
+  await expect(page.locator('.settings-content')).toHaveCSS('backdrop-filter', /blur/)
   await expect(page.locator('.settings-content svg filter')).toHaveCount(0)
 })
 

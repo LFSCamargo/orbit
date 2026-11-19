@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: VersionPageProps): Promise<Me
   const { version } = await params
   return {
     title: `Download Orbit ${version}`,
-    description: `Download Orbit ${version} for macOS, Windows, or Linux and read its release notes.`,
+    description: `Download Orbit ${version} for your Mac and read its release notes.`,
   }
 }
 
@@ -32,7 +32,7 @@ export default async function VersionPage({ params }: VersionPageProps) {
   if (!releases || !release) notFound()
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-14">
+    <div className="mx-auto max-w-5xl px-6 pb-20 pt-32">
       <ReleaseView releases={releases} release={release} />
     </div>
   )

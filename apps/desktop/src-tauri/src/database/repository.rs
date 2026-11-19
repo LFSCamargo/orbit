@@ -14,7 +14,7 @@ use crate::services::artwork::{is_heavy_base64_data_url, materialize_heavy_artwo
 use crate::services::metadata_merge::{is_placeholder_description, merge_artwork};
 
 pub struct GameRepository {
-    conn: Mutex<Connection>,
+    pub(crate) conn: Mutex<Connection>,
 }
 
 impl GameRepository {
@@ -25,6 +25,8 @@ impl GameRepository {
         let conn = Connection::open(path).context("Failed to open SQLite database")?;
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
         run_migrations(&conn)?;
+        crate::database::library_migration::migrate(&conn, path)?;
+        crate::database::gamehub_removal::migrate(&conn, path)?;
         let repo = Self {
             conn: Mutex::new(conn),
         };
@@ -48,7 +50,7 @@ impl GameRepository {
                     artwork_json, favorite, hidden, date_added, last_played_at, total_playtime_seconds,
                     description, install_size_bytes, achievements_json
              FROM games
-             ORDER BY sort_title COLLATE NOCASE ASC",
+             ORDER BY sort_title COLLATE NOCASE ASC LIMIT 10000",
         )?;
         let rows = stmt.query_map([], map_game_row)?;
         let mut games: Vec<Game> = rows.filter_map(|row| row.ok()).collect();
@@ -319,6 +321,41 @@ impl GameRepository {
             .ok_or_else(|| anyhow::anyhow!("Game not found after update"))
     }
 
+    pub fn update_fetched_metadata(
+        &self,
+        game_id: &str,
+        title: Option<String>,
+        description: Option<String>,
+        artwork: Option<GameArtwork>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let mut game = {
+            let mut stmt = conn.prepare(
+                "SELECT id, title, sort_title, provider, platform, source_id, launch_config_json,
+                        artwork_json, favorite, hidden, date_added, last_played_at, total_playtime_seconds,
+                        description, install_size_bytes, achievements_json
+                 FROM games WHERE id = ?1",
+            )?;
+            let mut rows = stmt.query_map(params![game_id], map_game_row)?;
+            rows.next()
+                .transpose()?
+                .ok_or_else(|| anyhow::anyhow!("Game not found"))?
+        };
+        let title = title.unwrap_or(game.title);
+        let sort_title = title.to_lowercase();
+        let description = description.or(game.description.take());
+        let mut artwork = artwork.unwrap_or(game.artwork);
+        materialize_heavy_artwork(game_id, &mut artwork);
+        let artwork_json = serde_json::to_string(&artwork)?;
+        conn.execute(
+            "UPDATE games
+             SET title = ?1, sort_title = ?2, description = ?3, artwork_json = ?4
+             WHERE id = ?5",
+            params![title, sort_title, description, artwork_json, game_id],
+        )?;
+        Ok(())
+    }
+
     pub fn toggle_favorite(&self, game_id: &str) -> Result<Game> {
         {
             let conn = self.conn.lock().unwrap();
@@ -329,6 +366,16 @@ impl GameRepository {
         }
         self.get_game(game_id)?
             .ok_or_else(|| anyhow::anyhow!("Game not found"))
+    }
+
+    /// Records a measured install size. A game id with no saved row is a no-op.
+    pub fn set_install_size(&self, game_id: &str, bytes: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE games SET install_size_bytes = ?1 WHERE id = ?2",
+            params![bytes, game_id],
+        )?;
+        Ok(())
     }
 
     pub fn set_hidden(&self, game_id: &str, hidden: bool) -> Result<Game> {
@@ -588,9 +635,6 @@ fn install_size_for_launch(config: &LaunchConfiguration) -> Option<i64> {
         LaunchConfiguration::OpenApplication {
             application_path, ..
         } => crate::utils::size::path_size_bytes(Path::new(application_path)),
-        LaunchConfiguration::Gamehub {
-            shortcut_app_path, ..
-        } => crate::utils::size::path_size_bytes(Path::new(shortcut_app_path)),
         _ => None,
     }
 }
@@ -868,6 +912,32 @@ mod tests {
             .expect("get after delete")
             .is_none());
         assert!(repo.delete_game(&created.id).is_err());
+    }
+
+    #[test]
+    fn fetched_metadata_does_not_replace_user_overrides() {
+        let repo = GameRepository::open_in_memory().expect("db");
+        let created = repo.create_game(sample_create("Steam 10")).expect("create");
+        repo.update_game(
+            &created.id,
+            UpdateGameRequest {
+                title: Some("My Portal".into()),
+                description: Some("mine".into()),
+                artwork: None,
+                ..Default::default()
+            },
+        )
+        .expect("override");
+        repo.update_fetched_metadata(
+            &created.id,
+            Some("Portal".into()),
+            Some("Valve copy".into()),
+            None,
+        )
+        .expect("fetched");
+        let visible = repo.get_game(&created.id).expect("get").expect("exists");
+        assert_eq!(visible.title, "My Portal");
+        assert_eq!(visible.description.as_deref(), Some("mine"));
     }
 
     #[test]

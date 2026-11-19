@@ -25,8 +25,17 @@ vi.mock('@/modules/settings/components/ApiKeySettings', () => ({
 vi.mock('@/modules/settings/components/LibrarySettings', () => ({
   LibrarySettings: () => <div>Library settings view</div>,
 }))
-vi.mock('@/modules/imports/ImportsPage', () => ({
-  ImportsSection: () => <div>Import games view</div>,
+vi.mock('@/modules/settings/components/SteamLibraryFolders', () => ({
+  SteamLibraryFolders: () => <div>Steam library folders</div>,
+}))
+vi.mock('@/modules/settings/components/SteamSettings', () => ({
+  SteamSettings: () => <div>Steam settings view</div>,
+}))
+vi.mock('@/modules/settings/components/CompatibilityGlobalSettings', () => ({
+  CompatibilityGlobalSettings: () => <div data-testid="graphics-body" />,
+}))
+vi.mock('@/modules/settings/components/RuntimeSettings', () => ({
+  RuntimeSettings: () => <div>Runtime settings view</div>,
 }))
 
 describe('SettingsPage tabs', () => {
@@ -43,8 +52,15 @@ describe('SettingsPage tabs', () => {
     const general = screen.getByRole('button', { name: 'General' })
 
     expect(general).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Steam' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Game graphics' })).toBeInTheDocument()
     expect(screen.getByText('API settings view')).toBeInTheDocument()
+    expect(screen.getByText('Liquid Glass')).toBeInTheDocument()
     expect(screen.queryByText('Theme settings view')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Appearance' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Metadata & artwork' }),
+    ).not.toBeInTheDocument()
 
     fireEvent.click(themes)
 
@@ -68,5 +84,31 @@ describe('SettingsPage tabs', () => {
       'true',
     )
     expect(screen.getByText('Theme settings view')).toBeInTheDocument()
+  })
+
+  it('leaves space under the graphics header before the form', () => {
+    useUiStore.setState({ settingsTab: 'graphics' })
+    render(<SettingsPage />)
+    const header = document.querySelector('.settings-panel-header')
+    expect(header?.className).toContain('!mb-6')
+    expect(
+      screen.getByText('One starting point for all your Windows games.'),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('graphics-body')).toBeInTheDocument()
+  })
+
+  it('fills the shell column so only the middle panel scrolls', () => {
+    const { container } = render(<SettingsPage />)
+    expect(container.querySelector('.macos-page')).toHaveClass(
+      'h-full',
+      'min-h-0',
+      'flex-col',
+      'overflow-hidden',
+    )
+    expect(container.querySelector('.settings-layout')).toHaveClass('h-full', 'min-h-0')
+    expect(container.querySelector('.settings-content-scroll')).toHaveClass(
+      'h-full',
+      'overflow-y-auto',
+    )
   })
 })

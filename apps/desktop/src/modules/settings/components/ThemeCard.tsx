@@ -56,7 +56,7 @@ export function ThemeCard({
       aria-pressed={active}
       onClick={() => onSelect(theme.id)}
       style={previewStyle(preview)}
-      className={`theme-card orbit-glass-control orbit-transition overflow-hidden rounded-card text-left ring-1 ${
+      className={`theme-card orbit-glass-control orbit-transition flex min-w-0 flex-col self-stretch overflow-hidden rounded-card text-left ring-1 ${
         active ? 'ring-2 ring-orbit-accent' : 'ring-white/10'
       }`}
     >
@@ -80,23 +80,30 @@ export function ThemeCard({
         title={preview.branding?.artworkQuery ?? theme.name}
         preparing={preparing}
       />
-      <div className="theme-card-body">
-        <p className="theme-card-title">{theme.name}</p>
+      <div className="theme-card-body flex min-w-0 flex-1 flex-col p-4">
+        <p className="theme-card-title line-clamp-2 min-h-[2.75em] overflow-hidden text-base font-semibold leading-snug [overflow-wrap:anywhere]">
+          {theme.name}
+        </p>
         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-orbit-muted">
           {theme.description}
         </p>
-        <div className="theme-card-swatches" aria-label="Theme colors">
+        <div
+          className="theme-card-swatches mt-2.5 flex gap-1.5"
+          aria-label="Theme colors"
+        >
           {[theme.colors.canvas, theme.colors.accent, theme.colors.focus].map(
             (swatch, index) => (
               <span
                 key={index}
-                className="h-3 w-3 rounded-full ring-1 ring-black/30"
+                className="size-6 rounded-full ring-1 ring-black/30"
                 style={{ background: `rgb(${swatch})` }}
               />
             ),
           )}
         </div>
-        <span className="theme-card-status">{active ? 'Active' : ''}</span>
+        <span className="theme-card-status mt-auto min-h-[15px] pt-2 text-[10px] uppercase tracking-[0.1em] text-orbit-accent">
+          {active ? 'Active' : ''}
+        </span>
       </div>
     </Focusable>
   )

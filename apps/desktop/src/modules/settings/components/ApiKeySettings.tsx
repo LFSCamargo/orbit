@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Check, KeyRound, TestTube } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   getMetadataCacheStats,
   getSetting,
+  retrySteamCatalogMetadata,
   setSetting,
   testMetadataApiKeys,
 } from '@/lib/tauri'
+import { buttonClass } from '@/components/ui/button'
 
 interface KeyFieldProps {
   id: string
@@ -32,7 +35,7 @@ function KeyField({
   onSave,
 }: KeyFieldProps) {
   return (
-    <div className="settings-key-field orbit-glass">
+    <div className="settings-key-field orbit-glass rounded-2xl border border-white/[0.07] bg-orbit-canvas/25 p-4">
       <div className="flex items-start gap-3">
         <div className="orbit-glass-control mt-0.5 grid h-9 w-9 place-items-center rounded-full bg-orbit-accent/10 text-orbit-accent">
           <KeyRound size={16} />
@@ -55,7 +58,7 @@ function KeyField({
               noScale
               noRing
               onClick={() => void onSave()}
-              className="rounded-card bg-orbit-accent px-4 py-2 text-sm font-semibold text-orbit-canvas"
+              className={buttonClass({})}
             >
               Save key
             </Focusable>
@@ -73,6 +76,9 @@ function KeyField({
 }
 
 export function ApiKeySettings() {
+  const queryClient = useQueryClient()
+  const [retrying, setRetrying] = useState(false)
+  const [retryMessage, setRetryMessage] = useState<string | null>(null)
   const [rawgApiKey, setRawgApiKey] = useState('')
   const [rawgSaved, setRawgSaved] = useState(false)
   const [theGamesDbApiKey, setTheGamesDbApiKey] = useState('')
@@ -132,6 +138,26 @@ export function ApiKeySettings() {
       setApiTestMessage(result.message)
     } catch (error) {
       setApiTestMessage(error instanceof Error ? error.message : 'Connection test failed')
+    }
+  }
+
+  const retryMetadata = async () => {
+    setRetrying(true)
+    setRetryMessage(null)
+    try {
+      const owned = await retrySteamCatalogMetadata()
+      await queryClient.invalidateQueries({ queryKey: ['library'] })
+      await queryClient.invalidateQueries({ queryKey: ['library-entry'] })
+      await queryClient.invalidateQueries({ queryKey: ['steam-windows-library'] })
+      setRetryMessage(
+        owned.length > 0
+          ? `Retrying Steam catalog metadata for ${owned.length} titles.`
+          : 'Steam catalog retry finished. Sign in to refresh owned games.',
+      )
+    } catch (error) {
+      setRetryMessage(error instanceof Error ? error.message : 'Metadata retry failed')
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -195,7 +221,7 @@ export function ApiKeySettings() {
       <KeyField
         id="settings-save-rawg"
         label="RAWG API key"
-        description="Optional. Enables extra artwork sources in Edit Properties. Wikimedia Commons works without a key."
+        description="Optional. Enables extra artwork sources in Details → Settings. Wikimedia Commons works without a key."
         value={rawgApiKey}
         placeholder="Paste your key from rawg.io/apidocs"
         saved={rawgSaved}
@@ -220,11 +246,34 @@ export function ApiKeySettings() {
           noScale
           noRing
           onClick={() => void toggleAutoEnrich()}
-          className="orbit-glass-control rounded-card bg-white/10 px-4 py-2 text-sm"
+          className="orbit-glass-control rounded-full bg-white/10 px-4 py-2 text-sm"
         >
           {autoEnrichOnImport ? 'On' : 'Off'}
         </Focusable>
       </div>
+
+      <div className="orbit-glass-control flex flex-col gap-4 rounded-card border border-orbit-border/50 bg-orbit-canvas/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-display text-base font-semibold">Retry metadata</h3>
+          <p className="mt-0.5 text-sm text-orbit-muted">
+            Fetch Steam copy and artwork again for every owned title. Your edits stay in
+            place.
+          </p>
+        </div>
+        <Focusable
+          focusId="settings-retry-metadata"
+          group="settings"
+          order={23}
+          noScale
+          noRing
+          disabled={retrying}
+          onClick={() => void retryMetadata()}
+          className="orbit-glass-control rounded-full bg-white/10 px-4 py-2 text-sm"
+        >
+          {retrying ? 'Retrying…' : 'Retry metadata'}
+        </Focusable>
+      </div>
+      {retryMessage && <p className="text-sm text-orbit-muted">{retryMessage}</p>}
 
       <div className="orbit-glass-control rounded-card border border-orbit-border/50 bg-orbit-canvas/30 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -237,11 +286,11 @@ export function ApiKeySettings() {
           <Focusable
             focusId="settings-test-metadata-apis"
             group="settings"
-            order={23}
+            order={26}
             noScale
             noRing
             onClick={() => void runApiTest()}
-            className="orbit-glass-control flex items-center gap-2 rounded-card bg-white/10 px-4 py-2 text-sm"
+            className="orbit-glass-control flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm"
           >
             <TestTube size={15} />
             Test connections

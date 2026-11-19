@@ -1,18 +1,15 @@
+import { notify } from '@/lib/toast'
 import { open } from '@/lib/dialog'
 import { useGameActions } from '@/hooks/useGames'
-import { useUiStore } from '@/stores/ui.store'
 import type { ScanResult } from '@/types/game'
 
-export type ImportScanId = 'steam' | 'native' | 'astris' | 'gamehub'
+export type ImportScanId = 'steam' | 'native' | 'astris'
 
 export type ImportScanMessageStyle = 'imported' | 'sync'
 
 export type ImportScanOptions = {
-  /** Folder for Astris / GameHub when already chosen (skips picker for Astris). */
   folder?: string
-  /** Toast / status copy style. Defaults to `sync`. */
   messageStyle?: ImportScanMessageStyle
-  /** When true (default), writes success and error messages to the import toast. */
   toast?: boolean
 }
 
@@ -25,11 +22,10 @@ function enrichedSuffix(enriched: number) {
   return enriched > 0 ? ` · enriched ${enriched}` : ''
 }
 
-function formatScanMessage(
+export function formatScanMessage(
   id: ImportScanId,
   result: ScanResult,
   style: ImportScanMessageStyle,
-  folder?: string,
 ): string {
   if (style === 'imported') {
     switch (id) {
@@ -39,10 +35,6 @@ function formatScanMessage(
         return `Imported ${result.imported} macOS apps${enrichedSuffix(result.enriched)}`
       case 'astris':
         return `Imported ${result.imported} Switch titles${enrichedSuffix(result.enriched)}`
-      case 'gamehub':
-        return folder
-          ? `Imported ${result.imported} GameHub titles${enrichedSuffix(result.enriched)}`
-          : `Imported ${result.imported} GameHub shortcuts${enrichedSuffix(result.enriched)}`
     }
   }
 
@@ -53,18 +45,12 @@ function formatScanMessage(
       return `macOS scan complete · ${result.imported} apps${enrichedSuffix(result.enriched)}`
     case 'astris':
       return `Astris sync complete · ${result.imported} titles${enrichedSuffix(result.enriched)}`
-    case 'gamehub':
-      return `GameHub sync complete · ${result.imported} shortcuts${enrichedSuffix(result.enriched)}`
   }
 }
 
-/**
- * Shared Steam / native / Astris / GameHub scan branches used by Add Game and Imports.
- * O(1) per scan invoke — no list iteration on the frontend.
- */
+/** Shared Steam / native / Astris scan branches used by Add Game and Imports. */
 export function useImportScan() {
-  const setImportToast = useUiStore((s) => s.setImportToast)
-  const { scanSteam, scanAstris, scanNative, scanGamehub } = useGameActions()
+  const { scanSteam, scanAstris, scanNative } = useGameActions()
 
   const runScan = async (
     id: ImportScanId,
@@ -81,7 +67,7 @@ export function useImportScan() {
         result = await scanSteam.mutateAsync()
       } else if (id === 'native') {
         result = await scanNative.mutateAsync()
-      } else if (id === 'astris') {
+      } else {
         let astrisFolder = folder
         if (!astrisFolder) {
           const picked = await open({ directory: true, multiple: false })
@@ -89,16 +75,14 @@ export function useImportScan() {
           astrisFolder = picked
         }
         result = await scanAstris.mutateAsync(astrisFolder)
-      } else {
-        result = await scanGamehub.mutateAsync(folder)
       }
 
-      const message = formatScanMessage(id, result, messageStyle, folder)
-      if (toast) setImportToast(message)
+      const message = formatScanMessage(id, result, messageStyle)
+      if (toast) notify.success({ title: 'Library updated', message })
       return { result, message }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      if (toast) setImportToast(message)
+      if (toast) notify.error({ title: 'Import failed', message })
       throw error
     }
   }

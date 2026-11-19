@@ -1,32 +1,62 @@
 import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
-import { homeHero } from './lib/homeHero'
+import { useHomeHero } from './hooks/useHomeHero'
 import { ThemeHome } from './ThemeHome'
 import { Focusable } from '@/components/focus/Focusable'
-import { useGameActions, useGames } from '@/hooks/useGames'
+import { useGameActions } from '@/hooks/useGames'
+import { useHasFavorites } from '@/hooks/useHasFavorites'
+import { useLibrary, useLibraryActions } from '@/hooks/useLibrary'
+import { useSteamWindows } from '@/hooks/useSteamWindows'
+import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
+import { fallbackHomeView, showFavoritesTab } from '@/lib/favoritesTab'
 import { useUiStore } from '@/stores/ui.store'
 import { useSessionStore } from '@/stores/session.store'
+import { buttonClass } from '@/components/ui/button'
+import { Spinner } from '@/components/feedback/Spinner'
+import { useSplashHold } from '@/app/splash/useSplashHold'
 
 export function HomePage() {
-  const { data: games = [], isLoading } = useGames()
-  const { launch, stop, favorite } = useGameActions()
-  const heroGameId = useUiStore((s) => s.heroGameId)
+  const view = useUiStore((s) => s.homeView)
+  const setView = useUiStore((s) => s.setHomeView)
+  const { hasFavorites, isReady } = useHasFavorites()
+  const visibleView = fallbackHomeView(view, hasFavorites, isReady) ?? view
+  const shelf = useLibrary({
+    view: visibleView === 'recent' ? 'all' : visibleView,
+    sort: 'recently-played',
+    limit: 12,
+  })
+  const shelfEntries = useMemo(
+    () => shelf.data?.pages.flatMap((page) => page.entries) ?? [],
+    [shelf.data],
+  )
+  const library = useLibrary({ view: 'all', sort: 'recently-played' })
+  const { playEntry, stop } = useGameActions()
+  const steam = useSteamWindows()
+  const steamReady = steam.status.data?.sessionReady === true
+  const { update } = useLibraryActions()
   const openAddGame = useUiStore((s) => s.openAddGame)
   const activeSession = useSessionStore((s) => s.activeSession)
+  const entries = useMemo(
+    () => library.data?.pages.flatMap((page) => page.entries) ?? [],
+    [library.data],
+  )
+  const heroEntry = useHomeHero(entries, shelfEntries)
 
-  const visible = useMemo(() => games.filter((game) => !game.hidden), [games])
+  useSplashHold(library.isPending)
 
-  const heroGame = useMemo(() => homeHero(games, heroGameId), [games, heroGameId])
-
-  if (isLoading) {
+  if (library.isPending) {
     return (
-      <div className="flex flex-1 items-center justify-center text-orbit-muted">
-        Loading library…
+      <div
+        role="status"
+        aria-label="Loading library"
+        className="flex flex-1 items-center justify-center text-orbit-muted"
+      >
+        <Spinner size={30} />
       </div>
     )
   }
 
-  if (!heroGame) {
+  if (!heroEntry) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center text-orbit-foreground">
         <div className="orbit-glass-control flex h-16 w-16 items-center justify-center rounded-full bg-orbit-accent/15 text-orbit-accent">
@@ -43,7 +73,7 @@ export function HomePage() {
           order={0}
           noScale
           onClick={openAddGame}
-          className="mt-4 rounded-full bg-orbit-accent px-6 py-3 font-semibold text-orbit-canvas"
+          className={buttonClass({ size: 'lg', className: 'mt-4' })}
         >
           Import games
         </Focusable>
@@ -53,12 +83,29 @@ export function HomePage() {
 
   return (
     <ThemeHome
-      games={visible}
-      heroGame={heroGame}
+      view={visibleView}
+      onView={setView}
+      shelfEntries={shelfEntries}
+      shelfPending={shelf.isPending}
+      shelfError={shelf.isError}
+      onRetry={() => void shelf.refetch()}
+      entries={entries.filter((entry) => !entry.game.hidden)}
+      heroEntry={heroEntry}
       activeSession={activeSession}
-      onPlay={(game) => launch.mutate(game.id)}
+      steamReady={steamReady}
+      onPlay={(entry) => {
+        if (isWindowsSteamPlay(entry) && !steamReady) return
+        playEntry.mutate(entry)
+      }}
       onStop={() => activeSession && stop.mutate(activeSession.id)}
-      onFavorite={(game) => favorite.mutate(game.id)}
+      onFavorite={(entry) =>
+        update.mutate({ id: entry.id, patch: { favorite: !entry.game.favorite } })
+      }
+      showFavorites={showFavoritesTab({
+        hasFavorites,
+        probeReady: isReady,
+        viewingFavorites: visibleView === 'favorites',
+      })}
     />
   )
 }

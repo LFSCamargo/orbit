@@ -39,10 +39,35 @@ it('does not let a late decode replace the next image state', async () => {
   expect(screen.getByRole('img')).toHaveAttribute('src', '/second.png')
 })
 
+it('uses contain fit when requested so logos stay inside their frame', () => {
+  const { container } = render(<ArtworkImage src="/logo.png" alt="Logo" fit="contain" />)
+  expect(container.firstChild).toHaveClass('[&>img]:object-contain')
+  expect(container.firstChild).not.toHaveClass('[&>img]:object-cover')
+})
+
+it('stays in flow unless the caller positions it absolutely', () => {
+  const { container, rerender } = render(<ArtworkImage src="/logo.png" alt="Logo" />)
+  expect(container.firstChild).toHaveClass('relative')
+  rerender(<ArtworkImage src="/logo.png" alt="Logo" className="absolute inset-0" />)
+  expect(container.firstChild).toHaveClass('absolute')
+  expect(container.firstChild).not.toHaveClass('relative')
+})
+
 it('stops the loading animation and exposes a fallback when an image fails', () => {
   const { container } = render(<ArtworkImage src="/missing.png" alt="Theme logo" />)
   fireEvent.error(screen.getByRole('img'))
   expect(container.firstChild).toHaveAttribute('data-state', 'error')
   expect(container.querySelector('.artwork-skeleton')).toBeNull()
   expect(screen.getByRole('img', { name: 'Theme logo unavailable' })).toBeVisible()
+})
+
+it('reveals the image through the wrapper state, not an attribute on the image', () => {
+  // Regression: `data-[state=ready]:[&>img]:opacity-100` compiles to
+  // `> img[data-state=ready]`, but the state lives on the wrapper, so every
+  // artwork (theme previews included) stayed at opacity 0.
+  const { container } = render(<ArtworkImage src="/hero.webp" alt="Hero" />)
+  const wrapper = container.firstChild as HTMLElement
+  expect(wrapper).toHaveClass('[&[data-state=ready]>img]:opacity-100')
+  expect(wrapper).toHaveClass('[&[data-state=error]>img]:invisible')
+  expect(wrapper.className).not.toMatch(/data-\[state=[a-z]+\]:\[&>img\]/)
 })

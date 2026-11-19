@@ -12,13 +12,12 @@ export const revalidate = 600
 export const metadata: Metadata = {
   title: 'Install',
   description:
-    'Install Orbit on macOS, Windows, or Linux, verify your download, update the app, or build it from source.',
+    'Install Orbit on your Mac, verify your download, update the app, or build it from source.',
 }
 
 const CONTENTS = [
-  { id: 'macos', label: 'macOS' },
-  { id: 'windows', label: 'Windows' },
-  { id: 'linux', label: 'Linux' },
+  { id: 'macos', label: 'Install on your Mac' },
+  { id: 'first-launch', label: 'First launch' },
   { id: 'verify', label: 'Verify downloads' },
   { id: 'update', label: 'Update and uninstall' },
   { id: 'source', label: 'Build from source' },
@@ -31,8 +30,11 @@ export default async function InstallPage() {
   const dmg = `Orbit-${version}-aarch64.dmg`
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 lg:grid-cols-[13rem_1fr] lg:py-24">
-      <nav aria-label="On this page" className="lg:sticky lg:top-28 lg:self-start">
+    <div className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-32 lg:grid-cols-[13rem_1fr] lg:pb-28 lg:pt-36">
+      <nav
+        aria-label="On this page"
+        className="orbit-glass rounded-[20px] p-5 lg:sticky lg:top-28 lg:self-start"
+      >
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-orbit-accent">
           Installation
         </p>
@@ -53,15 +55,14 @@ export default async function InstallPage() {
       <div className="min-w-0 max-w-3xl space-y-12">
         <header>
           <p className="font-mono text-xs uppercase tracking-[0.24em] text-orbit-accent">
-            macOS · Windows · Linux
+            macOS · Apple silicon
           </p>
           <h1 className="mt-5 text-5xl font-medium tracking-[-0.05em] sm:text-6xl">
             Install Orbit
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-orbit-muted">
-            Pick your desktop platform below. Release pages provide prebuilt files when
-            available; the source build works as an alternative on every supported
-            desktop.
+            Orbit is a Mac app: download the disk image, drag it to Applications, and its
+            first launch sets up everything Windows games need.
           </p>
           <p className="mt-4 text-sm text-orbit-muted">
             New to Orbit?{' '}
@@ -72,13 +73,14 @@ export default async function InstallPage() {
           </p>
         </header>
 
-        <InstallSection id="macos" title="macOS" step={1}>
+        <InstallSection id="macos" title="Install on your Mac" step={1}>
           <p>
-            Requires macOS 12 Monterey or later. Published installers prefer Apple
-            Silicon; Intel Macs can use a compatible release or build from source.
+            Requires a Mac with Apple silicon and macOS 12 Monterey or later. Windows
+            games also need Rosetta 2, which macOS offers to install the first time one
+            starts.
           </p>
           <div className="pt-2">
-            <DownloadButton release={latest} platform="macos" />
+            <DownloadButton release={latest} />
           </div>
           <ol>
             <li>
@@ -102,52 +104,12 @@ export default async function InstallPage() {
           <CodeBlock>{`tar -xzf Orbit-${version}-aarch64.app.tar.gz\nmv Orbit.app /Applications/`}</CodeBlock>
         </InstallSection>
 
-        <InstallSection id="windows" title="Windows" step={2}>
+        <InstallSection id="first-launch" title="First launch" step={2}>
           <p>
-            Use the Windows <code>.exe</code> installer when it is attached to the
-            release. An <code>.msi</code> package may also be available for managed
-            installations.
-          </p>
-          <div className="pt-2">
-            <DownloadButton release={latest} platform="windows" compact />
-          </div>
-          <ol>
-            <li>Download the x86-64 or ARM64 installer that matches your PC.</li>
-            <li>Open the installer and follow the setup prompts.</li>
-            <li>
-              If SmartScreen warns about an unrecognized app, verify the file checksum and
-              publisher details before choosing whether to continue.
-            </li>
-            <li>Start Orbit from the Start menu and choose your game folders.</li>
-          </ol>
-          <p>
-            No Windows bundle in the latest release?{' '}
-            <a href="#source" className="text-orbit-accent hover:text-orbit-focus">
-              Build the Windows app from source
-            </a>{' '}
-            on your PC.
-          </p>
-        </InstallSection>
-
-        <InstallSection id="linux" title="Linux" step={3}>
-          <p>
-            Releases may include an <code>AppImage</code>, <code>.deb</code>, and{' '}
-            <code>.rpm</code>. Choose AppImage for a portable option or the package format
-            used by your distribution.
-          </p>
-          <div className="pt-2">
-            <DownloadButton release={latest} platform="linux" compact />
-          </div>
-          <h3 className="!mt-6 text-base">AppImage</h3>
-          <CodeBlock>{`chmod +x Orbit-${version}-x86_64.AppImage\n./Orbit-${version}-x86_64.AppImage`}</CodeBlock>
-          <h3 className="!mt-6 text-base">Debian / Ubuntu</h3>
-          <CodeBlock>{`sudo apt install ./Orbit-${version}-amd64.deb`}</CodeBlock>
-          <h3 className="!mt-6 text-base">Fedora / RHEL</h3>
-          <CodeBlock>{`sudo dnf install ./Orbit-${version}-x86_64.rpm`}</CodeBlock>
-          <p>
-            Orbit uses the system webview. If your distribution does not install WebKitGTK
-            automatically, use your package manager to add the Tauri runtime dependencies
-            or use the source instructions below.
+            Orbit opens with a short setup. It installs Orbit Wine and prepares the game
+            container Windows games run in, adds Game Porting Toolkit, DXMT and DXVK where
+            you choose, signs you in to Steam if you like, and scans your Mac for games.
+            Everything can be changed later in Settings.
           </p>
         </InstallSection>
 
@@ -156,7 +118,7 @@ export default async function InstallPage() {
             Releases can include <code>SHA256SUMS.txt</code>. Compare the checksum for
             your downloaded file with the matching line before installing.
           </p>
-          <CodeBlock>{`# macOS\nshasum -a 256 ${dmg}\n\n# Linux\nsha256sum Orbit-${version}-x86_64.AppImage\n\n# Windows PowerShell\nGet-FileHash .\\Orbit-${version}-x64-setup.exe -Algorithm SHA256`}</CodeBlock>
+          <CodeBlock>{`shasum -a 256 ${dmg}`}</CodeBlock>
         </InstallSection>
 
         <InstallSection id="update" title="Update and uninstall">
@@ -165,21 +127,19 @@ export default async function InstallPage() {
             the application bundle, so updating does not require importing again.
           </p>
           <p>
-            To uninstall, remove Orbit using Applications on macOS, Apps &amp; Features on
-            Windows, or your Linux package manager. Keeping the Orbit application-data
-            folder preserves your library; delete that folder only if you also want to
-            erase the database, cached artwork, settings, and custom themes.
+            To uninstall, move Orbit from Applications to the Trash. Your library lives in{' '}
+            <code>~/Library/Application Support/Orbit</code>; keeping it preserves your
+            library, and deleting it also erases the database, cached artwork, settings,
+            custom themes, Orbit Wine and your game containers.
           </p>
         </InstallSection>
 
         <InstallSection id="source" title="Build from source">
           <p>
-            You need Node.js 22+, Yarn 4, Rust stable, and the platform dependencies for
-            Tauri 2. On macOS, install Xcode Command Line Tools. On Windows, install the
-            Microsoft C++ Build Tools and WebView2. On Linux, install the WebKitGTK and
-            related Tauri development packages.
+            You need a Mac with Xcode Command Line Tools, Node.js 22+, Yarn 4 and Rust
+            stable.
           </p>
-          <CodeBlock>{`git clone ${GITHUB_URL}.git\ncd orbit\nyarn install\nyarn tauri:dev    # development mode\nyarn tauri:build  # create native app bundles`}</CodeBlock>
+          <CodeBlock>{`git clone ${GITHUB_URL}.git\ncd orbit\nyarn install\nyarn tauri:dev    # development mode\nyarn release:macos --install  # build Orbit.app and copy it to Applications`}</CodeBlock>
           <p>
             See <a href={DOCS.running}>RUNNING.md</a> for development modes and
             troubleshooting, or <Link href="/download">browse every release</Link>.

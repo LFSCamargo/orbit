@@ -1,11 +1,13 @@
 import {
   createContext,
+  Fragment,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 
 interface DrawerContextValue {
@@ -15,7 +17,9 @@ interface DrawerContextValue {
 
 const DrawerContext = createContext<DrawerContextValue | null>(null)
 
-/** Root-level drawer host. Portal rendering keeps drawers above transformed pages. */
+/** Root-level drawer host. Portal rendering keeps drawers above transformed
+ * pages; AnimatePresence lets a closing drawer play its exit animation
+ * (drawers without one are removed at once). */
 export function DrawerProvider({ children }: { children: ReactNode }) {
   const [content, setContent] = useState<ReactNode>(null)
   const openDrawer = useCallback((next: ReactNode) => setContent(next), [])
@@ -25,7 +29,12 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
   return (
     <DrawerContext.Provider value={value}>
       {children}
-      {content ? createPortal(content, document.body) : null}
+      {createPortal(
+        <AnimatePresence>
+          {content ? <Fragment key="drawer">{content}</Fragment> : null}
+        </AnimatePresence>,
+        document.body,
+      )}
     </DrawerContext.Provider>
   )
 }

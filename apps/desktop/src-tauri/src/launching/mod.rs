@@ -1,8 +1,10 @@
 pub mod app_launch;
 pub mod context;
-pub mod gamehub_readiness;
+pub mod first_launch;
+pub mod game_activity;
 pub mod launcher;
 pub mod process_monitor;
+pub mod progress;
 pub mod screen_placement;
 pub mod session;
 

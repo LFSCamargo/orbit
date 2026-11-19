@@ -1,4 +1,4 @@
-import { GlassCard } from '@/components/ui/glass-card'
+import { GlassPanel } from '@/components/ui/glass-panel'
 import { Reveal } from '@/components/ui/reveal'
 
 const MAPPING = [
@@ -22,12 +22,12 @@ export function ControllerSection() {
           <h2 className="mt-5 text-4xl font-medium tracking-[-0.045em] sm:text-6xl">
             Pick up the controller. Leave the desk.
           </h2>
-          <p className="mt-6 max-w-lg text-base leading-7 text-orbit-muted">
+          <p className="mt-6 max-w-lg text-base leading-7 text-white/65">
             Every screen is designed around predictable spatial focus. Move through your
             library, edit artwork, change themes, and launch a game without reaching for a
             mouse.
           </p>
-          <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.16em] text-orbit-muted">
+          <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.16em] text-white/65">
             Keyboard: arrows · Enter · Esc · F · C · [ ] · M
           </p>
         </div>
@@ -36,15 +36,12 @@ export function ControllerSection() {
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {MAPPING.map((entry, index) => (
           <Reveal key={entry.button} delay={index * 0.04}>
-            <GlassCard
-              radius={20}
-              className="h-full p-5 transition hover:border-orange-500/30"
-            >
+            <GlassPanel className="h-full p-5 transition hover:border-orange-500/30">
               <dt className="font-mono text-xs font-medium text-orbit-foreground">
                 {entry.button}
               </dt>
-              <dd className="mt-3 text-sm text-orbit-muted">{entry.action}</dd>
-            </GlassCard>
+              <dd className="mt-3 text-sm text-white/65">{entry.action}</dd>
+            </GlassPanel>
           </Reveal>
         ))}
         <Reveal delay={0.3}>

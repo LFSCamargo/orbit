@@ -1,0 +1,231 @@
+//! Install folder names from Steam's binary `appcache/appinfo.vdf` (v28 and
+//! v29). A library can lose an `appmanifest_<id>.acf` while the game folder is
+//! still there; this names that folder. Bounded: the file is Steam-written but
+//! still untrusted input.
+use std::collections::{HashMap, HashSet};
+
+const MAGIC_V28: u32 = 0x0756_4428;
+const MAGIC_V29: u32 = 0x0756_4429;
+const MAX_BYTES: usize = 128 * 1024 * 1024;
+const MAX_APPS: usize = 200_000;
+const MAX_DEPTH: usize = 16;
+/// Per-app fields between the app header and its key-values.
+const APP_PREAMBLE: usize = 4 + 4 + 8 + 20 + 4 + 20;
+
+/// `appinfo/config/installdir` for each wanted app id found in the file.
+pub fn install_dirs(bytes: &[u8], wanted: &HashSet<u32>) -> HashMap<u32, String> {
+    let mut found = HashMap::new();
+    if bytes.len() > MAX_BYTES || wanted.is_empty() {
+        return found;
+    }
+    let Some(magic) = u32_at(bytes, 0) else {
+        return found;
+    };
+    let strings = match magic {
+        MAGIC_V29 => match string_table(bytes) {
+            Some(table) => Some(table),
+            None => return found,
+        },
+        MAGIC_V28 => None,
+        _ => return found,
+    };
+    let reader = Reader {
+        bytes,
+        strings: strings.as_deref(),
+    };
+    let mut at = if magic == MAGIC_V29 { 16 } else { 8 };
+    for _ in 0..MAX_APPS {
+        let Some(app_id) = u32_at(bytes, at) else {
+            break;
+        };
+        let Some(size) = u32_at(bytes, at + 4) else {
+            break;
+        };
+        if app_id == 0 {
+            break;
+        }
+        let body = at + 8;
+        let Some(next) = body
+            .checked_add(size as usize)
+            .filter(|end| *end <= bytes.len())
+        else {
+            break;
+        };
+        if wanted.contains(&app_id) {
+            if let Some(dir) = reader.installdir(body + APP_PREAMBLE, next) {
+                found.insert(app_id, dir);
+                if found.len() == wanted.len() {
+                    break;
+                }
+            }
+        }
+        at = next;
+    }
+    found
+}
+
+fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
+    Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
+}
+
+fn string_table(bytes: &[u8]) -> Option<Vec<&str>> {
+    let offset = usize::try_from(u64::from_le_bytes(bytes.get(8..16)?.try_into().ok()?)).ok()?;
+    let count = u32_at(bytes, offset)? as usize;
+    let mut strings = Vec::with_capacity(count.min(1 << 16));
+    let mut at = offset + 4;
+    for _ in 0..count.min(1 << 20) {
+        let (text, end) = c_str(bytes, at, bytes.len())?;
+        strings.push(text);
+        at = end;
+    }
+    Some(strings)
+}
+
+fn c_str(bytes: &[u8], at: usize, limit: usize) -> Option<(&str, usize)> {
+    let rest = bytes.get(at..limit)?;
+    let len = rest.iter().position(|byte| *byte == 0)?;
+    Some((std::str::from_utf8(&rest[..len]).ok()?, at + len + 1))
+}
+
+struct Reader<'a> {
+    bytes: &'a [u8],
+    strings: Option<&'a [&'a str]>,
+}
+
+impl Reader<'_> {
+    fn installdir(&self, start: usize, end: usize) -> Option<String> {
+        let mut path = Vec::new();
+        let mut found = None;
+        self.walk(start, end, &mut path, &mut found)?;
+        found
+    }
+
+    fn key(&self, at: usize, end: usize) -> Option<(&str, usize)> {
+        match self.strings {
+            Some(table) => Some((*table.get(u32_at(self.bytes, at)? as usize)?, at + 4)),
+            None => c_str(self.bytes, at, end),
+        }
+    }
+
+    /// Walk one nested object; records `appinfo/config/installdir`.
+    fn walk<'k>(
+        &'k self,
+        mut at: usize,
+        end: usize,
+        path: &mut Vec<&'k str>,
+        found: &mut Option<String>,
+    ) -> Option<usize> {
+        if path.len() > MAX_DEPTH {
+            return None;
+        }
+        loop {
+            let kind = *self.bytes.get(at).filter(|_| at < end)?;
+            at += 1;
+            if kind == 0x08 {
+                return Some(at);
+            }
+            let (key, next) = self.key(at, end)?;
+            at = next;
+            at = match kind {
+                0x00 => {
+                    path.push(key);
+                    let next = self.walk(at, end, path, found)?;
+                    path.pop();
+                    next
+                }
+                0x01 => {
+                    let (value, next) = c_str(self.bytes, at, end)?;
+                    if found.is_none()
+                        && key.eq_ignore_ascii_case("installdir")
+                        && path.len() == 2
+                        && path[0].eq_ignore_ascii_case("appinfo")
+                        && path[1].eq_ignore_ascii_case("config")
+                    {
+                        *found = Some(value.to_string());
+                    }
+                    next
+                }
+                0x02 | 0x03 | 0x04 | 0x06 => at + 4,
+                0x07 | 0x0a => at + 8,
+                _ => return None,
+            };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A v29 file with two apps; only `appinfo/config/installdir` counts.
+    fn sample_v29() -> Vec<u8> {
+        let strings = ["appinfo", "config", "installdir", "common", "name"];
+        let key =
+            |name: &str| (strings.iter().position(|s| *s == name).unwrap() as u32).to_le_bytes();
+        let app = |id: u32, dir: &str, decoy: &str| {
+            let mut kv = Vec::new();
+            kv.push(0x00);
+            kv.extend(key("appinfo"));
+            kv.push(0x00);
+            kv.extend(key("common"));
+            kv.push(0x01);
+            kv.extend(key("installdir"));
+            kv.extend(decoy.as_bytes());
+            kv.push(0);
+            kv.push(0x08);
+            kv.push(0x00);
+            kv.extend(key("config"));
+            kv.push(0x02);
+            kv.extend(key("name"));
+            kv.extend(7u32.to_le_bytes());
+            kv.push(0x01);
+            kv.extend(key("installdir"));
+            kv.extend(dir.as_bytes());
+            kv.push(0);
+            kv.push(0x08);
+            kv.push(0x08);
+            kv.push(0x08);
+            let mut body = vec![0u8; APP_PREAMBLE];
+            body.extend(kv);
+            let mut out = id.to_le_bytes().to_vec();
+            out.extend((body.len() as u32).to_le_bytes());
+            out.extend(body);
+            out
+        };
+        let mut apps = app(1593500, "GodOfWar", "not this");
+        apps.extend(app(883710, "RESIDENT EVIL 2  BIOHAZARD RE2", "nor this"));
+        apps.extend(0u32.to_le_bytes());
+        let table_at = 16 + apps.len();
+        let mut out = MAGIC_V29.to_le_bytes().to_vec();
+        out.extend(1u32.to_le_bytes());
+        out.extend((table_at as u64).to_le_bytes());
+        out.extend(apps);
+        out.extend((strings.len() as u32).to_le_bytes());
+        for name in strings {
+            out.extend(name.as_bytes());
+            out.push(0);
+        }
+        out
+    }
+
+    #[test]
+    fn names_the_install_folder_of_each_wanted_app() {
+        let file = sample_v29();
+        let found = install_dirs(&file, &HashSet::from([1593500, 883710, 42]));
+        assert_eq!(found.get(&1593500).map(String::as_str), Some("GodOfWar"));
+        assert_eq!(
+            found.get(&883710).map(String::as_str),
+            Some("RESIDENT EVIL 2  BIOHAZARD RE2")
+        );
+        assert!(!found.contains_key(&42));
+        assert!(!install_dirs(&file, &HashSet::from([1593500])).contains_key(&883710));
+    }
+
+    #[test]
+    fn truncated_or_foreign_files_yield_nothing() {
+        let file = sample_v29();
+        assert!(install_dirs(&file[..40], &HashSet::from([1593500])).is_empty());
+        assert!(install_dirs(b"not appinfo at all", &HashSet::from([1])).is_empty());
+        assert!(install_dirs(&[], &HashSet::from([1])).is_empty());
+    }
+}

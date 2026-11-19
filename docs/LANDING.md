@@ -1,24 +1,38 @@
 # Landing site
 
 `apps/landing` is the public website for Orbit: what it is, how to install it, and where to
-download every published version. It is a Next.js (App Router) app deployed on Vercel.
+download every published version. Orbit ships for macOS only, so the site offers Orbit for
+the Mac only (Windows appears only as "Windows games", which Orbit runs through Orbit Wine). It is a Next.js (App Router) app deployed on Vercel.
 
 ## Routes
 
 | Route                 | Purpose                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
-| `/`                   | Animated product preview, features, themes, controller mapping, downloads for all desktop platforms  |
+| `/`                   | Space hero with the 3D globe, features, themes, controller mapping, and the Mac download             |
 | `/docs`               | Product manual: imports, library, controllers, sessions, artwork, themes, local data, and boundaries |
-| `/install`            | macOS, Windows, and Linux install steps, checksums, updates, uninstall, and source builds            |
+| `/install`            | Mac install steps, first launch, checksums, updates, uninstall, and source builds                    |
 | `/download`           | Latest stable release: primary download, all files, release notes, version picker                    |
 | `/download/[version]` | Same view for a specific version (e.g. `/download/0.2.0`); unknown versions return 404               |
 
 ## Presentation
 
-The dark grayscale visual system uses red, orange, and yellow accents. The home hero uses
-`MacbookScroll`, a Motion-powered scroll perspective inspired by Aceternity UI, with a
-reduced-motion static fallback. Platform cards expose the latest compatible asset for each
-desktop OS without making browser or OS detection a requirement.
+The site uses the look of the Orbit app's onboarding and startup splash. Behind every page
+sits a fixed space sky (`components/space/SpaceBackdrop.tsx`): drifting nebula glows, a seeded
+star field with twinkling sparkles, and Aceternity meteors. The home hero puts the Orbit logo
+and the fire-gradient headline above a planet's horizon (`components/space/Planet.tsx`), sized
+by `lib/planetGeometry.ts` (shared with the app) so its fire rim leaves through the bottom edge.
+
+The planet is the CSS photo planet first (server-rendered, as the app's splash). On a real GPU
+with motion on and a window at least 768 px wide (`lib/globeSupport.ts`; software WebGL counts
+as no GPU), the turning 3D globe (`components/space/Globe3D.tsx`, Aceternity's Globe3D with
+Orbit's framing and colours, as in the app's onboarding) loads after the page is idle and fades
+in over the photo once it has drawn its first frame. Three.js never loads on phones, without
+WebGL, or with reduced motion.
+
+Surfaces use the app's liquid glass (`.orbit-glass` in `globals.css`, via `GlassPanel`), and
+primary actions the fire-gradient glass button (`.orbit-btn-fire`, via `buttonClass`). Sections
+reveal on scroll. Reduced motion stops every animation; reduced transparency makes glass
+opaque.
 
 ## Release data
 
@@ -29,12 +43,12 @@ through [the release workflow](../.github/workflows/release.yml) is all it takes
   `next: { revalidate: 600 }`. Pages regenerate at most every 10 minutes (ISR).
 - `src/lib/releases.ts` validates the untrusted payload: drafts and non-semver tags are dropped,
   only `https://github.com/` download URLs are kept, and versions sort newest first.
-- Assets are classified by file name and platform: `*.dmg` / `*.app.tar.gz` (macOS),
-  `*.exe` / `*.msi` (Windows), `*.AppImage` / `*.deb` / `*.rpm` / Linux archives, and
-  `SHA256SUMS.txt` (checksums). Architecture labels adapt to the platform.
-- Primary downloads prefer Apple Silicon DMG on macOS, x64 EXE on Windows, and x64 AppImage
-  on Linux, with the other native package formats as fallbacks. If a release has no bundle
-  for a platform, the install guide links to the cross-platform source build instead.
+- Only macOS files are offered: `*.dmg`, `*.app.tar.gz` and `SHA256SUMS.txt`. Anything else on
+  a release (Windows or Linux files on older releases) is dropped, and stays reachable from
+  the release's GitHub page. Orbit Wine releases (`orbit-wine-v*`) are not semver and never
+  listed.
+- "Download for Mac" prefers the Apple Silicon DMG, then universal, Intel, and the app
+  archive.
 - "Latest" is the newest non-prerelease. Pre-releases are listed with a badge.
 - If GitHub is unreachable or rate-limited, pages show a fallback that links to GitHub Releases.
 - Release notes are rendered from markdown with `react-markdown` (raw HTML is never rendered).

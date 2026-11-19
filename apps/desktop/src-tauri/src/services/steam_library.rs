@@ -65,7 +65,7 @@ pub async fn install(app_id: &str) -> Result<(), String> {
         .map_err(|_| "Steam Store returned an invalid response")?;
     if !advertises_mac_build(&response, app_id) {
         return Err(
-            "Steam does not list a Mac build for this game. Check GameHub for compatibility."
+            "Steam does not list a Mac build for this game. Install the Windows version in Settings → Steam."
                 .into(),
         );
     }

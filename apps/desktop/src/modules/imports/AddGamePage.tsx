@@ -1,14 +1,18 @@
-import { useMemo, useState } from 'react'
+import { WineProfileEditor } from '@/components/runtime/WineProfileEditor'
+import type { WineProfile } from '@/types/runtime'
+import { useEffect, useMemo, useState } from 'react'
 import { open } from '@/lib/dialog'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, FolderOpen, Gamepad2, HardDrive, Joystick } from 'lucide-react'
+import { Check, FolderOpen, Gamepad2, HardDrive } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
+import { focusManager } from '@/controllers/FocusManager'
 import { useGameActions } from '@/hooks/useGames'
-import { backTarget } from '@/lib/navigation'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
+import { notify } from '@/lib/toast'
 import { ThemePage } from '@/themes/ThemePage'
 import type { GamePlatform, GameProvider, LaunchConfiguration } from '@/types/game'
+import { buttonClass } from '@/components/ui/button'
 
 type Step = 'source' | 'path' | 'details' | 'done'
 
@@ -20,31 +24,13 @@ const SOURCES: Array<{
   extensions: string[]
   folder?: boolean
   autoSteam?: boolean
-  autoGamehub?: boolean
 }> = [
-  {
-    id: 'steam',
-    title: 'Steam',
-    body: 'Scan your Steam library. Playtime, size, and achievements are detected automatically.',
-    provider: 'steam',
-    extensions: [],
-    autoSteam: true,
-  },
   {
     id: 'astris',
     title: 'Astris (.nsp / .xci)',
     body: 'Pick a folder of Nintendo Switch dumps. Orbit parses filenames only.',
     provider: 'astris',
     extensions: ['nsp', 'xci'],
-    folder: true,
-  },
-  {
-    id: 'gamehub',
-    title: 'GameHub shortcuts',
-    body: 'Scan /Applications and ~/Applications for GameHub shortcuts (bundle id com.gamehub.shortcut.*). Create each shortcut in GameHub first.',
-    provider: 'gamehub',
-    extensions: ['app'],
-    autoGamehub: true,
     folder: true,
   },
   {
@@ -64,10 +50,7 @@ const SOURCES: Array<{
 ]
 
 export function AddGamePage() {
-  const screen = useUiStore((s) => s.screen)
-  const previousScreen = useUiStore((s) => s.previousScreen)
   const setScreen = useUiStore((s) => s.setScreen)
-  const setImportToast = useUiStore((s) => s.setImportToast)
   const { create } = useGameActions()
   const { runScan } = useImportScan()
 
@@ -78,11 +61,32 @@ export function AddGamePage() {
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [wineProfile, setWineProfile] = useState<WineProfile>({
+    executable: '',
+    runtimePath: '',
+    arguments: [],
+    environment: {},
+  })
 
   const source = useMemo(
     () => SOURCES.find((item) => item.id === sourceId) ?? null,
     [sourceId],
   )
+  useEffect(() => {
+    if (step !== 'source') return
+    let attempts = 0
+    let frame = 0
+    const focusSource = () => {
+      if (document.querySelector('[data-screen="add-game"] [data-focused="true"]')) return
+      if (focusManager.hasNode('add-source-astris')) {
+        focusManager.setFocus('add-source-astris')
+        return
+      }
+      if (++attempts < 30) frame = requestAnimationFrame(focusSource)
+    }
+    frame = requestAnimationFrame(focusSource)
+    return () => cancelAnimationFrame(frame)
+  }, [step])
 
   const runAutoImport = async (id: string) => {
     setBusy(true)
@@ -121,8 +125,9 @@ export function AddGamePage() {
         return
       }
       setSelectedPath(selected)
+      setWineProfile((p) => ({ ...p, executable: selected }))
 
-      if (source.id === 'astris' || source.id === 'gamehub') {
+      if (source.id === 'astris') {
         const outcome = await runScan(source.id, {
           folder: selected,
           messageStyle: 'imported',
@@ -152,7 +157,8 @@ export function AddGamePage() {
         description: description.trim() || undefined,
         provider,
         platform,
-        launchConfig,
+        launchConfig:
+          ext === 'exe' ? { type: 'wine', profile: wineProfile } : launchConfig,
       })
       finish(`Added ${title.trim()}`)
     } catch (error) {
@@ -164,29 +170,15 @@ export function AddGamePage() {
 
   const finish = (message: string) => {
     setStatus(message)
-    setImportToast(message)
+    notify.success({ title: message })
     setStep('done')
   }
 
   return (
     <ThemePage
       title="Add game"
-      subtitle="Controller-friendly import for Steam, Astris, GameHub, and local files."
+      subtitle="Controller-friendly import for Astris, macOS apps, and local files."
     >
-      <div className="mb-8">
-        <Focusable
-          focusId="add-back"
-          group="add-nav"
-          order={0}
-          noScale
-          onClick={() => setScreen(backTarget(screen, previousScreen))}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Focusable>
-      </div>
-
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
@@ -206,7 +198,7 @@ export function AddGamePage() {
                   disabled={busy}
                   onClick={() => {
                     setSourceId(item.id)
-                    if (item.autoSteam || item.id === 'native' || item.autoGamehub) {
+                    if (item.autoSteam || item.id === 'native') {
                       void runAutoImport(item.id)
                     } else {
                       setStep('path')
@@ -215,9 +207,7 @@ export function AddGamePage() {
                   className="orbit-panel rounded-theme p-6 text-left"
                 >
                   <div className="orbit-glass-control mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-orbit-accent/15 text-orbit-accent">
-                    {item.id === 'steam' ? (
-                      <Joystick className="h-5 w-5" />
-                    ) : item.id === 'astris' ? (
+                    {item.id === 'astris' ? (
                       <Gamepad2 className="h-5 w-5" />
                     ) : (
                       <HardDrive className="h-5 w-5" />
@@ -243,7 +233,7 @@ export function AddGamePage() {
                   order={0}
                   disabled={busy}
                   onClick={() => void pickPath()}
-                  className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ size: 'lg' })}
                 >
                   <FolderOpen className="h-4 w-4" />
                   {source.folder ? 'Choose folder' : 'Choose file'}
@@ -253,7 +243,7 @@ export function AddGamePage() {
                   group="add-path"
                   order={1}
                   onClick={() => setStep('source')}
-                  className="orbit-glass-control rounded-card bg-white/10 px-5 py-3"
+                  className="orbit-glass-control rounded-full bg-white/10 px-5 py-3"
                 >
                   Change source
                 </Focusable>
@@ -288,14 +278,24 @@ export function AddGamePage() {
                   className="mt-2 w-full rounded-card border border-orbit-border bg-orbit-surface px-4 py-3 text-orbit-foreground outline-none ring-orbit-focus focus:ring-2"
                 />
               </label>
+              {selectedPath?.toLowerCase().endsWith('.exe') && (
+                <div className="mt-6">
+                  <WineProfileEditor value={wineProfile} onChange={setWineProfile} />
+                </div>
+              )}
               <div className="mt-6 flex flex-wrap gap-3">
                 <Focusable
                   focusId="add-save"
                   group="add-details"
                   order={0}
-                  disabled={busy || !title.trim()}
+                  disabled={
+                    busy ||
+                    !title.trim() ||
+                    (selectedPath?.toLowerCase().endsWith('.exe') &&
+                      !wineProfile.runtimePath)
+                  }
                   onClick={() => void saveManual()}
-                  className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ size: 'lg' })}
                 >
                   Add to library
                 </Focusable>
@@ -304,7 +304,7 @@ export function AddGamePage() {
                   group="add-details"
                   order={1}
                   onClick={() => setStep('path')}
-                  className="orbit-glass-control rounded-card bg-white/10 px-5 py-3"
+                  className="orbit-glass-control rounded-full bg-white/10 px-5 py-3"
                 >
                   Back
                 </Focusable>
@@ -325,7 +325,7 @@ export function AddGamePage() {
                   group="add-done"
                   order={0}
                   onClick={() => setScreen('library')}
-                  className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+                  className={buttonClass({ size: 'lg' })}
                 >
                   Open library
                 </Focusable>
@@ -341,7 +341,7 @@ export function AddGamePage() {
                     setDescription('')
                     setStatus(null)
                   }}
-                  className="orbit-glass-control rounded-card bg-white/10 px-5 py-3"
+                  className="orbit-glass-control rounded-full bg-white/10 px-5 py-3"
                 >
                   Add another
                 </Focusable>
@@ -382,9 +382,12 @@ function launchFromPath(
   }
   if (ext === 'exe') {
     return {
-      provider: 'gamehub',
+      provider: 'manual',
       platform: 'windows',
-      launchConfig: { type: 'open-file', filePath: path },
+      launchConfig: {
+        type: 'wine',
+        profile: { executable: path, runtimePath: '', arguments: [], environment: {} },
+      },
     }
   }
   return {

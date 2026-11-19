@@ -35,8 +35,8 @@ fn render() -> Result<GlassMaterial, String> {
             "data:image/png;base64,{}",
             STANDARD.encode(png.into_inner())
         ),
-        toolbar_blur: 12,
-        panel_blur: 8,
+        toolbar_blur: 7,
+        panel_blur: 5,
     })
 }
 
@@ -58,7 +58,8 @@ mod tests {
         assert_eq!(image.dimensions(), (64, 64));
         assert!(image.pixels().all(|pixel| pixel[3] <= 6));
         assert!(first.grain.len() < 32_000);
-        assert!(first.panel_blur <= 8);
-        assert!(first.toolbar_blur <= 12);
+        // Clear glass: light blur so the backdrop reads through.
+        assert!(first.panel_blur <= 5);
+        assert!(first.toolbar_blur <= 7);
     }
 }

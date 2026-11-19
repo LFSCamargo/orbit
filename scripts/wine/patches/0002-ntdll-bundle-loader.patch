@@ -1,0 +1,21 @@
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -501,6 +501,18 @@
+         bin_dir = build_relative_path( dll_dir, LIBDIR "/wine", BINDIR );
+         data_dir = build_relative_path( dll_dir, LIBDIR "/wine", DATADIR "/wine" );
+         wineloader = build_path( ntdll_dir, "wine" );
++#ifdef __APPLE__
++        /* Orbit: inside an app bundle (Contents/lib/wine beside Contents/MacOS),
++         * start every Wine process from the bundle's executable. macOS then
++         * attributes the game to the bundle and its games category (Game Mode). */
++        {
++            char *bundled = build_path( dll_dir, "../../MacOS/wine" );
++            char *resolved = realpath( bundled, NULL );
++            free( bundled );
++            if (resolved && !access( resolved, X_OK )) wineloader = resolved;
++            else free( resolved );
++        }
++#endif
+     }
+ 
+     set_dll_path();

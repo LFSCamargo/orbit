@@ -17,20 +17,13 @@ const openApp: LaunchConfiguration = {
   applicationPath: '/Applications/Game.app',
 }
 
-const gamehub: LaunchConfiguration = {
-  type: 'gamehub',
-  gamehubAppPath: '/Applications/GameHub.app',
-  shortcutAppPath: '/Users/me/Applications/Title.app',
-}
-
 const steam: LaunchConfiguration = { type: 'steam', appId: '123' }
 const openUrl: LaunchConfiguration = { type: 'open-url', url: 'https://example.com' }
 
 describe('hasEditableLaunchPath', () => {
-  it('is true for open-file, open-application, and gamehub', () => {
+  it('is true for open-file and open-application', () => {
     expect(hasEditableLaunchPath(openFile)).toBe(true)
     expect(hasEditableLaunchPath(openApp)).toBe(true)
-    expect(hasEditableLaunchPath(gamehub)).toBe(true)
   })
 
   it('is false for non-path configs', () => {
@@ -43,7 +36,6 @@ describe('getEditableLaunchPath', () => {
   it('reads the editable path for each supported type', () => {
     expect(getEditableLaunchPath(openFile)).toBe('/Games/title.nsp')
     expect(getEditableLaunchPath(openApp)).toBe('/Applications/Game.app')
-    expect(getEditableLaunchPath(gamehub)).toBe('/Users/me/Applications/Title.app')
   })
 
   it('returns null for non-editable configs', () => {
@@ -71,13 +63,6 @@ describe('setEditableLaunchPath', () => {
     })
   })
 
-  it('updates gamehub shortcut path', () => {
-    expect(setEditableLaunchPath(gamehub, '/Users/me/Applications/New.app')).toEqual({
-      ...gamehub,
-      shortcutAppPath: '/Users/me/Applications/New.app',
-    })
-  })
-
   it('leaves non-editable configs unchanged', () => {
     expect(setEditableLaunchPath(steam, '/ignored')).toBe(steam)
   })
@@ -85,7 +70,6 @@ describe('setEditableLaunchPath', () => {
 
 describe('launchPathFieldLabel', () => {
   it('returns the field label for each config type', () => {
-    expect(launchPathFieldLabel(gamehub)).toBe('Shortcut .app path')
     expect(launchPathFieldLabel(openApp)).toBe('Application path')
     expect(launchPathFieldLabel(openFile)).toBe('Game file path')
     expect(launchPathFieldLabel(steam)).toBe('Game file path')

@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::path::{Component, PathBuf};
+use std::process::Command;
 
 use rfd::FileDialog;
 use serde::Deserialize;
@@ -46,6 +47,32 @@ pub async fn pick_open_path(
     }
 
     Ok(picked)
+}
+
+/// Open Finder on a known installation path. Rejects relative paths and `..`.
+#[tauri::command]
+pub async fn reveal_path(path: String) -> Result<(), String> {
+    let candidate = PathBuf::from(&path);
+    if !candidate.is_absolute()
+        || candidate
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err("That location cannot be opened.".into());
+    }
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|_| "That location is not available.".to_string())?;
+    let status = Command::new("open")
+        .arg("-R")
+        .arg(&canonical)
+        .status()
+        .map_err(|err| err.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Could not show that folder.".into())
+    }
 }
 
 fn prepare_macos_for_dialog(app: &AppHandle) -> Result<(), String> {

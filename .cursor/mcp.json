@@ -3,6 +3,9 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest", "--headless"]
+    },
+    "ai-memory": {
+      "url": "http://127.0.0.1:49375/mcp"
     }
   }
 }

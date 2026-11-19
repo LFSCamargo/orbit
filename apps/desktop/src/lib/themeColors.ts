@@ -14,12 +14,22 @@ export function hexToRgb(hex: string): string | null {
   return `${(value >> 16) & 255} ${(value >> 8) & 255} ${value & 255}`
 }
 
-/** Lighter companion of an accent for focus rings. */
-export function focusFromAccent(rgb: string): string {
+/** An "R G B" color mixed `amount` of the way toward white. */
+function towardWhite(rgb: string, amount: number): string {
   return rgb
     .split(/\s+/)
-    .map((part) => Math.round(Number(part) + (255 - Number(part)) * 0.45))
+    .map((part) => Math.round(Number(part) + (255 - Number(part)) * amount))
     .join(' ')
+}
+
+/** Lighter companion of an accent for focus rings. */
+export function focusFromAccent(rgb: string): string {
+  return towardWhite(rgb, 0.45)
+}
+
+/** The light end of the primary button gradient: accent → this. */
+export function lightAccent(rgb: string): string {
+  return towardWhite(rgb, 0.35)
 }
 
 export function studioThemeId(name: string): string {

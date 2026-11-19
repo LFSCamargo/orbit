@@ -76,11 +76,17 @@ const projectPaths = [
 ]
 
 const appSupport = join(homedir(), 'Library/Application Support/Orbit')
+// Report only. Never add these to the clean list — they are live user data.
 const appSupportPaths = [
   join(appSupport, 'orbit.sqlite3'),
   join(appSupport, 'orbit.sqlite3-wal'),
   join(appSupport, 'orbit.sqlite3-shm'),
   join(appSupport, 'orbit.db'),
+  join(appSupport, 'metadata.sqlite'),
+  join(appSupport, 'steam-windows'),
+  join(appSupport, 'artwork-cache'),
+  join(appSupport, 'themes'),
+  join(appSupport, 'runtimes'),
 ]
 
 const globalPaths = [
@@ -101,11 +107,14 @@ for (const path of projectPaths) {
 }
 console.log(`  ${formatBytes(projectTotal).padStart(8)}  total tracked\n`)
 
-console.log('App data (~/Library/Application Support/Orbit):')
+console.log(
+  'App data (~/Library/Application Support/Orbit) — never deleted by this script:',
+)
 let appTotal = 0
 for (const path of appSupportPaths) {
   if (!existsSync(path)) continue
-  const size = statSync(path).size
+  const info = statSync(path)
+  const size = info.isDirectory() ? dirSize(path) : info.size
   appTotal += size
   console.log(`  ${formatBytes(size).padStart(8)}  ${path.replace(homedir(), '~')}`)
 }

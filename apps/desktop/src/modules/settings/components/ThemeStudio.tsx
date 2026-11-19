@@ -8,6 +8,7 @@ import { ThemeBrand } from '@/themes/ThemeBrand'
 import type { ThemeColors, ThemeDefinition } from '@/themes/types'
 import { useThemeStudio } from '../hooks/useThemeStudio'
 import { ThemeColorsEditor } from './ThemeColorsEditor'
+import { buttonClass } from '@/components/ui/button'
 
 const INPUT =
   'mt-2 w-full rounded-card border border-orbit-border bg-orbit-surface px-4 py-3 text-orbit-foreground outline-none ring-orbit-focus focus:ring-2'
@@ -33,7 +34,10 @@ export function ThemeStudio({ base }: { base: ThemeDefinition }) {
   }
 
   return (
-    <section className="settings-studio" aria-labelledby="theme-studio-title">
+    <section
+      className="settings-studio border-t border-white/[0.07] pt-5"
+      aria-labelledby="theme-studio-title"
+    >
       <h2 id="theme-studio-title" className="font-display text-xl font-semibold">
         Theme studio
       </h2>
@@ -119,7 +123,7 @@ export function ThemeStudio({ base }: { base: ThemeDefinition }) {
           noScale
           disabled={studio.busy}
           onClick={() => void studio.save()}
-          className="inline-flex items-center gap-2 rounded-full bg-orbit-accent px-5 py-2.5 text-sm font-semibold text-orbit-canvas"
+          className={buttonClass()}
         >
           <Save className="h-4 w-4" />
           {studio.canDelete ? 'Save changes' : 'Save as my theme'}

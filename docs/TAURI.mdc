@@ -15,7 +15,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 
 - **Database:** SQLite persistence with versioned migrations (`database/migrations.rs`).
 - **Library:** CRUD for games, favorites, hidden flag, settings key/value store.
-- **Importers:** Discover and import from Steam, Astris, GameHub, macOS apps, manual paths.
+- **Importers:** Discover and import from Steam, Astris, macOS apps, and manual paths.
 - **Launching:** Resolve `LaunchConfiguration`, spawn process, monitor exit, record playtime.
 - **Sessions:** Track active game PID; block delete/clear while running.
 - **Themes:** List, save, and delete custom JSON themes in Application Support (`services/theme_files.rs`).
@@ -63,23 +63,26 @@ src-tauri/src/
     hero.rs                # Selected artwork lighting
     artwork.rs             # Image read/fetch/search
     metadata.rs            # enrich_game_metadata / enrich_games_metadata
+    network.rs             # get_network_stats
   database/
     mod.rs
     migrations.rs          # Versioned schema migrations
+    library_migration.rs   # One-time library identity rewrite
+    gamehub_removal.rs     # Drop retired shortcut rows; snapshot first
     repository.rs          # Library SQLite access
     metadata_cache.rs      # Separate metadata enrichment cache DB
   importers/
     mod.rs
     steam.rs
     astris.rs
-    gamehub.rs
     native_apps.rs
+    manual.rs
   launching/
     mod.rs
     app_launch.rs          # Shared open-app + 3s delay helpers
     context.rs             # Launch-time screen context from Orbit window
+    first_launch.rs        # Container → compatibility → Steam files → cloud → start
     launcher.rs            # Resolve LaunchConfiguration → Command
-    gamehub_readiness.rs   # GameHub deep-link dispatch
     process_monitor.rs     # Watch child process exit
     session.rs             # SessionManager — active session state
   models/
@@ -91,7 +94,7 @@ src-tauri/src/
     mod.rs
     library_sync.rs        # Upsert imported games (stable_key dedup)
     metadata_enrichment.rs # TheGamesDB + SteamGridDB orchestrator
-    metadata_merge.rs      # Placeholder description + artwork slot merge
+    metadata_merge.rs      # Placeholder description (importer stubs) + artwork slot merge
     thegamesdb.rs          # TheGamesDB API client
     steamgrid.rs           # SteamGridDB API client
     artwork.rs             # Disk artwork-cache helpers
@@ -105,6 +108,24 @@ src-tauri/src/
     glass_material.rs      # One-time bounded grain rendering
     hero_lighting.rs       # Scoped local artwork sampling
     steam_library.rs       # Steam install handoff and platform check
+    steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
+    steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
+    download_queue.rs      # FIFO Steam download queue: one worker, pause/resume, waits offline, saved in settings
+    game_fixes.rs          # Known-game fixes before launch; startup-crash fallback ladder (DirectX 11, then DXVK)
+    install_locations.rs   # This Mac or picked folders ("Orbit Games" Steam libraries), per-game choice
+    network_monitor.rs     # Interface byte counters once a second, Steam reachability probe, network-stats event
+    uninstall.rs           # Deletes Orbit-downloaded game folders inside allow-listed roots only
+    storage.rs             # Disk usage of Orbit's data folder by game / tool / runtime / other
+    install_roots.rs       # Real game folder behind each installation and its measured size
+    steam_native/          # Container install paths, depot plan, cloud, agent presence
+    steam_client.rs        # Settings phase labels from signed-in state; no keep-alive
+    steam_play.rs          # Per-game container seed + game EXE with SteamAppId
+    steam_library_paths.rs # Additional Steam library folders
+    steam_client_library.rs # Wine Steam libraryfolders.vdf + extra-library links
+    library.rs             # Canonical LibraryEntry merge
+    steam_login.rs         # Opens Valve's Steam window, then stops Wine after the account is saved
+    steam_qr.rs            # Legacy in-app QR catalog fetch (not the sign-in UI)
+    steam_credentials.rs   # Legacy RSA account sign-in (not the sign-in UI)
     steam_content.rs       # Steam depot / DLC inventory helpers
     switch_library.rs      # Switch ROM library grouping
     game_content.rs        # Home content inventory aggregation
@@ -159,6 +180,13 @@ Created in `lib.rs` at startup; library DB from `utils::paths::database_path()`,
 ## Database
 
 Migrations in `database/migrations.rs` — applied sequentially via `schema_migrations` table.
+`database/library_migration.rs` and `database/gamehub_removal.rs` are one-time
+data rewrites run from `repository` open: they snapshot the live SQLite file
+first, then drop leftover shortcut-provider rows and clear engine paths that
+pointed into a retired third-party Wine folder. Steam rows and their play
+history stay. `runtimes/retired_components.rs` then removes Orbit's own
+component pointer entries to that folder and clears active selections that
+used them, without touching files outside Orbit's component store.
 
 ### Core tables
 
@@ -177,23 +205,22 @@ Migrations in `database/migrations.rs` — applied sequentially via `schema_migr
 
 | Importer | ID | Detect | Notes |
 | -------- | -- | ------ | ----- |
-| `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, playtime |
+| `SteamImporter` | `steam` | Steam install present | Reads libraryfolders, app manifests, localconfig playtime |
 | `AstrisImporter` | `astris` | User folder | `.nsp` / `.xci` Nintendo Switch ROMs |
-| `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles |
-| `GameHubImporter` | `gamehub` | `/Applications` + `~/Applications` | Verified shortcuts only (`com.gamehub.shortcut.*` bundle id) |
-| Manual | `manual` | `import_game_path` | User file picker |
+| `NativeAppImporter` | `native` | Always on macOS | `/Applications` `.app` bundles (no third-party shortcut skip) |
+| Manual | `manual` | `import_game_path` | User file picker; Windows `.exe` uses Wine |
+
+The owned Steam catalog from `GetOwnedGames` also carries `playtime_forever` and last played onto Home, Library, and Details. Overlay keeps the larger of Steam minutes and Orbit sessions. Additional Steam library folders contribute installed AppIDs even when they are not in the owned snapshot, so store copy can replace leftover importer stubs.
 
 Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 
 ## Launch flow
 
-1. Frontend calls `launch_game(gameId)`.
-2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`.
+1. Frontend calls `launch_game(gameId)` (or `play_steam_windows_game` which upserts then launches).
+2. `SessionManager` loads game from repo, resolves `LaunchConfiguration`, and emits `game-launch-progress` (`resolve` → `runtime` → `steam` → `prefix` → `graphics` → `spawn` → `running`). A failed event keeps the step id and the error so the overlay can show where startup stopped. Steam + Windows Play uses the logged-on silent `steam.exe` in the signed-in prefix, waits until that client is logged on and not verifying, then reuses that prefix instead of a private bottle. Stopping the game leaves Steam running. A timed-out unsigned-in client is stopped. Wine Play drops leftover DXMT NVIDIA, MetalFX, and frame-rate flags that do not apply to the resolved engine instead of aborting on the first overlay step. Automatic graphics prefers GPTK, then DXMT, then DXVK.
 3. `launcher.rs` spawns the appropriate process (Steam URL, open file, open app, custom command).
    Switch `.nsp` / `.xci` launches always resolve to the **base application ROM** in the same folder; updates and DLC are left for the emulator to pick up.
-   **GameHub** titles use launch type `gamehub`: open `GameHub.app`, wait 3 seconds, then spawn
-   `GameHub.app/Contents/MacOS/GameHub` with the shortcut's `gamehub://` deep link. While GameHub
-   boots, a macOS helper moves its window to Orbit's current monitor and toggles fullscreen.
+   **Wine / GPTK** Windows installs use launch type `wine`. Steam + Windows Play overlays the current Steam Wine binary onto that profile, reuses the signed-in Steam prefix, and keeps the game's graphics settings.
    **Steam** titles invoke `steam://rungameid/{appId}` with the same monitor helper targeting
    `Steam`. **Astris** Switch ROMs open via `open -a Astris` when installed; a background watcher
    moves Astris onto Orbit's monitor and fullscreens it. **Native macOS apps** use the `.app`
@@ -211,7 +238,7 @@ Each importer implements `GameImporter` trait: `detect()`, `discover_games()`.
 - `decorations: true` with `titleBarStyle: "Transparent"` and `hiddenTitle: true` — keeps the native traffic lights but removes the title text and makes the title bar transparent so the Liquid Glass shell blends behind it.
 - `transparent: true` — required for the transparent title bar and lets the webview background show through.
 
-The frontend (`MacosShell.tsx`) sets `data-fullscreen` from the UI store; `macos.css` nudges the header brand right in windowed mode so it does not sit under the traffic lights.
+The frontend (`MacosShell.tsx`) sets `data-fullscreen` from the UI store and adds top padding in windowed mode so the header brand does not sit under the traffic lights.
 
 ## Testing
 
@@ -248,6 +275,10 @@ The Steam install command accepts a canonical positive numeric App ID. It checks
 the matching Steam Store game record for an advertised Mac build before opening
 the Steam client. Steam handles entitlement, compatibility, confirmation, and the
 download. Orbit does not edit store download state.
+
+`src-tauri/crates/orbit-steam` owns native Steam session, product, depot, cloud,
+and agent types. Passwords never enter that crate. Games still authenticate
+through Valve's client inside a Wine container.
 
 `src-tauri/crates/orbit-motion` prepares RGB lighting samples from a bounded raster decode on a blocking worker. `get_hero_lighting` accepts a game ID and hero or cover slot. It resolves only inline raster data or canonical files under Orbit’s artwork cache and runs at most one decode at a time. It returns three bytes and does not make network requests. The frontend animates layer opacity without frame-by-frame IPC.
 
@@ -300,3 +331,38 @@ are not rewritten. Warm cache reads do not initialize a renderer or decode image
 Cost is O(total bounded JSON bytes + cold image pixels), plus O(n log n) sorting;
 IPC payloads scale with theme metadata, not artwork bytes. The frontend shares
 concurrent reads and reloads only on startup or the explicit reload action.
+
+## Windows runtime orchestration
+
+`src-tauri/src/runtimes/` owns Wine detection, validation, prefix preparation,
+per-game containers (`containers/`), CrossOver-class capability probes, processes
+and logs. See [CONTAINERS.md](CONTAINERS.md). `commands/runtimes.rs` exposes `windows_compatibility`,
+`install_windows_compatibility`, `compatibility_catalog`,
+`compatibility_settings`,
+`update_compatibility_settings`, `detect_runtimes`, `register_wine_runtime` and
+`runtime_diagnostics`. `runtimes/settings.rs` merges SQLite global defaults with
+optional per-game overrides at launch, applies bounded environment/registry
+settings, and rejects unavailable backends. Managed setup reports a Tauri
+`Channel<SetupProgress>`,
+uses the macOS-only `system.supported` contract, verifies the pinned archive, and
+persists the activated path only after a successful probe. `commands/session.rs`
+runs launch/stop off the UI thread and exposes `cancel_game_launch`. The existing
+session events and repository remain the lifecycle/persistence boundary.
+See [RUNTIMES.md](RUNTIMES.md) for paths, ownership, limits and verification.
+
+Steam preferences accept optional `additionalLibraryPaths` (up to 16 existing
+Steam library, `steamapps`, or `steamapps/common` folders). Saves canonicalize and
+deduplicate paths and reject traversal, relative paths and invalid folders. Old
+preferences default to an empty list. Discovery scans at most 2,000 entries per
+folder, reads bounded manifests and rejects install/manifest symlink escapes.
+
+`scan_steam_installations` reads saved `additionalLibraryPaths`, deduplicating by
+AppID. Saving an additional folder in Settings invokes this scan and invalidates
+local and owned-library queries. Existing configured folders can be scanned without
+changing preferences.
+
+Steam login placement and cancellation execute on blocking workers. Placement accepts
+only the managed browser PID(s), positions within the webview's screen origin, and
+validates native frames between 640×360 and 840×520. It returns `placed: false` until
+the native window exists; macOS Accessibility/Automation denial is an explicit error.
+Cancel attempts bounded native shutdown and dismisses the UI even if cleanup fails; failures become notifications.

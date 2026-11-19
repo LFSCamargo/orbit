@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { focusFromAccent, hexToRgb, rgbToHex, studioThemeId } from '@/lib/themeColors'
+import {
+  focusFromAccent,
+  hexToRgb,
+  lightAccent,
+  rgbToHex,
+  studioThemeId,
+} from '@/lib/themeColors'
 
 describe('theme color conversion', () => {
   it('round-trips hex and RGB triplets', () => {
@@ -26,5 +32,13 @@ describe('studioThemeId', () => {
     expect(studioThemeId('../../etc')).toBe('custom-etc')
     expect(studioThemeId('***')).toBe('custom-theme')
     expect(studioThemeId('a'.repeat(80))).toHaveLength('custom-'.length + 40)
+  })
+})
+
+describe('lightAccent', () => {
+  it('mixes an accent 35% of the way to white for the gradient end', () => {
+    expect(lightAccent('249 115 22')).toBe('251 164 104')
+    expect(lightAccent('0 0 0')).toBe('89 89 89')
+    expect(lightAccent('255 255 255')).toBe('255 255 255')
   })
 })

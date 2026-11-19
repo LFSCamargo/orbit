@@ -1,10 +1,13 @@
 [workspace]
-members = ["crates/orbit-motion", "crates/orbit-images"]
+members = ["crates/orbit-motion", "crates/orbit-images", "crates/orbit-steam"]
+# Built only for Windows by helpers/steam-agent/build.sh; never part of the
+# macOS app build or `cargo test`.
+exclude = ["helpers/steam-agent"]
 resolver = "2"
 
 [package]
 name = "orbit"
-version = "1.0.0"
+version = "1.1.2"
 description = "Orbit — controller-first game launcher"
 authors = ["Orbit"]
 edition = "2021"
@@ -19,6 +22,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 orbit-motion = { path = "crates/orbit-motion" }
 orbit-images = { path = "crates/orbit-images" }
+orbit-steam = { path = "crates/orbit-steam" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
@@ -36,11 +40,21 @@ walkdir = "2"
 async-trait = "0.1"
 tokio = { version = "1", features = ["sync", "time", "rt", "macros", "rt-multi-thread"] }
 parking_lot = "0.12"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], default-features = false }
+sha2 = "0.10"
+tar = "0.4"
+xz2 = "0.1"
+flate2 = "1"
+zstd = "0.13"
 base64 = "0.22"
 urlencoding = "2"
 dotenvy = "0.15"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+rsa = { version = "0.9", default-features = false, features = ["std"] }
+rand = "0.8"
+zeroize = "1.9"
+zip = { version = "9.6.1", default-features = false, features = ["deflate"] }
 
 [profile.release]
 codegen-units = 1
@@ -52,6 +66,7 @@ strip = true
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 gilrs = "0.11"
+libc = "0.2"
 objc2 = "0.6"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"

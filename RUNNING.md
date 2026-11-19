@@ -51,7 +51,7 @@ yarn tauri:dev
 | Detail        | Value                                                   |
 | ------------- | ------------------------------------------------------- |
 | Vite dev URL  | `http://localhost:1420` (`apps/desktop/vite.config.ts`) |
-| Database      | `~/Library/Application Support/Orbit/orbit.db`          |
+| Database      | `~/Library/Application Support/Orbit/orbit.sqlite3`     |
 | Custom themes | `~/Library/Application Support/Orbit/themes/`           |
 
 Use this mode when working on importers, launch, SQLite, native dialogs, or window management.
@@ -88,7 +88,7 @@ unauthenticated rate limit. See [docs/LANDING.md](docs/LANDING.md) for routes an
 yarn tauri:build
 ```
 
-Produces a macOS `.app` bundle under `apps/desktop/src-tauri/target/release/bundle/macos/`. A `.dmg` installer is also created when Tauri's bundler succeeds.
+Produces a macOS `.app` bundle under `apps/desktop/src-tauri/target/release/bundle/macos/` and a `.dmg` installer. The DMG skips Finder icon layout because macOS blocks that AppleScript unless the terminal is allowed to control Finder. The app and the Applications link are still in the image.
 
 ### Release script (recommended)
 
@@ -179,7 +179,7 @@ E2E specs (in `apps/desktop/e2e/`):
 | `e2e/macos-theme.spec.ts`         | Liquid Glass home, shelf, compact window, reduced motion                    |
 | `e2e/themes.spec.ts`              | Color + game themes, legacy theme migration, theme studio save/delete       |
 | `e2e/game-details.spec.ts`        | Game details controls and achievements                                      |
-| `e2e/session-and-gamehub.spec.ts` | Session quick menu, GameHub manager, compact header logo                    |
+| `e2e/session-and-library.spec.ts` | Session quick menu, Steam library folders, compact header logo              |
 
 `yarn test:e2e` builds the desktop app first (Nx `dependsOn`), then serves it with `vite preview`, so the specs always exercise current code.
 
@@ -200,14 +200,18 @@ On macOS, Orbit stores local data under Application Support:
 
 ```text
 ~/Library/Application Support/Orbit/
-  orbit.db              # SQLite library database
+  orbit.sqlite3         # SQLite library + settings
+  steam-windows/        # Signed-in Windows Steam prefix (do not delete)
   themes/*.json         # User-authored custom themes
 ```
 
 Settings such as active theme id, optional RAWG API key, SteamGridDB API key, and
 `autoEnrichOnImport` are stored in the SQLite `settings` table.
 
-To reset local state during development, quit Orbit and remove `orbit.db` (this clears your library).
+Do not delete the whole `Orbit/` folder or `steam-windows/` while developing — that
+wipes the Windows Steam login and settings. See
+[`.cursor/rules/preserve-user-data.mdc`](.cursor/rules/preserve-user-data.mdc).
+To reset **only** the game library, quit Orbit and remove `orbit.sqlite3` after a backup.
 
 ---
 
@@ -234,7 +238,7 @@ localStorage.setItem('orbit.themeId', 'god-of-war') // any built-in or custom th
 
 Orbit fetches game descriptions from [TheGamesDB](https://api.thegamesdb.net/) and Steam artwork from [SteamGridDB](https://www.steamgriddb.com/). Results are cached locally in `metadata.sqlite` under Application Support.
 
-Add keys to a project `.env` (loaded at startup) or save them in **Settings → Metadata & artwork**:
+Add keys to a project `.env` (loaded at startup) or save them in **Settings → General**:
 
 ```bash
 THE_GAMES_DB_API_KEY="your-thegamesdb-key"
@@ -285,7 +289,9 @@ yarn clean          # cargo clean + remove dist/test/release artifacts (~11 GB t
 yarn clean:deep     # also prune global yarn + cargo caches (optional)
 ```
 
-Orbit app data lives in `~/Library/Application Support/Orbit/` (SQLite + artwork). Do not delete that folder unless you intend to reset your library. GameHub/wine data under `~/Library/Application Support/com.gamemac.www/` is separate and can be much larger if you test GameHub games.
+Orbit app data lives in `~/Library/Application Support/Orbit/` (SQLite, artwork,
+themes, and `steam-windows/`). Do not delete that folder unless you intend to
+reset the library **and** the Windows Steam session.
 
 See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 
@@ -303,7 +309,7 @@ See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 
 - Steam: ensure Steam is installed and has a library with games on this Mac.
 - Astris: use Add game → scan and pick the folder containing `.nsp` / `.xci` files.
-- GameHub importer is experimental.
+- Additional Steam library folders: Settings → Library.
 
 **Cannot delete a game**
 

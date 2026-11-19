@@ -1,201 +1,249 @@
-import { useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import type { GameProvider, LibrarySort } from '@/types/game'
-import { useMutation } from '@tanstack/react-query'
-import { openSteamLibrary, isTauriRuntime } from '@/lib/tauri'
-import { ConnectedGames } from './components/ConnectedGames'
-import { CollectionGrid } from './components/CollectionGrid'
+import { Gamepad2, Plus, RefreshCw, SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/feedback/EmptyState'
 import { Focusable } from '@/components/focus/Focusable'
-import { useGameActions, useGames } from '@/hooks/useGames'
-import { filterLibraryGames } from '@/modules/library/lib/libraryFilters'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useHasFavorites } from '@/hooks/useHasFavorites'
+import { useLibrary } from '@/hooks/useLibrary'
+import { fallbackLibraryView, showFavoritesTab } from '@/lib/favoritesTab'
+import {
+  refreshSteamWindowsLibrary,
+  scanSteamInstallations,
+  scanSteamLibrary,
+} from '@/lib/tauri'
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
+import { useSettingsControllerFocus } from '@/modules/settings/hooks/useSettingsControllerFocus'
+import { LibrarySections } from './components/LibrarySections'
+import { LibrarySkeleton } from './components/LibrarySkeleton'
+import { LibraryToolbar } from './components/LibraryToolbar'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
 
-const PROVIDERS: GameProvider[] = ['astris', 'steam', 'gamehub', 'native', 'manual']
-const SORTS: Array<{ id: LibrarySort; label: string }> = [
-  { id: 'alphabetical', label: 'A–Z' },
-  { id: 'recently-played', label: 'Recent' },
-  { id: 'recently-added', label: 'Added' },
-  { id: 'playtime', label: 'Playtime' },
-  { id: 'provider', label: 'Provider' },
-]
+/** How long typing must pause before Library and Search look a title up. */
+export const SEARCH_DEBOUNCE_MS = 250
 
-export function LibraryPage() {
-  const { data: games = [], isLoading } = useGames()
+const workspaceButtonClass =
+  'workspace-button inline-flex min-h-12 items-center justify-center gap-2.5 border border-white/[0.16] bg-white/[0.08] px-5 py-3 font-[550] disabled:opacity-45'
+
+export function LibraryPage({ search = false }: { search?: boolean }) {
+  const root = useSettingsControllerFocus()
   const filters = useUiStore((s) => s.libraryFilters)
-  const setLibraryFilters = useUiStore((s) => s.setLibraryFilters)
-  const setScreen = useUiStore((s) => s.setScreen)
-
-  const [view, setView] = useState<'All games' | 'Orbit' | 'Connected'>('All games')
-  const { scanSteam } = useGameActions()
-  const steam = useMutation({ mutationFn: openSteamLibrary })
-  const filtered = useMemo(
-    () => filterLibraryGames(games, { ...filters, query: '' }),
-    [games, filters],
-  )
-
+  const setFilters = useUiStore((s) => s.setLibraryFilters)
+  const searchQuery = useUiStore((s) => s.searchQuery)
+  const setSearchQuery = useUiStore((s) => s.setSearchQuery)
+  const view = useUiStore((s) => s.libraryView)
+  const setView = useUiStore((s) => s.setLibraryView)
+  const platform = useUiStore((s) => s.libraryPlatform)
+  const setPlatform = useUiStore((s) => s.setLibraryPlatform)
+  const openAddGame = useUiStore((s) => s.openAddGame)
+  const client = useQueryClient()
+  const { hasFavorites, isReady } = useHasFavorites()
+  const visibleView = fallbackLibraryView(view, hasFavorites, isReady) ?? view
+  // The field follows every key; the lookup waits for typing to pause.
+  const query = search ? searchQuery : filters.query
+  const lookup = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
+  const library = useLibrary({
+    query: lookup,
+    view: search ? 'all' : visibleView,
+    sort: filters.sort,
+    platform,
+  })
+  const refresh = useMutation({
+    mutationFn: async () => {
+      await Promise.all([
+        scanSteamLibrary(),
+        scanSteamInstallations(),
+        refreshSteamWindowsLibrary(),
+      ])
+    },
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ['library'] })
+      await client.invalidateQueries({ queryKey: ['games'] })
+      await client.invalidateQueries({ queryKey: ['steam-windows-library'] })
+    },
+  })
+  const entries = library.data?.pages.flatMap((p) => p.entries) ?? []
   return (
-    <ThemePage title="Library" subtitle={`${filtered.length} games`}>
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">Library</h1>
-        <div className="flex flex-wrap gap-2">
-          <Focusable
-            focusId="library-steam-library"
-            group="library-stores"
-            order={0}
-            noScale
-            disabled={steam.isPending}
-            onClick={() => steam.mutate()}
-            className="orbit-glass-control rounded-xl bg-white/10 px-4 py-2 text-sm"
-          >
-            Open Steam library
-          </Focusable>
-          <Focusable
-            focusId="library-steam-sync"
-            group="library-stores"
-            order={1}
-            noScale
-            disabled={scanSteam.isPending}
-            onClick={() => scanSteam.mutate()}
-            className="orbit-glass-control rounded-xl bg-white/10 px-4 py-2 text-sm"
-          >
-            {scanSteam.isPending ? 'Syncing Steam…' : 'Sync Steam installs'}
-          </Focusable>
-          <Focusable
-            focusId="library-gamehub-manager"
-            group="library-stores"
-            order={2}
-            noScale
-            onClick={() => setScreen('gamehub-library')}
-            className="orbit-glass-control rounded-xl bg-white/10 px-4 py-2 text-sm"
-          >
-            GameHub downloads
-          </Focusable>
-        </div>
-      </header>
-      {scanSteam.isError && (
-        <p role="alert" className="mb-3 text-sm text-rose-300">
-          {String(scanSteam.error)}
-        </p>
-      )}
-      {scanSteam.isSuccess && (
-        <p role="status" className="mb-3 text-sm text-orbit-muted">
-          Steam sync complete · {scanSteam.data.imported} imported.
-        </p>
-      )}
-      {steam.isError && (
-        <p role="alert" className="mb-3 text-sm text-rose-300">
-          {String(steam.error)}
-        </p>
-      )}
-      {steam.isSuccess && !isTauriRuntime() && (
-        <p role="status" className="mb-3 text-sm text-orbit-muted">
-          Preview · Steam library requested.
-        </p>
-      )}
-      <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Library view">
-        {(['All games', 'Orbit', 'Connected'] as const).map((item, order) => (
-          <Focusable
-            key={item}
-            focusId={`library-view-${order}`}
-            group="library-view"
-            order={order}
-            noScale
-            aria-pressed={view === item}
-            onClick={() => setView(item)}
-            className={clsx(
-              'rounded-full px-4 py-2 text-sm',
-              view === item
-                ? 'bg-orbit-accent text-orbit-canvas'
-                : 'orbit-glass-control bg-white/10',
-            )}
-          >
-            {item}
-          </Focusable>
-        ))}
-      </div>
-      {view !== 'Connected' && (
-        <>
-          <div
-            className="mb-4 flex flex-wrap gap-2"
-            role="group"
-            aria-label="Sort Orbit games"
-          >
-            {SORTS.map((sort, index) => (
-              <Focusable
-                key={sort.id}
-                focusId={`library-sort-${sort.id}`}
-                group="library-filters"
-                order={index}
-                noScale
-                noRing
-                onClick={() => setLibraryFilters({ sort: sort.id })}
-                className={clsx(
-                  'rounded-xl px-3 py-2 text-sm',
-                  filters.sort === sort.id
-                    ? 'orbit-glass-control bg-orbit-accent/20 text-orbit-accent'
-                    : 'orbit-glass-control bg-white/8 text-orbit-muted',
-                )}
-              >
-                {sort.label}
-              </Focusable>
-            ))}
-            <Focusable
-              focusId="library-favorites"
-              group="library-filters"
-              order={SORTS.length}
-              noScale
-              noRing
-              onClick={() => setLibraryFilters({ favoritesOnly: !filters.favoritesOnly })}
+    <ThemePage title={search ? 'Search' : 'Library'}>
+      <div
+        ref={root}
+        className={clsx('library-workspace mx-auto max-w-[1800px] px-0 pb-12 pt-5')}
+      >
+        <header
+          className={clsx(
+            'library-heading mb-7 flex items-center justify-between gap-6 max-[1100px]:items-start',
+          )}
+        >
+          <div>
+            <p
               className={clsx(
-                'rounded-xl px-3 py-2 text-sm',
-                filters.favoritesOnly
-                  ? 'orbit-glass-control bg-rose-500/30 text-rose-100'
-                  : 'orbit-glass-control bg-white/8 text-orbit-muted',
+                'workspace-eyebrow mb-2.5 text-xs font-[650] tracking-[0.16em] text-white/[0.62]',
               )}
             >
-              Favorites
+              YOUR COLLECTION
+            </p>
+            <h1
+              className={clsx(
+                'font-display text-[clamp(28px,3vw,42px)] font-[650] leading-[1.15] tracking-[-0.04em]',
+              )}
+            >
+              {search ? 'Find your next escape.' : 'All your games. One place.'}
+            </h1>
+            <p className={clsx('mt-2.5 text-orbit-muted')}>
+              {library.data?.pages[0]?.total ?? 0} games
+              {library.isFetching && !library.isPending ? ' · Updating…' : ''}
+            </p>
+          </div>
+          <div
+            className={clsx(
+              'library-header-actions flex shrink-0 gap-2.5 max-[1100px]:flex-wrap',
+            )}
+          >
+            <Focusable
+              focusId="library-refresh"
+              group="library-toolbar"
+              order={0}
+              noScale
+              disabled={refresh.isPending}
+              onClick={() => refresh.mutate()}
+              className={clsx(workspaceButtonClass, 'orbit-glass-control rounded-full')}
+              aria-label="Refresh library"
+            >
+              <RefreshCw
+                size={19}
+                className={refresh.isPending ? 'animate-spin' : undefined}
+              />
+              Refresh
+            </Focusable>
+            <Focusable
+              focusId="library-add"
+              group="library-toolbar"
+              order={1}
+              noScale
+              onClick={openAddGame}
+              className={clsx(workspaceButtonClass, 'rounded-full')}
+            >
+              <Plus size={19} />
+              Add games
             </Focusable>
           </div>
-
-          <div className="mb-6 flex flex-wrap gap-2">
-            {PROVIDERS.map((provider, index) => {
-              const active = filters.providers.includes(provider)
-              return (
-                <Focusable
-                  key={provider}
-                  focusId={`library-provider-${provider}`}
-                  group="library-providers"
-                  order={index}
-                  noScale
-                  noRing
-                  onClick={() => {
-                    const next = active
-                      ? filters.providers.filter((item) => item !== provider)
-                      : [...filters.providers, provider]
-                    setLibraryFilters({ providers: next })
-                  }}
-                  className={clsx(
-                    'rounded-full px-3 py-1.5 text-xs uppercase tracking-wider',
-                    active
-                      ? 'orbit-glass-control bg-orbit-accent/90 text-orbit-canvas'
-                      : 'orbit-glass-control bg-white/8 text-orbit-muted',
-                  )}
-                >
-                  {provider}
-                </Focusable>
-              )
-            })}
+        </header>
+        <LibraryToolbar
+          search={search}
+          view={visibleView}
+          query={query}
+          sort={filters.sort}
+          platform={platform}
+          onView={setView}
+          onQuery={(value) =>
+            search ? setSearchQuery(value) : setFilters({ query: value })
+          }
+          onSort={(sort) => setFilters({ sort })}
+          onPlatform={setPlatform}
+          onClear={() => setSearchQuery('')}
+          showFavorites={showFavoritesTab({
+            hasFavorites,
+            probeReady: isReady,
+            viewingFavorites: visibleView === 'favorites',
+          })}
+        />
+        {refresh.isError && (
+          <p role="alert">
+            Could not refresh all folders. Your saved library is still available.{' '}
+            {String(refresh.error)}
+          </p>
+        )}
+        {library.isPending ? (
+          <LibrarySkeleton label="Loading library" />
+        ) : library.isError ? (
+          <div
+            className={clsx(
+              'workspace-empty border-white/12 rounded-3xl border bg-[rgb(20_24_30/0.55)] px-6 py-16 text-center',
+            )}
+          >
+            <h2 className={clsx('mb-3 font-display text-2xl')}>
+              Could not load your library
+            </h2>
+            <Focusable
+              focusId="library-retry"
+              group="library-empty"
+              order={0}
+              onClick={() => void library.refetch()}
+            >
+              Try again
+            </Focusable>
           </div>
-
-          {isLoading ? (
-            <p className="text-orbit-muted">Loading…</p>
-          ) : (
-            <CollectionGrid games={filtered} screen="library" />
-          )}
-        </>
-      )}
-      {view !== 'Orbit' && <ConnectedGames query="" screen="library" />}
+        ) : entries.length ? (
+          <LibrarySections entries={entries} screen={search ? 'search' : 'library'} />
+        ) : lookup ? (
+          <EmptyState
+            icon={SearchX}
+            title={`No games match “${lookup}”`}
+            description={
+              search || (visibleView === 'all' && platform === 'all')
+                ? 'Check the spelling, or try a shorter title.'
+                : 'Nothing in this view matches. Try every game and platform.'
+            }
+            actions={[
+              {
+                label: 'Clear search',
+                focusId: 'library-empty-clear',
+                group: 'library-empty',
+                onClick: () => (search ? setSearchQuery('') : setFilters({ query: '' })),
+              },
+              ...(!search && (visibleView !== 'all' || platform !== 'all')
+                ? [
+                    {
+                      label: 'Show all games',
+                      focusId: 'library-empty-all',
+                      group: 'library-empty',
+                      onClick: () => {
+                        setView('all')
+                        setPlatform('all')
+                      },
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        ) : (
+          <EmptyState
+            icon={Gamepad2}
+            title="Your library is waiting"
+            description="Add a Steam library folder in Settings, or add a game yourself. Installed games show up here."
+            actions={[
+              {
+                label: 'Add games',
+                focusId: 'library-empty-add',
+                group: 'library-empty',
+                onClick: openAddGame,
+              },
+              {
+                label: 'Library settings',
+                focusId: 'library-empty-settings',
+                group: 'library-empty',
+                onClick: () => {
+                  useUiStore.getState().setSettingsTab('library')
+                  useUiStore.getState().setScreen('settings')
+                },
+              },
+            ]}
+          />
+        )}
+        {library.hasNextPage && (
+          <Focusable
+            focusId="library-more"
+            group="library-pagination"
+            order={0}
+            disabled={library.isFetchingNextPage}
+            className={clsx(workspaceButtonClass, 'mt-6 rounded-full')}
+            onClick={() => void library.fetchNextPage()}
+          >
+            <BusyLabel busy={library.isFetchingNextPage}>Show more games</BusyLabel>
+          </Focusable>
+        )}
+      </div>
     </ThemePage>
   )
 }

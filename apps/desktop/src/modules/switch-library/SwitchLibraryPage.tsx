@@ -10,6 +10,7 @@ import {
 import { useUiStore } from '@/stores/ui.store'
 import { ThemePage } from '@/themes/ThemePage'
 import type { SwitchLibraryScan } from '@/types/switch'
+import { buttonClass } from '@/components/ui/button'
 
 export function SwitchLibraryPage() {
   const setScreen = useUiStore((s) => s.setScreen)
@@ -49,7 +50,7 @@ export function SwitchLibraryPage() {
           order={0}
           noScale
           onClick={() => setScreen('settings')}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-2"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -61,10 +62,10 @@ export function SwitchLibraryPage() {
           noScale
           disabled={busy}
           onClick={() => void refreshFromLibrary()}
-          className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-4 py-2 font-semibold text-orbit-canvas"
+          className={buttonClass({})}
         >
           <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
-          {busy ? 'Scanning…' : 'Rescan from library'}
+          Rescan from library
         </Focusable>
         <Focusable
           focusId="switch-library-browse"
@@ -73,7 +74,7 @@ export function SwitchLibraryPage() {
           noScale
           disabled={busy}
           onClick={() => void browseFolder()}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-4 py-2"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2"
         >
           <FolderOpen className="h-4 w-4" />
           Scan a folder…

@@ -1,0 +1,56 @@
+---
+description: Never wipe live Orbit settings, Steam session, or Application Support data while developing
+alwaysApply: true
+---
+
+# Preserve Live User Data
+
+`~/Library/Application Support/Orbit/` is the **real** library, settings, and
+Windows Steam session. Rebuilding Orbit.app, running tests, signing in, and
+installing Steam must not delete it. Only the user clicking **Sign out**, or an
+explicit “reset my Orbit data” request, may wipe that folder.
+
+## Protected (never delete, empty, or overwrite)
+
+| Path | Why |
+| ---- | --- |
+| `orbit.sqlite3` (+ WAL/SHM) | Library, theme, API keys, Steam account/catalog, graphics, extra library folders |
+| `steam-windows/` | Wine prefix, `steam.exe`, `loginusers.vdf`, saved Steam login |
+| `artwork-cache/`, `themes/`, `runtimes/`, `metadata.sqlite` | User artwork, custom themes, downloaded compatibility bits |
+
+SQLite keys that must survive restarts: `steam-windows-account-v1`,
+`steam-windows-library-v1`, `steam-windows-settings-v1`,
+`windows-compatibility-settings-v1`, `windows-compatibility-active-components-v1`.
+
+## Agents must not
+
+- `rm -rf` Application Support/Orbit, `steam-windows`, or the live sqlite file
+- Call `disconnect` / `remove_session_dir` except to implement **Sign out**
+- Delete a prefix that already has `steam.exe` or `loginusers.vdf` because
+  `kernel32.dll` / `system.reg` looks incomplete
+- Clear the Steam account or owned catalog except on **Sign out**
+- Point tests at `app_data_dir()`; use temp dirs or in-memory SQLite
+- Treat `yarn release:macos --install` as permission to reset user data
+
+## Code
+
+```rust
+// ❌ BAD — sign-in/install destroys a signed-in Steam
+if prefix.exists() && !prefix_ready(&prefix) {
+    fs::remove_dir_all(&prefix)?;
+}
+
+// ✅ GOOD — keep Steam/login; reset only an empty incomplete prefix
+if prefix_has_steam(&prefix) {
+    return Ok(prefix);
+}
+if should_reset_prefix(&prefix) {
+    fs::remove_dir_all(&prefix)?;
+}
+```
+
+Install is a no-op when `steam.exe` exists. Incomplete-prefix reset is allowed
+only when Steam and `loginusers.vdf` are both absent.
+
+If a clean prefix is required for debugging, **ask the user first** and back up
+`steam-windows` plus `orbit.sqlite3`.

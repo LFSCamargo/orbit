@@ -1,8 +1,9 @@
-export type GameProvider = 'astris' | 'steam' | 'gamehub' | 'native' | 'manual'
+export type GameProvider = 'astris' | 'steam' | 'native' | 'manual'
 
 export type GamePlatform = 'nintendo-switch' | 'macos' | 'windows' | 'linux' | 'unknown'
 
 export type LaunchConfiguration =
+  | { type: 'wine'; profile: import('./runtime').WineProfile }
   | {
       type: 'open-file'
       filePath: string
@@ -25,11 +26,6 @@ export type LaunchConfiguration =
       type: 'custom-command'
       executable: string
       arguments: string[]
-    }
-  | {
-      type: 'gamehub'
-      gamehubAppPath: string
-      shortcutAppPath: string
     }
 
 export interface GameArtwork {
@@ -130,8 +126,6 @@ export type AppScreen =
   | 'library'
   | 'search'
   | 'game-details'
-  | 'game-edit'
   | 'add-game'
   | 'settings'
   | 'switch-library'
-  | 'gamehub-library'

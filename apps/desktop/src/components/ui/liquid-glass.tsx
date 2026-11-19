@@ -1,12 +1,12 @@
-import type { HTMLAttributes } from 'react'
+import type { HTMLAttributes, Ref } from 'react'
 import { clsx } from 'clsx'
 import { useReducedTransparency } from '@/hooks/useReducedTransparency'
-import './liquid-glass.css'
 
 export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
   contentClassName?: string
   radius?: number
   surface?: 'toolbar' | 'panel'
+  ref?: Ref<HTMLDivElement>
 }
 
 /** Shared compositor surface using the Rust-prepared material when available. */
@@ -25,7 +25,7 @@ export function LiquidGlass({
       className={clsx('orbit-glass relative overflow-hidden', className)}
       data-glass-mode={opaque ? 'opaque' : 'simple'}
       data-glass-surface={surface}
-      data-refract="false"
+      data-refract="true"
       style={{
         borderRadius: radius,
         ...style,

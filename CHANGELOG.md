@@ -20,6 +20,57 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-15
+
+### Fixed
+
+- Steam sign-in no longer fails when Wine is already stopped; a bounded server wait certifies shutdown.
+- Cancel dismisses the sign-in modal even if cleanup fails, with the failure reported as a notification.
+- Native shutdown operations time out rather than leaving cancellation waiting indefinitely.
+
+[1.1.2]: https://github.com/LFSCamargo/orbit/releases/tag/v1.1.2
+
+## [1.1.1] - 2026-11-15
+
+### Fixed
+
+- Steam Wine sign-in browser rendering and offscreen-window recovery using a bundled, source-included compatibility helper.
+- Modal readiness based on native placement, explicit positioning errors, and cancellation that waits for native shutdown.
+- Positioning scoped to the managed Steam browser instead of unrelated Wine or native Steam windows.
+- Stable Orbit header branding and persistent failed game-launch feedback.
+
+[1.1.1]: https://github.com/LFSCamargo/orbit/releases/tag/v1.1.1
+
+## [1.1.0] - 2026-11-14
+
+One library for Mac and Windows Steam games, with in-app Wine and GPTK.
+
+### Added
+
+- **Unified library** — Installed, All games, and Favorites share one grid. A Steam title is one card (`steam:<AppID>`), whether it is owned, installed, or both. Search covers the full catalog (capped at 2,000)
+- **Windows Steam on macOS** — Settings → Steam signs in with a QR code or a Steam account. The password is RSA-encrypted to Steam and never stored. Orbit snapshots the owned library, downloads one Windows depot at a time, and launches the installed `.exe` through Wine or GPTK. SteamCMD runs only during a download
+- **Downloads sidebar** in the shell — follow the active transfer without a resident Steam window
+- **Windows compatibility in Settings** — install Wine, DXVK, DXMT, MoltenVK, and Apple Game Porting Toolkit from a catalog; keep the chosen versions; apply graphics options only when that backend is installed. GPTK packages are checksum-verified against Apple’s published disk images
+- **Additional Steam library folders** in Settings → Library — add a `steamapps/common` folder (or its parent) so existing installs count as installed and can play
+- **Game details Settings** — General, Artwork, and Launch & compatibility live on the details page. There is no separate Edit properties screen
+- Unified library commands (`list_library_entries`, `get_library_entry`, `update_library_entry`, `delete_library_entry`, `scan_steam_installations`) and the Windows Steam sign-in / library / download command group
+
+### Changed
+
+- Library search, sort, and platform filters sit in separate 48px Liquid Glass clusters instead of one nested bar
+- Settings uses a controller-first sidebar (General, Themes, Library, Steam, Game graphics, Compatibility) with a right-hand insights column
+- Steam store descriptions replace importer placeholder copy, including leftover GameHub text, when a Steam identity is known
+- Desktop styling is Tailwind-first; Liquid Glass, focus rings, and CSS variables stay in `apps/desktop/src/styles/index.css`
+
+### Removed
+
+- GameHub as a provider: no shortcut scan, `gamehub://` handoff, or GameHub library screen. Add a Steam library folder in Settings to pick up games that already live in a GameHub `steamapps` tree. Unmatched GameHub rows leave the active library only after a SQLite backup; installed files are never moved or deleted
+
+### Fixed
+
+- Compact shell header no longer overflows around 900px; Settings content scrolls inside the glass pane
+- Windows executable discovery checks shallower directories first so large asset folders cannot hide the game `.exe`
+
 ## [1.0.0] - 2026-11-11
 
 Nx monorepo, landing site, game and color themes with a theme studio, and home/library focus polish.
@@ -242,6 +293,7 @@ GitHub Releases includes:
 - GameHub importer is experimental
 - Intel Macs: build locally with `yarn release:macos -- --arch x86_64` or `--arch universal`
 
+[1.1.0]: https://github.com/LFSCamargo/orbit/releases/tag/v1.1.0
 [1.0.0]: https://github.com/LFSCamargo/orbit/releases/tag/v1.0.0
 [0.3.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.3.0
 [0.2.0]: https://github.com/LFSCamargo/orbit/releases/tag/v0.2.0

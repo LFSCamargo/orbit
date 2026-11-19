@@ -1,4 +1,4 @@
-import { DownloadPlatforms } from '@/components/download/DownloadPlatforms'
+import { DownloadMac } from '@/components/download/DownloadMac'
 import { ControllerSection } from '@/components/home/ControllerSection'
 import { FeatureGrid } from '@/components/home/FeatureGrid'
 import { Hero } from '@/components/home/Hero'
@@ -18,7 +18,7 @@ export default async function HomePage() {
       <FeatureGrid />
       <ThemesSection />
       <ControllerSection />
-      <DownloadPlatforms latest={latest} />
+      <DownloadMac latest={latest} />
     </>
   )
 }

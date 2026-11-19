@@ -1,3 +1,5 @@
+import { isTextEntry } from './leaveTextField'
+
 export type FocusDirection = 'up' | 'down' | 'left' | 'right'
 
 export interface FocusableNode {
@@ -9,6 +11,62 @@ export interface FocusableNode {
 }
 
 type FocusListener = (id: string | null) => void
+
+export interface SetFocusOptions {
+  /** Scroll the target into view (default true). */
+  scroll?: boolean
+  /**
+   * Move real DOM focus so VoiceOver and Tab follow. `true` always does (an
+   * explicit move); `false` never does (pointer hover); unset does unless a
+   * text field is being edited.
+   */
+  dom?: boolean
+}
+
+/** Hidden, inert or `aria-hidden` controls are skipped by spatial navigation. */
+function isNavigable(element: HTMLElement): boolean {
+  if (!element.isConnected) return false
+  if (element.closest('[inert], [aria-hidden="true"], [hidden]')) return false
+  return typeof element.checkVisibility === 'function'
+    ? element.checkVisibility({ checkVisibilityCSS: true } as CheckVisibilityOptions)
+    : true
+}
+
+/** The part of the window `element` is drawn in, clipped by scrolling ancestors. */
+function visibleBox(element: HTMLElement) {
+  const rect = element.getBoundingClientRect()
+  let top = Math.max(rect.top, 0)
+  let bottom = Math.min(rect.bottom, window.innerHeight)
+  let left = Math.max(rect.left, 0)
+  let right = Math.min(rect.right, window.innerWidth)
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    const style = window.getComputedStyle(parent)
+    if (!/auto|scroll|hidden|clip/.test(style.overflowY + style.overflowX)) continue
+    const box = parent.getBoundingClientRect()
+    if (box.width === 0 && box.height === 0) continue
+    top = Math.max(top, box.top)
+    bottom = Math.min(bottom, box.bottom)
+    left = Math.max(left, box.left)
+    right = Math.min(right, box.right)
+  }
+  return { rect, top, bottom, left, right }
+}
+
+/** The nearest ancestor that scrolls, or null for the window. */
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    if (/auto|scroll|overlay/.test(window.getComputedStyle(parent).overflowY))
+      return parent
+  }
+  return null
+}
+
+/** Off screen means a laid-out control with none of it showing. Unknown layout counts as on screen. */
+function isOffScreen(element: HTMLElement): boolean {
+  const { rect, top, bottom, left, right } = visibleBox(element)
+  if (rect.width === 0 && rect.height === 0) return false
+  return bottom <= top || right <= left
+}
 
 function rectCenter(el: HTMLElement) {
   const rect = el.getBoundingClientRect()
@@ -112,7 +170,7 @@ export class FocusManager {
     }
 
     if (!this.focusedId && !node.disabled) {
-      this.setFocus(node.id)
+      this.setFocus(node.id, { dom: false })
     }
   }
 
@@ -158,7 +216,7 @@ export class FocusManager {
     this.moveToGroup(group, true)
   }
 
-  setFocus(id: string | null, options?: { scroll?: boolean }) {
+  setFocus(id: string | null, options?: SetFocusOptions) {
     if (id && !this.nodes.has(id)) return
     const node = id ? this.nodes.get(id) : null
     if (node?.disabled) return
@@ -174,6 +232,8 @@ export class FocusManager {
     this.focusedId = id
     this.emit()
 
+    if (node) this.focusDom(node.element, options?.dom)
+
     if (node && options?.scroll !== false) {
       node.element.scrollIntoView({
         behavior: 'smooth',
@@ -183,16 +243,25 @@ export class FocusManager {
     }
   }
 
+  private focusDom(element: HTMLElement, mode: boolean | undefined) {
+    if (mode === false || document.activeElement === element) return
+    if (mode === undefined && isTextEntry(document.activeElement)) return
+    // The ring is drawn from data-focused; DOM focus is for assistive tech and Tab.
+    element.focus({ preventScroll: true })
+  }
+
   pushFocus(id: string) {
     if (this.focusedId) {
       this.focusStack.push(this.focusedId)
     }
-    this.setFocus(id)
+    // A dialog that opens takes DOM focus so VoiceOver reads it.
+    this.setFocus(id, { dom: true })
   }
 
   popFocus() {
     const previous = this.focusStack.pop() ?? this.firstEnabled()?.id ?? null
-    this.setFocus(previous)
+    // Closing returns DOM focus to the control that opened it.
+    this.setFocus(previous, { dom: true })
   }
 
   restoreFocus(preferredId?: string | null) {
@@ -213,6 +282,14 @@ export class FocusManager {
 
   move(direction: FocusDirection) {
     const current = this.getFocusedNode()
+    if (current && (!isNavigable(current.element) || isOffScreen(current.element))) {
+      // The stick scrolled it away (or it was hidden): continue from what is on screen.
+      const next = this.firstOnScreen(direction, current.element)
+      if (next) {
+        this.setFocus(next.id, { dom: true })
+        return
+      }
+    }
     if (!current) {
       if (this.groupTrap && this.groupPreference) {
         this.moveToGroup(this.groupPreference, true)
@@ -226,11 +303,8 @@ export class FocusManager {
     let best: FocusableNode | null = null
     let bestScore = Number.POSITIVE_INFINITY
 
-    for (const node of this.nodes.values()) {
-      if (node.id === current.id || node.disabled) continue
-      if (this.groupTrap && this.groupPreference && node.group !== this.groupPreference) {
-        continue
-      }
+    for (const node of this.candidates()) {
+      if (node.id === current.id) continue
 
       const toRect = node.element.getBoundingClientRect()
       if (!isInDirection(fromRect, toRect, direction)) continue
@@ -249,8 +323,39 @@ export class FocusManager {
     }
 
     if (best) {
-      this.setFocus(best.id)
+      this.setFocus(best.id, { dom: true })
     }
+  }
+
+  /** Enabled, visible nodes the current trap allows. O(n). */
+  private candidates() {
+    return [...this.nodes.values()].filter(
+      (node) =>
+        !node.disabled &&
+        !(
+          this.groupTrap &&
+          this.groupPreference &&
+          node.group !== this.groupPreference
+        ) &&
+        isNavigable(node.element),
+    )
+  }
+
+  /**
+   * Reading-order first (down/right) or last (up/left) node showing on screen,
+   * preferring the pane `from` scrolled in so fixed toolbars are not picked.
+   * O(n log n).
+   */
+  private firstOnScreen(direction: FocusDirection, from: HTMLElement) {
+    const visible = this.candidates().filter((node) => !isOffScreen(node.element))
+    const pane = scrollParent(from)
+    const inPane = visible.filter((node) => scrollParent(node.element) === pane)
+    const shown = (inPane.length ? inPane : visible)
+      .map((node) => ({ node, rect: node.element.getBoundingClientRect() }))
+      .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left)
+    const pick =
+      direction === 'down' || direction === 'right' ? shown[0] : shown[shown.length - 1]
+    return pick?.node ?? null
   }
 
   moveToGroup(group: string, preferFirst = true) {

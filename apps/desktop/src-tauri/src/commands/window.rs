@@ -55,12 +55,40 @@ pub fn set_window_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), Str
         .map_err(|err| err.to_string())
 }
 
+/// "Return to game": hand the screen back to the running game.
 #[tauri::command]
 pub fn hide_orbit_window(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "Main window missing".to_string())?;
-    window.hide().map_err(|err| err.to_string())
+    #[cfg(target_os = "macos")]
+    {
+        let started = app
+            .state::<crate::AppState>()
+            .sessions
+            .get_active()
+            .and_then(|session| session_start(&session.started_at))
+            .unwrap_or(std::time::UNIX_EPOCH);
+        match objc2_foundation::MainThreadMarker::new() {
+            Some(mtm) => {
+                crate::platform::macos::game_focus::hand_off(mtm, started);
+            }
+            None => {
+                let _ = app.hide();
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window = app
+            .get_webview_window("main")
+            .ok_or_else(|| "Main window missing".to_string())?;
+        window.hide().map_err(|err| err.to_string())
+    }
+}
+
+fn session_start(started_at: &str) -> Option<std::time::SystemTime> {
+    chrono::DateTime::parse_from_rfc3339(started_at)
+        .ok()
+        .map(std::time::SystemTime::from)
 }
 
 #[tauri::command]
@@ -72,4 +100,20 @@ pub fn quit_orbit(app: AppHandle) {
 pub fn show_orbit_window(app: AppHandle) -> Result<(), String> {
     focus_orbit_window(&app);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_start_parses_the_recorded_timestamp() {
+        let parsed = session_start("2026-11-16T14:35:00.123+00:00").unwrap();
+        let seconds = parsed
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert_eq!(seconds, 1_794_839_700);
+        assert!(session_start("not a date").is_none());
+    }
 }

@@ -177,7 +177,9 @@ if [[ "$SKIP_TESTS" != true ]]; then
 fi
 
 echo "==> Tauri build"
-yarn workspace @orbit/desktop tauri build --target "$TARGET"
+# CI=true makes Tauri skip the Finder layout script. On macOS 27 that script
+# fails with AppleEvent -1743 (not allowed to control Finder) and aborts the DMG.
+CI=true yarn workspace @orbit/desktop tauri build --target "$TARGET"
 echo
 
 mkdir -p "$OUT_DIR"

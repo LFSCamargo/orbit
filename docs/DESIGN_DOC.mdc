@@ -17,9 +17,37 @@ process logic lives in Rust; the frontend never launches games directly.
 ## Purpose
 
 - Fullscreen, couch-friendly game library with cinematic screen transitions.
-- Import games from Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, and manual paths.
+- Import games from Steam, Astris (`.nsp`/`.xci`), macOS apps, and manual paths.
 - Track playtime, install size, and achievements locally.
 - One restrained glass console look with a Rust-generated material texture and portable compositor surfaces. Built-in game themes bundle logos and heroes. Theme Studio searches SteamGridDB logos and offers backgrounds from configured game artwork providers. Retired platform and color presets resolve to Liquid Glass. Custom artwork selection is explicit. Missing artwork is reported by the picker. Existing custom files remain on disk; the interface uses Liquid Glass styling.
+
+## Universal gaming: Phase 1
+
+Extend the existing launcher with a local Windows executable workflow. The first slice
+adds installed Wine detection, per-game isolated environments, a persistent typed Wine
+launch profile, bounded diagnostics, cancellable setup and owned process tracking.
+Native, Steam, and Astris paths retain their existing behavior.
+Runtime adapters live separately from library providers; a manually imported Windows
+game is `manual` / `windows`, with a `wine` launch configuration.
+
+Implementation sequence and decisions: [RUNTIMES.md](RUNTIMES.md). Managed setup
+now downloads and verifies the pinned macOS Wine distribution inside Orbit, behind
+a native macOS system flag. CrossOver bottles, D3DMetal/DXVK/DXMT provisioning,
+installers and community profiles remain separately tested slices, not implied by
+a working Wine launch. Apple GPTK requires its authenticated package/license flow;
+the app must not pretend an unauthenticated download is available. Epic, GOG, and
+streaming stay deferred. Windows Steam on macOS is specified in
+[STEAM_WINDOWS.md](STEAM_WINDOWS.md). The first slice signs in through Steam's
+login window, snapshots the owned library, downloads one Windows depot at a
+time, and plays through the compatibility runtime.
+
+Commands: `windows_compatibility`, `install_windows_compatibility`,
+`orbit_wine_status`, `install_orbit_wine` (onboarding's Orbit Wine and its base container),
+`detect_runtimes`, `register_wine_runtime`, `runtime_diagnostics`,
+`component_views`, `set_component_view`,
+`cancel_game_launch`; existing `create_game`, `update_game`, `launch_game` and
+`stop_game` carry the rest of the workflow. Settings gains Compatibility; Add game →
+Single file supports `.exe`; Edit properties exposes compatibility controls.
 
 ## Functional requirements
 
@@ -33,7 +61,7 @@ process logic lives in Rust; the frontend never launches games directly.
 - User can **launch** a game; Orbit tracks the session and playtime.
 - User can **stop** an active game session from the UI.
 - User can sync **Steam** library metadata (playtime, SizeOnDisk, achievements) locally.
-- User can **enrich** newly imported Steam/GameHub games with store descriptions and SteamGridDB artwork (optional API key); existing games via Edit Properties → Fetch metadata.
+- User can **enrich** newly imported Steam games with store descriptions and SteamGridDB artwork (optional API key); existing games via Details → Settings → Refresh metadata. Refresh pulls Steam store copy first (then TheGamesDB) and never writes importer stubs such as leftover shortcut install notes.
 - User can switch **themes** including custom JSON themes from Application Support.
 - User can navigate entirely with a **gamepad** or keyboard fallback.
 
@@ -47,8 +75,13 @@ process logic lives in Rust; the frontend never launches games directly.
 
 ## Out of scope
 
-ROM downloads/decryption, keys management, emulator distribution, Steam account auth, cloud sync,
-social features. Bulk “enrich entire library” jobs and Switch title-ID databases are deferred past 0.2.
+ROM downloads/decryption, keys management, emulator distribution, an Orbit account,
+cloud Steam login, Steam DRM bypass, and social features. Windows games run in
+Orbit-owned Wine containers with a lightweight native Steam client for catalog,
+downloads, and cloud file lists; games still authenticate through Valve's client
+inside the container. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and
+[CONTAINERS.md](CONTAINERS.md).
+Bulk “enrich entire library” jobs and Switch title-ID databases are deferred past 0.2.
 
 ---
 
@@ -56,13 +89,14 @@ social features. Bulk “enrich entire library” jobs and Switch title-ID datab
 
 Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts`), not URL routes.
 
+Before any screen, a first run shows onboarding (Welcome → Setup → Account → Recommended → Scan Games → Home) in place of the shell; Settings → General replays it. See [ONBOARDING.md](ONBOARDING.md).
+
 | Screen | `AppScreen` | Purpose |
 | ------ | ----------- | ------- |
 | Home | `home` | Liquid Glass hero and rounded game shelf over the selected game’s artwork. Artwork crossfades when ready and glass adapts to its lighting. |
 | Library | `library` | Filterable/sortable game grid |
-| Search | `search` | Browse the collection on empty search and filter imported games and cached GameHub records by title or source |
-| Game details | `game-details` | Metadata, achievements, play/launch |
-| Edit properties | `game-edit` | Title, description, artwork slots, Fetch metadata |
+| Search | `search` | Browse the collection on empty search and filter the unified library by title |
+| Game details | `game-details` | Overview, Settings (General / Artwork / Launch), play/install/locate |
 | Add game | `add-game` | Importer detection, scans, manual import |
 | Settings | `settings` | Theme picker + theme studio, SteamGridDB/RAWG keys, auto-enrich, library maintenance |
 
@@ -77,9 +111,10 @@ Orbit uses a Zustand-driven screen stack (`AppScreen` in `src/stores/ui.store.ts
 
 | Input | Action |
 | ----- | ------ |
-| D-pad / left stick | Navigate (spatial focus) |
+| D-pad / left stick | Navigate (spatial focus); the stick steps once per flick, then repeats like a held D-pad |
+| Right stick | Scroll the pane that holds focus (an open dialog never scrolls the page behind it) |
 | A / Cross | Select / Confirm |
-| B / Circle | Back |
+| B / Circle | Cancel, one step at a time: leave a text field, close the newest overlay, then go back |
 | X / Square | Edit properties |
 | Y / Triangle | Add game journey |
 | L1 / R1 | Switch sections (home ↔ library ↔ search) |
@@ -116,22 +151,46 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
-| `launch_game` | `gameId` | `GameSession` | Spawns process via `launching/` |
+| `launch_game` | `gameId` | `GameSession` | Spawns process via `launching/`. Emits `game-launch-progress` through Wine/Steam Windows startup stages so the overlay can show which step failed. |
 | `stop_game` | `sessionId` | `GameSession` | User-initiated stop |
 | `get_active_session` | — | `GameSession \| null` | |
 | `set_window_fullscreen` | `fullscreen` | `void` | |
 | `hide_orbit_window` | — | `void` | During gameplay |
 | `show_orbit_window` | — | `void` | After session ends |
+| `open_xbox_cloud` | — | `void` | Opens or focuses the Xbox Cloud Gaming window (xbox.com/play, no IPC, navigation allowlist). Not reachable while Xbox Cloud Gaming is coming soon (`XBOX_CLOUD_ENABLED`). |
+
+### Downloads, uninstall & storage
+
+| Command | Args | Returns | Notes |
+| ------- | ---- | ------- | ----- |
+| `enqueue_steam_download` | `appId`, `location?` | `void` | Adds an owned title to the FIFO queue; progress arrives as `steam-download-progress`. `location` is an install location id; without one the game keeps its current or last-used location, and a paused or installed copy always keeps its own |
+| `list_install_locations` | — | `InstallLocation[]` | This Mac, then each added folder with free/total bytes, `available`, `isDefault`, `gameCount` |
+| `add_install_location` | `path` | `InstallLocation` | Canonical absolute folder outside Orbit's data and not the disk root; prepares `<path>/Orbit Games/steamapps/common`; up to 8 |
+| `remove_install_location` | `id` | `void` | Refused while games are installed there; files are never deleted |
+| `get_download_queue` | — | `DownloadQueue` | `{ active, pending[], waitingForNetwork }`; changes emit `download-queue-changed` |
+| `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
+| `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |
+| `pause_active_download` | — | `void` | Stops the container's Steam client and requeues the title at the front, paused |
+| `get_network_stats` | — | `NetworkStats` | `{ online, downloadRate, uploadRate }` from the Mac's interface counters; a new sample arrives every second as `network-stats` |
+| `uninstall_steam_game` | `appId`, `deletePrefix` | `UninstallReport` | Orbit downloads and Windows copies in Steam library folders (never `steam-windows`); saves kept unless asked and never when the prefix holds a Steam login |
+| `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder and every library game's real folder, by category, plus volume totals |
+| `get_install_sizes` | `entryId`, `refresh` | `InstallSize[]` | Disk usage of each installed copy measured from its real game folder; saved to the game row |
+| `remove_component` | `id`, `version` | `void` | Refuses a version that games are set to use |
 
 ### Importers
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
-| `detect_importers` | — | `ImporterStatus[]` | Steam, Astris, native, GameHub |
+| `detect_importers` | — | `ImporterStatus[]` | Steam, Astris, native |
 | `scan_steam_library` | — | `ScanResult` | Upserts + optional auto-enrich for new IDs and games missing artwork; all scans guarantee artwork in every slot |
 | `scan_astris_folder` | `folder` | `ScanResult` | User-selected folder |
 | `scan_native_apps` | — | `ScanResult` | macOS `/Applications` |
-| `scan_gamehub_folder` | `folder?` | `ScanResult` | GameHub shortcuts; auto-enrich when Steam app ID present |
+| `scan_steam_installations` | — | `ScanResult` | Existing Steam library folders from Settings |
+| `retry_steam_catalog_metadata` | — | `SteamOwnedGame[]` | Force-hydrate owned catalog; installed and favorites first |
+| `list_library_entries` | `query` | `LibraryPage` | Unified title identity, 48/page, max 96 |
+| `get_library_entry` | `entryId` | `LibraryEntry \| null` | Installed, owned, or unavailable |
+| `update_library_entry` | `entryId`, `patch` | `void` | Favorite, hidden, preferred installation |
+| `delete_library_entry` | `entryId` | `void` | Removes Orbit records, never game files |
 | `import_game_path` | `path` | `ScanResult` | Manual file/folder pick |
 
 ### Themes & artwork
@@ -146,7 +205,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `fetch_artwork_from_url` | `url` | `string` | Base64 image |
 | `search_public_artwork` | `query` | `ArtworkResult[]` | RAWG (optional key) + Wikimedia |
 | `search_game_artwork` | `query`, `slot` (`cover`/`hero`/`icon`/`logo`), `gameId?`, `source?` (`all`/`steamgriddb`) | `{ hits: ArtworkResult[], warnings: string[] }` | Queries every configured provider independently; per-provider failures become warnings. `steamgriddb` restricts to the exact-matched SteamGridDB game (used by Random) |
-| `enrich_game_metadata` | `gameId` | `{ enriched, message }` | TheGamesDB metadata + SteamGridDB / TheGamesDB artwork |
+| `enrich_game_metadata` | `gameId` | `{ enriched, message }` | Steam store copy first, then TheGamesDB metadata + SteamGridDB / TheGamesDB artwork. Importer placeholders are replaced or cleared. |
 | `enrich_games_metadata` | `gameIds` | `{ enriched }` | Batch used after import |
 | `get_metadata_cache_stats` | — | `{ gameCount, dbPath }` | Local metadata cache size |
 | `test_metadata_api_keys` | — | `{ thegamesdbOk, steamgriddbOk, message }` | Settings connection test |
@@ -185,7 +244,7 @@ graph TD
   Tauri["Tauri 2 Shell<br/>(Rust)"]
   SQLite[(SQLite)]
   FS["Filesystem / Processes"]
-  Importers["Importers<br/>(Steam, Astris, GameHub, Native)"]
+  Importers["Importers<br/>(Steam, Astris, Native)"]
 
   User --> React
   React -->|"invoke()"| Tauri
@@ -195,14 +254,33 @@ graph TD
   Importers --> FS
 ```
 
+Windows Steam Play is a core connection layer, not a side feature. SQLite is the catalog. A saved `loginusers.vdf` in `steam-windows` is the seed for each per-game container.
+
+```mermaid
+flowchart LR
+  ui[Orbit UI]
+  sqlite[(SQLite account + catalog)]
+  seed["steam-windows prefix\nsaved login"]
+  container[Per-game Wine container]
+  game[Game executable]
+  ui -->|"Play when signed in"| container
+  sqlite --> ui
+  seed --> container
+  container --> game
+```
+
+Ready vs Play: the UI enables Play when `signedIn` and the title is installed. Rust clones that game's container, seeds the saved login, signs the container's Steam client on, and starts the EXE with `SteamAppId`. An expired session asks for Settings → Steam. Sign out is the only wipe.
+
 ## Related docs
 
 - Repo & tooling: [docs/PROJECT.mdc](PROJECT.mdc)
 - Rust / Tauri: [docs/TAURI.mdc](TAURI.mdc)
 - React frontend: [docs/FRONTEND.mdc](FRONTEND.mdc)
 - Themes & UI: [docs/UI.mdc](UI.mdc)
+- Windows Steam roadmap: [docs/STEAM_WINDOWS.md](STEAM_WINDOWS.md)
+- First run: [docs/ONBOARDING.md](ONBOARDING.md)
 
-Library and Search share imported games and GameHub's cached store/download records. Records without an Orbit launch entry stay separate from playable games. Steam install handoff requires a numeric App ID and a Mac build advertised by Steam; Steam verifies eligibility and controls downloads. GameHub manages its own installs.
+Library, Search, Home, and Details share one `LibraryEntry` identity. Owned Windows games through a local official Steam client are specified in [STEAM_WINDOWS.md](STEAM_WINDOWS.md). Sign-in opens Valve's Windows Steam client from Settings, then Orbit closes that Wine process and keeps the login. The Downloads sidebar lists in-progress transfers. That login is saved in `steam-windows` so later Play can seed each game container. Play clones an Orbit-owned Wine container, copies Steam files, and starts the game EXE with `SteamAppId` without waiting for silent `steam.exe`. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and [CONTAINERS.md](CONTAINERS.md).
 
 `open_steam_library()` opens Steam's library. `install_steam_game(appId)` validates the ID and checks Steam Store platform metadata before opening Steam's installation dialog.
 
@@ -229,3 +307,119 @@ artwork is materialized into cached display images and small previews before IPC
 returned themes carry optional runtime-only `preview` paths. Portable theme JSON
 is preserved. Opening Themes reuses the hydrated catalog; the reload action reads
 external edits explicitly.
+
+### Settings redesign
+Settings separates app preferences, appearance, library, default game graphics, and compatibility downloads. Graphics edits remain a session draft across navigation until explicit Save or Discard; only saved values affect launches. Download progress reflects native events and distinguishes preparation, transfer, verification/install, completion and failure. Version discovery does not imply install capability.
+
+Settings refinement: restore the shared LiquidGlass content surface and use grouped icon-led rows. The compatibility catalog combines DXVK, DXMT and GPTK releases into one mutually exclusive graphics-engine version browser; it does not install or activate a backend. Saved graphics defaults continue to select exactly one backend.
+
+## Interface standardization
+
+The desktop retains Liquid Glass and shares Orbit-styled shadcn primitives. Library
+view controls precede provider sections; Orbit hides connected catalogs. Initial
+loads use layout-matched skeletons and background refresh preserves loaded games.
+Game details prioritize game artwork and keep launch cancellation in the primary
+action slot. Settings owns General, Artwork, and Launch & Compatibility.
+
+Steam settings support additional existing Steam library folders, including
+`steamapps/common`. Rust validates and normalizes the selected folders, persists
+these preferences, and includes their manifests when detecting and launching
+installed Windows games. This does not change new-download destinations.
+Settings native controls participate in controller focus and show the shared ring.
+
+Windows game executable discovery checks shallower directories first within its
+entry/depth caps, so large asset/crash directories cannot hide a root executable.
+Steam-linked Windows imports use manifest AppIDs for SteamGridDB square grids;
+verified exact-AppID square artwork replaces legacy automatic icon fallbacks when
+enriching/reimporting. Title-search results are not substituted for a known AppID.
+
+
+## Unified library redesign (November 2026)
+
+Library, Search, Home, and Details use a Rust-owned title identity (`steam:<AppID>`
+for verified Steam titles, local UUID otherwise). Installation records retain their
+game IDs, launch configuration, history and paths. One title has one card, regardless
+of account ownership or installation count. Installed is the initial Library view;
+All games share search, filters and sorting. The Favorites tab is omitted on Home
+and Library until at least one title is marked favorite. Page size is bounded.
+
+User-selected Steam library roots, steamapps and common directories are read
+directly using bounded manifest discovery. Discovery needs neither account login
+nor a compatibility runtime. Play links those installs into the managed Wine Steam
+`steamapps` and registers the library with the client so Steamworks sees titles
+such as God of War as installed. Legacy Steam-linked Windows records migrate to
+Steam. A one-time SQLite cleanup drops leftover shortcut-provider rows and clears
+engine paths that pointed into a retired third-party Wine folder, after a
+recoverable snapshot. Installed files are never changed by migration. Steam
+Windows titles always play through Orbit's own silent official Steam client.
+
+Details contains Overview and Settings. Settings owns General, Artwork, and
+Launch & compatibility editing; no separate Properties navigation. Global Settings
+uses a controller-first sidebar with General, Themes, Library, Steam, Game graphics,
+and Compatibility, plus a right-hand insights column. Metadata keys stay on General.
+Shared glass surfaces and 48px controls use consistent focus, contrast and
+reduced-motion fallbacks. Expandables use the shared Collapsible panel, not native
+`<details>`. Library merge replaces importer placeholders (including leftover
+shortcut install notes) with Steam store descriptions and can-you-run requirements. Catalog hydrate also
+covers extra-library AppIDs that are installed on disk even when they are missing
+from the owned snapshot, and overlayed store copy is written back onto those game
+rows.
+
+Metadata uses exact Steam identity whenever available, source provenance and persistent
+user overrides. Cached library content renders immediately; background enrichment
+prioritizes installed titles and covers the remaining catalog in bounded batches.
+
+Homepage previews use Recent and Installed, plus Favorites only when the library has
+at least one favorite (up to 12 games each, queried independently). Card activation
+opens entry details; hero actions own launch and stop. No separate Steam shelf is
+shown. Hero titles fit a single line within the existing content column.
+
+The homepage carousel spans the viewport without horizontal padding. Artwork
+fades at a screen border only while that edge overflows; a short shelf stays
+fully visible, inset with the hero gutter, with no footer dissolve mask. Looping
+shelves dissolve into the footer instead of clipping. The hero and header keep
+their existing gutters.
+
+Homepage shelves loop continuously in both directions when more than seven games
+are shown, with bounded DOM copies and decoded artwork caching. Shorter shelves
+stay a finite strip. Rebases keep an in-flight scroll moving forward so wrapping
+a cycle does not snap backward. Focused cards ease inward from the screen edges
+instead of jumping.
+
+Windows launch preparation fails at the graphics stage when the selected backend
+cannot be configured; it never silently substitutes Wine defaults. D3DMetal uses
+the selected Apple payload's paired Windows and Unix libraries, with 64-bit PE
+libraries installed only in system32 and the matching bridge path supplied to
+Wine. Runtime compatibility and Steamworks client requirements remain separate
+from successful graphics preparation.
+
+A process spawn is not proof of successful game startup. If a launched session exits with a nonzero code, Orbit restores a dismissible failure banner for that game; normal exits and user stops do not restore it.
+
+Steam sign-in uses an Orbit modal host and Valve's own Wine browser window. Readiness requires successful native placement, rather than merely spawning a process. The Wine window remains a separate OS window; it is not embedded web content. Only the managed Steam browser may be moved or hidden, and Cancel waits for native shutdown.
+
+Steam sign-in must not fail because Wine is already stopped. Native shutdown uses
+`wineserver -w` to confirm exit after a kill request, with bounded waits. Cancel
+always releases the Orbit modal; an unexpected cleanup failure is surfaced outside
+the dialog rather than trapping the user.
+
+Steam library refresh reuses the official client's existing authenticated web
+session. The backend reads only the managed client's Steam-domain cookie for the
+selected account, unlocks it through Windows DPAPI/AES-GCM inside the same Wine
+prefix, and calls the existing GetOwnedGames API. Credentials remain in transient
+native memory; the frontend and logs never receive them. Sign-in completion waits
+for the client web session before closing the client. A failed refresh preserves
+the last successful per-account catalog. Local partial IDs cannot erase it.
+
+Owned-library commands return the saved catalog before optional metadata work.
+One background job hydrates details; an account check and indexed metadata merge
+prevent it from restoring removed ownership or another account's games. Native
+update events refresh every catalog view without replacing visible games with a
+loading overlay.
+
+Windows Steam games run beside the official authenticated client in Orbit's
+managed Steam prefix. Existing user-selected Steam libraries are registered with
+that client before launch. Steam's license checks and consent dialogs remain
+Valve's responsibility. The game process, rather than the resident Steam client,
+defines session lifetime. Stop shuts down only Orbit's managed prefix. Metal
+backends require a compatible Wine build and matching Windows/Unix libraries;
+Orbit must never silently substitute Wine's limited basic renderer.

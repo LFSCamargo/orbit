@@ -12,6 +12,11 @@
   --orbit-accent: 120 196 255;
   --orbit-focus: 180 220 255;
   --orbit-border: 42 52 68;
+  /* Brand fire gradient for primary actions. Fixed: themes never write these. */
+  --orbit-fire-from: 255 84 62;
+  --orbit-fire-via: 255 120 48;
+  --orbit-fire-to: 255 164 72;
+  --orbit-fire-ink: 255 255 255;
   --orbit-radius: 1.25rem;
   --orbit-card-radius: 1rem;
   --orbit-blur: 24px;
@@ -19,6 +24,7 @@
   --orbit-motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
   --orbit-font-display: 'DM Sans', system-ui, sans-serif;
   --orbit-font-body: 'DM Sans', system-ui, sans-serif;
+  --console-gutter: clamp(24px, 5vw, 96px);
 }
 
 @layer base {
@@ -27,6 +33,7 @@
     -webkit-tap-highlight-color: transparent;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    @apply tracking-tight;
   }
 
   *::-webkit-scrollbar {
@@ -60,9 +67,108 @@
 }
 
 @layer components {
-  /* Transparent square icons (SteamGridDB) need a solid tile backdrop. */
-  .square-game-art {
-    background-color: #000;
+  /* Primary action: liquid glass tinted with the fire gradient (red-orange →
+     orange → amber), white label. Slightly translucent so the backdrop shows
+     through, intensified like a lens; a gloss over the upper half, a bright
+     top rim and a darker lower edge catch the light. */
+  .orbit-btn-fire {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    color: rgb(var(--orbit-fire-ink));
+    text-shadow: 0 1px 1px rgb(120 30 0 / 0.35);
+    background-image:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 0.32),
+        rgb(255 255 255 / 0.1) 45%,
+        transparent 52%
+      ),
+      linear-gradient(
+        100deg,
+        rgb(var(--orbit-fire-from) / 0.88),
+        rgb(var(--orbit-fire-via) / 0.88) 52%,
+        rgb(var(--orbit-fire-to) / 0.88)
+      );
+    -webkit-backdrop-filter: blur(6px) saturate(1.6);
+    backdrop-filter: blur(6px) saturate(1.6);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      inset 0 0 0 1px rgb(255 255 255 / 0.16),
+      inset 0 -3px 8px rgb(120 30 0 / 0.35),
+      0 8px 26px rgb(var(--orbit-fire-via) / 0.32);
+  }
+
+  .orbit-btn-fire:hover:not(:disabled) {
+    filter: brightness(1.06) saturate(1.05);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.6),
+      inset 0 0 0 1px rgb(255 255 255 / 0.2),
+      inset 0 -3px 8px rgb(120 30 0 / 0.35),
+      0 10px 32px rgb(var(--orbit-fire-via) / 0.45);
+  }
+
+  /* Focus ring sits flush outside the pill: no gap for the background to show
+     through as a dark border, and the gradient stays uncovered. */
+  .orbit-btn-fire.orbit-focusable:focus-visible,
+  html[data-navigation-input='controller']
+    .orbit-btn-fire.orbit-focusable[data-focused='true']:not(:disabled) {
+    outline-offset: 0;
+  }
+
+  .orbit-btn-fire:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  /* Busy or unavailable: neutral glass, like "Installing…" in the onboarding. */
+  .orbit-btn-fire:disabled {
+    color: rgb(255 255 255 / 0.55);
+    background-image: linear-gradient(rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.08));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  }
+
+  .orbit-progress-fire {
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--orbit-fire-from)),
+      rgb(var(--orbit-fire-via)) 55%,
+      rgb(var(--orbit-fire-to))
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orbit-btn-fire:active:not(:disabled) {
+      transform: none;
+    }
+  }
+
+  /* Shared liquid glass. WebKit (Orbit's macOS webview) cannot bend the
+     backdrop (SVG filters in backdrop-filter are Chromium-only), so the
+     refraction is built from light: a light blur keeps the scene readable,
+     saturation and brightness intensify it like a lens, a bright rim and light
+     pooling inside the top edge catch the light, and the lower edge darkens.
+     @supports and a11y media queries stay here. */
+  :is(.orbit-glass, .orbit-panel, .orbit-glass-control) {
+    border: 1px solid rgb(255 255 255 / 0.14);
+    background-image: linear-gradient(
+      160deg,
+      rgb(255 255 255 / 0.13),
+      rgb(255 255 255 / 0.03) 34%,
+      transparent 58%,
+      rgb(255 255 255 / 0.05)
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      inset 1px 0 0 rgb(255 255 255 / 0.08),
+      inset -1px 0 0 rgb(255 255 255 / 0.05),
+      inset 0 -1px 0 rgb(255 255 255 / 0.06),
+      inset 0 14px 26px -18px rgb(255 255 255 / 0.22),
+      inset 0 -16px 28px -20px rgb(0 0 0 / 0.38),
+      0 10px 30px rgb(0 0 0 / 0.2);
+  }
+
+  :is(.orbit-glass, .orbit-panel) {
+    background-color: var(--glass-backdrop-tint, rgb(var(--orbit-surface) / 0.42));
   }
 
   .orbit-panel {
@@ -72,21 +178,143 @@
   .orbit-card {
     border-radius: var(--orbit-card-radius);
   }
+
+  .orbit-glass-control {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      inset 0 -10px 18px -14px rgb(0 0 0 / 0.3);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :is(.orbit-glass, .orbit-panel, .orbit-glass-control) {
+      -webkit-backdrop-filter: blur(var(--glass-panel-blur, 5px)) saturate(1.8)
+        brightness(1.08) contrast(1.04);
+      backdrop-filter: blur(var(--glass-panel-blur, 5px)) saturate(1.8) brightness(1.08)
+        contrast(1.04);
+    }
+
+    .orbit-glass-control {
+      -webkit-backdrop-filter: blur(4px) saturate(1.7) brightness(1.06);
+      backdrop-filter: blur(4px) saturate(1.7) brightness(1.06);
+    }
+
+    .orbit-glass[data-glass-surface='toolbar'] {
+      -webkit-backdrop-filter: blur(var(--glass-toolbar-blur, 7px)) saturate(2)
+        brightness(1.12) contrast(1.05);
+      backdrop-filter: blur(var(--glass-toolbar-blur, 7px)) saturate(2) brightness(1.12)
+        contrast(1.05);
+    }
+
+    /* Drawers (components/ui/drawer.tsx) float over a dimmed, blurred page:
+       their glass darkens what is behind, so they read deeper than that
+       backdrop rather than as a lit pane. */
+    .orbit-drawer.orbit-glass {
+      -webkit-backdrop-filter: blur(var(--glass-panel-blur, 5px)) saturate(1.25)
+        brightness(0.7);
+      backdrop-filter: blur(var(--glass-panel-blur, 5px)) saturate(1.25) brightness(0.7);
+    }
+
+    .orbit-drawer .orbit-glass-control {
+      -webkit-backdrop-filter: blur(4px) saturate(1.15) brightness(0.9);
+      backdrop-filter: blur(4px) saturate(1.15) brightness(0.9);
+    }
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :is(.orbit-glass, .orbit-panel, .orbit-glass-control) {
+      background-color: rgb(var(--orbit-surface) / 0.97);
+      background-image: none;
+    }
+  }
+
+  .orbit-glass[data-glass-mode='opaque'] {
+    background: rgb(var(--orbit-surface));
+    box-shadow: inset 0 0 0 1px rgb(var(--orbit-border));
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    :is(.orbit-glass, .orbit-panel, .orbit-glass-control) {
+      background: rgb(var(--orbit-surface)) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    :is(.orbit-glass, .orbit-panel, .orbit-glass-control) {
+      color: CanvasText;
+      background: Canvas !important;
+      border: 1px solid CanvasText;
+      box-shadow: none;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+  }
+
+  /* Inset outlines survive clipped glass panels and do not compete with surface shadows. */
+  .orbit-focusable:focus-visible,
+  html[data-navigation-input='controller']
+    .orbit-focusable[data-focused='true']:not(:disabled) {
+    outline: 3px solid rgb(var(--orbit-focus));
+    outline-offset: -3px;
+  }
+
+  @media (forced-colors: active) {
+    .orbit-focusable:focus-visible,
+    html[data-navigation-input='controller']
+      .orbit-focusable[data-focused='true']:not(:disabled) {
+      outline-color: Highlight;
+    }
+  }
+
+  /* A field inside a rounded control (the search pill): the container draws
+     the one ring, following its shape, on typing or controller focus; the
+     field's own rectangular ring would box inside it. */
+  [data-focus-ring='container']:focus-within,
+  html[data-navigation-input='controller']
+    [data-focus-ring='container']:has(.orbit-focusable[data-focused='true']) {
+    outline: 3px solid rgb(var(--orbit-focus));
+    outline-offset: -3px;
+  }
+
+  [data-focus-ring='container'] .orbit-focusable {
+    outline: none !important;
+  }
+
+  /* Cover tiles: keep the button as the hit target and hug the artwork, not the title. */
+  .orbit-focusable.orbit-art-focus:focus-visible,
+  html[data-navigation-input='controller']
+    .orbit-focusable.orbit-art-focus[data-focused='true']:not(:disabled) {
+    outline: none;
+  }
+
+  .orbit-art-focus:focus-visible .orbit-art-focus-target,
+  html[data-navigation-input='controller']
+    .orbit-art-focus[data-focused='true']:not(:disabled)
+    .orbit-art-focus-target {
+    outline: 3px solid rgb(var(--orbit-focus));
+    outline-offset: 3px;
+  }
+
+  @media (forced-colors: active) {
+    .orbit-art-focus:focus-visible .orbit-art-focus-target,
+    html[data-navigation-input='controller']
+      .orbit-art-focus[data-focused='true']:not(:disabled)
+      .orbit-art-focus-target {
+      outline-color: Highlight;
+    }
+  }
+
+  /* Launch banner close: a circular fill, not the inset focus rectangle. */
+  .launch-overlay-close.orbit-focusable:focus-visible,
+  html[data-navigation-input='controller']
+    .launch-overlay-close.orbit-focusable[data-focused='true']:not(:disabled) {
+    outline: none;
+    background: rgb(255 255 255 / 0.22);
+  }
 }
 
 @layer utilities {
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
-  }
-
   .orbit-transition {
     transition-property:
       transform, opacity, background-color, box-shadow, color, border-color;
@@ -103,5 +331,149 @@
     display: none;
     width: 0;
     height: 0;
+  }
+}
+
+/* Onboarding space scenery. Keyframes live here (not tailwind.config.js) so a
+   running dev server picks them up. Every animation stops with reduced motion. */
+@keyframes space-twinkle {
+  0%,
+  100% {
+    opacity: var(--star, 0.6);
+    scale: 1;
+  }
+  50% {
+    opacity: calc(var(--star, 0.6) * 0.1);
+    scale: 0.55;
+  }
+}
+
+@keyframes space-drift {
+  to {
+    transform: translate(-6%, 3%);
+  }
+}
+
+@keyframes nebula-drift {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(7%, 6%) scale(1.18);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translate(-3%, 9%) scale(1.06);
+    opacity: 0.9;
+  }
+}
+
+@keyframes planet-turn {
+  from {
+    transform: rotate(-7deg);
+  }
+  to {
+    transform: rotate(7deg);
+  }
+}
+
+/* `scale`, not transform, so the glows keep their centring translates. */
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    scale: 1;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.09;
+  }
+}
+
+/* Embers lifting off the sunlit horizon and fading into the dark. */
+@keyframes ember-rise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: var(--ember, 0.8);
+  }
+  100% {
+    transform: translate(var(--sway, 20px), -46cqh);
+    opacity: 0;
+  }
+}
+
+/* Aceternity "Meteors": a streak sliding along its own 215° heading. */
+@keyframes meteor {
+  0% {
+    transform: rotate(215deg) translateX(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(215deg) translateX(-900px);
+    opacity: 0;
+  }
+}
+
+/* A gentle bob for idle icons (empty states). */
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@layer components {
+  .float-soft {
+    animation: float-soft 3.2s ease-in-out infinite;
+  }
+  .meteor {
+    animation: meteor 7s linear infinite both;
+  }
+  .space-twinkle {
+    animation: space-twinkle var(--period, 4s) ease-in-out var(--delay, 0s) infinite;
+  }
+  .space-drift {
+    animation: space-drift 60s ease-in-out infinite alternate;
+  }
+  .nebula-drift {
+    animation: nebula-drift var(--period, 18s) ease-in-out var(--delay, 0s) infinite
+      alternate;
+  }
+  .planet-turn {
+    animation: planet-turn 45s ease-in-out infinite alternate;
+  }
+  .glow-breathe {
+    animation: glow-breathe var(--period, 5s) ease-in-out var(--delay, 0s) infinite;
+  }
+  .ember-rise {
+    animation: ember-rise var(--period, 10s) ease-out var(--delay, 0s) infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(
+      .space-twinkle,
+      .space-drift,
+      .nebula-drift,
+      .meteor,
+      .planet-turn,
+      .glow-breathe,
+      .ember-rise,
+      .float-soft
+    ) {
+      animation: none;
+    }
+    :is(.meteor, .ember-rise) {
+      display: none;
+    }
   }
 }

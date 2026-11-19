@@ -52,14 +52,19 @@ it.each(['input', 'textarea', 'select'])('preserves editing keys in %s', (tag) =
 })
 
 it('protects nested editable and custom textbox contents', () => {
-  for (const attribute of [
-    'contenteditable="true"',
-    'role="textbox"',
-    'role="combobox"',
-  ]) {
+  for (const attribute of ['contenteditable="true"', 'role="textbox"']) {
     document.body.innerHTML = `<div ${attribute}><span>Text</span></div>`
     expect(actionFor(document.querySelector('span')!, 'm', 'KeyM')).toBeNull()
   }
+})
+
+it('lets section keys through a closed combobox and blocks them while it is open', () => {
+  document.body.innerHTML = `<button role="combobox" aria-expanded="false">Sort</button>`
+  expect(actionFor(document.querySelector('button')!, ']', 'BracketRight')).toBe(
+    'section-next',
+  )
+  document.body.innerHTML = `<button role="combobox" aria-expanded="true">Sort</button>`
+  expect(actionFor(document.querySelector('button')!, ']', 'BracketRight')).toBeNull()
 })
 
 it('preserves composition, consumed events, and system shortcuts', () => {

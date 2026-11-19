@@ -10,7 +10,6 @@ import {
   launchGame,
   listGames,
   scanAstrisFolder,
-  scanGamehubFolder,
   scanNativeApps,
   scanSteamLibrary,
   setGameHidden,
@@ -19,6 +18,9 @@ import {
   updateGame,
 } from '@/lib/tauri'
 import { useSessionStore } from '@/stores/session.store'
+import { useLaunchStore } from '@/stores/launch.store'
+import { playLibraryEntry } from '@/lib/playLibraryEntry'
+import type { LibraryEntry } from '@/types/library'
 import type { CreateGameRequest, UpdateGameRequest } from '@/types/game'
 
 export function useGames() {
@@ -57,7 +59,11 @@ export function useGameActions() {
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['games'] })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['games'] }),
+      queryClient.invalidateQueries({ queryKey: ['library'] }),
+      queryClient.invalidateQueries({ queryKey: ['library-entry'] }),
+    ])
     await queryClient.invalidateQueries({ queryKey: ['active-session'] })
   }
 
@@ -74,8 +80,42 @@ export function useGameActions() {
 
   const launch = useMutation({
     mutationFn: launchGame,
+    onMutate: (gameId) => {
+      useLaunchStore.getState().begin(gameId)
+    },
+    onError: (error, gameId) => {
+      const launch = useLaunchStore.getState().launch
+      if (launch?.failed) return
+      const message = error instanceof Error ? error.message : String(error)
+      useLaunchStore.getState().fail(gameId, launch?.step ?? 'spawn', message)
+    },
     onSuccess: async (session) => {
       setActiveSession(session)
+      useLaunchStore.getState().clear()
+      await invalidate()
+    },
+  })
+
+  const playEntry = useMutation({
+    mutationFn: playLibraryEntry,
+    onMutate: (entry: LibraryEntry) => {
+      const overlayId = entry.steamAppId
+        ? `steam-windows:${entry.steamAppId}`
+        : entry.game.id
+      useLaunchStore.getState().begin(overlayId, entry.game.title)
+    },
+    onError: (error, entry) => {
+      const launch = useLaunchStore.getState().launch
+      if (launch?.failed) return
+      const message = error instanceof Error ? error.message : String(error)
+      const overlayId = entry.steamAppId
+        ? `steam-windows:${entry.steamAppId}`
+        : entry.game.id
+      useLaunchStore.getState().fail(overlayId, launch?.step ?? 'spawn', message)
+    },
+    onSuccess: async (session) => {
+      setActiveSession(session)
+      useLaunchStore.getState().clear()
       await invalidate()
     },
   })
@@ -124,11 +164,6 @@ export function useGameActions() {
     onSuccess: invalidate,
   })
 
-  const scanGamehub = useMutation({
-    mutationFn: (folder?: string) => scanGamehubFolder(folder),
-    onSuccess: invalidate,
-  })
-
   const importPath = useMutation({
     mutationFn: importGamePath,
     onSuccess: invalidate,
@@ -138,6 +173,7 @@ export function useGameActions() {
     favorite,
     hide,
     launch,
+    playEntry,
     stop,
     create,
     update,
@@ -146,7 +182,6 @@ export function useGameActions() {
     scanSteam,
     scanAstris,
     scanNative,
-    scanGamehub,
     importPath,
   }
 }

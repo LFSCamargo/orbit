@@ -1,0 +1,59 @@
+---
+description: Web anti-pattern checker. When editing desktop or landing React/TypeScript, list violations that must be fixed.
+globs: apps/desktop/src/**/*.{ts,tsx},apps/landing/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Web anti-pattern checker
+
+Before finishing a React or TypeScript change under `apps/desktop/src` or `apps/landing/src`, inspect the touched files and list every violation below. Fix violations in the code you are already changing. List pre-existing violations in those files and leave them unless the user asked to clean them.
+
+## Violations
+
+- `any`, `as any`, or `@ts-ignore`.
+- `dangerouslySetInnerHTML` or `eval`.
+- An import from the other app (`apps/desktop` importing `apps/landing`, or the reverse).
+- `invoke`, `fetch`, or a query call inside render or inside `.map` over the library.
+- Server data copied into `useState` when a query already owns it.
+- `useEffect` whose only job is to copy props or query data into state.
+- A `listen` or timer effect with no cleanup.
+- `key={index}` on a list the user can reorder, filter, or delete.
+- A page file that also defines a hook, a store, and the Tauri call.
+- An effect dependency that is a freshly created object or array and retriggers itself.
+- Decoding full artwork blobs while rendering a thumbnail grid.
+- Native `<details>` / `<summary>` for settings, launch, or details expandables. Use
+  `CollapsiblePanel` (`components/ui/collapsible-panel.tsx`, shadcn/Radix Collapsible)
+  with a Lucide icon. Native disclosure widgets look like a different product.
+- Mixing native `<select>` with shadcn `Select` / `OptionSelect` on the same toolbar.
+- Control heights other than the 48px couch-distance target on library, details, and
+  settings chrome, or ad-hoc gaps that ignore the 8px spacing scale.
+
+```tsx
+// BAD — a new object dependency retriggers the effect forever
+useEffect(() => { setRate(sample) }, [{ bytes }])
+
+// GOOD — depend on the primitive values
+useEffect(() => { setRate(bytes) }, [bytes])
+```
+
+```tsx
+// BAD — native disclosure in Settings / game details
+<details>
+  <summary>Advanced launch options</summary>
+  ...
+</details>
+
+// GOOD — shared shadcn Collapsible with an icon
+<CollapsiblePanel title="Advanced launch options" icon={Terminal}>
+  ...
+</CollapsiblePanel>
+```
+
+## Report
+
+End the web work with this list, or `None in the touched files.`
+
+```
+## Web anti-pattern violations
+- `path:line` — violation — fix
+```

@@ -15,7 +15,7 @@ This repo is an **Nx monorepo** (Yarn workspaces) with two apps:
 
 - **Couch-friendly UI** — fullscreen layout, cinematic transitions, spatial focus navigation
 - **Game library** — home hero rows, filterable grid, search, playtime and achievements
-- **Multi-source imports** — Steam, Astris (`.nsp`/`.xci`), GameHub, macOS apps, manual paths
+- **Multi-source imports** — Steam, Astris (`.nsp`/`.xci`), macOS apps, manual paths
 - **Launch & sessions** — Rust-owned process launch, playtime tracking, hide window during play
 - **Edit properties** — title, description, portrait/landscape/icon artwork (Base64 in SQLite)
 - **Themes** — one Liquid Glass console shell with color themes, game themes (Devil May Cry 5, God of War, Cyberpunk 2077, Zelda, GTA V / VI, Super Mario), and a theme studio for your own logo and wallpaper
@@ -152,8 +152,17 @@ Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, qua
 
 ## Out of scope
 
-ROM downloads/decryption, keys management, emulator distribution, Steam account auth, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).
+ROM downloads/decryption, keys management, emulator distribution, an Orbit account, cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).
 
-Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass).
+Windows Steam on macOS, through a local official Steam client, is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md). Per-game Wine containers are specified in [docs/CONTAINERS.md](docs/CONTAINERS.md).
 
-GameHub library, background mode, and installation boundaries: [docs/GAMEHUB.md](docs/GAMEHUB.md).
+Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass). Additional Steam library folders can be added in Settings → Library.
+
+### Windows games through Wine (Phase 1)
+
+Register an installed Wine distribution in **Settings → Runtimes**, then use
+**Add game → Single file** to select a Windows `.exe`. Orbit prepares a dedicated
+environment on first Play and monitors/stops it through the existing session UI.
+Native and emulator workflows are unchanged. Runtime downloads, graphics-layer
+installation and storefront installation are not included in this first slice.
+See [runtime setup and validation](docs/RUNTIMES.md).

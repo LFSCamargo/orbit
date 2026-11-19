@@ -24,7 +24,18 @@ export function useNavigationInput() {
       const id = target?.dataset.focusId
       if (id && focusManager.getFocusedId() !== id) {
         // Pointer focus must not scroll content out from under an imminent click.
-        focusManager.setFocus(id, { scroll: false })
+        focusManager.setFocus(id, { scroll: false, dom: false })
+      }
+    }
+    // Tab and VoiceOver move DOM focus; keep the controller ring on the same control.
+    const onFocusIn = (event: FocusEvent) => {
+      const target =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-focus-id]')
+          : null
+      const id = target?.dataset.focusId
+      if (id && focusManager.getFocusedId() !== id) {
+        focusManager.setFocus(id, { scroll: false, dom: false })
       }
     }
     const onPointerDown = (event: PointerEvent) => {
@@ -33,7 +44,9 @@ export function useNavigationInput() {
     }
     window.addEventListener('pointermove', onPointerMove, true)
     window.addEventListener('pointerdown', onPointerDown, true)
+    window.addEventListener('focusin', onFocusIn, true)
     return () => {
+      window.removeEventListener('focusin', onFocusIn, true)
       unsubscribe()
       window.removeEventListener('pointermove', onPointerMove, true)
       window.removeEventListener('pointerdown', onPointerDown, true)

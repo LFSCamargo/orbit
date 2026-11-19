@@ -1,3 +1,5 @@
 .yarn/releases
 .playwright-mcp
 apps/desktop/src-tauri/gen
+.claude/settings.local.json
+apps/desktop/src-tauri/helpers/*/target

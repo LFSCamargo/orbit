@@ -4,6 +4,7 @@ import { Focusable } from '@/components/focus/Focusable'
 import type { ArtworkSlot } from '@/lib/artwork'
 import { artworkPreview } from '@/lib/artwork'
 import { readArtworkFromPath } from '@/lib/artworkApi'
+import { buttonClass } from '@/components/ui/button'
 
 const SLOT_META: Record<
   ArtworkSlot,
@@ -73,8 +74,12 @@ export function ArtworkSlotPicker({
         <p className="text-xs text-orbit-muted">{meta.hint}</p>
       </div>
       <div
-        className={`${meta.aspect} bg-orbit-surface bg-center bg-no-repeat ${meta.fit === 'contain' ? 'bg-contain' : 'bg-cover'}`}
-        style={preview ? { backgroundImage: `url(${preview})` } : undefined}
+        className="h-[180px] max-h-[280px] w-full bg-orbit-surface bg-center bg-no-repeat"
+        style={{
+          maxHeight: 280,
+          backgroundSize: meta.fit === 'contain' ? 'contain' : 'cover',
+          ...(preview ? { backgroundImage: `url(${preview})` } : {}),
+        }}
       >
         {!preview && (
           <div className="flex h-full items-center justify-center text-sm text-orbit-muted">
@@ -90,7 +95,7 @@ export function ArtworkSlotPicker({
           noScale
           disabled={disabled}
           onClick={() => void pickFile()}
-          className="inline-flex items-center gap-2 rounded-card bg-orbit-accent px-3 py-2 text-sm font-semibold text-orbit-canvas"
+          className={buttonClass({})}
         >
           <ImagePlus className="h-4 w-4" />
           File
@@ -102,7 +107,7 @@ export function ArtworkSlotPicker({
           noScale
           disabled={disabled}
           onClick={onSearch}
-          className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-3 py-2 text-sm"
+          className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm"
         >
           <Search className="h-4 w-4" />
           Browse images
@@ -115,7 +120,7 @@ export function ArtworkSlotPicker({
             noScale
             disabled={disabled}
             onClick={onRandom}
-            className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-white/10 px-3 py-2 text-sm"
+            className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm"
             aria-label={`Random SteamGridDB ${meta.label.toLowerCase()}`}
           >
             <Shuffle className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
@@ -130,7 +135,7 @@ export function ArtworkSlotPicker({
             noScale
             disabled={disabled}
             onClick={() => onChange(undefined)}
-            className="orbit-glass-control inline-flex items-center gap-2 rounded-card bg-rose-500/10 px-3 py-2 text-sm text-rose-300"
+            className="orbit-glass-control inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-2 text-sm text-rose-300"
           >
             <Trash2 className="h-4 w-4" />
             Clear

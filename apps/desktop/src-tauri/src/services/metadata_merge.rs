@@ -8,11 +8,30 @@ pub fn is_placeholder_description(value: Option<&str>) -> bool {
     };
 
     let lower = text.to_ascii_lowercase();
-    lower.starts_with("imported from steam library")
+    lower.starts_with("imported from")
+        // Placeholder copy written by retired importers; still in old rows.
         || lower.starts_with("gamehub shortcut")
-        || lower.starts_with("imported from astris")
-        || lower.starts_with("imported from macos")
         || lower.starts_with("manually added")
+}
+
+/// Steam store copy first, then TheGamesDB. Importer stubs are never kept.
+pub fn pick_description(
+    existing: Option<&str>,
+    store: Option<String>,
+    tgdb: Option<String>,
+    replace: bool,
+) -> Option<String> {
+    let store = store.filter(|text| !is_placeholder_description(Some(text)));
+    let tgdb = tgdb.filter(|text| !is_placeholder_description(Some(text)));
+    if let Some(text) = store {
+        if replace || is_placeholder_description(existing) {
+            return Some(text);
+        }
+    }
+    if is_placeholder_description(existing) {
+        return tgdb;
+    }
+    existing.map(str::to_string)
 }
 
 /// Fill empty artwork slots only — never wipe existing cover/hero/logo/icon.
@@ -78,9 +97,47 @@ mod tests {
         assert!(is_placeholder_description(Some(
             "GameHub shortcut (gamehub://launch/steam/1)."
         )));
+        assert!(is_placeholder_description(Some("Imported from GameHub.")));
+        assert!(is_placeholder_description(Some(
+            "Imported from Gamehub — /Users/me/GameHub/steamapps/common/GodOfWar/gow.exe"
+        )));
+        assert!(is_placeholder_description(Some(
+            "Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer."
+        )));
         assert!(!is_placeholder_description(Some(
             "An open-world RPG in Night City."
         )));
+    }
+
+    #[test]
+    fn refresh_prefers_steam_store_copy_over_legacy_import_stubs() {
+        let stub = "Imported from a GameHub Steam install (AppID 447040). Play uses Orbit’s compatibility layer.";
+        assert_eq!(
+            pick_description(
+                Some(stub),
+                Some("DedSec takes over San Francisco.".into()),
+                Some("TheGamesDB overview.".into()),
+                true,
+            )
+            .as_deref(),
+            Some("DedSec takes over San Francisco.")
+        );
+        assert_eq!(
+            pick_description(Some(stub), None, Some("TheGamesDB overview.".into()), true)
+                .as_deref(),
+            Some("TheGamesDB overview.")
+        );
+        assert_eq!(pick_description(Some(stub), None, None, true), None);
+        assert_eq!(
+            pick_description(
+                Some("Keep my edit."),
+                Some("DedSec takes over San Francisco.".into()),
+                None,
+                false,
+            )
+            .as_deref(),
+            Some("Keep my edit.")
+        );
     }
 
     #[test]

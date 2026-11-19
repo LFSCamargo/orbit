@@ -112,6 +112,77 @@ fn resolve_icon_url(icon: Option<String>, cover: Option<String>) -> Option<Strin
     icon.or(cover)
 }
 
+pub fn sgdb_cdn_url(value: &str) -> bool {
+    reqwest::Url::parse(value).is_ok_and(|url| {
+        url.scheme() == "https"
+            && url.port().is_none()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && matches!(
+                url.host_str(),
+                Some("cdn.steamgriddb.com" | "cdn2.steamgriddb.com")
+            )
+    })
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SgdbSquare {
+    pub title: Option<String>,
+    pub cover_url: Option<String>,
+}
+
+/// Square SteamGridDB grids (1024×1024 / 512×512) for library tiles.
+pub async fn fetch_square_cover(api_key: &str, steam_app_id: &str) -> Result<SgdbSquare, String> {
+    let Some((game_id, name)) = matching_game(api_key, "", Some(steam_app_id)).await? else {
+        return Ok(SgdbSquare::default());
+    };
+    let value = sgdb_get(
+        api_key,
+        &format!(
+            "https://www.steamgriddb.com/api/v2/grids/game/{game_id}?types=static&nsfw=false&humor=false&dimensions=1024x1024,512x512"
+        ),
+    )
+    .await?;
+    Ok(SgdbSquare {
+        title: Some(name).filter(|title| !title.trim().is_empty()),
+        cover_url: parse_square_cover(&value),
+    })
+}
+
+pub fn parse_square_cover(value: &serde_json::Value) -> Option<String> {
+    if value.get("success").and_then(serde_json::Value::as_bool) != Some(true) {
+        return None;
+    }
+    let mut best: Option<(i64, String)> = None;
+    for image in value.get("data")?.as_array()? {
+        let Some(url) = image.get("url").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if !sgdb_cdn_url(url) {
+            continue;
+        }
+        let width = image.get("width").and_then(serde_json::Value::as_u64);
+        let height = image.get("height").and_then(serde_json::Value::as_u64);
+        if !matches!(
+            (width, height),
+            (Some(512), Some(512)) | (Some(1024), Some(1024))
+        ) {
+            continue;
+        }
+        let score = image
+            .get("score")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0);
+        if best
+            .as_ref()
+            .map_or(true, |(best_score, _)| score > *best_score)
+        {
+            best = Some((score, url.to_string()));
+        }
+    }
+    best.map(|(_, url)| url)
+}
+
 pub(crate) async fn sgdb_get(api_key: &str, url: &str) -> Result<serde_json::Value, String> {
     let client = crate::services::http::orbit_client()?;
     let response = client
@@ -163,6 +234,58 @@ mod tests {
             resolve_icon_url(None, Some("portrait.jpg".into())).as_deref(),
             Some("portrait.jpg")
         );
+    }
+
+    #[test]
+    fn square_cover_rejects_missing_dimensions_and_rectangular_or_logo_assets() {
+        let response = serde_json::json!({"success": true, "data": [
+            {"url": "https://cdn.steamgriddb.com/grid/unknown.png", "score": 100},
+            {"url": "https://cdn.steamgriddb.com/grid/portrait.png", "width": 600, "height": 900},
+            {"url": "https://cdn.steamgriddb.com/grid/lowres.png", "width": 64, "height": 64}
+        ]});
+        assert!(parse_square_cover(&response).is_none());
+    }
+
+    #[test]
+    fn square_cover_picks_the_highest_scoring_square_cdn_grid() {
+        let value = serde_json::json!({
+            "success": true,
+            "data": [
+                {
+                    "url": "https://cdn.steamgriddb.com/grid/wide.png",
+                    "score": 99,
+                    "width": 920,
+                    "height": 430
+                },
+                {
+                    "url": "https://cdn2.steamgriddb.com/grid/square.png",
+                    "score": 40,
+                    "width": 1024,
+                    "height": 1024
+                },
+                {
+                    "url": "https://evil.example/grid.png",
+                    "score": 80,
+                    "width": 512,
+                    "height": 512
+                }
+            ]
+        });
+        assert_eq!(
+            parse_square_cover(&value).as_deref(),
+            Some("https://cdn2.steamgriddb.com/grid/square.png")
+        );
+        assert!(parse_square_cover(&serde_json::json!({"success": false})).is_none());
+    }
+
+    #[test]
+    fn only_steamgriddb_cdn_urls_are_accepted() {
+        assert!(sgdb_cdn_url("https://cdn.steamgriddb.com/grid/a.png"));
+        assert!(sgdb_cdn_url("https://cdn2.steamgriddb.com/grid/a.png"));
+        assert!(!sgdb_cdn_url(
+            "https://cdn.steamgriddb.com.evil.test/grid/a.png"
+        ));
+        assert!(!sgdb_cdn_url("http://cdn.steamgriddb.com/grid/a.png"));
     }
 }
 

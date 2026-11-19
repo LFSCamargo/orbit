@@ -56,36 +56,36 @@ pub async fn get_by_id(api_key: &str, game_id: i64) -> Result<Option<TgdbGameDet
 pub async fn fetch_images(api_key: &str, game_id: i64) -> Result<TgdbGameImages, String> {
     let url = format!("{BASE_URL_V1}/Games/Images?apikey={api_key}&games_id={game_id}");
     let json = tgdb_get(&url).await?;
+    images_from(json, game_id)
+}
+
+/// `data.images[<game id>]` is a list of `{ id, type, side, filename }`
+/// records. Cover: front box art, else back. Hero: fanart, else a screenshot.
+fn images_from(json: serde_json::Value, game_id: i64) -> Result<TgdbGameImages, String> {
     let envelope: TgdbImagesEnvelope =
-        serde_json::from_value(json).map_err(|err| err.to_string())?;
-    let images_map = envelope.data.and_then(|data| data.images);
-
-    let Some(images_map) = images_map else {
+        serde_json::from_value(json).map_err(|err| format!("TheGamesDB: {err}"))?;
+    let Some(images) = envelope
+        .data
+        .and_then(|data| data.images)
+        .and_then(|mut by_game| by_game.remove(&game_id.to_string()))
+    else {
         return Ok(TgdbGameImages::default());
     };
-
-    let Some(images) = images_map.get(&game_id.to_string()) else {
-        return Ok(TgdbGameImages::default());
+    let first = |kind: &str, side: Option<&str>| {
+        images
+            .iter()
+            .find(|image| {
+                image.kind.eq_ignore_ascii_case(kind)
+                    && side.is_none_or(|side| image.side.as_deref() == Some(side))
+            })
+            .map(|image| image.filename.as_str())
     };
-
-    let cover_url = images
-        .boxart
-        .as_ref()
-        .and_then(|b| b.front.as_deref().or(b.back.as_deref()))
+    let cover_url = first("boxart", Some("front"))
+        .or_else(|| first("boxart", Some("back")))
         .map(|value| resolve_image_url("boxart", value));
-    let hero_url = images
-        .fanart
-        .as_ref()
-        .and_then(|fanart| fanart.values().next().map(String::as_str))
+    let hero_url = first("fanart", None)
         .map(|value| resolve_image_url("fanart", value))
-        .or_else(|| {
-            images
-                .screenshots
-                .as_ref()
-                .and_then(|shots| shots.values().next().map(String::as_str))
-                .map(|value| resolve_image_url("screenshot", value))
-        });
-
+        .or_else(|| first("screenshot", None).map(|value| resolve_image_url("screenshot", value)));
     Ok(TgdbGameImages {
         cover_url,
         hero_url,
@@ -100,7 +100,7 @@ pub fn platform_ids(provider: &GameProvider, platform: &GamePlatform) -> Vec<i64
         GamePlatform::Linux => vec![3, 1],
         GamePlatform::Unknown => match provider {
             GameProvider::Astris => vec![4971],
-            GameProvider::Steam | GameProvider::Gamehub => vec![1, 2],
+            GameProvider::Steam => vec![1, 2],
             _ => vec![1, 2, 4971],
         },
     }
@@ -328,20 +328,15 @@ struct TgdbImagesEnvelope {
 
 #[derive(Debug, Deserialize)]
 struct TgdbImagesData {
-    images: Option<std::collections::HashMap<String, TgdbImageSet>>,
+    images: Option<std::collections::HashMap<String, Vec<TgdbImage>>>,
 }
 
 #[derive(Debug, Deserialize)]
-struct TgdbImageSet {
-    boxart: Option<TgdbBoxart>,
-    fanart: Option<std::collections::HashMap<String, String>>,
-    screenshots: Option<std::collections::HashMap<String, String>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct TgdbBoxart {
-    front: Option<String>,
-    back: Option<String>,
+struct TgdbImage {
+    #[serde(rename = "type")]
+    kind: String,
+    side: Option<String>,
+    filename: String,
 }
 
 #[cfg(test)]
@@ -410,5 +405,37 @@ mod tests {
         let queries = search_queries("DmC: Devil May Cry");
         assert_eq!(queries[0], "DmC: Devil May Cry");
         assert!(queries.iter().any(|q| q == "DmC"));
+    }
+
+    #[test]
+    fn reads_the_image_list_thegamesdb_returns() {
+        // Regression: images arrive as a list of records with numeric ids, and
+        // parsing them as maps failed with "invalid type: integer 67377".
+        let json = serde_json::json!({
+            "code": 200,
+            "data": {
+                "count": 3,
+                "base_url": {},
+                "images": {
+                    "22755": [
+                        { "id": 67336, "type": "screenshot", "side": null, "filename": "screenshots/22755-1.jpg", "resolution": "1920x1080" },
+                        { "id": 67337, "type": "boxart", "side": "back", "filename": "boxart/back/22755-1.jpg", "resolution": null },
+                        { "id": 67377, "type": "boxart", "side": "front", "filename": "boxart/front/22755-1.jpg", "resolution": "2215x2215" },
+                        { "id": 67378, "type": "clearlogo", "side": null, "filename": "clearlogo/22755.png", "resolution": null }
+                    ]
+                }
+            }
+        });
+        let images = images_from(json.clone(), 22755).unwrap();
+        assert!(images
+            .cover_url
+            .unwrap()
+            .ends_with("boxart/front/22755-1.jpg"));
+        assert!(images
+            .hero_url
+            .unwrap()
+            .ends_with("screenshots/22755-1.jpg"));
+        let other = images_from(json, 1).unwrap();
+        assert!(other.cover_url.is_none() && other.hero_url.is_none());
     }
 }

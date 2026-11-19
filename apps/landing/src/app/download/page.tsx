@@ -9,7 +9,7 @@ export const revalidate = 600
 export const metadata: Metadata = {
   title: 'Download',
   description:
-    'Download the latest Orbit release for macOS, Windows, or Linux, or choose an earlier version.',
+    'Download the latest Orbit release for your Mac, or choose an earlier version.',
 }
 
 export default async function DownloadPage() {
@@ -17,7 +17,7 @@ export default async function DownloadPage() {
   const latest = releases ? latestStable(releases) : undefined
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-14">
+    <div className="mx-auto max-w-5xl px-6 pb-20 pt-32">
       {releases && latest ? (
         <ReleaseView releases={releases} release={latest} />
       ) : (

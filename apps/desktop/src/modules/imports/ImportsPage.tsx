@@ -1,17 +1,12 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { Focusable } from '@/components/focus/Focusable'
 import { useImporters } from '@/hooks/useGames'
-import { GAMEHUB_SETUP_STEPS } from '@/lib/launchConfig'
 import { useImportScan, type ImportScanId } from '@/modules/imports/hooks/useImportScan'
 import { useUiStore } from '@/stores/ui.store'
+import { buttonClass } from '@/components/ui/button'
+import { BusyLabel } from '@/components/feedback/BusyLabel'
 
 const IMPORTERS = [
-  {
-    id: 'steam',
-    title: 'Steam',
-    body: 'Detects Steam libraries, playtime, install size, and local achievements. Launches via steam://rungameid.',
-  },
   {
     id: 'astris',
     title: 'Nintendo Switch (Astris)',
@@ -23,11 +18,6 @@ const IMPORTERS = [
     body: 'Scans /Applications and ~/Applications for likely games using bundle metadata.',
   },
   {
-    id: 'gamehub',
-    title: 'GameHub',
-    body: 'Import GameHub shortcuts from /Applications and ~/Applications. Only .app bundles with bundle id com.gamehub.shortcut.* are added.',
-  },
-  {
     id: 'manual',
     title: 'Manual game',
     body: 'Guided journey to add a custom .app, .exe, .nsp, or .xci with your own metadata.',
@@ -37,7 +27,6 @@ const IMPORTERS = [
 export function ImportsSection() {
   const openAddGame = useUiStore((s) => s.openAddGame)
   const setScreen = useUiStore((s) => s.setScreen)
-  const importToast = useUiStore((s) => s.importToast)
   const { data: statuses = [] } = useImporters()
   const { runScan } = useImportScan()
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -66,8 +55,7 @@ export function ImportsSection() {
         <div>
           <h2 className="font-display text-xl font-semibold">Import games</h2>
           <p className="mt-1 text-sm text-orbit-muted">
-            Bring games into Orbit from Steam, Astris, GameHub, native macOS apps, or a
-            single file.
+            Bring games into Orbit from Astris, native macOS apps, or a single file.
           </p>
         </div>
         <Focusable
@@ -77,24 +65,11 @@ export function ImportsSection() {
           noScale
           noRing
           onClick={openAddGame}
-          className="rounded-card bg-orbit-accent px-5 py-3 font-semibold text-orbit-canvas"
+          className={buttonClass({ size: 'lg' })}
         >
           Add game journey
         </Focusable>
       </div>
-
-      <AnimatePresence>
-        {importToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="orbit-glass-control mt-5 rounded-card bg-orbit-accent/15 px-4 py-3 text-sm text-orbit-accent ring-1 ring-orbit-accent/30"
-          >
-            {importToast}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <Focusable
         focusId="imports-switch-library"
@@ -115,14 +90,11 @@ export function ImportsSection() {
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         {IMPORTERS.map((item, index) => {
           const status = statusFor(item.id)
-          const label =
-            busyId === item.id
-              ? 'Scanning…'
-              : status?.detected
-                ? 'Detected'
-                : item.id === 'manual'
-                  ? 'Guided'
-                  : 'Choose path'
+          const label = status?.detected
+            ? 'Detected'
+            : item.id === 'manual'
+              ? 'Guided'
+              : 'Choose path'
           return (
             <Focusable
               key={item.id}
@@ -138,17 +110,10 @@ export function ImportsSection() {
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-display text-lg font-semibold">{item.title}</h3>
                 <span className="orbit-glass-control bg-white/8 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider text-orbit-muted">
-                  {label}
+                  <BusyLabel busy={busyId === item.id}>{label}</BusyLabel>
                 </span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-orbit-muted">{item.body}</p>
-              {item.id === 'gamehub' && (
-                <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-orbit-muted">
-                  {GAMEHUB_SETUP_STEPS.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              )}
             </Focusable>
           )
         })}

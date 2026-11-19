@@ -29,6 +29,31 @@ afterEach(() => {
   vi.resetAllMocks()
 })
 describe('artwork grid', () => {
+  it("opens in Orbit's shared drawer, from the left, closing on its backdrop", async () => {
+    vi.mocked(searchGameArtwork).mockResolvedValue({ hits, warnings: [] })
+    const close = vi.fn()
+    render(
+      <ImageSearchModal
+        open
+        initialQuery="Portal 2"
+        slot="cover"
+        gameId="game"
+        onSelect={vi.fn()}
+        onClose={close}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Choose cover artwork' })
+    expect(dialog.className).toContain('orbit-drawer')
+    expect(screen.getByTestId('image-search-host')).toHaveStyle({ left: '0px' })
+    // The search field stays put above the scrolling results.
+    const results = screen.getByTestId('image-search-scroll')
+    expect(results).not.toContainElement(
+      screen.getByRole('textbox', { name: 'Game title to search' }),
+    )
+    fireEvent.click(screen.getByTestId('image-search-scrim'))
+    expect(close).toHaveBeenCalled()
+  })
+
   it('searches automatically for the selected slot and filters all available sources', async () => {
     vi.mocked(searchGameArtwork).mockResolvedValue({
       hits,

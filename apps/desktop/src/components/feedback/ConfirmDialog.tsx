@@ -1,15 +1,18 @@
-import { useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { useModalFocus } from '@/hooks/useModalFocus'
+import { useOverlayBack } from '@/controllers/overlayStack'
 
 export function ConfirmDialog({
   open,
   title,
   description,
   confirmLabel,
+  busyLabel = 'Deleting…',
   busy,
+  children,
   onConfirm,
   onCancel,
 }: {
@@ -17,25 +20,18 @@ export function ConfirmDialog({
   title: string
   description: string
   confirmLabel: string
+  busyLabel?: string
   busy?: boolean
+  /** Extra controls between the description and the buttons, e.g. an option. */
+  children?: ReactNode
   onConfirm: () => void
   onCancel: () => void
 }) {
   useModalFocus(open, 'confirm-dialog', 'confirm-cancel')
 
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing || event.keyCode === 229) return
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopImmediatePropagation()
-        onCancel()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown, { capture: true })
-    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [open, onCancel])
+  useOverlayBack(open, () => {
+    if (!busy) onCancel()
+  })
 
   return (
     <AnimatePresence>
@@ -59,6 +55,7 @@ export function ConfirmDialog({
             </div>
             <h2 className="mt-5 font-display text-2xl font-semibold">{title}</h2>
             <p className="mt-2 leading-relaxed text-orbit-muted">{description}</p>
+            {children}
             <div className="mt-7 flex justify-end gap-3">
               <Focusable
                 focusId="confirm-cancel"
@@ -66,7 +63,7 @@ export function ConfirmDialog({
                 order={0}
                 disabled={busy}
                 onClick={onCancel}
-                className="orbit-glass-control rounded-card bg-white/10 px-5 py-3 font-semibold"
+                className="orbit-glass-control rounded-full bg-white/10 px-5 py-3 font-semibold"
               >
                 Cancel
               </Focusable>
@@ -76,9 +73,9 @@ export function ConfirmDialog({
                 order={1}
                 disabled={busy}
                 onClick={onConfirm}
-                className="rounded-card bg-rose-500 px-5 py-3 font-semibold text-white"
+                className="rounded-full bg-rose-500 px-5 py-3 font-semibold text-white"
               >
-                {busy ? 'Deleting…' : confirmLabel}
+                {busy ? busyLabel : confirmLabel}
               </Focusable>
             </div>
           </motion.div>

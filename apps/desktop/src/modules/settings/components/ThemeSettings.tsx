@@ -8,6 +8,7 @@ import type { ThemeDefinition } from '@/themes/types'
 import { ThemeCard } from './ThemeCard'
 import { useThemePreviews } from '../hooks/useThemePreviews'
 import { ThemeStudio } from './ThemeStudio'
+import { SkeletonBlock } from '@/components/feedback/Skeleton'
 
 const SECTIONS = [
   { kind: 'color', title: 'Liquid Glass' },
@@ -63,9 +64,15 @@ export function ThemeSettings() {
           </p>
         )}
         {loadingTheme && (
-          <p role="status" className="mt-3 text-sm text-orbit-muted">
-            Loading theme artwork…
-          </p>
+          <div
+            role="status"
+            aria-label="Loading theme artwork"
+            className="mt-3 grid grid-cols-3 gap-3"
+          >
+            {[0, 1, 2].map((index) => (
+              <SkeletonBlock key={index} className="aspect-video rounded-[14px]" />
+            ))}
+          </div>
         )}
         {themeError && (
           <p role="alert" className="mt-3 text-sm text-rose-300">
@@ -109,7 +116,7 @@ export function ThemeSettings() {
           noScale
           noRing
           onClick={() => void refreshCustomThemes()}
-          className="orbit-glass-control mt-3 rounded-card bg-white/10 px-4 py-2 text-sm"
+          className="orbit-glass-control mt-3 rounded-full bg-white/10 px-4 py-2 text-sm"
         >
           Reload custom themes
         </Focusable>

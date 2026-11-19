@@ -1,0 +1,68 @@
+export type SteamClientPhase = 'stopped' | 'starting' | 'connecting' | 'ready' | 'failed'
+
+export interface SteamWindowsStatus {
+  signedIn: boolean
+  accountName: string | null
+  steamInstalled: boolean
+  clientRunning: boolean
+  clientLoggedIn: boolean
+  clientPhase: SteamClientPhase
+  clientCaption: string
+  ownedCount: number
+  /** Refresh token saved for Windows games. The account name alone cannot start them. */
+  sessionReady: boolean
+}
+
+export interface SteamWindowsPreferences {
+  offlineMode: boolean
+  verifyFiles: boolean
+  additionalLibraryPaths?: string[]
+  /** Steam Input (controller configuration) for games. */
+  steamInput?: boolean
+  /** Steam's in-game overlay (Shift+Tab). Off by default: it costs frame time. */
+  steamOverlay?: boolean
+}
+
+export interface SteamOwnedGame {
+  appId: string
+  title: string
+  description: string | null
+  coverUrl: string
+  heroUrl: string
+  installed: boolean
+  minimumRequirements?: string | null
+  recommendedRequirements?: string | null
+  protonTier?: string | null
+}
+
+export interface SteamQrStart {
+  qrSvg: string
+  clientId: string
+  requestId: string
+  intervalSeconds: number
+}
+
+export interface SteamQrPoll {
+  done: boolean
+  status: SteamWindowsStatus | null
+  libraryError: string | null
+}
+
+export interface SteamPasswordStart {
+  clientId: string
+  requestId: string
+  intervalSeconds: number
+  steamId: string | null
+  needsCode: boolean
+  codeType: number
+}
+
+export interface SteamLoginPoll {
+  done: boolean
+  status: SteamWindowsStatus | null
+  libraryError: string | null
+}
+
+export interface SteamLoginPlacement {
+  placed: boolean
+}

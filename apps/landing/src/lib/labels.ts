@@ -1,30 +1,18 @@
-import type { AssetArch, AssetKind, AssetPlatform, ReleaseAsset } from './releases'
+import type { AssetArch, AssetKind, ReleaseAsset } from './releases'
 
-const KIND_LABELS: Record<Exclude<AssetKind, 'other'>, string> = {
+const KIND_LABELS: Record<AssetKind, string> = {
   dmg: 'macOS disk image',
   'app-archive': 'macOS app archive',
-  exe: 'Windows installer',
-  msi: 'Windows MSI installer',
-  appimage: 'Linux AppImage',
-  deb: 'Debian / Ubuntu package',
-  rpm: 'Fedora / RHEL package',
-  'linux-archive': 'Linux archive',
   checksums: 'SHA-256 checksums',
 }
 
-export function archLabel(
-  arch: AssetArch | null,
-  platform: AssetPlatform | null = 'macos',
-): string | null {
+export function archLabel(arch: AssetArch | null): string | null {
   if (!arch) return null
   if (arch === 'universal') return 'Universal'
-  if (platform === 'macos') return arch === 'arm64' ? 'Apple Silicon' : 'Intel'
-  return arch === 'arm64' ? 'ARM64' : 'x86-64'
+  return arch === 'arm64' ? 'Apple Silicon' : 'Intel'
 }
 
 export function assetLabel(asset: ReleaseAsset): string {
-  if (asset.kind === 'other') return asset.name
-  const kind = KIND_LABELS[asset.kind]
-  const arch = archLabel(asset.arch, asset.platform)
-  return arch ? `${kind} · ${arch}` : kind
+  const arch = archLabel(asset.arch)
+  return arch ? `${KIND_LABELS[asset.kind]} · ${arch}` : KIND_LABELS[asset.kind]
 }
