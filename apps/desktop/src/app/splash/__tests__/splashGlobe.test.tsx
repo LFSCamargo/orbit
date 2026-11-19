@@ -1,6 +1,6 @@
 import { act } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { holdSplash, resetSplashForTests, SPLASH_MIN_MS } from '../splash'
+import { holdSplash, reopenSplash, resetSplashForTests, SPLASH_MIN_MS } from '../splash'
 import { mountSplashGlobe, SPLASH_GLOBE_WAIT_MS } from '../splashGlobe'
 
 let ready: (() => void) | undefined
@@ -54,4 +54,18 @@ it('keeps the photo planet without a GPU or with reduced motion', async () => {
     await act(async () => mountSplashGlobe({ ...options, load }))
     expect(document.querySelector('#orbit-splash-globe canvas')).toBeNull()
   }
+})
+
+it('spins the globe again each time the splash comes back', async () => {
+  const boot = holdSplash()
+  await act(async () => mountSplashGlobe({ tier: 'gpu', reducedMotion: false, load }))
+  act(() => ready?.())
+  boot()
+  await act(() => vi.advanceTimersByTimeAsync(SPLASH_MIN_MS + 3000))
+  expect(document.querySelector('canvas')).toBeNull()
+  await act(async () => {
+    reopenSplash()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(document.querySelector('#orbit-splash-globe canvas')).not.toBeNull()
 })

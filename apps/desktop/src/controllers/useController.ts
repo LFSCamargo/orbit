@@ -42,8 +42,9 @@ export function useControllerNavigation() {
     const handleAction = (action: ControllerAction) => {
       setFamily(gamepadManager.getFamily())
       // Orbit is still starting behind the splash: presses there would land
-      // on a screen that is still moving into place.
-      if (splashActive()) return
+      // on a screen that is still moving into place. Onboarding, shown over
+      // the splash on a first run, takes input.
+      if (splashActive() && !onboardingVisible()) return
       // A portaled Select owns directional input until it closes.
       const menu = document.querySelector('[role="listbox"]')
       const menuKeys: Partial<Record<ControllerAction, string>> = {

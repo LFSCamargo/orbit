@@ -81,16 +81,50 @@ test('a new user is guided from Welcome to Home', async ({ page }) => {
   await expect(heading(page, 'Welcome to Orbit')).toHaveCount(0)
 })
 
+test('a first run opens onboarding over the blurred splash, which then opens Home', async ({
+  page,
+}) => {
+  await freshInstall(page)
+  await page.goto('/')
+  await expect(heading(page, 'Welcome to Orbit')).toBeVisible()
+  // The splash stays up behind the card (onboarding's backdrop blurs it),
+  // and Home is not shown behind it yet.
+  await expect(page.locator('#orbit-splash')).toBeAttached()
+  await expect(page.locator('html')).toHaveClass(/orbit-splash-under-onboarding/)
+  await expect(page.locator('[data-app-layer]')).toHaveCSS('visibility', 'hidden')
+  // The card is on top and works, with the keyboard too.
+  await page.keyboard.press('Enter')
+  await expect(heading(page, 'Setup')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(heading(page, 'Welcome to Orbit')).toBeVisible()
+  // Finishing hands over to the splash: its exit opens Home.
+  await page.getByRole('button', { name: 'Skip setup' }).first().click()
+  await page.getByRole('button', { name: 'Skip setup' }).last().click()
+  await expect(page.locator('html')).toHaveClass(/orbit-entering/, { timeout: 10_000 })
+  await expect(page.locator('#orbit-splash')).toBeHidden({ timeout: 10_000 })
+  await expect(page.locator('[data-app-layer]')).toHaveCSS('visibility', 'visible')
+  await expect(page.locator('[data-focus-id="macos-play"]')).toBeVisible()
+})
+
 test('Settings can replay onboarding', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('[data-focus-id="macos-play"]')).toBeVisible()
   await page.locator('[data-focus-id="macos-nav-settings"]').click()
   // Xbox Cloud Gaming is coming soon: no Settings row yet.
   await expect(page.getByRole('heading', { name: 'Xbox Cloud Gaming' })).toHaveCount(0)
+  await expect(page.locator('#orbit-splash')).toBeHidden()
   await page.getByRole('button', { name: 'Show onboarding' }).click()
   await expect(heading(page, 'Welcome to Orbit')).toBeVisible()
+  // Every time onboarding opens, the splash comes back behind it, and Settings
+  // is hidden behind both.
+  await expect(page.locator('#orbit-splash')).toBeVisible()
+  await expect(page.locator('html')).toHaveClass(/orbit-splash-under-onboarding/)
+  await expect(page.locator('[data-app-layer]')).toHaveCSS('visibility', 'hidden')
   await page.getByRole('button', { name: 'Skip setup' }).first().click()
   await page.getByRole('button', { name: 'Skip setup' }).last().click()
+  // Then the splash opens Home.
+  await expect(page.locator('html')).toHaveClass(/orbit-entering/, { timeout: 10_000 })
+  await expect(page.locator('#orbit-splash')).toBeHidden({ timeout: 10_000 })
   await expect(page.locator('[data-focus-id="macos-play"]')).toBeVisible()
 })
 
@@ -168,8 +202,11 @@ test('on a GPU the 3D globe turns and the sparkles draw', async () => {
   await freshInstall(page)
   await page.goto('/')
   await expect(heading(page, 'Welcome to Orbit')).toBeVisible()
-  // The startup splash has its own globe; this is the onboarding card's.
-  await expect(page.locator('#orbit-splash')).toHaveCount(0, { timeout: 15_000 })
+  // The startup splash (behind onboarding) has its own globe; this is the
+  // onboarding card's, once the card is shown.
+  await expect(page.locator('.onboarding-card')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  })
   const globe = page.locator('.onboarding-effects .space-globe canvas')
   await expect(globe).toBeVisible()
   await expect(page.locator('.onboarding-effects canvas')).toHaveCount(2)

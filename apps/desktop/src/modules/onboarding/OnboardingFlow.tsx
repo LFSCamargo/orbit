@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { focusManager } from '@/controllers/FocusManager'
 import { useOverlayBack } from '@/controllers/overlayStack'
@@ -8,7 +8,8 @@ import { useModalFocus } from '@/hooks/useModalFocus'
 import { screenEntryFocusId } from '@/lib/navigation'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useUiStore } from '@/stores/ui.store'
-import { useSplashHold } from '@/app/splash/useSplashHold'
+import { reopenSplash } from '@/app/splash/splash'
+import { useSplashActive, useSplashHold } from '@/app/splash/useSplashHold'
 import { OnboardingFrame } from './components/OnboardingFrame'
 import { useOnboardingReady } from './hooks/useOnboardingReady'
 import { graphicsTier } from './lib/graphicsSupport'
@@ -60,11 +61,14 @@ export function OnboardingFlow() {
   const updatePreferences = usePreferencesStore((s) => s.update)
   const closeOnboarding = useUiStore((s) => s.closeOnboarding)
   const setScreen = useUiStore((s) => s.setScreen)
-  // Shown only once whole: the startup splash, or a spinner when replayed,
-  // covers the wait.
+  // Onboarding always opens over the splash (brought back when replayed from
+  // Settings): it stays behind, blurred by the backdrop, until onboarding
+  // finishes, then opens Home. Shown only once whole; the splash covers the wait.
   const gpu = useMemo(() => graphicsTier() === 'gpu', [])
   const { ready, onSceneReady } = useOnboardingReady(gpu)
-  useSplashHold(!ready)
+  useLayoutEffect(() => reopenSplash(), [])
+  useSplashHold(true, { untilReleased: true })
+  const overSplash = useSplashActive()
 
   const back = () => setStep((current) => previousStep(current) ?? current)
   const next = () => setStep((current) => nextStep(current) ?? current)
@@ -90,6 +94,7 @@ export function OnboardingFlow() {
       step={step}
       onSkip={() => setConfirmSkip(true)}
       ready={ready}
+      overSplash={overSplash}
       onSceneReady={onSceneReady}
     >
       <AnimatePresence mode="wait" initial={false}>

@@ -26,6 +26,7 @@ import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
 import { OnboardingFlow } from '@/modules/onboarding/OnboardingFlow'
 import { useOnboardingVisible } from '@/modules/onboarding/lib/onboardingVisibility'
+import { useSplashActive } from './splash/useSplashHold'
 import { useRuntimeAutoUpdate } from './startup/useRuntimeAutoUpdate'
 import { useStartupScan } from './startup/useStartupScan'
 
@@ -36,6 +37,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   const screen = useUiStore((s) => s.screen)
   const homeMenuOpen = useUiStore((s) => s.homeMenuOpen)
   const onboarding = useOnboardingVisible()
+  const splashUp = useSplashActive()
   const { family } = useControllerNavigation()
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const { data: activeSession } = useActiveSessionQuery()
@@ -51,6 +53,13 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   useStartupScan()
   useRuntimeAutoUpdate()
 
+  // On a first run, onboarding (in #root) rises above the splash, which stays
+  // behind it, blurred, until onboarding finishes (index.html).
+  const overSplash = onboarding && splashUp
+  useEffect(() => {
+    document.documentElement.classList.toggle('orbit-splash-under-onboarding', overSplash)
+  }, [overSplash])
+
   // Screens below take their own splash holds as they mount, first.
   useEffect(() => onMounted?.(), [onMounted])
 
@@ -63,9 +72,13 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
       {/* Onboarding and the Home menu float over Orbit: the app stays visible
           behind them but cannot be reached until they close. */}
       <div
+        data-app-layer
         className={
           homeMenuOpen || onboarding ? 'pointer-events-none select-none' : undefined
         }
+        // On a first run onboarding sits over the splash; Home appears only
+        // when the splash opens it.
+        style={overSplash ? { visibility: 'hidden' } : undefined}
         aria-hidden={homeMenuOpen || onboarding}
         inert={onboarding}
       >
@@ -97,7 +110,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
       </div>
       {onboarding && <OnboardingFlow />}
       <HomeMenuModal family={family} />
-      {!activeSession && <LaunchOverlay />}
+      <LaunchOverlay />
       <OrbitToaster />
     </>
   )

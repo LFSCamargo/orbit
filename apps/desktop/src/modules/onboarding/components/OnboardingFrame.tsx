@@ -19,6 +19,7 @@ export function OnboardingFrame({
   step,
   onSkip,
   ready = true,
+  overSplash = false,
   onSceneReady,
   children,
 }: {
@@ -27,6 +28,9 @@ export function OnboardingFrame({
   /** Everything has loaded: until then the card stays hidden behind the
    * backdrop and a spinner, so it appears whole rather than filling in. */
   ready?: boolean
+  /** Over the startup splash: a lighter veil so the splash shows through,
+   * blurred, and no spinner (the splash is the wait). */
+  overSplash?: boolean
   onSceneReady?: () => void
   children: ReactNode
 }) {
@@ -40,9 +44,13 @@ export function OnboardingFrame({
     >
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[rgb(6_5_8/0.62)] backdrop-blur-[14px]"
+        className={
+          overSplash
+            ? 'absolute inset-0 bg-[rgb(6_5_8/0.38)] backdrop-blur-[18px]'
+            : 'absolute inset-0 bg-[rgb(6_5_8/0.62)] backdrop-blur-[14px]'
+        }
       />
-      {!ready && (
+      {!ready && !overSplash && (
         <div
           role="status"
           aria-label="Preparing setup"

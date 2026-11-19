@@ -108,7 +108,7 @@ No text loaders: nothing reads "Loading…", "Saving…" or "Scanning…". Conte
 - Home opens over the splash through an iris that starts at the logo (`clip-path` circle), out of a bright blur, with a fire ring riding the iris edge (`html::after`, same timing);
 - the splash fades behind it.
 
-A hold never released cannot keep the splash up past 10 s. Controller input is ignored until the splash has gone. Reduced motion uses short fades, with no iris or ring.
+Onboarding always opens over the splash (replaying it brings the splash back: it is hidden, not removed, when it leaves), which stays behind it, blurred, until onboarding finishes, and then opens Home (see ONBOARDING.md). A hold never released cannot keep the splash up past 10 s; onboarding's hold is exempt. Controller input is ignored until the splash has gone. Reduced motion uses short fades, with no iris or ring.
 
 ### Focus ring
 

@@ -26,6 +26,13 @@
       .orbit-booting #root {
         opacity: 0;
       }
+      /* First run: onboarding (in #root) floats above the splash, which stays
+         behind it until onboarding finishes. Home itself stays hidden. */
+      html.orbit-splash-under-onboarding #root {
+        position: relative;
+        z-index: 2147483001;
+        opacity: 1;
+      }
       /* Entering: Home opens through an iris from the logo, over the
          leaving splash, out of a bright blur, with a fire ring riding the
          iris edge (html::after). Same timing, so the ring stays on the edge. */
