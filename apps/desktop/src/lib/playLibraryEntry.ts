@@ -7,6 +7,7 @@ import {
 } from './tauri'
 import type { LibraryEntry } from '@/types/library'
 import type { GameSession } from '@/types/game'
+import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 
 export function isWindowsSteamPlay(entry: LibraryEntry) {
   const installation = selectInstallation(entry)
@@ -31,10 +32,12 @@ export async function playLibraryEntry(entry: LibraryEntry): Promise<GameSession
   if (isUnsavedCloudEntry(entry) && entry.game.sourceId) {
     // The first launch saves it to the library.
     await launchXcloudGame(entry.game.sourceId)
+    openCloudPlayer(entry)
     return null
   }
   if (isCloudPlay(entry)) {
     await launchXcloudLibraryGame(entry.game.id)
+    openCloudPlayer(entry)
     return null
   }
   if (isWindowsSteamPlay(entry) && entry.steamAppId) {
@@ -44,3 +47,8 @@ export async function playLibraryEntry(entry: LibraryEntry): Promise<GameSession
   return launchGame(gameId)
 }
 
+/** Streams the title in Orbit's own player (modules/xcloud-player). */
+function openCloudPlayer(entry: LibraryEntry) {
+  const productId = entry.game.sourceId ?? entry.id.replace(/^xcloud:/, '')
+  useXcloudPlayerStore.getState().open({ productId, title: entry.game.title })
+}

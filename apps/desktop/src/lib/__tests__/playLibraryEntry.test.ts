@@ -1,13 +1,17 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { isWindowsSteamPlay, playLibraryEntry } from '../playLibraryEntry'
 import type { LibraryEntry } from '@/types/library'
+import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 
 const launchGame = vi.fn()
 const playSteamWindowsGame = vi.fn()
+const launchXcloudLibraryGame = vi.fn()
 
 vi.mock('../tauri', () => ({
   launchGame: (...args: unknown[]) => launchGame(...args),
   playSteamWindowsGame: (...args: unknown[]) => playSteamWindowsGame(...args),
+  launchXcloudGame: vi.fn(),
+  launchXcloudLibraryGame: (...args: unknown[]) => launchXcloudLibraryGame(...args),
 }))
 
 function entry(patch: Partial<LibraryEntry> = {}): LibraryEntry {
@@ -76,4 +80,35 @@ it('keeps Mac Steam launches on the native Steam URL', async () => {
   await playLibraryEntry(mac)
   expect(launchGame).toHaveBeenCalledWith('cyberpunk')
   expect(playSteamWindowsGame).not.toHaveBeenCalled()
+})
+
+it("streams a cloud game in Orbit's player instead of a web page", async () => {
+  useXcloudPlayerStore.setState({ stream: null })
+  const cloud = entry({
+    id: 'xcloud:9NBLGGH4R315',
+    steamAppId: null,
+    installations: [
+      {
+        id: 'cloud',
+        gameId: 'xc-uuid',
+        platform: 'windows',
+        path: null,
+        available: true,
+        launchType: 'open-url',
+      },
+    ],
+  })
+  cloud.game = {
+    ...cloud.game,
+    id: 'xc-uuid',
+    title: 'Dead Space',
+    provider: 'xcloud',
+    sourceId: '9NBLGGH4R315',
+  }
+  await playLibraryEntry(cloud)
+  expect(launchXcloudLibraryGame).toHaveBeenCalledWith('xc-uuid')
+  expect(useXcloudPlayerStore.getState().stream).toEqual({
+    productId: '9NBLGGH4R315',
+    title: 'Dead Space',
+  })
 })

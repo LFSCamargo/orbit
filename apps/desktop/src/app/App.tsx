@@ -20,6 +20,7 @@ import { useSteamDownloadEvents } from '@/hooks/useSteamDownloadEvents'
 import { useDownloadToasts } from '@/hooks/useDownloadToasts'
 import { useLaunchToasts } from '@/hooks/useLaunchToasts'
 import { OrbitToaster } from '@/components/feedback/OrbitToaster'
+import { XcloudPlayer } from '@/modules/xcloud-player/XcloudPlayer'
 import { useSteamClientEvents } from '@/hooks/useSteamClientEvents'
 import { useSteamLibraryEvents } from '@/hooks/useSteamLibraryEvents'
 import { useSessionStore } from '@/stores/session.store'
@@ -112,6 +113,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
       <HomeMenuModal family={family} />
       <LaunchOverlay />
       <OrbitToaster />
+      <XcloudPlayer />
     </>
   )
 }

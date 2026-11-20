@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Home, LayoutGrid, LogOut, Play, Settings, Square, X } from 'lucide-react'
+import { Home, LayoutGrid, LogOut, Play, Settings, Square, Undo2, X } from 'lucide-react'
 import { XboxIcon } from '@/components/brand/AccountIcons'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
@@ -14,6 +14,7 @@ import { hideOrbitWindow, openXboxCloud, quitOrbit } from '@/lib/tauri'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 import { SessionArtwork } from '@/components/session/SessionArtwork'
 import { formatPlaytime } from '@/lib/format'
 import type { AppScreen } from '@/types/game'
@@ -37,6 +38,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
   const closeHomeMenu = useUiStore((s) => s.closeHomeMenu)
   const setScreen = useUiStore((s) => s.setScreen)
   const activeSession = useSessionStore((s) => s.activeSession)
+  const cloudStream = useXcloudPlayerStore((s) => s.stream)
   const { stop } = useGameActions()
   const xboxCloudConnected =
     usePreferencesStore((s) => s.preferences.xboxCloudConnected) && XBOX_CLOUD_ENABLED
@@ -50,6 +52,53 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
     const navigate = (screen: AppScreen) => {
       setScreen(screen)
       closeHomeMenu()
+    }
+
+    // A cloud game is paused behind this menu; the connection stays up.
+    if (cloudStream) {
+      const cloud = useXcloudPlayerStore.getState()
+      return [
+        {
+          id: 'home-menu-cloud-continue',
+          label: 'Continue',
+          description: 'Go back into the game',
+          icon: Play,
+          action: () => {
+            cloud.resume()
+            closeHomeMenu()
+          },
+        },
+        {
+          id: 'home-menu-cloud-stop',
+          label: 'Stop game',
+          description: 'End the cloud stream',
+          tone: 'danger' as const,
+          icon: Square,
+          action: () => {
+            cloud.close()
+            closeHomeMenu()
+          },
+        },
+        {
+          id: 'home-menu-cloud-orbit',
+          label: 'Back to Orbit',
+          description: 'Keep the game paused in the background',
+          icon: Undo2,
+          action: closeHomeMenu,
+        },
+        {
+          id: 'home-menu-quit',
+          label: 'Quit Orbit',
+          description: 'Close the launcher',
+          icon: LogOut,
+          tone: 'danger' as const,
+          action: () => {
+            void quitOrbit().catch(() =>
+              setActionError('Could not quit Orbit. Try the application menu.'),
+            )
+          },
+        },
+      ] satisfies MenuItem[]
     }
 
     if (activeSession) {
@@ -151,7 +200,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
         },
       },
     ] satisfies MenuItem[]
-  }, [activeSession, closeHomeMenu, setScreen, stop, xboxCloudConnected])
+  }, [activeSession, cloudStream, closeHomeMenu, setScreen, stop, xboxCloudConnected])
 
   useModalFocus(open, 'home-menu', items[0]?.id ?? 'home-menu-continue')
 
@@ -247,16 +296,20 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
                 )}
               >
                 <img src="/orbit.svg" alt="" className="size-7" />
-                {activeSession ? 'SESSION CONTROLS' : 'MAKE YOURSELF AT HOME'}
+                {activeSession || cloudStream
+                  ? 'SESSION CONTROLS'
+                  : 'MAKE YOURSELF AT HOME'}
               </div>
               <h2
                 className={clsx(
                   'mt-3.5 max-w-[85%] font-display text-[30px] font-semibold leading-[1.15] tracking-[-0.045em] text-white max-[700px]:text-[26px]',
                 )}
               >
-                {activeSession
-                  ? (game?.title ?? 'Your game is running')
-                  : 'A moment for you.'}
+                {cloudStream
+                  ? cloudStream.title
+                  : activeSession
+                    ? (game?.title ?? 'Your game is running')
+                    : 'A moment for you.'}
               </h2>
               <p className={clsx('mt-[9px] text-xs text-[#ffffff90]')}>
                 {activeSession

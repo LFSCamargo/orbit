@@ -37,6 +37,8 @@ interface UiState {
   libraryFilters: LibraryFilters
   searchQuery: string
   homeMenuOpen: boolean
+  /** When the Home menu last opened (ms); one press can arrive twice. */
+  homeMenuOpenedAt: number
   /** Onboarding replayed from Settings; first run is decided by preferences. */
   onboardingOpen: boolean
   settingsTab: SettingsTab
@@ -95,6 +97,7 @@ export const useUiStore = create<UiState>((set) => ({
   libraryFilters: defaultFilters,
   searchQuery: '',
   homeMenuOpen: false,
+  homeMenuOpenedAt: 0,
   onboardingOpen: false,
   settingsTab: 'general',
   libraryView: 'installed',
@@ -163,7 +166,7 @@ export const useUiStore = create<UiState>((set) => ({
       libraryFilters: { ...state.libraryFilters, ...patch },
     })),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
-  openHomeMenu: () => set({ homeMenuOpen: true }),
+  openHomeMenu: () => set({ homeMenuOpen: true, homeMenuOpenedAt: Date.now() }),
   openOnboarding: () => set({ onboardingOpen: true, homeMenuOpen: false }),
   closeOnboarding: () => set({ onboardingOpen: false }),
   closeHomeMenu: () => set({ homeMenuOpen: false }),

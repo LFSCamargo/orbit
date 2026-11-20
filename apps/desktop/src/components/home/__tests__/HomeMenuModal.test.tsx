@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_APP_PREFERENCES } from '@/lib/appPreferences'
 import { openXboxCloud } from '@/lib/tauri'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 import { HomeMenuModal } from '../HomeMenuModal'
 
 vi.mock('@/lib/tauri', async (importOriginal) => ({
@@ -27,7 +28,7 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-it('keeps Xbox Cloud Gaming out of the menu while it is coming soon', () => {
+it('offers Xbox Cloud Gaming once it was opened from Settings', () => {
   usePreferencesStore.setState({
     ready: true,
     preferences: {
@@ -37,9 +38,7 @@ it('keeps Xbox Cloud Gaming out of the menu while it is coming soon', () => {
     },
   })
   renderMenu()
-  expect(
-    screen.queryByRole('button', { name: /Xbox Cloud Gaming/ }),
-  ).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Xbox Cloud Gaming/ })).toBeInTheDocument()
   expect(openXboxCloud).not.toHaveBeenCalled()
 })
 
@@ -52,4 +51,49 @@ it('leaves it out until then', () => {
   expect(
     screen.queryByRole('button', { name: /Xbox Cloud Gaming/ }),
   ).not.toBeInTheDocument()
+})
+
+describe('during a cloud game', () => {
+  beforeEach(() => {
+    usePreferencesStore.setState({
+      ready: true,
+      preferences: { ...DEFAULT_APP_PREFERENCES, onboardingCompleted: true },
+    })
+    useXcloudPlayerStore.setState({
+      stream: { productId: '9NVQBQ3F6W9W', title: 'Call of Duty' },
+      paused: true,
+    })
+  })
+  afterEach(() => useXcloudPlayerStore.setState({ stream: null, paused: false }))
+
+  it('offers Continue, Stop game and Back to Orbit for the paused stream', () => {
+    renderMenu()
+    expect(screen.getByRole('heading', { name: 'Call of Duty' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Continue/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Stop game/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Back to Orbit/ })).toBeInTheDocument()
+  })
+
+  it('Continue goes back into the stream', () => {
+    renderMenu()
+    fireEvent.click(screen.getByRole('button', { name: /^Continue/ }))
+    expect(useXcloudPlayerStore.getState()).toMatchObject({ paused: false })
+    expect(useXcloudPlayerStore.getState().stream).not.toBeNull()
+    expect(useUiStore.getState().homeMenuOpen).toBe(false)
+  })
+
+  it('Stop game ends the stream', () => {
+    renderMenu()
+    fireEvent.click(screen.getByRole('button', { name: /^Stop game/ }))
+    expect(useXcloudPlayerStore.getState().stream).toBeNull()
+    expect(useUiStore.getState().homeMenuOpen).toBe(false)
+  })
+
+  it('Back to Orbit keeps the stream paused in the background', () => {
+    renderMenu()
+    fireEvent.click(screen.getByRole('button', { name: /^Back to Orbit/ }))
+    expect(useXcloudPlayerStore.getState()).toMatchObject({ paused: true })
+    expect(useXcloudPlayerStore.getState().stream).not.toBeNull()
+    expect(useUiStore.getState().homeMenuOpen).toBe(false)
+  })
 })
