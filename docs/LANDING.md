@@ -6,13 +6,13 @@ the Mac only (Windows appears only as "Windows games", which Orbit runs through 
 
 ## Routes
 
-| Route                 | Purpose                                                                                              |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| `/`                   | Space hero with the 3D globe, features, themes, controller mapping, and the Mac download             |
-| `/docs`               | Product manual: imports, library, controllers, sessions, artwork, themes, local data, and boundaries |
-| `/install`            | Mac install steps, first launch, checksums, updates, uninstall, and source builds                    |
-| `/download`           | Latest stable release: primary download, all files, release notes, version picker                    |
-| `/download/[version]` | Same view for a specific version (e.g. `/download/0.2.0`); unknown versions return 404               |
+| Route                 | Purpose                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                   | Space hero with provider logos, game cover wall, demo reel and screenshots, features, sources, themes, controller, why Orbit, download, and FAQ |
+| `/docs`               | Product manual: imports, library, controllers, sessions, artwork, themes, local data, and boundaries                                            |
+| `/install`            | Mac install steps, first launch, checksums, updates, uninstall, and source builds                                                               |
+| `/download`           | Latest stable release: primary download, all files, release notes, version picker                                                               |
+| `/download/[version]` | Same view for a specific version (e.g. `/download/0.2.0`); unknown versions return 404                                                          |
 
 ## Presentation
 
@@ -29,10 +29,33 @@ Orbit's framing and colours, as in the app's onboarding) loads after the page is
 in over the photo once it has drawn its first frame. Three.js never loads on phones, without
 WebGL, or with reduced motion.
 
+The cover wall (`public/covers/`) and demo screenshots (`public/screenshots/`) are cropped from
+Orbit's own screens. The demo section opens on the 38-second Orbit features trailer,
+with separate God of War (Orbit Wine + GPTK 4.0.3, 45 seconds) and Forza Horizon 6
+(Xbox Game Cloud Layer, 32 seconds) tabs alongside the screenshots. Web-optimized 1080p
+H.264 MP4s and 720p JPEG posters live in `public/videos/`. Each video opens with the recorded Orbit globe startup animation and uses an original
+synthesized 150 BPM rage-trap instrumental with no third-party samples. Videos play on
+request with sound and native controls, and preload metadata only. The God of War
+caption explains that keyboard and mouse were used because screen recording affected
+controller performance; controllers work normally outside recording. Switching tabs unmounts the
+previous video so it stops playing; only the selected player is mounted. Steam and Xbox marks are Bootstrap
+Icons (MIT), Epic's is its official mark, shown as coming soon. Each provider logo
+has its own component under `components/brand/`; source cards live in
+`components/home/SourceCard.tsx`.
+
+The themes section replaces the decorative studio mockup with a selectable screenshot
+gallery (`ThemePreviewGallery.tsx`). It shows Devil May Cry 5, God of War, Cyberpunk 2077,
+Zelda: Ocarina of Time Remake, and Grand Theft Auto VI from `public/screenshots/themes/`.
+Thumbnail buttons expose their selection with `aria-pressed`; native keyboard activation
+switches the single large preview. Next Image serves responsive, lazy-loaded images.
+
 Surfaces use the app's liquid glass (`.orbit-glass` in `globals.css`, via `GlassPanel`), and
 primary actions the fire-gradient glass button (`.orbit-btn-fire`, via `buttonClass`). Sections
 reveal on scroll. Reduced motion stops every animation; reduced transparency makes glass
 opaque.
+
+The website favicon (`src/app/favicon.ico`) is the Orbit application icon, copied
+from the desktop app’s icon assets. Next.js adds its icon metadata on every route.
 
 ## Release data
 

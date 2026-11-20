@@ -149,6 +149,22 @@ body {
     color: transparent;
   }
 
+  .game-marquee {
+    animation: game-marquee 70s linear infinite;
+  }
+
+  .game-marquee-reverse {
+    animation-direction: reverse;
+  }
+
+  .orbit-spin {
+    animation: orbit-spin 18s linear infinite;
+  }
+
+  .orbit-spin-slow {
+    animation: orbit-spin 32s linear infinite reverse;
+  }
+
   .float-soft {
     animation: float-soft 5s ease-in-out infinite;
   }
@@ -184,7 +200,10 @@ body {
       .planet-turn,
       .glow-breathe,
       .ember-rise,
-      .float-soft
+      .float-soft,
+      .orbit-spin,
+      .orbit-spin-slow,
+      .game-marquee
     ) {
       animation: none;
     }
@@ -194,6 +213,18 @@ body {
     .orbit-btn-fire:active {
       transform: none;
     }
+  }
+}
+
+@keyframes game-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

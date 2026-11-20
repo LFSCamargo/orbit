@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { BUILT_IN_THEMES } from '../src/themes/catalog'
 
 test('theme artwork fills equal frames and contains logos without moving card headers', async ({
   page,
@@ -28,7 +29,9 @@ test('theme artwork fills equal frames and contains logos without moving card he
     ).toBe('contain')
     heights.push(artwork!.height)
   }
-  expect(heights).toHaveLength(8)
+  expect(heights).toHaveLength(
+    BUILT_IN_THEMES.filter((theme) => theme.kind === 'game').length,
+  )
   expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(2)
 })
 

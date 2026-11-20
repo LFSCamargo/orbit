@@ -9,7 +9,7 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-pub const THEMES: [&str; 8] = [
+pub const THEMES: [&str; 13] = [
     "devil-may-cry-5",
     "god-of-war",
     "cyberpunk-2077",
@@ -18,6 +18,11 @@ pub const THEMES: [&str; 8] = [
     "gta-vi",
     "zelda-breath-of-the-wild",
     "super-mario",
+    "studio-devil-may-cry-5-violet",
+    "studio-cyberpunk-2077-violet",
+    "studio-gta-vi-blue-hour",
+    "studio-super-mario-sunset",
+    "studio-zelda-ocarina-gold",
 ];
 
 #[derive(Clone, Serialize)]
@@ -182,12 +187,12 @@ mod tests {
             }
             true
         });
-        assert_eq!(count, 16);
+        assert_eq!(count, THEMES.len() * 2);
         let cold = start.elapsed();
         let warm = std::time::Instant::now();
         prepare(&sources, &cache, |_| true);
         eprintln!(
-            "Theme preview benchmark: {bytes} bytes for 16 images; cold {cold:?}; warm {:?}",
+            "Theme preview benchmark: {bytes} bytes for {count} images; cold {cold:?}; warm {:?}",
             warm.elapsed()
         );
         assert!(bytes < 2 * 1024 * 1024);

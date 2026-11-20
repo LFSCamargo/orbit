@@ -1,4 +1,8 @@
 import Link from 'next/link'
+import { EpicLogo } from '@/components/brand/EpicLogo'
+import { SteamLogo } from '@/components/brand/SteamLogo'
+import { XboxLogo } from '@/components/brand/XboxLogo'
+import { AppleIcon } from '@/components/download/AppleIcon'
 import { DownloadButton } from '@/components/download/DownloadButton'
 import { Planet } from '@/components/space/Planet'
 import { buttonClass } from '@/components/ui/button'
@@ -39,6 +43,26 @@ export function Hero({ latest }: { latest: Release | undefined }) {
         <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-white/50">
           Free and open source · Apple silicon · macOS 12+ · Local by default
         </p>
+        <ul
+          aria-label="Plays games from"
+          className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-white/75"
+        >
+          <li className="flex items-center gap-2">
+            <SteamLogo className="h-5 w-5" /> Steam
+          </li>
+          <li className="flex items-center gap-2">
+            <XboxLogo className="h-5 w-5 text-white" /> Xbox Cloud Gaming
+          </li>
+          <li className="flex items-center gap-2">
+            <AppleIcon className="h-5 w-5" /> Mac games
+          </li>
+          <li className="flex items-center gap-2 text-white/50">
+            <EpicLogo className="h-5 w-auto opacity-80" /> Epic Games
+            <span className="rounded-full border border-white/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider">
+              Soon
+            </span>
+          </li>
+        </ul>
       </div>
     </section>
   )

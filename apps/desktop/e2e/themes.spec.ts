@@ -142,3 +142,35 @@ test('every built-in switches without losing shared navigation or controller foc
     await expect(page.locator('[data-screen="settings"]')).toBeVisible()
   }
 })
+
+test('studio presets apply offline and keep the selected artwork after restart', async ({
+  page,
+}) => {
+  await page.route('https://**', (route) => route.abort())
+  await openSettings(page)
+  for (const id of [
+    'studio-devil-may-cry-5-violet',
+    'studio-cyberpunk-2077-violet',
+    'studio-gta-vi-blue-hour',
+    'studio-super-mario-sunset',
+    'studio-zelda-ocarina-gold',
+  ]) {
+    await page.locator(`[data-focus-id="settings-theme-${id}"]`).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', id)
+    await expect(page.locator('html')).toHaveCSS('--theme-wallpaper', /hero.*\.webp/)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    const logo = page.locator('.macos-brand .theme-brand img')
+    await expect(logo).toBeVisible()
+    await expect(logo).toHaveJSProperty('complete', true)
+    expect(
+      await logo.evaluate((image: HTMLImageElement) => image.naturalWidth),
+    ).toBeGreaterThan(0)
+  }
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-theme',
+    'studio-zelda-ocarina-gold',
+  )
+  await expect(page.locator('html')).toHaveCSS('--orbit-accent', '254 199 0')
+  await expect(page.locator('html')).toHaveCSS('--theme-wallpaper', /hero.*\.webp/)
+})

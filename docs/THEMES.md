@@ -8,6 +8,16 @@ Select a game under **Game themes**. Orbit applies its bundled logo, wallpaper,
 and colors immediately. These themes work offline in the desktop app and browser
 preview, including after restart.
 
+## Studio game presets
+
+Five saved game looks also ship as separate built-in choices: **Devil May Cry 5 — Violet**,
+**Cyberpunk 2077 — Violet**, **Grand Theft Auto VI — Blue Hour**, **Super Mario — Sunset**,
+and **Zelda: Ocarina of Time — Gold**. They preserve the original custom palettes and
+chosen logos/backgrounds, with optimized offline artwork and compact card previews.
+The original eight game presets remain selectable. These bundled copies have independent
+`studio-` IDs; local `custom-` files and the active selection are not rewritten.
+The pink custom Liquid Glass variant is not bundled.
+
 ## Make your own
 
 1. Open **Theme studio** and enter a theme name and the exact **Game title**.
@@ -50,7 +60,7 @@ The shared surface in `apps/desktop/src/components/ui/liquid-glass.tsx` uses res
 
 ## Offline built-in artwork
 
-All eight built-in game themes ship with optimized WebP logos and heroes in
+All thirteen built-in game themes ship with optimized WebP logos and heroes in
 `apps/desktop/src-tauri/assets/bundled-themes/`. Vite packages these same files for
 browser development and builds; Tauri prefers WebP, with PNG/JPG support for older bundles.
 Theme cards show local artwork before selection. No key or network is needed to

@@ -22,7 +22,7 @@ export function DownloadMac({ latest }: { latest: Release | undefined }) {
           <div className="relative grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div>
               <p className="font-mono text-xs uppercase tracking-[0.24em] text-orbit-accent">
-                04 — Download
+                06 — Download
               </p>
               <h2 className="mt-5 max-w-2xl text-4xl font-medium tracking-[-0.045em] sm:text-6xl">
                 Press start on <span className="fire-text">your Mac.</span>

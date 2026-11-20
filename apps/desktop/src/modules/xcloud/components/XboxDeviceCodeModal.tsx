@@ -121,9 +121,7 @@ export function XboxDeviceCodeModal({
             <p className="mt-2 leading-relaxed text-orbit-muted">
               On your phone or computer, go to{' '}
               <strong className="text-orbit-foreground">
-                <a href={link}>
-                  {link.replace(/^https:\/\/(www\.)?/, '')}
-                </a>
+                <a href={link}>{link.replace(/^https:\/\/(www\.)?/, '')}</a>
               </strong>{' '}
               and enter this code.
             </p>

@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '@/themes/types'
+import { STUDIO_PRESETS } from '@/themes/studioPresets'
 
 export const DEFAULT_THEME_ID = 'liquid-glass'
 const LEGACY_THEME_IDS = new Set([
@@ -155,6 +156,7 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
     colors: GAME_PALETTES[id] ?? LIQUID_GLASS_COLORS,
     branding: { artworkQuery: query },
   })),
+  ...STUDIO_PRESETS.map((theme) => ({ ...COMMON, ...theme })),
 ]
 
 export function defaultTheme(): ThemeDefinition {

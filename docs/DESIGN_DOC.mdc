@@ -19,7 +19,7 @@ process logic lives in Rust; the frontend never launches games directly.
 - Fullscreen, couch-friendly game library with cinematic screen transitions.
 - Import games from Steam, Astris (`.nsp`/`.xci`), macOS apps, and manual paths.
 - Track playtime, install size, and achievements locally.
-- One restrained glass console look with a Rust-generated material texture and portable compositor surfaces. Built-in game themes bundle logos and heroes. Theme Studio searches SteamGridDB logos and offers backgrounds from configured game artwork providers. Retired platform and color presets resolve to Liquid Glass. Custom artwork selection is explicit. Missing artwork is reported by the picker. Existing custom files remain on disk; the interface uses Liquid Glass styling.
+- One restrained glass console look with a Rust-generated material texture and portable compositor surfaces. Built-in game themes bundle logos and heroes, including five additional Studio presets with their saved palettes and artwork (Devil May Cry 5 Violet, Cyberpunk 2077 Violet, GTA VI Blue Hour, Super Mario Sunset, and Zelda Ocarina Gold). Theme Studio searches SteamGridDB logos and offers backgrounds from configured game artwork providers. Retired platform and color presets resolve to Liquid Glass. Custom artwork selection is explicit. Missing artwork is reported by the picker. Existing custom files remain on disk; the interface uses Liquid Glass styling.
 
 ## Universal gaming: Phase 1
 
@@ -298,7 +298,7 @@ Library, Search, Home, and Details share one `LibraryEntry` identity. Owned Wind
 
 All translucent UI surfaces share the Liquid Glass material, including controls, fields, dialogs, session panels, and connected-game cards. Backspace edits text and has no navigation binding. Global navigation yields to text editing and IME composition.
 
-`prepare_theme_previews(onPreview)` prepares the eight bundled game themes on a blocking worker. Native GPU resizing uses Metal, DX12, or Vulkan with a CPU fallback. Each completed theme streams small cached preview paths through a Tauri channel. Theme cards reserve a consistent frame with a loading shimmer and preserve the original artwork for theme selection.
+`prepare_theme_previews(onPreview)` prepares the thirteen bundled game themes on a blocking worker. Native GPU resizing uses Metal, DX12, or Vulkan with a CPU fallback. Each completed theme streams small cached preview paths through a Tauri channel. Theme cards reserve a consistent frame with a loading shimmer and preserve the original artwork for theme selection.
 
 Bundled themes ship optimized WebP display images and previews. Theme downloads and saves apply bounded image optimization on a worker while preserving transparency, aspect ratio, existing compact lossy files, and opaque bundle references.
 

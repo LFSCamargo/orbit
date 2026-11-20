@@ -58,7 +58,7 @@ Drop `.json` files into:
 
 Loaded via Tauri `list_custom_themes`, which sanitizes untrusted JSON (see [docs/TAURI.mdc](TAURI.mdc)). Reload from **Settings → Reload custom themes**.
 
-Custom themes with the same `id` as a built-in theme override the built-in entry.
+Custom themes with the same `id` as a built-in theme override the built-in entry. Five additional Studio game presets use independent `studio-` IDs, preserving their saved palettes and bundled artwork alongside the original game presets. Local custom files remain separate and editable.
 
 ---
 

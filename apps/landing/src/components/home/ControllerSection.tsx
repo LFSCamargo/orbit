@@ -17,7 +17,7 @@ export function ControllerSection() {
       <Reveal>
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.24em] text-orbit-accent">
-            03 — Controller first
+            04 — Controller first
           </p>
           <h2 className="mt-5 text-4xl font-medium tracking-[-0.045em] sm:text-6xl">
             Pick up the controller. Leave the desk.

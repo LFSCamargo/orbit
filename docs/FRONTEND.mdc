@@ -181,6 +181,7 @@ src/
   themes/
     types.ts               # ThemeDefinition, ThemeBranding
     catalog.ts             # BUILT_IN_THEMES (color + game), DEFAULT_THEME_ID, legacy id migration
+    studioPresets.ts       # Five bundled game looks copied from saved Studio themes
     studio.ts              # Theme studio draft → ThemeDefinition
     MacosShell.tsx         # Liquid Glass shell (Tailwind on the component)
     ThemeBrand.tsx         # Header logo + Orbit logo footer mark

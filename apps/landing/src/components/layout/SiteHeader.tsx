@@ -5,8 +5,10 @@ import { GITHUB_URL } from '@/lib/site'
 
 const NAV = [
   { href: '/#features', label: 'Overview' },
+  { href: '/#demo', label: 'Demo' },
   { href: '/docs', label: 'Docs' },
   { href: '/install', label: 'Install' },
+  { href: '/#faq', label: 'FAQ' },
 ]
 
 const NAV_LINK =
