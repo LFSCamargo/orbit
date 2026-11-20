@@ -3,6 +3,7 @@ import { cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { type ReactNode } from 'react'
 import { prepareThemePreviews } from '@/lib/tauri'
+import { BUILT_IN_THEMES } from '@/themes/catalog'
 import { useThemePreviews } from '../useThemePreviews'
 
 vi.mock('@/lib/tauri', () => ({
@@ -18,7 +19,13 @@ it('uses shipped previews immediately without starting native preparation on ent
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   })
-  await waitFor(() => expect(Object.keys(result.current.previews)).toHaveLength(8))
+  await waitFor(() =>
+    expect(Object.keys(result.current.previews).sort()).toEqual(
+      BUILT_IN_THEMES.filter((theme) => theme.kind === 'game')
+        .map((theme) => theme.id)
+        .sort(),
+    ),
+  )
   expect(result.current.preparing).toBe(false)
   expect(prepareThemePreviews).not.toHaveBeenCalled()
   expect(result.current.previews['god-of-war'].hero).toMatch(/preview-hero.*\.webp/)

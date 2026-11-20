@@ -298,7 +298,7 @@ encoding, and GPU readback all run on a blocking worker, with one batch active a
 a time. A bounded 16-tap shader handles downsampling and transparent edges.
 
 `prepare_theme_previews(onPreview)` accepts a Tauri channel, resolves only the
-eight known bundled themes, canonicalizes source paths, rejects symlinks outside
+thirteen known bundled themes, canonicalizes source paths, rejects symlinks outside
 the resource root, limits compressed inputs to 25 MB, and bounds decoded memory.
 It streams one result per theme. The channel carries small file paths, while
 cached preview bytes stay in Application Support. Cache identity includes source

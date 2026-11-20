@@ -47,7 +47,7 @@ Installed rows show checked and locked with "Installed". One button installs eve
 ### Account
 
 - **Steam**: existing sign-in (Valve's client in `steam-windows`). Connected shows the account name.
-- **Xbox Cloud Gaming**: shown disabled, "Coming soon", for now (`XBOX_CLOUD_ENABLED` in `lib/features.ts` is off). Switched on, it opens the Xbox window (below) and remembers `xboxCloudConnected`, which adds it to the Home menu and Settings → General.
+- **Xbox Cloud Gaming**: opens the device-code sign-in (`XboxDeviceCodeModal`, see `docs/XBOX_CLOUD.md`); connected once an account is linked.
 - **Epic Games**: shown disabled, "Coming soon".
 - **Skip for now** → "Continue without an account" (local-first). B returns to the choices.
 
@@ -83,7 +83,7 @@ A phase fails only when every scan in it did; both of the first two failing is t
 
 ## Xbox Cloud Gaming window
 
-Coming soon: `XBOX_CLOUD_ENABLED` is off, so onboarding shows the card disabled and Settings and the Home menu leave it out. The command, settings row (`XboxCloudSettings`) and preference below stay in place for when it ships.
+Opened from Settings → General (`XboxCloudSettings`); once opened, `xboxCloudConnected` adds it to the Home menu. Playing a catalog game does not use this window: it streams in Orbit's own player (`docs/XBOX_CLOUD.md`).
 
 `open_xbox_cloud` (`commands/xbox_cloud.rs`) opens or focuses a `xbox-cloud` window on `https://www.xbox.com/play` with a Safari user agent (the site gates on Safari). It gets no Tauri capability (`capabilities/default.json` is scoped to `main`), so the remote page cannot call Orbit. Navigation is limited to HTTPS Xbox and Microsoft sign-in hosts (`allowed_navigation`, subdomains included, lookalikes rejected); any other link opens in the default browser. Sign-in happens on Microsoft's page; Orbit stores no Xbox credentials.
 

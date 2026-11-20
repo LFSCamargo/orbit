@@ -8,14 +8,18 @@ test('library toolbar sticks with a fade under the search bar', async ({ page })
   await expect(toolbar).toBeVisible()
   await expect(toolbar).toHaveCSS('position', 'sticky')
   await expect(page.locator('.library-toolbar-fade')).toHaveCount(0)
+  const grids = page.locator('.library-entry-grid')
+  await expect(grids).not.toHaveCount(0)
   await expect
     .poll(() =>
-      page.locator('.library-entry-grid').evaluate((el) => {
-        const style = getComputedStyle(el)
-        return style.webkitMaskImage || style.maskImage
-      }),
+      grids.evaluateAll((elements) =>
+        elements.every((el) => {
+          const style = getComputedStyle(el)
+          return (style.webkitMaskImage || style.maskImage).includes('linear-gradient')
+        }),
+      ),
     )
-    .toContain('linear-gradient')
+    .toBe(true)
   const main = page.locator('.macos-main')
   const start = await toolbar.boundingBox()
   await main.evaluate((el) => {
@@ -30,12 +34,14 @@ test('library toolbar sticks with a fade under the search bar', async ({ page })
     expect(after!.y).toBeLessThan(mainBox!.y + 24)
     await expect
       .poll(() =>
-        page.locator('.library-entry-grid').evaluate((el) => {
-          const style = getComputedStyle(el)
-          return style.webkitMaskPosition || style.maskPosition
-        }),
+        grids.evaluateAll((elements) =>
+          elements.every((el) => {
+            const style = getComputedStyle(el)
+            return (style.webkitMaskPosition || style.maskPosition) !== '0% 0%'
+          }),
+        ),
       )
-      .not.toBe('0% 0%')
+      .toBe(true)
   }
 })
 

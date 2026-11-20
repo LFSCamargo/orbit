@@ -26,3 +26,4 @@ pub mod theme_previews;
 pub mod runtimes;
 
 pub mod library;
+pub mod xcloud;

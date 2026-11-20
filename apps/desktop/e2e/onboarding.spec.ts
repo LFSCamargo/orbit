@@ -43,10 +43,8 @@ test('a new user is guided from Welcome to Home', async ({ page }) => {
   await expect(primary(page)).toHaveText(/Retry Download/)
   await page.getByRole('button', { name: /^Continue without/ }).click()
 
-  // Account: Steam, with Xbox Cloud Gaming and Epic coming soon, or skip.
-  await expect(
-    page.getByRole('button', { name: /Xbox Cloud Gaming: coming soon/ }),
-  ).toBeDisabled()
+  // Account: Steam or Xbox Cloud Gaming, with Epic coming soon, or skip.
+  await expect(page.getByRole('button', { name: /Xbox Cloud Gaming/ })).toBeEnabled()
   await expect(heading(page, 'Account')).toBeVisible()
   await expect(
     page.getByRole('button', { name: /Epic Games: coming soon/ }),
@@ -110,8 +108,7 @@ test('Settings can replay onboarding', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('[data-focus-id="macos-play"]')).toBeVisible()
   await page.locator('[data-focus-id="macos-nav-settings"]').click()
-  // Xbox Cloud Gaming is coming soon: no Settings row yet.
-  await expect(page.getByRole('heading', { name: 'Xbox Cloud Gaming' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Xbox Cloud Gaming' })).toBeVisible()
   await expect(page.locator('#orbit-splash')).toBeHidden()
   await page.getByRole('button', { name: 'Show onboarding' }).click()
   await expect(heading(page, 'Welcome to Orbit')).toBeVisible()

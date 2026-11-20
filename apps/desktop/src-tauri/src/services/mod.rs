@@ -22,6 +22,7 @@ pub mod switch_library;
 pub mod thegamesdb;
 pub mod theme_files;
 pub mod uninstall;
+pub mod xcloud_stream;
 
 pub use library_sync::LibrarySyncService;
 pub use metadata_enrichment::MetadataEnrichmentService;
@@ -64,3 +65,8 @@ pub mod steam_resident;
 pub mod library;
 
 pub mod steam_manifest;
+
+pub mod xbox_auth;
+pub mod xcloud_catalog;
+pub mod xcloud_launch;
+pub mod xcloud_library;

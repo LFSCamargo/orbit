@@ -22,6 +22,9 @@ it('offers Orbit for the Mac only', () => {
   expect(text).not.toMatch(
     /Linux|for Windows(?! games)|Windows ·|· Windows|\.exe|AppImage/,
   )
+  expect(screen.getByRole('list', { name: 'Plays games from' })).toHaveTextContent(
+    /Steam.*Xbox Cloud Gaming.*Mac games.*Epic Games.*Soon/,
+  )
   const downloads = screen.getAllByRole('link', { name: /Download for Mac/ })
   expect(downloads).toHaveLength(2)
   for (const link of downloads) expect(link.getAttribute('href')).toMatch(/aarch64\.dmg$/)

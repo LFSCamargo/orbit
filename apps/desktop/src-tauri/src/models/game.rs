@@ -7,6 +7,8 @@ pub enum GameProvider {
     Steam,
     Native,
     Manual,
+    /// Xbox Cloud Gaming. Streamed, never installed on disk.
+    Xcloud,
 }
 
 impl GameProvider {
@@ -16,6 +18,7 @@ impl GameProvider {
             Self::Steam => "steam",
             Self::Native => "native",
             Self::Manual => "manual",
+            Self::Xcloud => "xcloud",
         }
     }
 
@@ -24,6 +27,7 @@ impl GameProvider {
             "astris" => Self::Astris,
             "steam" => Self::Steam,
             "native" => Self::Native,
+            "xcloud" => Self::Xcloud,
             _ => Self::Manual,
         }
     }
@@ -36,6 +40,7 @@ pub enum GamePlatform {
     Macos,
     Windows,
     Linux,
+    Cloud,
     Unknown,
 }
 
@@ -46,6 +51,7 @@ impl GamePlatform {
             Self::Macos => "macos",
             Self::Windows => "windows",
             Self::Linux => "linux",
+            Self::Cloud => "cloud",
             Self::Unknown => "unknown",
         }
     }
@@ -56,6 +62,7 @@ impl GamePlatform {
             "macos" => Self::Macos,
             "windows" => Self::Windows,
             "linux" => Self::Linux,
+            "cloud" => Self::Cloud,
             _ => Self::Unknown,
         }
     }

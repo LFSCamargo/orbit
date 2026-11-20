@@ -15,6 +15,7 @@ import {
 } from '@/modules/onboarding/lib/onboardingVisibility'
 import { closeTopOverlay } from './overlayStack'
 import { leaveTextField } from './leaveTextField'
+import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 import { useNavigationInput } from './useNavigationInput'
 import type { AppScreen } from '@/types/game'
 
@@ -41,6 +42,10 @@ export function useControllerNavigation() {
 
     const handleAction = (action: ControllerAction) => {
       setFamily(gamepadManager.getFamily())
+      // A visible cloud game owns the controller (Home still opens Orbit's
+      // menu); a paused one leaves Orbit fully usable.
+      const cloud = useXcloudPlayerStore.getState()
+      if (cloud.stream && !cloud.paused && action !== 'home') return
       // Orbit is still starting behind the splash: presses there would land
       // on a screen that is still moving into place. Onboarding, shown over
       // the splash on a first run, takes input.
@@ -192,6 +197,8 @@ export function useControllerNavigation() {
     const unsubPad = gamepadManager.subscribe(handleAction)
 
     const applyStickScroll = (deltaX: number, deltaY: number) => {
+      const cloud = useXcloudPlayerStore.getState()
+      if (cloud.stream && !cloud.paused) return
       markControllerActivity()
       applyPageScroll(deltaX, deltaY)
     }
@@ -255,8 +262,12 @@ const SECTION_ORDER = ['home', 'library', 'search', 'settings'] as const
 const SCREEN_TRANSITION_MS = 380
 let screenFocusTimer: ReturnType<typeof setTimeout> | null = null
 
-async function handleHomePress(wasFocused: boolean) {
-  const { homeMenuOpen, openHomeMenu, closeHomeMenu } = useUiStore.getState()
+/** A Home press seen twice this soon (native listener and in-page pad) is one. */
+const HOME_REPEAT_MS = 600
+
+export async function handleHomePress(wasFocused: boolean) {
+  const { homeMenuOpen, homeMenuOpenedAt, openHomeMenu, closeHomeMenu } =
+    useUiStore.getState()
 
   if (!wasFocused) {
     await showOrbitWindow()
@@ -267,6 +278,7 @@ async function handleHomePress(wasFocused: boolean) {
   if (onboardingVisible()) return
 
   if (homeMenuOpen) {
+    if (Date.now() - homeMenuOpenedAt < HOME_REPEAT_MS) return
     closeHomeMenu()
     return
   }

@@ -368,6 +368,29 @@ impl GameRepository {
             .ok_or_else(|| anyhow::anyhow!("Game not found"))
     }
 
+    /// Sets a game's square icon only when it has none (store art filled in
+    /// later). Returns whether the row changed.
+    pub fn fill_missing_icon(&self, game_id: &str, icon: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let json: Option<String> = conn
+            .query_row(
+                "SELECT artwork_json FROM games WHERE id = ?1",
+                params![game_id],
+                |row| row.get(0),
+            )
+            .ok();
+        let Some(json) = json else {
+            return Ok(false);
+        };
+        let mut artwork: GameArtwork = serde_json::from_str(&json).unwrap_or_default();
+        if artwork.icon.is_some() {
+            return Ok(false);
+        }
+        artwork.icon = Some(icon.to_string());
+        persist_artwork_json(&conn, game_id, &artwork)?;
+        Ok(true)
+    }
+
     /// Records a measured install size. A game id with no saved row is a no-op.
     pub fn set_install_size(&self, game_id: &str, bytes: i64) -> Result<()> {
         let conn = self.conn.lock().unwrap();

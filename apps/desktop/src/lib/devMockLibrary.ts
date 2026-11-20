@@ -91,6 +91,17 @@ export function mockLibrary(games: Game[], catalog: SteamOwnedGame[]): LibraryEn
   }
   return [...entries.values()].sort((a, b) => a.game.title.localeCompare(b.game.title))
 }
+/** Same rule as Rust's `search_text::search_key`: accents and symbols ignored. */
+function searchKey(text: string) {
+  return text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/&/g, ' and ')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
 export function mockLibraryPage(
   entries: LibraryEntry[],
   query: LibraryQuery,
@@ -98,7 +109,7 @@ export function mockLibraryPage(
   const filtered = entries.filter(
     (e) =>
       !e.game.hidden &&
-      e.game.title.toLowerCase().includes(query.query?.toLowerCase() ?? '') &&
+      searchKey(e.game.title).includes(searchKey(query.query ?? '')) &&
       (query.view === 'all' ||
         (query.view === 'favorites' ? e.game.favorite : e.installations.length > 0)) &&
       (!query.platform ||
@@ -112,7 +123,7 @@ export function mockLibraryPage(
   if (query.sort === 'playtime')
     filtered.sort((a, b) => b.game.totalPlaytimeSeconds - a.game.totalPlaytimeSeconds)
   const start = query.cursor ?? 0,
-    size = Math.min(query.limit ?? 48, 96)
+    size = Math.min(query.limit ?? 48, 5000)
   return {
     entries: filtered.slice(start, start + size),
     total: filtered.length,

@@ -364,6 +364,23 @@ pub fn attach_windows_installs(entries: &mut [LibraryEntry], index: &SteamInstal
     }
 }
 
+/// Whether `id` names this entry: its own id, one of its installations' game
+/// ids, or (for a saved cloud title) the `xcloud:{productId}` it had in the
+/// catalog. O(installations).
+pub fn entry_matches(entry: &LibraryEntry, id: &str) -> bool {
+    if entry.id == id || entry.installations.iter().any(|i| i.game_id == id) {
+        return true;
+    }
+    id.strip_prefix("xcloud:").is_some_and(|product| {
+        entry.game.provider == crate::models::GameProvider::Xcloud
+            && entry
+                .game
+                .source_id
+                .as_deref()
+                .is_some_and(|source| source.eq_ignore_ascii_case(product))
+    })
+}
+
 /// Fills download sizes recorded by the queue. O(n · i) over entries and
 /// their installations with an O(1) map lookup; no I/O.
 pub fn apply_download_sizes(entries: &mut [LibraryEntry], sizes: &HashMap<String, i64>) {
@@ -440,6 +457,52 @@ mod tests {
             install_size_bytes: None,
             achievements: vec![],
         }
+    }
+    #[test]
+    fn a_cloud_title_keeps_its_page_after_it_is_saved() {
+        // Regression: Add on a cloud title's page saved it under the game's
+        // own id, so the page (looking up `xcloud:{product}`) said "Game not
+        // found".
+        let mut cloud = game("saved-uuid", Some("9P8LR42PTRGJ"), GamePlatform::Cloud);
+        cloud.provider = GameProvider::Xcloud;
+        cloud.launch_config = LaunchConfiguration::OpenUrl {
+            url: "https://www.xbox.com/en-US/play/launch/a-game/9P8LR42PTRGJ".into(),
+        };
+        let entries = merge(vec![cloud], vec![]);
+        let saved = &entries[0];
+        assert!(entry_matches(saved, "saved-uuid"));
+        assert!(entry_matches(saved, "xcloud:9P8LR42PTRGJ"));
+        assert!(!entry_matches(saved, "xcloud:OTHER"));
+        // A Steam title with the same source id is not a cloud title.
+        let steam = &merge(
+            vec![game("s", Some("9P8LR42PTRGJ"), GamePlatform::Windows)],
+            vec![],
+        )[0];
+        assert!(!entry_matches(steam, "xcloud:9P8LR42PTRGJ"));
+    }
+
+    #[test]
+    fn played_cloud_game_is_a_virtual_install_without_a_path() {
+        let mut cloud = game("cloud", Some("9P8LR42PTRGJ"), GamePlatform::Cloud);
+        cloud.provider = GameProvider::Xcloud;
+        cloud.launch_config = LaunchConfiguration::OpenUrl {
+            url: "https://www.xbox.com/en-US/play/launch/a-game/9P8LR42PTRGJ".into(),
+        };
+        let mut steam = game("win", Some("10"), GamePlatform::Windows);
+        steam.title = "A game".into();
+        let entries = merge(vec![cloud, steam], vec![]);
+        assert_eq!(
+            entries.len(),
+            2,
+            "cloud and Steam copies stay separate titles"
+        );
+        let cloud = entries.iter().find(|e| e.id == "cloud").unwrap();
+        assert_eq!(cloud.steam_app_id, None);
+        let install = &cloud.installations[0];
+        assert_eq!(install.path, None);
+        assert!(install.available);
+        assert_eq!(install.launch_type, "open-url");
+        assert_eq!(install.size_bytes, None);
     }
     #[test]
     fn one_title_keeps_both_installations_and_owned_catalog() {

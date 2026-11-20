@@ -9,8 +9,8 @@ import { useOverlayBack } from '@/controllers/overlayStack'
 import { useSteamSignIn } from '@/hooks/useSteamSignIn'
 import { useSteamWindows } from '@/hooks/useSteamWindows'
 import { XBOX_CLOUD_ENABLED } from '@/lib/features'
-import { openXboxCloud } from '@/lib/tauri'
-import { usePreferencesStore } from '@/stores/preferences.store'
+import { XboxDeviceCodeModal } from '@/modules/xcloud/components/XboxDeviceCodeModal'
+import { useXboxAccount } from '@/modules/xcloud/hooks/useXcloud'
 import { OnboardingFooter } from '../components/OnboardingFooter'
 import { StepHeader } from '../components/StepHeader'
 import { BADGE, BADGE_QUIET, ONBOARDING_PANEL, PANEL_ROWS } from '../components/styles'
@@ -81,23 +81,12 @@ export function AccountStep({
   const [skipped, setSkipped] = useState(false)
   const { status } = useSteamWindows()
   const signIn = useSteamSignIn()
-  const xboxConnected =
-    usePreferencesStore((s) => s.preferences.xboxCloudConnected) && XBOX_CLOUD_ENABLED
-  const updatePreferences = usePreferencesStore((s) => s.update)
+  const xboxAccount = useXboxAccount()
+  const xboxConnected = Boolean(xboxAccount.data) && XBOX_CLOUD_ENABLED
+  const [signingIn, setSigningIn] = useState(false)
   const steamAccount = status.data?.signedIn ? status.data.accountName : null
   const anyConnected = Boolean(steamAccount) || xboxConnected
   useOverlayBack(skipped, () => setSkipped(false))
-
-  const [xboxError, setXboxError] = useState('')
-  const openXbox = async () => {
-    setXboxError('')
-    try {
-      await openXboxCloud()
-      await updatePreferences({ xboxCloudConnected: true })
-    } catch {
-      setXboxError('Could not open Xbox Cloud Gaming. You can try again from Settings.')
-    }
-  }
 
   if (skipped) {
     return (
@@ -152,10 +141,16 @@ export function AccountStep({
             order={1}
             icon={<XboxIcon size={24} />}
             name="Xbox Cloud Gaming"
-            description="Stream Game Pass games in an Orbit window"
+            description={
+              xboxAccount.data
+                ? `Signed in as ${xboxAccount.data.gamertag}`
+                : 'Sign in with a code and stream Game Pass games'
+            }
             connected={xboxConnected}
             comingSoon={!XBOX_CLOUD_ENABLED}
-            onClick={XBOX_CLOUD_ENABLED ? () => void openXbox() : undefined}
+            onClick={
+              XBOX_CLOUD_ENABLED && !xboxConnected ? () => setSigningIn(true) : undefined
+            }
           />
           <AccountRow
             focusId="onboarding-account-epic"
@@ -166,11 +161,11 @@ export function AccountStep({
             comingSoon
           />
         </ul>
-        {xboxError && (
-          <p className="text-center text-[14px] text-rose-300" role="alert">
-            {xboxError}
-          </p>
-        )}
+        <XboxDeviceCodeModal
+          open={signingIn}
+          onSignedIn={() => setSigningIn(false)}
+          onClose={() => setSigningIn(false)}
+        />
         {signIn.libraryError && (
           <p className="text-center text-[14px] text-rose-300" role="alert">
             {signIn.libraryError}

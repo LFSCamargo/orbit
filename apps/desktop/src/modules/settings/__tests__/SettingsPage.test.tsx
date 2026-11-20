@@ -28,6 +28,9 @@ vi.mock('@/modules/settings/components/LibrarySettings', () => ({
 vi.mock('@/modules/settings/components/SteamLibraryFolders', () => ({
   SteamLibraryFolders: () => <div>Steam library folders</div>,
 }))
+vi.mock('@/modules/settings/components/XboxCloudSettings', () => ({
+  XboxCloudSettings: () => <div>Xbox settings view</div>,
+}))
 vi.mock('@/modules/settings/components/SteamSettings', () => ({
   SteamSettings: () => <div>Steam settings view</div>,
 }))

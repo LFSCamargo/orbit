@@ -1,12 +1,13 @@
 import type { Game } from '@/types/game'
 
 /** Where a game plays from, shown as a tile icon and a Library section. */
-export type GameSource = 'steam-mac' | 'steam-windows' | 'astris' | 'other'
+export type GameSource = 'steam-mac' | 'steam-windows' | 'astris' | 'xcloud' | 'other'
 
 export const SOURCE_ORDER: GameSource[] = [
   'steam-mac',
   'steam-windows',
   'astris',
+  'xcloud',
   'other',
 ]
 
@@ -14,6 +15,7 @@ export const SOURCE_LABELS: Record<GameSource, string> = {
   'steam-mac': 'Steam · Mac',
   'steam-windows': 'Steam · Windows',
   astris: 'Astris',
+  xcloud: 'Xbox Cloud Gaming',
   other: 'Other games',
 }
 
@@ -23,6 +25,7 @@ export function gameSource(game: Pick<Game, 'provider' | 'platform'>): GameSourc
     if (game.platform === 'windows') return 'steam-windows'
   }
   if (game.provider === 'astris') return 'astris'
+  if (game.provider === 'xcloud') return 'xcloud'
   return 'other'
 }
 

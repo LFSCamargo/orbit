@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { clsx } from 'clsx'
-import { Heart, HardDrive, Download } from 'lucide-react'
+import { Cloud, Heart, HardDrive, Download } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { SourceIcon } from '@/components/game/SourceIcon'
 import { LIBRARY_CARD_SHELL, LIBRARY_ENTRY_GRID } from './libraryGrid'
@@ -40,8 +40,9 @@ export function LibraryEntryGrid({
         const order = orderOffset + index
         const available = entry.installations.some((i) => i.available)
         const source = gameSource(entry.game)
+        const cloud = entry.game.provider === 'xcloud'
         return (
-          <div key={entry.id} role="listitem" className="min-w-0">
+          <div key={entry.id} role="listitem" className="flex min-w-0 flex-col gap-2">
             <Focusable
               focusId={`${screen}-game-${entry.id}`}
               group={`${screen}-grid`}
@@ -105,12 +106,22 @@ export function LibraryEntryGrid({
                     'mt-[7px] flex items-center gap-1.5 text-xs text-orbit-muted',
                   )}
                 >
-                  {available ? <HardDrive size={14} /> : <Download size={14} />}
-                  {available
-                    ? installedLabel(entry)
-                    : entry.installations.length
-                      ? 'Unavailable'
-                      : 'Not installed'}
+                  {cloud ? (
+                    <Cloud size={14} />
+                  ) : available ? (
+                    <HardDrive size={14} />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  {cloud
+                    ? available
+                      ? 'Cloud · In library'
+                      : 'Cloud · Game Pass'
+                    : available
+                      ? installedLabel(entry)
+                      : entry.installations.length
+                        ? 'Unavailable'
+                        : 'Not installed'}
                   {entry.installations.length > 1 &&
                     ` · ${entry.installations.length} installations`}
                 </p>

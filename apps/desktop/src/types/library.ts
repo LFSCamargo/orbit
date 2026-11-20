@@ -47,6 +47,8 @@ export interface LibraryQuery {
   platform?: string
   cursor?: number
   limit?: number
+  /** Adds unsaved Game Pass cloud titles (Library and Search only). */
+  includeCloudCatalog?: boolean
 }
 export interface LibraryPageResult {
   entries: LibraryEntry[]

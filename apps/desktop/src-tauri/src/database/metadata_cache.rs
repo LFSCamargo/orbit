@@ -20,7 +20,7 @@ pub struct CachedMetadataRow {
 }
 
 pub struct MetadataCacheRepository {
-    conn: Mutex<Connection>,
+    pub(super) conn: Mutex<Connection>,
 }
 
 impl MetadataCacheRepository {
@@ -69,6 +69,19 @@ impl MetadataCacheRepository {
             );
 
             CREATE INDEX IF NOT EXISTS idx_game_external_ids_game_id ON game_external_ids(game_id);
+
+            CREATE TABLE IF NOT EXISTS xcloud_catalog (
+                market TEXT NOT NULL,
+                product_id TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                entry_json TEXT NOT NULL,
+                PRIMARY KEY (market, product_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS xcloud_catalog_fetches (
+                market TEXT PRIMARY KEY NOT NULL,
+                fetched_at TEXT NOT NULL
+            );
             "#,
         )?;
         Ok(Self {

@@ -54,6 +54,8 @@ export function providerLabel(provider: string): string {
       return 'macOS'
     case 'manual':
       return 'Manual'
+    case 'xcloud':
+      return 'Xbox Cloud Gaming'
     default:
       return provider
   }

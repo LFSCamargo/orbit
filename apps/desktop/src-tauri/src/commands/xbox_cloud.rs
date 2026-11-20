@@ -43,6 +43,15 @@ pub(crate) fn allowed_navigation(url: &Url) -> bool {
         .any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
 }
 
+/// A URL the Xbox window may open: Xbox or Microsoft sign-in over https.
+fn window_url(url: &str) -> Result<Url, String> {
+    let parsed: Url = url.parse().map_err(|error| format!("{error}"))?;
+    if parsed.as_str() == "about:blank" || !allowed_navigation(&parsed) {
+        return Err("Only Xbox pages open in the Xbox window".into());
+    }
+    Ok(parsed)
+}
+
 /// Opens the Xbox Cloud Gaming window, or brings it back if it is open.
 #[tauri::command]
 pub fn open_xbox_cloud(app: AppHandle) -> Result<(), String> {
@@ -50,13 +59,30 @@ pub fn open_xbox_cloud(app: AppHandle) -> Result<(), String> {
         let _ = window.unminimize();
         return window.set_focus().map_err(|error| error.to_string());
     }
-    let home: Url = HOME.parse().map_err(|error| format!("{error}"))?;
+    open_xbox_window(&app, HOME, false)
+}
+
+/// Shows `url` in Orbit's Xbox window: a running window moves to it, else a
+/// new one opens there. Cloud games play here instead of the default browser;
+/// `fullscreen` gives the game its own macOS Space.
+pub fn open_xbox_window(app: &AppHandle, url: &str, fullscreen: bool) -> Result<(), String> {
+    let url = window_url(url)?;
+    if let Some(window) = app.get_webview_window(LABEL) {
+        window.navigate(url).map_err(|error| error.to_string())?;
+        let _ = window.unminimize();
+        let _ = window.show();
+        if fullscreen {
+            let _ = window.set_fullscreen(true);
+        }
+        return window.set_focus().map_err(|error| error.to_string());
+    }
     let opener = app.clone();
-    WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::External(home))
+    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::External(url))
         .title("Xbox Cloud Gaming")
         .inner_size(1440.0, 900.0)
         .min_inner_size(960.0, 600.0)
-        .maximized(true)
+        .maximized(!fullscreen)
+        .fullscreen(fullscreen)
         .user_agent(USER_AGENT)
         .on_navigation(move |url| {
             if allowed_navigation(url) {
@@ -91,6 +117,17 @@ mod tests {
             "https://wus2.gssv-play-prod.xboxlive.com/v5/sessions"
         ));
         assert!(allowed("about:blank"));
+    }
+
+    #[test]
+    fn cloud_game_launch_urls_open_in_the_xbox_window() {
+        // Regression: Play handed these to the default browser.
+        let url = window_url("https://www.xbox.com/en-US/play/launch/halo-infinite/9PP5G1F0C2B6")
+            .unwrap();
+        assert_eq!(url.host_str(), Some("www.xbox.com"));
+        assert!(window_url("https://example.com/play/launch/x").is_err());
+        assert!(window_url("http://www.xbox.com/play/launch/x").is_err());
+        assert!(window_url("not a url").is_err());
     }
 
     #[test]

@@ -35,6 +35,11 @@ describe('BUILT_IN_THEMES', () => {
       'gta-vi',
       'zelda-breath-of-the-wild',
       'super-mario',
+      'studio-devil-may-cry-5-violet',
+      'studio-cyberpunk-2077-violet',
+      'studio-gta-vi-blue-hour',
+      'studio-super-mario-sunset',
+      'studio-zelda-ocarina-gold',
     ])
     for (const theme of games) {
       expect(theme.branding?.logoText).toBeUndefined()
@@ -79,4 +84,23 @@ it('offers only Liquid Glass as a built-in look', () => {
     'liquid-glass',
   ])
   expect(defaultTheme().colors.accent).toBe('249 115 22')
+})
+
+it('ships all five saved game studio looks as independent offline presets', () => {
+  const expected = [
+    ['studio-devil-may-cry-5-violet', '190 56 243'],
+    ['studio-cyberpunk-2077-violet', '168 85 247'],
+    ['studio-gta-vi-blue-hour', '134 193 255'],
+    ['studio-super-mario-sunset', '251 146 60'],
+    ['studio-zelda-ocarina-gold', '254 199 0'],
+  ]
+  for (const [id, accent] of expected) {
+    const theme = BUILT_IN_THEMES.find((item) => item.id === id)
+    expect(theme?.colors.accent).toBe(accent)
+    expect(theme?.branding?.wallpaper).toBe(`orbit-bundled:${id}:hero`)
+    expect(resolveThemeId(id, BUILT_IN_THEMES)).toBe(id)
+    if (theme?.kind === 'game')
+      expect(theme.branding?.logoImage).toBe(`orbit-bundled:${id}:logo`)
+  }
+  expect(BUILT_IN_THEMES).toHaveLength(14)
 })
