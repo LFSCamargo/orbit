@@ -20,6 +20,32 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-20
+
+Xbox Cloud Gaming in Orbit, game themes, and launch showcases
+
+### Added
+
+- Xbox Cloud Gaming catalog browsing, Microsoft device-code sign-in in onboarding and Settings, and saving cloud titles to your library.
+- Orbit’s own fullscreen cloud player with queue and connection states, controller input, rumble, and pause/resume through the Home menu. Return to Orbit while a stream stays paused in the background, or stop it from the same menu.
+- Five offline Studio game presets: Devil May Cry 5 — Violet, Cyberpunk 2077 — Violet, Grand Theft Auto VI — Blue Hour, Super Mario — Sunset, and Zelda: Ocarina of Time — Gold. Existing presets and saved custom themes remain available.
+- Landing-page launch and gameplay videos with the globe startup animation and an original instrumental, selectable theme screenshots, library previews, provider sections, FAQ, and the application favicon.
+
+### Changed
+
+- All games and Search can show the cloud catalog without adding every title to the saved library. Cloud entries stay separate from Steam titles, and saved cloud games join Recently played without disk-install or Wine settings.
+- Library sections can be collapsed or expanded and show more games in batches of 24; searching reveals matching entries across sections.
+- Search matches accented titles and punctuation, so “Brutal Legend” finds “Brütal Legend” and plain text finds titles containing trademark symbols.
+
+### Fixed
+
+- Cloud Play starts Orbit’s player instead of sending the game to an external browser.
+- Controller navigation and stick scrolling yield to a visible cloud game. Guide/Home presses open the Home menu once, including when native and in-page controller events arrive together.
+- Xbox sign-in requests a fresh device code when opened or retried, and reports linking and streaming readiness in Settings.
+- Netlify builds use the actual `landing` Nx project, with the workspace root as the build directory and `apps/landing/.next` as the publish directory.
+
+[2.1.0]: https://github.com/LFSCamargo/orbit/releases/tag/v2.1.0
+
 ## [2.0.0] - 2026-11-19
 
 Universal gaming experience for Mac
