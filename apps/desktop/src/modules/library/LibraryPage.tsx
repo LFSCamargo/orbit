@@ -47,7 +47,9 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
     query: lookup,
     view: search ? 'all' : visibleView,
     sort: filters.sort,
-    platform,
+    // Search covers everything; the Library page's platform filter would
+    // hide cloud titles (no installation) and anything off-platform.
+    platform: search ? 'all' : platform,
   })
   const refresh = useMutation({
     mutationFn: async () => {

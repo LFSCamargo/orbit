@@ -96,7 +96,7 @@ pub async fn list_library_entries(
     let hydrate = app.clone();
     let page = tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        let term = query.query.unwrap_or_default().to_lowercase();
+        let term = query.query.unwrap_or_default();
         if term.len() > 500 {
             return Err("Search is too long".into());
         }
@@ -104,7 +104,7 @@ pub async fn list_library_entries(
             .into_iter()
             .filter(|e| {
                 !e.game.hidden
-                    && (term.is_empty() || e.game.title.to_lowercase().contains(&term))
+                    && crate::utils::search_text::matches(&e.game.title, &term)
                     && match query.view.as_deref().unwrap_or("installed") {
                         "installed" => !e.installations.is_empty(),
                         "favorites" => e.game.favorite,

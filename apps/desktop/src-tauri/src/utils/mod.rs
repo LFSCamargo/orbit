@@ -2,6 +2,7 @@ pub mod api_keys;
 pub mod filenames;
 pub mod macos_apps;
 pub mod paths;
+pub mod search_text;
 pub mod size;
 pub mod steam_account;
 pub mod steam_app_id;

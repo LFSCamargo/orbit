@@ -385,6 +385,10 @@ Details and the Library view selector share `TabList`, a Liquid Glass pill match
 rounded active segment and neutral highlight. Library search and sort/platform sit in
 their own glass clusters beside that pill (48px couch height), not nested inside one bar.
 The Library/Search toolbar sticks under the console header once it reaches that edge.
+Search matches on `utils/search_text.rs` keys: case, accents and symbols are ignored
+("brutal" finds "Brütal Legend", "call of duty modern warfare" finds "Call of Duty®: Modern
+Warfare®"). The Search screen always covers every platform; the Library page's platform
+filter applies only there.
 Covers and list rows dissolve through a viewport mask under the toolbar and above
 the footer; the wallpaper is not dimmed by a dividing band. The mask updates on
 the grid compositor (rAF-batched, no React re-renders while scrolling).
