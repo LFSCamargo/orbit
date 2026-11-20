@@ -19,14 +19,14 @@ export function Hero({ latest }: { latest: Release | undefined }) {
         <img
           src="/assets/orbit-logo.png"
           alt="Orbit"
-          className="float-soft h-auto w-[min(300px,62vw)] drop-shadow-[0_12px_30px_rgb(0_0_0/0.55)]"
+          className="float-soft h-auto w-[min(240px,52vw)] drop-shadow-[0_12px_30px_rgb(0_0_0/0.55)]"
         />
-        <h1 className="mx-auto mt-8 max-w-5xl text-[clamp(2.8rem,7vw,6.5rem)] font-medium leading-[0.92] tracking-[-0.06em]">
+        <h1 className="mx-auto mt-7 max-w-5xl text-[clamp(2.3rem,5.4vw,5rem)] font-medium leading-[0.95] tracking-[-0.055em]">
           Every game.
           <br />
           <span className="fire-text">One orbit.</span>
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-white/70 sm:text-lg">
+        <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-white/70 sm:text-base">
           The controller-first game launcher for your Mac. Steam, Windows games through
           Orbit Wine and Apple&apos;s Game Porting Toolkit, and your Mac apps, in one
           beautiful library.
