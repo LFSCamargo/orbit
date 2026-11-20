@@ -2,7 +2,7 @@
 
 `apps/landing` is the public website for Orbit: what it is, how to install it, and where to
 download every published version. Orbit ships for macOS only, so the site offers Orbit for
-the Mac only (Windows appears only as "Windows games", which Orbit runs through Orbit Wine). It is a Next.js (App Router) app deployed on Vercel.
+the Mac only (Windows appears only as "Windows games", which Orbit runs through Orbit Wine). It is a Next.js (App Router) app deployable on Netlify or Vercel.
 
 ## Routes
 
@@ -108,3 +108,25 @@ Create a Vercel project from this repository with:
 
 New GitHub releases appear within the 10-minute revalidation window; redeploy to show them
 immediately.
+
+## Deploy (Netlify)
+
+The root `netlify.toml` keeps builds at the workspace root and publishes only the
+landing app. It overrides the dashboard build command with `yarn nx run landing:build`.
+The Nx project is named `landing`; `@orbit/landing` is the Yarn package name and is
+not a valid Nx project target.
+
+Use these Netlify site settings:
+
+- **Base directory:** repository root (`.`).
+- **Package directory:** `apps/landing` (set in the Netlify dashboard).
+- **Build command:** `yarn nx run landing:build` (owned by `netlify.toml`).
+- **Publish directory:** `apps/landing/.next` (relative to the repository root).
+- **Runtime:** Netlify’s automatically detected Next.js adapter. Keep SSR and ISR enabled;
+  this app does not use a static export.
+- **Environment:** optional server-only `GITHUB_TOKEN`, as on Vercel.
+
+Netlify discovers the root config when no package-level config exists. File-based build
+settings override dashboard values, including a previously inferred
+`nx run @orbit/landing:build` command. After this config reaches the branch Netlify builds,
+retry the deploy. See [Netlify monorepo configuration](https://docs.netlify.com/build/configure-builds/monorepos/).

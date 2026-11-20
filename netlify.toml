@@ -1,0 +1,4 @@
+[build]
+  base = "."
+  command = "yarn nx run landing:build"
+  publish = "apps/landing/.next"
