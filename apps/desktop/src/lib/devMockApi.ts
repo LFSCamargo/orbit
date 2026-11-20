@@ -3,6 +3,7 @@ import type { LibraryQuery, LibraryEntryPatch } from '@/types/library'
 import type { SteamOwnedGame } from '@/types/steam'
 import type { SteamWindowsPreferences } from '@/types/steam'
 import { localThemeArtwork } from './bundledArtwork'
+import { isXcloudCommand, mockXcloud, mockXcloudLibraryEntries } from './devMockXcloud'
 import type { Game, GameSession } from '@/types/game'
 import type { ThemeDefinition } from '@/themes/types'
 import { BUILT_IN_THEMES, DEFAULT_THEME_ID } from '@/themes/catalog'
@@ -215,19 +216,29 @@ export async function mockInvoke<T>(
   cmd: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
+  if (isXcloudCommand(cmd)) return mockXcloud(cmd, args, games) as T
   switch (cmd) {
     case 'list_library_entries':
     case 'get_library_entry': {
       const catalog = await mockInvoke<SteamOwnedGame[]>('steam_windows_library')
-      const entries = mockLibrary(games, catalog)
+      const query = (args?.query ?? {}) as LibraryQuery
+      const entries = [
+        ...mockLibrary(games, catalog),
+        ...(cmd === 'get_library_entry' || query.includeCloudCatalog
+          ? mockXcloudLibraryEntries(games)
+          : []),
+      ]
       return (
         cmd === 'get_library_entry'
           ? (entries.find(
               (e) =>
                 e.id === args?.entryId ||
-                e.installations.some((i) => i.gameId === args?.entryId),
+                e.installations.some((i) => i.gameId === args?.entryId) ||
+                // A saved cloud title keeps its catalog id (as in Rust).
+                (e.game.provider === 'xcloud' &&
+                  `xcloud:${e.game.sourceId}` === args?.entryId),
             ) ?? null)
-          : mockLibraryPage(entries, (args?.query ?? {}) as LibraryQuery)
+          : mockLibraryPage(entries, query)
       ) as T
     }
     case 'update_library_entry':

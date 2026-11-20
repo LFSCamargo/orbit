@@ -108,6 +108,7 @@ src/
     settings/
       SettingsPage.tsx
       components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, GeneralPreferences, XboxCloudSettings, SettingsInsights
+    xcloud/                # Xbox Cloud Gaming: device-code modal, catalog tab, hooks (docs/XBOX_CLOUD.md)
       hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useSteamWindowsInstall, useCompatibilitySetup
     session/
       PlayingScreen.tsx

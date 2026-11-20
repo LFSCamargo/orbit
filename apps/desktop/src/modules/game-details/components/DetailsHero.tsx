@@ -15,6 +15,7 @@ const platforms: Record<Game['platform'], string> = {
   windows: 'Windows',
   linux: 'Linux',
   'nintendo-switch': 'Nintendo Switch',
+  cloud: 'Xbox Cloud Gaming',
   unknown: 'Platform not specified',
 }
 export function DetailsHero({

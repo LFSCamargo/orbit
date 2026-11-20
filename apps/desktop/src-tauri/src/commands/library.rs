@@ -18,6 +18,8 @@ pub struct LibraryQuery {
     pub platform: Option<String>,
     pub cursor: Option<usize>,
     pub limit: Option<usize>,
+    /// Adds unsaved Game Pass cloud titles (Library and Search only).
+    pub include_cloud_catalog: Option<bool>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,11 +31,23 @@ pub struct LibraryPage {
 
 pub(crate) fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, String> {
     steam_windows::ensure_owned_snapshot(&state.repo)?;
-    let games = state.repo.list_games().map_err(|e| e.to_string())?;
+    let mut games = state.repo.list_games().map_err(|e| e.to_string())?;
     let stubs = library::placeholder_game_ids(&games);
     let catalog = steam_windows::stored_entries(&state.repo)?;
     let states = state.repo.library_states().map_err(|e| e.to_string())?;
+    let cloud = crate::services::xcloud_library::catalog_library_entries(
+        &state.metadata_cache,
+        &state.repo,
+        &mut games,
+    );
     let mut result = library::merge(games, catalog);
+    result.extend(cloud);
+    result.sort_by(|a, b| {
+        a.game
+            .sort_title
+            .cmp(&b.game.sort_title)
+            .then(a.id.cmp(&b.id))
+    });
     let paths = steam_windows::preferences(&state.repo)?.additional_library_paths;
     library::attach_windows_installs(
         &mut result,
@@ -100,10 +114,12 @@ pub async fn list_library_entries(
         if term.len() > 500 {
             return Err("Search is too long".into());
         }
+        let catalog = query.include_cloud_catalog.unwrap_or(false);
         let mut entries: Vec<_> = entries(&state)?
             .into_iter()
             .filter(|e| {
-                !e.game.hidden
+                (catalog || !crate::services::xcloud_library::is_unsaved(e))
+                    && !e.game.hidden
                     && crate::utils::search_text::matches(&e.game.title, &term)
                     && match query.view.as_deref().unwrap_or("installed") {
                         "installed" => !e.installations.is_empty(),
@@ -129,7 +145,8 @@ pub async fn list_library_entries(
         }
         let total = entries.len();
         let start = query.cursor.unwrap_or(0).min(total);
-        let limit = query.limit.unwrap_or(48).clamp(1, 96);
+        // Library asks for everything and pages per section on screen.
+        let limit = query.limit.unwrap_or(48).clamp(1, 5000);
         let next = (start + limit < total).then_some(start + limit);
         Ok(LibraryPage {
             entries: entries.into_iter().skip(start).take(limit).collect(),
@@ -152,7 +169,7 @@ pub async fn get_library_entry(
         let state = app.state::<AppState>();
         Ok(entries(&state)?
             .into_iter()
-            .find(|e| e.id == entry_id || e.installations.iter().any(|i| i.game_id == entry_id)))
+            .find(|e| library::entry_matches(e, &entry_id)))
     })
     .await
     .map_err(|_| "Library read stopped".to_string())?

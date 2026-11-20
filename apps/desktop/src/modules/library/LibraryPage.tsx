@@ -8,6 +8,7 @@ import { useHasFavorites } from '@/hooks/useHasFavorites'
 import { useLibrary } from '@/hooks/useLibrary'
 import { fallbackLibraryView, showFavoritesTab } from '@/lib/favoritesTab'
 import {
+  listXcloudCatalog,
   refreshSteamWindowsLibrary,
   scanSteamInstallations,
   scanSteamLibrary,
@@ -19,6 +20,9 @@ import { LibrarySections } from './components/LibrarySections'
 import { LibrarySkeleton } from './components/LibrarySkeleton'
 import { LibraryToolbar } from './components/LibraryToolbar'
 import { BusyLabel } from '@/components/feedback/BusyLabel'
+import { useXcloudCatalog } from '@/modules/xcloud/hooks/useXcloud'
+import { XBOX_CLOUD_ENABLED } from '@/lib/features'
+import { useEffect } from 'react'
 
 /** How long typing must pause before Library and Search look a title up. */
 export const SEARCH_DEBOUNCE_MS = 250
@@ -40,12 +44,22 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
   const client = useQueryClient()
   const { hasFavorites, isReady } = useHasFavorites()
   const visibleView = fallbackLibraryView(view, hasFavorites, isReady) ?? view
+  // The Game Pass cloud catalog is cached server-side; once it arrives, All
+  // games picks it up as its own section.
+  const cloudCatalog = useXcloudCatalog(XBOX_CLOUD_ENABLED)
+  useEffect(() => {
+    if (cloudCatalog.dataUpdatedAt)
+      void client.invalidateQueries({ queryKey: ['library'] })
+  }, [client, cloudCatalog.dataUpdatedAt])
   // The field follows every key; the lookup waits for typing to pause.
   const query = search ? searchQuery : filters.query
   const lookup = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
   const library = useLibrary({
     query: lookup,
     view: search ? 'all' : visibleView,
+    // Every title at once; sections page on screen.
+    limit: 5000,
+    includeCloudCatalog: XBOX_CLOUD_ENABLED,
     sort: filters.sort,
     // Search covers everything; the Library page's platform filter would
     // hide cloud titles (no installation) and anything off-platform.
@@ -57,6 +71,7 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
         scanSteamLibrary(),
         scanSteamInstallations(),
         refreshSteamWindowsLibrary(),
+        ...(XBOX_CLOUD_ENABLED ? [listXcloudCatalog(true)] : []),
       ])
     },
     onSuccess: async () => {
@@ -177,7 +192,11 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
             </Focusable>
           </div>
         ) : entries.length ? (
-          <LibrarySections entries={entries} screen={search ? 'search' : 'library'} />
+          <LibrarySections
+            entries={entries}
+            screen={search ? 'search' : 'library'}
+            searching={Boolean(lookup)}
+          />
         ) : lookup ? (
           <EmptyState
             icon={SearchX}

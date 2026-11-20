@@ -275,9 +275,17 @@ it('puts focus on the primary action of each new step', async () => {
   expect(focusManager.getFocusedNode()?.element).toHaveTextContent(/Download|Continue/)
 })
 
-it('shows Xbox Cloud Gaming as coming soon, without opening anything', async () => {
+it('signs in to Xbox with a device code instead of opening a window', async () => {
   const tauri = await import('@/lib/tauri')
   const open = vi.spyOn(tauri, 'openXboxCloud')
+  vi.spyOn(tauri, 'xboxAccountStatus').mockResolvedValue(null)
+  vi.spyOn(tauri, 'xboxDeviceStart').mockResolvedValue({
+    userCode: 'ORBIT123',
+    verificationUri: 'https://www.microsoft.com/link',
+    intervalSeconds: 5,
+    expiresInSeconds: 900,
+  })
+  vi.spyOn(tauri, 'xboxDevicePoll').mockResolvedValue({ done: false, account: null })
   vi.mocked(getComponentStatus).mockResolvedValue(
     ['gptk', 'dxmt', 'dxvk', 'moltenvk'].map((id) => ({
       id,
@@ -297,11 +305,9 @@ it('shows Xbox Cloud Gaming as coming soon, without opening anything', async () 
   await screen.findByRole('heading', { name: 'Setup' })
   await waitFor(() => expect(primary()).toHaveTextContent('Continue'))
   fireEvent.click(primary())
-  const xbox = await screen.findByRole('button', {
-    name: /Xbox Cloud Gaming: coming soon/,
-  })
-  expect(xbox).toBeDisabled()
+  const xbox = await screen.findByRole('button', { name: /Xbox Cloud Gaming/ })
   fireEvent.click(xbox)
+  expect(await screen.findByLabelText('Sign-in code')).toHaveTextContent('ORBIT123')
   expect(open).not.toHaveBeenCalled()
 })
 

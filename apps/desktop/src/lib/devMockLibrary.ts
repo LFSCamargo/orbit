@@ -123,7 +123,7 @@ export function mockLibraryPage(
   if (query.sort === 'playtime')
     filtered.sort((a, b) => b.game.totalPlaytimeSeconds - a.game.totalPlaytimeSeconds)
   const start = query.cursor ?? 0,
-    size = Math.min(query.limit ?? 48, 96)
+    size = Math.min(query.limit ?? 48, 5000)
   return {
     entries: filtered.slice(start, start + size),
     total: filtered.length,

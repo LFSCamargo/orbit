@@ -1,5 +1,8 @@
+import type { GameSource } from '@/lib/gameSource'
 import { create } from 'zustand'
 import type { AppScreen, LibraryFilters } from '@/types/game'
+
+export type LibraryView = 'installed' | 'all' | 'favorites'
 
 export type SettingsTab =
   | 'general'
@@ -37,10 +40,13 @@ interface UiState {
   /** Onboarding replayed from Settings; first run is decided by preferences. */
   onboardingOpen: boolean
   settingsTab: SettingsTab
-  libraryView: 'installed' | 'all' | 'favorites'
+  libraryView: LibraryView
   libraryPlatform: string
-  setLibraryView: (view: 'installed' | 'all' | 'favorites') => void
+  setLibraryView: (view: LibraryView) => void
   setLibraryPlatform: (platform: string) => void
+  /** Library sections the user folded away. */
+  librarySectionsCollapsed: GameSource[]
+  setLibrarySectionsCollapsed: (sources: GameSource[]) => void
   detailsTab: 'overview' | 'settings'
   setDetailsTab: (tab: 'overview' | 'settings') => void
   steamGame: SteamLibraryGame | null
@@ -95,6 +101,9 @@ export const useUiStore = create<UiState>((set) => ({
   libraryPlatform: 'all',
   setLibraryView: (libraryView) => set({ libraryView }),
   setLibraryPlatform: (libraryPlatform) => set({ libraryPlatform }),
+  librarySectionsCollapsed: [],
+  setLibrarySectionsCollapsed: (librarySectionsCollapsed) =>
+    set({ librarySectionsCollapsed }),
   detailsTab: 'overview',
   setDetailsTab: (detailsTab) => set({ detailsTab }),
   steamGame: null,

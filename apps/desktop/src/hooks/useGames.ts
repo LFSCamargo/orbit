@@ -114,7 +114,7 @@ export function useGameActions() {
       useLaunchStore.getState().fail(overlayId, launch?.step ?? 'spawn', message)
     },
     onSuccess: async (session) => {
-      setActiveSession(session)
+      if (session) setActiveSession(session)
       useLaunchStore.getState().clear()
       await invalidate()
     },

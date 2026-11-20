@@ -23,10 +23,15 @@ export function DetailsSettings({
   canSave: boolean
 }) {
   const [section, setSection] = useState<(typeof SECTIONS)[number]['id']>('general')
+  // Cloud games stream from Xbox: no installation, Wine or GPTK settings.
+  const sections =
+    game.provider === 'xcloud'
+      ? SECTIONS.filter((item) => item.id !== 'launch')
+      : SECTIONS
   return (
     <div id="details-settings" role="tabpanel" aria-label="Settings">
       <TabList label="Properties" className="mb-6">
-        {SECTIONS.map((item, order) => (
+        {sections.map((item, order) => (
           <Focusable
             key={item.id}
             role="tab"

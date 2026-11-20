@@ -226,7 +226,7 @@ fn launch_open_file(file_path: &str, application_path: Option<&str>) -> Result<(
     }
 }
 
-fn open_url(url: &str) -> Result<()> {
+pub(crate) fn open_url(url: &str) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
         let status = Command::new("open")

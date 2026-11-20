@@ -428,7 +428,7 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
         GameProvider::Astris => "Astris",
         GameProvider::Steam => "steam",
         GameProvider::Native => return None,
-        GameProvider::Manual => return None,
+        GameProvider::Manual | GameProvider::Xcloud => return None,
     };
 
     // Give the process a brief moment to appear.

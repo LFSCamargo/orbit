@@ -1,6 +1,7 @@
-export type GameProvider = 'astris' | 'steam' | 'native' | 'manual'
+export type GameProvider = 'astris' | 'steam' | 'native' | 'manual' | 'xcloud'
 
-export type GamePlatform = 'nintendo-switch' | 'macos' | 'windows' | 'linux' | 'unknown'
+export type GamePlatform =
+  'nintendo-switch' | 'macos' | 'windows' | 'linux' | 'cloud' | 'unknown'
 
 export type LaunchConfiguration =
   | { type: 'wine'; profile: import('./runtime').WineProfile }

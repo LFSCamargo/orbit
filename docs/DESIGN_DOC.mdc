@@ -157,7 +157,11 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `set_window_fullscreen` | `fullscreen` | `void` | |
 | `hide_orbit_window` | — | `void` | During gameplay |
 | `show_orbit_window` | — | `void` | After session ends |
-| `open_xbox_cloud` | — | `void` | Opens or focuses the Xbox Cloud Gaming window (xbox.com/play, no IPC, navigation allowlist). Not reachable while Xbox Cloud Gaming is coming soon (`XBOX_CLOUD_ENABLED`). |
+| `open_xbox_cloud` | — | `void` | Opens or focuses the Xbox Cloud Gaming window (xbox.com/play, no IPC, navigation allowlist). Gated by `XBOX_CLOUD_ENABLED`. |
+| `xbox_device_start` / `xbox_device_poll` / `xbox_device_cancel` | — | start / poll | Microsoft device-code sign-in; see `docs/XBOX_CLOUD.md`. |
+| `xbox_account_status` / `xbox_sign_out` | — | `XboxAccount \| null` / `void` | Linked account from disk; sign out deletes it. |
+| `list_xcloud_catalog` | `refresh?` | `XcloudCatalog` | Cached cloud catalog (24 h) with library links. Never adds games. |
+| `launch_xcloud_game` / `launch_xcloud_library_game` | `productId` / `gameId` | `Game` | Opens xbox.com/play; first successful launch adds the title to Installed. |
 
 ### Downloads, uninstall & storage
 

@@ -41,6 +41,7 @@ import { InstallationPicker } from './components/InstallationPicker'
 import { DetailsRunInfo } from './components/DetailsRunInfo'
 import { MetaGrid } from './components/MetaGrid'
 import { UninstallAction } from './components/UninstallAction'
+import { CloudGameActions } from '@/modules/xcloud/components/CloudGameActions'
 import { useSessionStore } from '@/stores/session.store'
 import { notify } from '@/lib/toast'
 import { useUiStore } from '@/stores/ui.store'
@@ -194,6 +195,15 @@ export function GameDetailsPage() {
           sessionId={activeSession?.id ?? null}
           signedIn={steam.status.data?.sessionReady === true}
         />
+        {game.provider === 'xcloud' && (
+          <CloudGameActions
+            entry={entry}
+            focusPrefix="details-cloud"
+            group="details-actions"
+            order={3}
+            size="details"
+          />
+        )}
         <Focusable
           focusId="details-favorite"
           group="details-actions"

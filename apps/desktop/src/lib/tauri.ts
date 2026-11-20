@@ -611,3 +611,86 @@ export function deleteLibraryEntry(entryId: string) {
 export function revealPath(path: string) {
   return run<void>('reveal_path', { path })
 }
+
+export function xboxDeviceStart() {
+  return run<import('@/types/xcloud').XboxDeviceStart>('xbox_device_start')
+}
+
+export function xboxDevicePoll() {
+  return run<import('@/types/xcloud').XboxDevicePoll>('xbox_device_poll')
+}
+
+export function xboxDeviceCancel() {
+  return run<void>('xbox_device_cancel')
+}
+
+/** Starts a cloud stream for a Store product id; tokens stay in Rust. */
+export function xcloudStreamStart(productId: string) {
+  return run<void>('xcloud_stream_start', { productId })
+}
+
+export function xcloudStreamState() {
+  return run<import('@/types/xcloud').XcloudStreamState>('xcloud_stream_state')
+}
+
+export function xcloudStreamSdp(offer: string) {
+  return run<string>('xcloud_stream_sdp', { offer })
+}
+
+export function xcloudStreamIce(
+  candidates: import('@/types/xcloud').XcloudIceCandidate[],
+) {
+  return run<import('@/types/xcloud').XcloudIceCandidate[]>('xcloud_stream_ice', {
+    candidates,
+  })
+}
+
+export function xcloudStreamKeepalive() {
+  return run<boolean>('xcloud_stream_keepalive')
+}
+
+export function xcloudStreamStop() {
+  return run<void>('xcloud_stream_stop')
+}
+
+/** Whether the linked account can stream in Orbit's player, and from where. */
+export function xcloudStreamStatus() {
+  return run<import('@/types/xcloud').XcloudStreamStatus>('xcloud_stream_status')
+}
+
+export function xboxAccountStatus() {
+  return run<import('@/types/xcloud').XboxAccount | null>('xbox_account_status')
+}
+
+export function xboxSignOut() {
+  return run<void>('xbox_sign_out')
+}
+
+export function listXcloudCatalog(refresh = false) {
+  return run<import('@/types/xcloud').XcloudCatalog>('list_xcloud_catalog', { refresh })
+}
+
+/** Opens a catalog title in the browser; the first launch adds it to the library. */
+export function launchXcloudGame(productId: string) {
+  return run<Game>('launch_xcloud_game', { productId })
+}
+
+export function launchXcloudLibraryGame(gameId: string) {
+  return run<Game>('launch_xcloud_library_game', { gameId })
+}
+
+/** Opens an https link in the default browser (a new tab in the dev mock). */
+export async function openExternalUrl(url: string) {
+  if (!url.startsWith('https://')) throw new Error('Only https links can be opened')
+  if (!isTauriRuntime()) {
+    window.open(url, '_blank', 'noopener')
+    return
+  }
+  const { openUrl } = await import('@tauri-apps/plugin-opener')
+  await openUrl(url)
+}
+
+/** Adds a catalog title to the library (Installed) without launching it. */
+export function saveXcloudGame(productId: string) {
+  return run<Game>('save_xcloud_game', { productId })
+}

@@ -20,6 +20,15 @@ export function detailsPrimaryAction(input: {
   signedIn: boolean
 }): DetailsPrimaryAction {
   const installation = selectInstallation(input.entry)
+  // Cloud games stream in the browser: always playable, never installed.
+  if (input.entry.game.provider === 'xcloud') {
+    return {
+      kind: 'play',
+      label: input.launching ? 'Opening…' : 'Play',
+      gameId: input.entry.game.id,
+      installation,
+    }
+  }
   if (input.cancelling) return { kind: 'cancel', label: 'Cancelling…', installation }
   if (input.running)
     return {

@@ -1,4 +1,4 @@
-import { Clock3, HardDrive, Trophy, History } from 'lucide-react'
+import { Clock3, Cloud, HardDrive, Trophy, History } from 'lucide-react'
 import { clsx } from 'clsx'
 import { StatCard } from '@/components/data/StatCard'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
@@ -19,10 +19,12 @@ export function MetaGrid({
 }) {
   const diskBytes = sizes ? sizes.diskBytes : (game.installSizeBytes ?? null)
   const achievements = game.achievements ?? []
+  // Streamed games have no files on this Mac and no tracked playtime.
+  const cloud = game.provider === 'xcloud'
   const stats = [
     {
       label: 'Time played',
-      value: formatPlaytime(game.totalPlaytimeSeconds),
+      value: cloud ? 'Not tracked' : formatPlaytime(game.totalPlaytimeSeconds),
       icon: Clock3,
     },
     {
@@ -30,16 +32,18 @@ export function MetaGrid({
       value: game.lastPlayedAt ? formatRelativeDate(game.lastPlayedAt) : 'Not yet played',
       icon: History,
     },
-    {
-      label: 'Disk usage',
-      value: diskBytes ? formatBytes(diskBytes) : 'Not available',
-      detail: sizes?.measuring
-        ? 'Measuring…'
-        : sizes?.downloadBytes
-          ? `${formatBytes(sizes.downloadBytes)} download`
-          : undefined,
-      icon: HardDrive,
-    },
+    cloud
+      ? { label: 'Plays in', value: 'Your browser', detail: undefined, icon: Cloud }
+      : {
+          label: 'Disk usage',
+          value: diskBytes ? formatBytes(diskBytes) : 'Not available',
+          detail: sizes?.measuring
+            ? 'Measuring…'
+            : sizes?.downloadBytes
+              ? `${formatBytes(sizes.downloadBytes)} download`
+              : undefined,
+          icon: HardDrive,
+        },
     {
       label: 'Achievements',
       value: formatAchievementProgress(
