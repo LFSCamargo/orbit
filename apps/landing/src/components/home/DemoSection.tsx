@@ -108,7 +108,9 @@ export function DemoSection() {
         <div
           role="tablist"
           aria-label="Orbit demos"
-          className="orbit-glass mx-auto mt-12 flex w-fit max-w-full gap-1 overflow-x-auto rounded-full p-1.5"
+          // One swipeable row on phones; the right edge fades to show there
+          // is more.
+          className="orbit-glass mx-auto mt-12 flex w-fit max-w-full snap-x gap-1 overflow-x-auto rounded-full p-1.5 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(90deg,#000_85%,transparent)]"
         >
           {DEMOS.map((demo) => (
             <button
@@ -118,9 +120,16 @@ export function DemoSection() {
               id={`demo-tab-${demo.id}`}
               aria-selected={demo.id === active.id}
               aria-controls="demo-panel"
-              onClick={() => setActiveId(demo.id)}
+              onClick={(event) => {
+                setActiveId(demo.id)
+                event.currentTarget.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'nearest',
+                  inline: 'center',
+                })
+              }}
               className={cn(
-                'shrink-0 rounded-full px-4 py-2 text-sm font-medium transition',
+                'shrink-0 snap-start whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm',
                 demo.id === active.id
                   ? 'bg-white text-zinc-950'
                   : 'text-white/70 hover:bg-white/[0.08] hover:text-white',

@@ -19,3 +19,8 @@ it('draws the photo planet with its fire rim, without waiting for WebGL', () => 
   expect(container.querySelector('[data-testid="orbit-globe"]')).toBeNull()
   expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true')
 })
+
+it('leaves the planet out on phones; it is for the desktop web', () => {
+  const { container } = render(<Planet />)
+  expect(container.firstElementChild).toHaveClass('max-md:hidden')
+})
