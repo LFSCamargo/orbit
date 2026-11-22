@@ -1,168 +1,210 @@
-# Orbit
+<p align="center">
+  <img src="apps/landing/public/assets/orbit-logo.png" alt="Orbit" width="240" />
+</p>
 
-Controller-first desktop game launcher for macOS (Apple Silicon first). A modern alternative to Pegasus Frontend, inspired by PS5, Nintendo Switch, and Apple TV.
+<h1 align="center">Every game. One orbit.</h1>
 
-Built with **Tauri 2**, **React**, **TypeScript**, and **SQLite**. All filesystem and process logic lives in Rust — the frontend never launches games directly.
+<p align="center">
+  <strong>The controller-first game launcher for your Mac.</strong><br />
+  Steam, Windows games through Orbit Wine &amp; Apple’s Game Porting Toolkit, Xbox Cloud Gaming, and your Mac apps — in one local, open-source library.
+</p>
 
-This repo is an **Nx monorepo** (Yarn workspaces) with two apps:
+<p align="center">
+  <a href="https://github.com/LFSCamargo/orbit/releases/latest"><strong>Download latest release (macOS Apple Silicon)</strong></a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="RUNNING.md">Build from source</a> ·
+  <a href="docs/THEMES.md">Themes</a>
+</p>
 
-| App                            | What it is                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| [`apps/desktop`](apps/desktop) | The Orbit launcher (Tauri + React + Rust)                                  |
-| [`apps/landing`](apps/landing) | Next.js website: install guide and downloads for every release (on Vercel) |
+<p align="center">
+  Free and open source · Apple Silicon · macOS 12+ · Local by default · No Orbit account
+</p>
 
-## Features
+![Orbit home screen with Devil May Cry 5 featured above a row of recent games](apps/landing/public/screenshots/home-devil-may-cry.jpg)
 
-- **Couch-friendly UI** — fullscreen layout, cinematic transitions, spatial focus navigation
-- **Game library** — home hero rows, filterable grid, search, playtime and achievements
-- **Multi-source imports** — Steam, Astris (`.nsp`/`.xci`), macOS apps, manual paths
-- **Launch & sessions** — Rust-owned process launch, playtime tracking, hide window during play
-- **Edit properties** — title, description, portrait/landscape/icon artwork (Base64 in SQLite)
-- **Themes** — one Liquid Glass console shell with color themes, game themes (Devil May Cry 5, God of War, Cyberpunk 2077, Zelda, GTA V / VI, Super Mario), and a theme studio for your own logo and wallpaper
-- **Controller + keyboard** — Gamepad API with Xbox / PlayStation / Nintendo mapping
+---
 
-## Platform
+## Why Orbit
 
-| Target                | Status             |
-| --------------------- | ------------------ |
-| macOS (Apple Silicon) | Primary            |
-| macOS (Intel)         | Best-effort        |
-| Linux / Windows       | Not targeted in v1 |
+Orbit is not another store, emulator, or cloud account. It is a calm, couch-ready control center for the games you already own on your Mac — built with **Tauri 2**, **Rust**, **React 19**, **TypeScript**, and **SQLite**. All filesystem, runtime, and process work lives in Rust; your library, artwork, and settings stay on your Mac.
 
-## Tech stack
+|               | Orbit                 | Typical launcher        |
+| ------------- | --------------------- | ----------------------- |
+| **Price**     | Free, forever         | Free tier, paid extras  |
+| **Code**      | Open source on GitHub | Closed                  |
+| **Account**   | None needed           | Required to start       |
+| **Your data** | Stays on your Mac     | Synced to their cloud   |
+| **Tracking**  | None, no ads          | Common                  |
+| **Built for** | The Mac and the couch | A desktop or phone port |
 
-| Layer    | Stack                                      |
-| -------- | ------------------------------------------ |
-| Shell    | Tauri 2 + Rust                             |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS   |
-| State    | Zustand, TanStack Query                    |
-| Motion   | Framer Motion                              |
-| Database | SQLite (`rusqlite`)                        |
-| Input    | Browser Gamepad API + custom spatial focus |
-| E2E      | Playwright                                 |
+---
 
-## Quick start
+## Four worlds. One launcher.
+
+- **Steam (Mac & Windows)** — Sign in with your Steam account, browse your owned library, download Windows depots directly into Orbit with a live download queue, or add existing Steam library folders.
+- **Windows games via Orbit Wine** — Run Windows Steam titles, installers, and `.exe` folders in isolated per-game containers with **Orbit Wine**, **D3DMetal** (Apple Game Porting Toolkit), **DXMT**, **DXVK**, **MoltenVK**, **MSync**, **AVX**, **MetalFX**, and **macOS Game Mode**.
+- **Xbox Cloud Gaming** — Link a Microsoft account with cloud gaming access via device code, browse the catalog, and stream games inside Orbit’s own fullscreen player with controller input, rumble, and pause/resume through the Home menu.
+- **Mac apps & local libraries** — Native macOS games and apps, Astris Switch ROMs (`.nsp` / `.xci`), and manual file/folder imports — all unified in one searchable library.
+
+| Steam & Windows library                                                                 | Xbox Cloud Gaming                                                                                              |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| ![Orbit library showing Steam games](apps/landing/public/screenshots/library-steam.jpg) | ![Orbit library showing the Xbox Cloud Gaming catalog](apps/landing/public/screenshots/library-xbox-cloud.jpg) |
+
+---
+
+## Highlights
+
+- **Unified, fast library** — Installed, All games, Favorites, and Search share one grid with source badges, collapsible sections, accent-insensitive search, playtime tracking, and measured install sizes.
+- **Tuned for Apple Silicon** — Recommended compatibility defaults out of the box, automatic startup crash prevention, macOS Game Mode for Orbit Wine sessions, and background stand-down while you play (pausing UI/network churn and moving Steam’s `steamwebhelper` to macOS background priority).
+- **Controller-first from the couch** — Predictable `O(1)` spatial focus, Bluetooth and USB controller passthrough straight to your games, right-stick pane scrolling, Guide/Home menu overlay, and idle-free gamepad polling.
+- **Liquid Glass themes & Studio** — Built-in color themes, 13 bundled offline game themes (Devil May Cry 5, God of War, Cyberpunk 2077, Zelda: Ocarina of Time & Breath of the Wild, Grand Theft Auto V & VI, Super Mario, and more), plus a built-in **Theme Studio** to customize logos, wallpapers, taglines, and accents.
+- **Artwork & metadata** — Automatic or on-demand enrichment via TheGamesDB, SteamGridDB, RAWG, Wikimedia, and the Steam Store, with a visual artwork picker and local cache.
+
+### Themes
+
+| Devil May Cry 5                                                                      | God of War                                                                 | Cyberpunk 2077                                                                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| ![Devil May Cry 5 theme](apps/landing/public/screenshots/themes/devil-may-cry-5.jpg) | ![God of War theme](apps/landing/public/screenshots/themes/god-of-war.jpg) | ![Cyberpunk 2077 theme](apps/landing/public/screenshots/themes/cyberpunk-2077.jpg) |
+
+Custom themes are stored as plain JSON in `~/Library/Application Support/Orbit/themes/*.json`. See [docs/THEMES.md](docs/THEMES.md) and [docs/examples/arcade-neon.json](docs/examples/arcade-neon.json).
+
+---
+
+## Install
+
+**Requirements:** macOS 12 Monterey or later, Apple Silicon (M1 or later). Windows games also require Rosetta 2, which macOS prompts to install on first launch.
+
+1. Download **`Orbit-<version>-aarch64.dmg`** from [GitHub Releases](https://github.com/LFSCamargo/orbit/releases/latest).
+2. Open the disk image and drag **Orbit** into **Applications**.
+3. Launch Orbit from Applications. Existing library data, settings, Steam sign-in, and custom themes are preserved in `~/Library/Application Support/Orbit/`.
+
+Verify downloads with the release’s `SHA256SUMS.txt`.
+
+---
+
+## Controller & keyboard mapping
+
+Every screen works with a controller (Xbox, PlayStation, or Nintendo layout), keyboard, or mouse.
+
+| Controller         | Keyboard   | Action          |
+| ------------------ | ---------- | --------------- |
+| D-pad / left stick | Arrow keys | Navigate        |
+| Right stick        | Scroll     | Scroll pane     |
+| A / Cross          | Enter      | Select          |
+| B / Circle         | Escape     | Back            |
+| X / Square         | `F`        | Edit properties |
+| Y / Triangle       | `C`        | Add game        |
+| L1 / R1            | `[` / `]`  | Switch sections |
+| Menu / Options     | `M`        | Settings        |
+| Guide / Home       | —          | Home menu       |
+
+---
+
+## Platform & Tech stack
+
+| Target                | Status       |
+| --------------------- | ------------ |
+| macOS (Apple Silicon) | Primary      |
+| macOS (Intel)         | Best-effort  |
+| Linux / Windows       | Not targeted |
+
+| Layer    | Stack                                                            |
+| -------- | ---------------------------------------------------------------- |
+| Shell    | Tauri 2 + Rust                                                   |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS                         |
+| State    | Zustand, TanStack Query                                          |
+| Motion   | Framer Motion, Three.js (`@react-three/fiber` / `drei`)          |
+| Database | SQLite (`rusqlite`)                                              |
+| Input    | Browser Gamepad API, native `gilrs` Home listener, spatial focus |
+| Testing  | Cargo tests, Vitest, Playwright E2E, Knip                        |
+
+---
+
+## Monorepo & Quick start
+
+Orbit is an **Nx monorepo** on Yarn workspaces with two apps:
+
+| App                            | What it is                                                   |
+| ------------------------------ | ------------------------------------------------------------ |
+| [`apps/desktop`](apps/desktop) | The Orbit macOS desktop launcher (Tauri 2 + React + Rust)    |
+| [`apps/landing`](apps/landing) | Next.js marketing site, install guide, and release downloads |
 
 ```bash
 yarn install
-yarn tauri:dev        # desktop app
+yarn tauri:dev        # full desktop app (Rust + React)
+yarn dev              # desktop frontend only (mock Tauri API)
 yarn dev:landing      # landing site on http://localhost:3000
 ```
 
-Build a release `.app`:
+### Quality checks
 
 ```bash
-yarn tauri:build
+yarn format:check     # Prettier
+yarn knip             # unused files, exports, and dependencies
+yarn typecheck        # TypeScript (desktop + landing)
+yarn test:unit        # Vitest (desktop + landing)
+yarn test:rust        # Cargo workspace tests
+yarn test:e2e         # Playwright E2E specs
+yarn build            # production build (desktop + landing)
 ```
 
-Package macOS release artifacts (`.app.tar.gz`, `.dmg`, checksums) into `release/<version>/`:
+### Building a release
+
+Package macOS release artifacts (`.dmg`, `.app.tar.gz`, `SHA256SUMS.txt`) into `release/<version>/`:
 
 ```bash
-yarn release:macos                  # native arch (Apple Silicon or Intel)
+yarn release:macos                     # native arch (Apple Silicon or Intel)
 yarn release:macos -- --arch universal
 yarn release:macos -- --arch aarch64 --skip-tests
 ```
 
-See [RUNNING.md](RUNNING.md#building-a-release) for details.
-
-### GitHub Releases
-
-The [release workflow](.github/workflows/release.yml) builds on `macos-14` (Apple Silicon) when you push a `v*` tag, or manually from the Actions tab.
-
-**Publish an existing tag** (e.g. `v0.1.0` already pushed):
-
-1. **Actions → Release → Run workflow**
-2. Branch: `main`
-3. Tag: `v0.1.0`
-4. Run workflow
-
-**New release:**
+Scaffold a version bump, `CHANGELOG.md` entry, and `.github/release-notes/<version>.md`:
 
 ```bash
-yarn monopipeline release patch --summary "Your release summary"
-# edit CHANGELOG.md and .github/release-notes/<version>.md
-git add -A && git commit -m "chore: prepare v0.2.0"
-git push origin main
-git tag v0.2.0
-git push origin v0.2.0
+yarn monopipeline release minor --summary "Release summary"
 ```
 
-- `Orbit-<version>-aarch64.dmg`
-- `Orbit-<version>-aarch64.app.tar.gz`
-- `SHA256SUMS.txt`
-- Release notes from `.github/release-notes/<version>.md`
+Full setup, app data paths, and troubleshooting: **[RUNNING.md](RUNNING.md)**.
 
-Full setup, frontend-only dev, testing, and troubleshooting: **[RUNNING.md](RUNNING.md)**.
-
-Changelog: **[CHANGELOG.md](CHANGELOG.md)**
-
-## Documentation
-
-| Doc                                        | Contents                                                       |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| [RUNNING.md](RUNNING.md)                   | Local setup, dev modes, tests, app data paths, troubleshooting |
-| [CONTRIBUTING.md](CONTRIBUTING.md)         | How to contribute, quality gates, PR expectations              |
-| [CHANGELOG.md](CHANGELOG.md)               | Version history and release notes                              |
-| [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) | Product scope, screens, Tauri commands, data model             |
-| [docs/PROJECT.mdc](docs/PROJECT.mdc)       | Repo layout, scripts, tooling                                  |
-| [docs/TAURI.mdc](docs/TAURI.mdc)           | Rust backend, importers, launch flow                           |
-| [docs/FRONTEND.mdc](docs/FRONTEND.mdc)     | React screens, controller system                               |
-| [docs/UI.mdc](docs/UI.mdc)                 | Design tokens, components, theme system                        |
-| [docs/THEMES.md](docs/THEMES.md)           | Authoring custom JSON themes                                   |
-| [docs/LANDING.md](docs/LANDING.md)         | Landing site routes, release data, Vercel deploy               |
-
-## Themes
-
-Custom themes are plain JSON files in:
-
-```text
-~/Library/Application Support/Orbit/themes/*.json
-```
-
-See [docs/THEMES.md](docs/THEMES.md) for the schema and [docs/examples/arcade-neon.json](docs/examples/arcade-neon.json) for an example.
-
-## Controller mapping
-
-| Input              | Action          |
-| ------------------ | --------------- |
-| D-pad / left stick | Navigate        |
-| A / Cross          | Select          |
-| B / Circle         | Back            |
-| X / Square         | Edit properties |
-| Y / Triangle       | Add game        |
-| L1 / R1            | Switch sections |
-| Menu / Options     | Settings        |
-
-Keyboard: arrows, Enter, Escape, `F` (edit), `C` (add), `[` `]`, `M`.
+---
 
 ## Repository layout
 
 ```text
-apps/desktop/src/             React frontend (modules, controllers, themes)
-apps/desktop/src-tauri/src/   Rust backend (commands, importers, SQLite, launch)
+apps/desktop/src/             React frontend (modules, components, controllers, themes)
+apps/desktop/src-tauri/src/   Rust backend (commands, database, importers, launching, runtimes, services)
 apps/desktop/e2e/             Playwright specs
-apps/landing/src/             Next.js landing site (home, install, download)
-scripts/                      Release, version sync, cleanup tooling
-docs/                         Architecture and design docs
+apps/landing/src/             Next.js landing site (home, install, download, docs)
+scripts/                      Release, version sync, theme bundling, cleanup, skill sync
+docs/                         Architecture, runtime, Steam, cloud, UI, and theme docs
 ```
+
+## Documentation
+
+| Doc                                            | Contents                                                       |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| [RUNNING.md](RUNNING.md)                       | Local setup, dev modes, tests, app data paths, troubleshooting |
+| [CONTRIBUTING.md](CONTRIBUTING.md)             | How to contribute, quality gates, PR expectations              |
+| [CHANGELOG.md](CHANGELOG.md)                   | Version history and release notes                              |
+| [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc)     | Product scope, screens, Tauri commands, data model             |
+| [docs/PROJECT.mdc](docs/PROJECT.mdc)           | Repo layout, scripts, tooling                                  |
+| [docs/TAURI.mdc](docs/TAURI.mdc)               | Rust backend, importers, launch flow                           |
+| [docs/FRONTEND.mdc](docs/FRONTEND.mdc)         | React screens, controller system, performance rules            |
+| [docs/UI.mdc](docs/UI.mdc)                     | Design tokens, Liquid Glass components, theme system           |
+| [docs/THEMES.md](docs/THEMES.md)               | Authoring custom JSON themes                                   |
+| [docs/CONTAINERS.md](docs/CONTAINERS.md)       | Per-game Orbit Wine containers and graphics backends           |
+| [docs/RUNTIMES.md](docs/RUNTIMES.md)           | Runtime catalog, GPTK, DXMT, DXVK, MoltenVK                    |
+| [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md) | Windows Steam sign-in, downloads, and launching on macOS       |
+| [docs/XBOX_CLOUD.md](docs/XBOX_CLOUD.md)       | Xbox Cloud Gaming catalog, auth, and built-in player           |
+| [docs/ARTWORK.md](docs/ARTWORK.md)             | Artwork enrichment providers and fallback caching              |
+| [docs/LANDING.md](docs/LANDING.md)             | Landing site routes, release parsing, and deployment           |
+
+---
 
 ## Contributing
 
-Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, quality gates, and what belongs in scope.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for workflow, quality gates, and scope guidelines.
 
 ## Out of scope
 
-ROM downloads/decryption, keys management, emulator distribution, an Orbit account, cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, cloud sync, social features. Automatic enrichment uses TheGamesDB + SteamGridDB with user-provided keys (see Settings or `.env`).
-
-Windows Steam on macOS, through a local official Steam client, is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md). Per-game Wine containers are specified in [docs/CONTAINERS.md](docs/CONTAINERS.md).
-
-Artwork setup and import fallback behavior: [docs/ARTWORK.md](docs/ARTWORK.md). The **macOS Liquid Glass** theme is available in Settings; see [theme documentation](docs/THEMES.md#macos-liquid-glass). Additional Steam library folders can be added in Settings → Library.
-
-### Windows games through Wine (Phase 1)
-
-Register an installed Wine distribution in **Settings → Runtimes**, then use
-**Add game → Single file** to select a Windows `.exe`. Orbit prepares a dedicated
-environment on first Play and monitors/stops it through the existing session UI.
-Native and emulator workflows are unchanged. Runtime downloads, graphics-layer
-installation and storefront installation are not included in this first slice.
-See [runtime setup and validation](docs/RUNTIMES.md).
+ROM downloads or decryption, key management, emulator distribution, automatic online artwork scraping without user-configured keys, an Orbit account, cloud Steam login, a reimplemented Steam protocol, Steam DRM bypass, cloud sync, and social features.
