@@ -75,6 +75,7 @@ Shared cross-module UI lives in `src/components/`.
 src/
   app/
     App.tsx                # Screen router + motion wrapper; onboarding instead of the shell when visible
+    appLayer.ts            # When the mounted screens are not painted (onboarding over splash, playing cloud stream)
     providers.tsx          # QueryClient + theme and app-preference init
     startup/               # useStartupScan, useRuntimeAutoUpdate (once per launch, after onboarding)
   modules/
@@ -109,6 +110,7 @@ src/
       SettingsPage.tsx
       components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, GeneralPreferences, XboxCloudSettings, SettingsInsights
     xcloud/                # Xbox Cloud Gaming: device-code modal, catalog tab, hooks (docs/XBOX_CLOUD.md)
+    xcloud-player/         # Orbit's own stream player; hooks/useStreamStandDown, keyframePolicy (docs/XBOX_CLOUD.md)
       hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useSteamWindowsInstall, useCompatibilitySetup
     session/
       PlayingScreen.tsx

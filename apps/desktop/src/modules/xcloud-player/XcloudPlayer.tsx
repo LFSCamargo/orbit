@@ -5,6 +5,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 import { runStream, type StreamStatus } from './runStream'
 import { createXcloudPeer } from './xcloudPeer'
+import { useStreamStandDown } from './hooks/useStreamStandDown'
 import type { GamepadFrame } from './inputPacket'
 
 const STATUS_TEXT: Record<Exclude<StreamStatus, 'playing'>, string> = {
@@ -45,6 +46,7 @@ function PlayerSurface({ productId, title }: { productId: string; title: string 
   const [status, setStatus] = useState<StreamStatus>('starting')
   const [error, setError] = useState('')
   const [chrome, setChrome] = useState(true)
+  useStreamStandDown(paused)
 
   const leave = () => {
     stopRef.current?.()

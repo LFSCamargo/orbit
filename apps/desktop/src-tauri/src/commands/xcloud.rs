@@ -75,11 +75,19 @@ pub async fn xcloud_stream_keepalive() -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn xcloud_stream_stop() -> Result<(), String> {
+    crate::launching::game_activity::set_cloud_streaming(false);
     blocking(|| {
         stream::stop();
         Ok(())
     })
     .await
+}
+
+/// The player shows the stream (true) or it is paused behind Orbit's menu or
+/// ended (false). While it plays, Orbit's background loops stand down.
+#[tauri::command]
+pub fn xcloud_stream_playing(playing: bool) {
+    crate::launching::game_activity::set_cloud_streaming(playing);
 }
 
 #[tauri::command]

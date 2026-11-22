@@ -16,9 +16,9 @@ import {
   type VideoFrameTiming,
 } from './inputPacket'
 import { teredoEndpoint } from './teredo'
+import { keyframeDue, STALL_MS } from './keyframePolicy'
 
 const INPUT_INTERVAL_MS = 16
-const KEYFRAME_INTERVAL_MS = 5000
 const ICE_GATHER_TIMEOUT_MS = 3000
 /** Fixed value xbox.com's player sends with its authorization request. */
 const CONTROL_ACCESS_KEY = '4BDB3609-C1F1-4195-9B37-FEFF45DA8B8E'
@@ -81,6 +81,8 @@ export function createXcloudPeer(
   let sequence = 0
   let lastFrame: GamepadFrame = NEUTRAL_FRAME
   let timings: VideoFrameTiming[] = []
+  let lastVideoFrameAt: number | null = null
+  let lastKeyframeRequestAt = 0
 
   pc.addTransceiver('audio', { direction: 'sendrecv' })
   preferH264(pc.addTransceiver('video', { direction: 'recvonly' }))
@@ -114,13 +116,14 @@ export function createXcloudPeer(
   // Video frame timings ride along with input, as xbox.com reports them.
   const watchFrames = () => {
     if (closed || typeof video.requestVideoFrameCallback !== 'function') return
-    video.requestVideoFrameCallback((_now, meta) => {
+    video.requestVideoFrameCallback((now, meta) => {
+      lastVideoFrameAt = now
       timings.push({
         serverDataKey: meta.rtpTimestamp ?? 0,
         receivedMs: meta.receiveTime ?? 0,
         displayMs: meta.expectedDisplayTime,
       })
-      if (timings.length > 30) timings = timings.slice(-30)
+      if (timings.length > 30) timings.splice(0, timings.length - 30)
       watchFrames()
     })
   }
@@ -197,15 +200,18 @@ export function createXcloudPeer(
         control,
         JSON.stringify({ message: 'gamepadChanged', gamepadIndex: 0, wasAdded: true }),
       )
+      // A keyframe only when the picture froze: periodic ones spike the
+      // bitrate and hitch the stream.
       timers.push(
-        window.setInterval(
-          () =>
-            send(
-              control,
-              JSON.stringify({ message: 'videoKeyframeRequested', ifrRequested: true }),
-            ),
-          KEYFRAME_INTERVAL_MS,
-        ),
+        window.setInterval(() => {
+          const check = {
+            now: performance.now(),
+            paused,
+            lastFrameAt: lastVideoFrameAt,
+            lastRequestAt: lastKeyframeRequestAt,
+          }
+          if (keyframeDue(check)) requestKeyframe()
+        }, STALL_MS / 2),
       )
       startInput()
       sendClientConfig()
@@ -222,6 +228,14 @@ export function createXcloudPeer(
     // System dialogs (e.g. "Quit game?") take the default answer.
     if (data.target === '/streaming/systemUi/messages/ShowMessageDialog')
       complete(data.id, { Result: 0 })
+  }
+
+  const requestKeyframe = () => {
+    lastKeyframeRequestAt = performance.now()
+    send(
+      control,
+      JSON.stringify({ message: 'videoKeyframeRequested', ifrRequested: true }),
+    )
   }
 
   const complete = (id: string | undefined, content: unknown) => {
@@ -338,6 +352,8 @@ export function createXcloudPeer(
       }
     },
     setPaused(next) {
+      // Coming back from the menu starts from a clean picture.
+      if (paused && !next) requestKeyframe()
       paused = next
     },
     close() {

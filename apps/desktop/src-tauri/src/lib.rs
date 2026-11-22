@@ -120,6 +120,7 @@ pub fn run() {
             commands::xcloud::xcloud_stream_ice,
             commands::xcloud::xcloud_stream_keepalive,
             commands::xcloud::xcloud_stream_stop,
+            commands::xcloud::xcloud_stream_playing,
             commands::xcloud::list_xcloud_catalog,
             commands::xcloud::launch_xcloud_game,
             commands::xcloud::launch_xcloud_library_game,
