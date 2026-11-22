@@ -3,11 +3,10 @@ import Link from 'next/link'
 import { DownloadButton } from '@/components/download/DownloadButton'
 import { CodeBlock } from '@/components/install/CodeBlock'
 import { InstallSection } from '@/components/install/InstallSection'
-import { fetchReleases } from '@/lib/github'
-import { latestStable } from '@/lib/releases'
+import { fetchLatestRelease } from '@/lib/github'
 import { DOCS, GITHUB_URL } from '@/lib/site'
 
-export const revalidate = 600
+export const revalidate = 120
 
 export const metadata: Metadata = {
   title: 'Install',
@@ -24,8 +23,7 @@ const CONTENTS = [
 ]
 
 export default async function InstallPage() {
-  const releases = await fetchReleases()
-  const latest = releases ? latestStable(releases) : undefined
+  const latest = await fetchLatestRelease()
   const version = latest?.version ?? '<version>'
   const dmg = `Orbit-${version}-aarch64.dmg`
 

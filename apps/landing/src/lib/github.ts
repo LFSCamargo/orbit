@@ -1,7 +1,7 @@
-import { parseReleases, type Release } from './releases'
+import { latestStable, parseReleases, type Release } from './releases'
 import { GITHUB_REPO } from './site'
 
-const RELEASES_REVALIDATE_SECONDS = 600
+const RELEASES_REVALIDATE_SECONDS = 120
 
 const RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`
 
@@ -27,4 +27,10 @@ export async function fetchReleases(): Promise<Release[] | null> {
   } catch {
     return null
   }
+}
+
+/** Shared source of truth for the newest stable release across landing routes. */
+export async function fetchLatestRelease(): Promise<Release | undefined> {
+  const releases = await fetchReleases()
+  return releases ? latestStable(releases) : undefined
 }

@@ -63,7 +63,8 @@ Releases come from the GitHub Releases API for `LFSCamargo/orbit`, so publishing
 through [the release workflow](../.github/workflows/release.yml) is all it takes to list it.
 
 - `src/lib/github.ts` fetches `/repos/LFSCamargo/orbit/releases?per_page=100` with
-  `next: { revalidate: 600 }`. Pages regenerate at most every 10 minutes (ISR).
+  `next: { revalidate: 120 }` and exposes `fetchLatestRelease()` as the shared source of
+  truth for `/`, `/install`, and `/download`. Pages regenerate at most every 2 minutes (ISR).
 - `src/lib/releases.ts` validates the untrusted payload: drafts and non-semver tags are dropped,
   only `https://github.com/` download URLs are kept, and versions sort newest first.
 - Only macOS files are offered: `*.dmg`, `*.app.tar.gz` and `SHA256SUMS.txt`. Anything else on
@@ -106,7 +107,7 @@ Create a Vercel project from this repository with:
 - **Build command:** default (`next build`)
 - **Environment:** optional `GITHUB_TOKEN`
 
-New GitHub releases appear within the 10-minute revalidation window; redeploy to show them
+New GitHub releases appear within the 2-minute revalidation window; redeploy to show them
 immediately.
 
 ## Deploy (Netlify)

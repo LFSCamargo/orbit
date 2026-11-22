@@ -4,7 +4,7 @@ import { ReleaseView } from '@/components/download/ReleaseView'
 import { fetchReleases } from '@/lib/github'
 import { findRelease, isValidVersion } from '@/lib/releases'
 
-export const revalidate = 600
+export const revalidate = 120
 
 interface VersionPageProps {
   params: Promise<{ version: string }>

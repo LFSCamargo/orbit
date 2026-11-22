@@ -8,14 +8,12 @@ import { Hero } from '@/components/home/Hero'
 import { SourcesSection } from '@/components/home/SourcesSection'
 import { ThemesSection } from '@/components/home/ThemesSection'
 import { WhyOrbitSection } from '@/components/home/WhyOrbitSection'
-import { fetchReleases } from '@/lib/github'
-import { latestStable } from '@/lib/releases'
+import { fetchLatestRelease } from '@/lib/github'
 
-export const revalidate = 600
+export const revalidate = 120
 
 export default async function HomePage() {
-  const releases = await fetchReleases()
-  const latest = releases ? latestStable(releases) : undefined
+  const latest = await fetchLatestRelease()
 
   return (
     <>
