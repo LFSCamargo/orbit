@@ -18,7 +18,6 @@ it('is not ready until preferences load', async () => {
     onboardingCompleted: true,
     scanOnStartup: false,
     autoUpdateRuntimes: true,
-    autoUpdateApp: true,
     xboxCloudConnected: false,
   })
   expect(usePreferencesStore.getState().ready).toBe(false)

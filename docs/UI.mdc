@@ -296,7 +296,7 @@ Game artwork is stored as filesystem paths under `artwork-cache/` when possible 
 
 Heavy inline Base64 is spilled to cache on save / library list so home and library tiles keep images without multi-MB IPC payloads.
 
-Hero scrims adapt to the artwork's lighting, sampled with `relativeLuminance` (`lib/heroTone.ts`) in `lib/backdropLighting.ts`.
+Hero tone derived from artwork via `useHeroTone` for adaptive scrims.
 
 ---
 

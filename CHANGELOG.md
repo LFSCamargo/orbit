@@ -20,10 +20,6 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
-### Added
-
-- In-app updates: Orbit downloads new versions from GitHub in the background, verifies their signature, and asks before restarting to install, never during a game. Settings → General shows the version, Check now, and an "Update Orbit automatically" switch; the Home menu offers Restart to update. Versions before this one must be updated by hand once.
-
 ## [2.1.0] - 2026-11-20
 
 Xbox Cloud Gaming in Orbit, game themes, and launch showcases

@@ -7,7 +7,7 @@ export const DEFAULT_GITHUB_REPO = 'LFSCamargo/orbit'
 
 const DESKTOP_DIR = 'apps/desktop'
 
-export function parseSemver(version) {
+function parseSemver(version) {
   const match = version.match(SEMVER_RE)
   if (!match) return null
   return {

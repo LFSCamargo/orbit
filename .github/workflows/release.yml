@@ -69,17 +69,7 @@ jobs:
         run: yarn test:rust
 
       - name: Build macOS release
-        env:
-          # Signs the updater archive; Orbit installs only updates matching
-          # the public key in tauri.conf.json (docs/UPDATES.md).
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "TAURI_SIGNING_PRIVATE_KEY is not set: releases must be signed for in-app updates" >&2
-            exit 1
-          fi
-          bash scripts/release-macos.sh --arch aarch64 --skip-typecheck --skip-tests
+        run: bash scripts/release-macos.sh --arch aarch64 --skip-typecheck --skip-tests
 
       - name: Verify release artifacts
         run: |
@@ -90,12 +80,6 @@ jobs:
             echo "No .dmg or .app.tar.gz found in $RELEASE_DIR" >&2
             exit 1
           fi
-          for file in latest.json "Orbit-${{ steps.tag.outputs.version }}-aarch64.app.tar.gz.sig"; do
-            if [ ! -f "$RELEASE_DIR/$file" ]; then
-              echo "Missing updater artifact $file in $RELEASE_DIR" >&2
-              exit 1
-            fi
-          done
 
       - name: Prepare release notes
         id: notes

@@ -42,23 +42,15 @@ pub fn run() {
     );
     let sessions = Arc::new(SessionManager::new());
 
-    let context = tauri::generate_context!();
-    let updates = services::app_update::configured(&context.config().plugins.0);
-    services::app_update::set_configured(updates);
-    let mut builder = tauri::Builder::default()
+    tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init());
-    if updates {
-        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-    }
-    builder
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
             services::install_locations::restore(&app.state::<AppState>().repo);
             services::game_fixes::restore(&app.state::<AppState>().repo);
             services::download_queue::restore(&app.state::<AppState>().repo);
             services::network_monitor::start(app.handle().clone());
-            services::app_update::start(app.handle().clone());
             Ok(())
         })
         .manage(AppState {
@@ -69,9 +61,6 @@ pub fn run() {
             steam_catalog_job: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
-            commands::app_update::app_update_status,
-            commands::app_update::app_update_check,
-            commands::app_update::app_update_restart,
             commands::runtimes::windows_compatibility,
             commands::runtimes::compatibility_catalog,
             commands::runtimes::compatibility_settings,
@@ -198,7 +187,7 @@ pub fn run() {
             commands::metadata::get_metadata_cache_stats,
             commands::metadata::test_metadata_api_keys,
         ])
-        .build(context)
+        .build(tauri::generate_context!())
         .expect("error while running Orbit")
         .run(|app, event| {
             if matches!(event, RunEvent::Exit) {
@@ -215,8 +204,6 @@ pub fn run() {
                     let keep = state.sessions.active_steam_prefix();
                     services::steam_resident::stop_all_except(keep.as_deref());
                 }
-                // A downloaded update replaces the app as Orbit quits.
-                services::app_update::install_on_exit();
             }
         });
 }

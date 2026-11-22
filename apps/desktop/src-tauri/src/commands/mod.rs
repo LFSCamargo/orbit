@@ -1,4 +1,3 @@
-pub mod app_update;
 pub mod artwork;
 pub mod dialog;
 pub mod downloads;

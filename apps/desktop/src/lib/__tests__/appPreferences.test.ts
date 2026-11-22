@@ -23,11 +23,6 @@ describe('parseAppPreferences', () => {
     )
   })
 
-  it('keeps Orbit updates on for preferences saved before the option existed', () => {
-    expect(parseAppPreferences({ scanOnStartup: false })?.autoUpdateApp).toBe(true)
-    expect(parseAppPreferences({ autoUpdateApp: false })?.autoUpdateApp).toBe(false)
-  })
-
   it('treats a missing or broken value as never saved', () => {
     expect(parseAppPreferences(null)).toBeNull()
     expect(parseAppPreferences('not json')).toBeNull()
@@ -44,7 +39,6 @@ describe('resolveAppPreferences', () => {
     expect(preferences.onboardingCompleted).toBe(false)
     expect(preferences.scanOnStartup).toBe(true)
     expect(preferences.autoUpdateRuntimes).toBe(true)
-    expect(preferences.autoUpdateApp).toBe(true)
   })
 
   it('skips onboarding for an existing library without turning on new background work', () => {
@@ -57,8 +51,6 @@ describe('resolveAppPreferences', () => {
       expect(preferences.onboardingCompleted).toBe(true)
       expect(preferences.scanOnStartup).toBe(false)
       expect(preferences.autoUpdateRuntimes).toBe(false)
-      // Orbit's own updates only download; nothing changes until Restart.
-      expect(preferences.autoUpdateApp).toBe(true)
     }
   })
 

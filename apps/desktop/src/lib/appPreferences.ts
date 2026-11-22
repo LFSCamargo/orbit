@@ -10,9 +10,6 @@ export interface AppPreferences {
   scanOnStartup: boolean
   /** Queue newer versions of installed compatibility components at startup. */
   autoUpdateRuntimes: boolean
-  /** Download Orbit's own updates from GitHub; Orbit asks before restarting.
-   * Rust reads this key too (`services/app_update.rs`). */
-  autoUpdateApp: boolean
   /** The Xbox Cloud Gaming window has been opened (Home menu shows it). */
   xboxCloudConnected: boolean
 }
@@ -22,7 +19,6 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   onboardingCompleted: false,
   scanOnStartup: true,
   autoUpdateRuntimes: true,
-  autoUpdateApp: true,
   xboxCloudConnected: false,
 }
 

@@ -54,7 +54,6 @@ pub mod theme_previews;
 pub mod theme_catalog;
 pub mod theme_image_optimization;
 
-pub mod app_update;
 pub mod container_steam;
 pub mod steam_app_types;
 pub mod steam_helper_priority;

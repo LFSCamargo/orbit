@@ -4,7 +4,6 @@ import { buttonClass } from '@/components/ui/button'
 import type { AppPreferences } from '@/lib/appPreferences'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useUiStore } from '@/stores/ui.store'
-import { AppUpdateSettings } from './AppUpdateSettings'
 import { ROW_DESC, ROW_TITLE, SETTINGS_ROW } from './settingsRowStyles'
 
 const TOGGLES: { key: keyof AppPreferences; title: string; description: string }[] = [
@@ -19,12 +18,6 @@ const TOGGLES: { key: keyof AppPreferences; title: string; description: string }
     title: 'Update runtimes automatically',
     description:
       'Download newer versions of installed compatibility components at startup. The recommended Wine stays pinned.',
-  },
-  {
-    key: 'autoUpdateApp',
-    title: 'Update Orbit automatically',
-    description:
-      'Download new Orbit versions from GitHub in the background. Orbit asks before restarting, never during a game.',
   },
 ]
 
@@ -74,7 +67,6 @@ export function GeneralPreferences() {
           </Focusable>
         </div>
       ))}
-      <AppUpdateSettings order={TOGGLES.length} />
       <div className={SETTINGS_ROW}>
         <div>
           <h3 className={ROW_TITLE}>Onboarding</h3>
@@ -86,7 +78,7 @@ export function GeneralPreferences() {
         <Focusable
           focusId="settings-show-onboarding"
           group="settings"
-          order={TOGGLES.length + 1}
+          order={TOGGLES.length}
           noScale
           noRing
           onClick={openOnboarding}

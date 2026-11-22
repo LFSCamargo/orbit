@@ -39,7 +39,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 - chrono (timestamps)
 - anyhow (error context)
 
-Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog` (legacy; file pickers use custom command), `tauri-plugin-updater` (registered only when `tauri.conf.json` carries an update key, see docs/UPDATES.md).
+Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog` (legacy; file pickers use custom command), `tauri-plugin-process`.
 
 ## Module pattern
 
@@ -51,7 +51,6 @@ src-tauri/src/
   main.rs                  # Entry point
   commands/
     mod.rs
-    app_update.rs          # app_update_status, app_update_check, app_update_restart (docs/UPDATES.md)
     games.rs               # Library CRUD + settings
     dialog.rs              # pick_open_path — main-thread-safe NSOpenPanel via rfd
     session.rs             # launch_game, stop_game, get_active_session
@@ -94,7 +93,6 @@ src-tauri/src/
     theme.rs               # ThemeDefinition, ThemeBranding
   services/
     mod.rs
-    app_update.rs          # Orbit's own signed updates from GitHub releases: check, download, install on restart/quit
     library_sync.rs        # Upsert imported games (stable_key dedup)
     metadata_enrichment.rs # TheGamesDB + SteamGridDB orchestrator
     metadata_merge.rs      # Placeholder description (importer stubs) + artwork slot merge

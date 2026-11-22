@@ -175,9 +175,6 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
 | `start_queued_download_now` | `appId` | `void` | Runs a waiting title next; the running one is paused |
 | `pause_active_download` | — | `void` | Stops the container's Steam client and requeues the title at the front, paused |
-| `app_update_status` | — | `AppUpdateState` | Orbit's own update: `idle`, `checking`, `upToDate`, `downloading`, `ready`, `unsupported` (reason + GitHub link) or `failed`; changes arrive as `app-update` (docs/UPDATES.md) |
-| `app_update_check` | — | `AppUpdateState` | Check GitHub now (even with automatic updates off) and download a newer, signature-verified Orbit |
-| `app_update_restart` | — | `()` | Install the downloaded update and relaunch; refused while a game or cloud stream plays |
 | `get_network_stats` | — | `NetworkStats` | `{ online, downloadRate, uploadRate }` from the Mac's interface counters; a new sample arrives every second as `network-stats` (while a game or cloud stream plays, only when online state changes) |
 | `uninstall_steam_game` | `appId`, `deletePrefix` | `UninstallReport` | Orbit downloads and Windows copies in Steam library folders (never `steam-windows`); saves kept unless asked and never when the prefix holds a Steam login |
 | `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder and every library game's real folder, by category, plus volume totals |

@@ -2,8 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_APP_PREFERENCES } from '@/lib/appPreferences'
-import { appUpdateRestart, openXboxCloud } from '@/lib/tauri'
-import { useAppUpdateStore } from '@/stores/appUpdate.store'
+import { openXboxCloud } from '@/lib/tauri'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
@@ -12,7 +11,6 @@ import { HomeMenuModal } from '../HomeMenuModal'
 vi.mock('@/lib/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/tauri')>()),
   openXboxCloud: vi.fn(),
-  appUpdateRestart: vi.fn(),
 }))
 
 function renderMenu() {
@@ -53,34 +51,6 @@ it('leaves it out until then', () => {
   expect(
     screen.queryByRole('button', { name: /Xbox Cloud Gaming/ }),
   ).not.toBeInTheDocument()
-})
-
-describe('a downloaded Orbit update', () => {
-  beforeEach(() => {
-    usePreferencesStore.setState({
-      ready: true,
-      preferences: { ...DEFAULT_APP_PREFERENCES, onboardingCompleted: true },
-    })
-    vi.mocked(appUpdateRestart).mockReset().mockResolvedValue(undefined)
-  })
-  afterEach(() => useAppUpdateStore.setState({ state: { status: 'idle' } }))
-
-  it('is offered as Restart to update and installs on select', () => {
-    useAppUpdateStore.setState({
-      state: { status: 'ready', version: '2.2.0', notes: null },
-    })
-    renderMenu()
-    fireEvent.click(screen.getByRole('button', { name: /^Restart to update/ }))
-    expect(appUpdateRestart).toHaveBeenCalled()
-  })
-
-  it('is not offered before it is ready', () => {
-    useAppUpdateStore.setState({
-      state: { status: 'downloading', version: '2.2.0', downloaded: 1, total: 2 },
-    })
-    renderMenu()
-    expect(screen.queryByRole('button', { name: /Restart to update/ })).toBeNull()
-  })
 })
 
 describe('during a cloud game', () => {

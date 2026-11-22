@@ -1,17 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import {
-  Home,
-  LayoutGrid,
-  LogOut,
-  Play,
-  RefreshCw,
-  Settings,
-  Square,
-  Undo2,
-  X,
-} from 'lucide-react'
+import { Home, LayoutGrid, LogOut, Play, Settings, Square, Undo2, X } from 'lucide-react'
 import { XboxIcon } from '@/components/brand/AccountIcons'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
@@ -20,8 +10,7 @@ import { useModalFocus } from '@/hooks/useModalFocus'
 import { useOverlayBack } from '@/controllers/overlayStack'
 import { useGame, useGameActions } from '@/hooks/useGames'
 import { XBOX_CLOUD_ENABLED } from '@/lib/features'
-import { appUpdateRestart, hideOrbitWindow, openXboxCloud, quitOrbit } from '@/lib/tauri'
-import { useAppUpdateStore } from '@/stores/appUpdate.store'
+import { hideOrbitWindow, openXboxCloud, quitOrbit } from '@/lib/tauri'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -50,9 +39,6 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
   const setScreen = useUiStore((s) => s.setScreen)
   const activeSession = useSessionStore((s) => s.activeSession)
   const cloudStream = useXcloudPlayerStore((s) => s.stream)
-  const updateVersion = useAppUpdateStore((s) =>
-    s.state.status === 'ready' ? s.state.version : null,
-  )
   const { stop } = useGameActions()
   const xboxCloudConnected =
     usePreferencesStore((s) => s.preferences.xboxCloudConnected) && XBOX_CLOUD_ENABLED
@@ -201,23 +187,6 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
             },
           ]
         : []),
-      // Only here, never over a game or stream: restarting would end it.
-      ...(updateVersion
-        ? [
-            {
-              id: 'home-menu-update',
-              label: 'Restart to update',
-              description: `Install Orbit ${updateVersion}`,
-              icon: RefreshCw,
-              action: () => {
-                setActionError(null)
-                void appUpdateRestart().catch((reason: unknown) =>
-                  setActionError(String(reason)),
-                )
-              },
-            },
-          ]
-        : []),
       {
         id: 'home-menu-quit',
         label: 'Quit Orbit',
@@ -231,15 +200,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
         },
       },
     ] satisfies MenuItem[]
-  }, [
-    activeSession,
-    cloudStream,
-    closeHomeMenu,
-    setScreen,
-    stop,
-    updateVersion,
-    xboxCloudConnected,
-  ])
+  }, [activeSession, cloudStream, closeHomeMenu, setScreen, stop, xboxCloudConnected])
 
   useModalFocus(open, 'home-menu', items[0]?.id ?? 'home-menu-continue')
 
