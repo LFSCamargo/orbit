@@ -9,6 +9,8 @@ pub enum GameProvider {
     Manual,
     /// Xbox Cloud Gaming. Streamed, never installed on disk.
     Xcloud,
+    /// Microsoft Store / PC Game Pass GDK titles installed locally and run through Orbit Wine.
+    MsStore,
 }
 
 impl GameProvider {
@@ -19,6 +21,7 @@ impl GameProvider {
             Self::Native => "native",
             Self::Manual => "manual",
             Self::Xcloud => "xcloud",
+            Self::MsStore => "ms-store",
         }
     }
 
@@ -28,6 +31,7 @@ impl GameProvider {
             "steam" => Self::Steam,
             "native" => Self::Native,
             "xcloud" => Self::Xcloud,
+            "ms-store" => Self::MsStore,
             _ => Self::Manual,
         }
     }

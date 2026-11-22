@@ -699,3 +699,39 @@ export async function openExternalUrl(url: string) {
 export function saveXcloudGame(productId: string) {
   return run<Game>('save_xcloud_game', { productId })
 }
+
+export function msStoreAuthStatus() {
+  return run<import('@/types/msstore').MsStoreAccountStatus>('msstore_auth_status')
+}
+
+export function msStoreAuthStart() {
+  return run<void>('msstore_auth_start')
+}
+
+export function msStoreAuthCancel() {
+  return run<void>('msstore_auth_cancel')
+}
+
+export function msStoreSignOut() {
+  return run<void>('msstore_sign_out')
+}
+
+export function listMsStoreCatalog(refresh = false) {
+  return run<import('@/types/msstore').MsStoreCatalog>('list_msstore_catalog', {
+    refresh,
+  })
+}
+
+export function enqueueMsStoreDownload(
+  productId: string,
+  location?: string,
+): Promise<void> {
+  return run('enqueue_msstore_download', { productId, location: location ?? null })
+}
+
+export function uninstallMsStoreGame(
+  productId: string,
+  deletePrefix: boolean,
+): Promise<UninstallReport> {
+  return run('uninstall_msstore_game', { productId, deletePrefix })
+}

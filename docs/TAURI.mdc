@@ -63,6 +63,7 @@ src-tauri/src/
     hero.rs                # Selected artwork lighting
     artwork.rs             # Image read/fetch/search
     metadata.rs            # enrich_game_metadata / enrich_games_metadata
+    msstore.rs             # Microsoft Store / PC Game Pass auth, catalog, download queue, uninstall
     network.rs             # get_network_stats
   database/
     mod.rs
@@ -70,7 +71,8 @@ src-tauri/src/
     library_migration.rs   # One-time library identity rewrite
     gamehub_removal.rs     # Drop retired shortcut rows; snapshot first
     repository.rs          # Library SQLite access
-    metadata_cache.rs      # Separate metadata enrichment cache DB
+    metadata_cache.rs      # Separate metadata enrichment cache DB (incl. xCloud & MS Store catalog tables)
+    msstore_catalog_cache.rs # Cached PC Game Pass & owned MS Store PC titles
   importers/
     mod.rs
     steam.rs
@@ -111,9 +113,14 @@ src-tauri/src/
     steam_library.rs       # Steam install handoff and platform check
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
-    download_queue.rs      # FIFO Steam download queue: one worker, pause/resume, waits offline, saved in settings
+    download_queue.rs      # Unified FIFO download queue (Steam + MS Store): one worker, pause/resume, waits offline
     game_fixes.rs          # Known-game fixes before launch; RE Engine DirectX 11 stability (TargetPlatform, Capability, UseVendorExtention=Disable) and crash fallback
-    install_locations.rs   # This Mac or picked folders ("Orbit Games" Steam libraries), per-game choice
+    install_locations.rs   # This Mac or picked folders ("Orbit Games" Steam + MS Store libraries), per-game choice
+    msstore_auth.rs        # Windows CLEP device provisioning & locked-down TokenBroker webview sign-in (0600)
+    msstore_catalog.rs     # PC Game Pass SIGL + owned Microsoft Store PC catalog caching & library merging
+    msstore_download.rs    # Streaming MSIXVC download/install + MicrosoftGame.config registration
+    msstore_ipc.rs         # Private per-session Unix socket IPC bridge for LGPL-2.1 xgameruntime.dll
+    msstore_play.rs        # Ephemeral macOS RAM disk + WINE_DLL_FILE_MAP + Orbit Wine launch orchestrator
     network_monitor.rs     # Interface byte counters once a second, Steam reachability probe, network-stats event
     uninstall.rs           # Deletes Orbit-downloaded game folders inside allow-listed roots only
     storage.rs             # Disk usage of Orbit's data folder by game / tool / runtime / other

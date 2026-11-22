@@ -69,10 +69,12 @@ export function entrySizes(entry: LibraryEntry): {
   }
 }
 
-/** Game files Orbit downloaded itself (per-game container or legacy Steam folder). */
+/** Game files Orbit downloaded itself (per-game container or legacy Steam/MS Store folder). */
 export function isOrbitManagedDownload(path: string | null | undefined) {
   return Boolean(
-    path?.includes('/containers/games/') || path?.includes('/steam-windows/games/'),
+    path?.includes('/containers/games/') ||
+    path?.includes('/steam-windows/games/') ||
+    path?.includes('/Orbit Games/msstore/'),
   )
 }
 
@@ -92,4 +94,27 @@ export function uninstallAppId(entry: LibraryEntry): string | null {
       item.available && item.launchType === 'wine' && isUninstallablePath(item.path),
   )
   return removable ? entry.steamAppId : null
+}
+
+/** The Microsoft Store 12-char product id when this entry is an MS Store title. */
+export function msStoreProductId(entry: LibraryEntry): string | null {
+  if (entry.game.provider !== 'ms-store') return null
+  return (
+    entry.game.sourceId ?? (entry.id.startsWith('msstore:') ? entry.id.slice(8) : null)
+  )
+}
+
+/** Uninstall target for an Orbit-managed Steam or Microsoft Store Windows install. */
+export function uninstallTarget(
+  entry: LibraryEntry,
+): { provider: 'steam' | 'ms-store'; id: string } | null {
+  const steamId = uninstallAppId(entry)
+  if (steamId) return { provider: 'steam', id: steamId }
+  const productId = msStoreProductId(entry)
+  if (!productId) return null
+  const removable = entry.installations.some(
+    (item) =>
+      item.available && item.launchType === 'wine' && isUninstallablePath(item.path),
+  )
+  return removable ? { provider: 'ms-store', id: productId } : null
 }

@@ -101,6 +101,8 @@ impl SessionManager {
                 emit_launch_progress(app, &game.id, "resolve", Some(&game.title));
                 let steam_windows =
                     game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows;
+                let msstore_windows = game.provider == GameProvider::MsStore
+                    && game.platform == GamePlatform::Windows;
                 {
                     let profile = wine_profile_for_play(
                         game,
@@ -108,6 +110,32 @@ impl SessionManager {
                         crate::services::steam_windows::play_wine_binary(repo),
                     );
                     match crate::runtimes::settings::resolve_profile(repo, &profile) {
+                        Ok(resolved) if msstore_windows => {
+                            let product_id = game
+                                .source_id
+                                .clone()
+                                .filter(|id| orbit_msstore::valid_product_id(id))
+                                .ok_or_else(|| {
+                                    anyhow::anyhow!(
+                                        "This game's Microsoft Store product id is invalid"
+                                    )
+                                })?;
+                            let session_dir = crate::services::msstore_auth::session_dir(
+                                &crate::utils::paths::app_data_dir(),
+                            );
+                            crate::services::msstore_play::launch(
+                                &resolved,
+                                &game.id,
+                                &product_id,
+                                &crate::runtimes::root(),
+                                &session_dir,
+                                &self.cancel,
+                                &mut |step| {
+                                    *last_step.lock() = step.to_string();
+                                    emit_launch_progress(app, &game.id, step, Some(&game.title));
+                                },
+                            )
+                        }
                         Ok(mut resolved) if steam_windows => {
                             let app_id = game
                                 .source_id
@@ -420,7 +448,7 @@ fn detect_new_pid(provider: &GameProvider, preexisting: &[u32]) -> Option<u32> {
         GameProvider::Astris => "Astris",
         GameProvider::Steam => "steam",
         GameProvider::Native => return None,
-        GameProvider::Manual | GameProvider::Xcloud => return None,
+        GameProvider::Manual | GameProvider::Xcloud | GameProvider::MsStore => return None,
     };
 
     // Give the process a brief moment to appear.
@@ -575,7 +603,9 @@ fn wine_profile_for_play(
     steam_wine: Option<std::path::PathBuf>,
 ) -> crate::runtimes::WineProfile {
     let mut profile = profile.clone();
-    if game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows {
+    if matches!(game.provider, GameProvider::Steam | GameProvider::MsStore)
+        && game.platform == GamePlatform::Windows
+    {
         if let Some(path) = steam_wine {
             profile.runtime_path = path.to_string_lossy().into_owned();
         }

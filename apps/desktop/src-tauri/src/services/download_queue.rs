@@ -22,6 +22,14 @@ pub const QUEUE_EVENT: &str = "download-queue-changed";
 /// Upper bound so a corrupted settings row cannot grow the queue without limit.
 const QUEUE_LIMIT: usize = 200;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DownloadProvider {
+    #[default]
+    Steam,
+    MsStore,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueuedDownload {
@@ -31,6 +39,15 @@ pub struct QueuedDownload {
     pub cover_url: Option<String>,
     #[serde(default)]
     pub paused: bool,
+    #[serde(default)]
+    pub provider: DownloadProvider,
+}
+
+fn valid_download_id(provider: DownloadProvider, id: &str) -> bool {
+    match provider {
+        DownloadProvider::Steam => valid_app_id(id),
+        DownloadProvider::MsStore => orbit_msstore::valid_product_id(id),
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,7 +173,7 @@ impl DownloadQueue {
         let mut queue = Self::default();
         for item in items
             .into_iter()
-            .filter(|item| valid_app_id(&item.app_id))
+            .filter(|item| valid_download_id(item.provider, &item.app_id))
             .take(QUEUE_LIMIT)
         {
             if queue.position(&item.app_id).is_none() {
@@ -196,8 +213,13 @@ pub fn snapshot() -> DownloadQueue {
 }
 
 pub fn enqueue(app: &AppHandle, item: QueuedDownload) -> Result<(), String> {
-    if !valid_app_id(&item.app_id) {
-        return Err("Steam app id must be a number".into());
+    if !valid_download_id(item.provider, &item.app_id) {
+        return Err(match item.provider {
+            DownloadProvider::Steam => "Steam app id must be a number".into(),
+            DownloadProvider::MsStore => {
+                "Microsoft Store product id must be 12 alphanumeric characters".into()
+            }
+        });
     }
     let changed = QUEUE.lock().enqueue(item);
     if changed {
@@ -207,9 +229,24 @@ pub fn enqueue(app: &AppHandle, item: QueuedDownload) -> Result<(), String> {
     Ok(())
 }
 
+fn active_provider() -> Option<DownloadProvider> {
+    QUEUE.lock().active.as_ref().map(|item| item.provider)
+}
+
 pub fn remove(app: &AppHandle, app_id: &str) {
-    if QUEUE.lock().is_active(app_id) {
-        steam_windows::cancel_download();
+    let active_match = {
+        let queue = QUEUE.lock();
+        queue
+            .active
+            .as_ref()
+            .filter(|item| item.app_id == app_id)
+            .map(|item| item.provider)
+    };
+    if let Some(provider) = active_match {
+        match provider {
+            DownloadProvider::Steam => steam_windows::cancel_download(),
+            DownloadProvider::MsStore => crate::services::msstore_download::cancel_download(),
+        }
         return;
     }
     if QUEUE.lock().remove(app_id) {
@@ -224,14 +261,20 @@ pub fn start_now(app: &AppHandle, app_id: &str) {
         return;
     }
     changed_queue(app);
-    if QUEUE.lock().active.is_some() {
-        steam_windows::pause_download();
+    if let Some(provider) = active_provider() {
+        match provider {
+            DownloadProvider::Steam => steam_windows::pause_download(),
+            DownloadProvider::MsStore => crate::services::msstore_download::pause_download(),
+        }
     }
     ensure_worker(app);
 }
 
 pub fn pause_active() {
-    steam_windows::pause_download();
+    match active_provider() {
+        Some(DownloadProvider::MsStore) => crate::services::msstore_download::pause_download(),
+        _ => steam_windows::pause_download(),
+    }
 }
 
 pub fn has_work() -> bool {
@@ -244,7 +287,7 @@ pub fn has_work() -> bool {
 pub fn network_changed(app: &AppHandle, online: bool) {
     let (changed, active) = {
         let mut queue = QUEUE.lock();
-        (queue.set_online(online), queue.active.is_some())
+        (queue.set_online(online), queue.active.as_ref().map(|i| i.provider))
     };
     if !changed {
         return;
@@ -252,8 +295,11 @@ pub fn network_changed(app: &AppHandle, online: bool) {
     changed_queue(app);
     if online {
         ensure_worker(app);
-    } else if active {
-        steam_windows::stop_for_network();
+    } else if let Some(provider) = active {
+        match provider {
+            DownloadProvider::Steam => steam_windows::stop_for_network(),
+            DownloadProvider::MsStore => crate::services::msstore_download::stop_for_network(),
+        }
     }
 }
 
@@ -330,50 +376,85 @@ fn run_worker(app: &AppHandle) {
 
 fn run_one(app: &AppHandle, item: &QueuedDownload) -> Option<DownloadOutcome> {
     let state = app.state::<AppState>();
-    let key = format!("steam:{}", item.app_id);
-    // Orbit runs one Steam client at a time; starting the download's client
-    // would stop the one a running game needs.
+    let (event_name, key) = match item.provider {
+        DownloadProvider::Steam => ("steam-download-progress", format!("steam:{}", item.app_id)),
+        DownloadProvider::MsStore => (
+            crate::services::msstore_download::PROGRESS_EVENT,
+            crate::services::msstore_catalog::stable_key(&item.app_id),
+        ),
+    };
     let busy = state.sessions.get_active().is_some() || state.sessions.is_launching();
-    let result = if busy {
-        Err("Close your game first. Downloads use Steam, which the game is using now.".into())
-    } else {
-        steam_windows::download(app, &state.repo, &item.app_id, &item.title)
+    let result = match item.provider {
+        DownloadProvider::Steam => {
+            if busy {
+                Err("Close your game first. Downloads use Steam, which the game is using now."
+                    .into())
+            } else {
+                steam_windows::download(app, &state.repo, &item.app_id, &item.title)
+            }
+        }
+        DownloadProvider::MsStore => {
+            let session_dir =
+                crate::services::msstore_auth::session_dir(&crate::utils::paths::app_data_dir());
+            crate::services::msstore_download::download(
+                app,
+                &state.repo,
+                &state.metadata_cache,
+                &session_dir,
+                &item.app_id,
+                &item.title,
+            )
+        }
     };
     match result {
         Ok(DownloadOutcome::Completed) => {
-            if let Some(bytes) = steam_windows::last_download_total() {
-                record_download_size(&state.repo, &item.app_id, bytes);
-            }
-            if let Err(error) = steam_windows::register_download(&state.repo, &item.app_id) {
-                eprintln!(
-                    "[orbit] could not register download {}: {error}",
-                    item.app_id
-                );
+            match item.provider {
+                DownloadProvider::Steam => {
+                    if let Some(bytes) = steam_windows::last_download_total() {
+                        record_download_size(&state.repo, &item.app_id, bytes);
+                    }
+                    if let Err(error) =
+                        steam_windows::register_download(&state.repo, &item.app_id)
+                    {
+                        eprintln!(
+                            "[orbit] could not register download {}: {error}",
+                            item.app_id
+                        );
+                    }
+                }
+                DownloadProvider::MsStore => {
+                    if let Some(bytes) = crate::services::msstore_download::last_download_total() {
+                        record_download_size(&state.repo, &item.app_id, bytes);
+                    }
+                }
             }
             crate::services::storage::invalidate();
             crate::services::install_roots::forget_measurements();
             let _ = app.emit("steam-library-updated", ());
+            if item.provider == DownloadProvider::MsStore {
+                let _ = app.emit("msstore-library-updated", ());
+            }
             Some(DownloadOutcome::Completed)
         }
         Ok(outcome) => {
             let _ = app.emit(
-                "steam-download-progress",
+                event_name,
                 json!({ "key": key, "label": item.title, "done": true, "stopped": true }),
             );
             Some(outcome)
         }
-        // Steam fails in many ways when the network drops mid-step; while
+        // Downloads fail in many ways when the network drops mid-step; while
         // offline that is a stop to resume, not an error to show.
         Err(_) if !crate::services::network_monitor::online() => {
             let _ = app.emit(
-                "steam-download-progress",
+                event_name,
                 json!({ "key": key, "label": item.title, "done": true, "stopped": true }),
             );
             Some(DownloadOutcome::Offline)
         }
         Err(error) => {
             let _ = app.emit(
-                "steam-download-progress",
+                event_name,
                 json!({ "key": key, "label": item.title, "done": true, "error": error }),
             );
             None
@@ -391,7 +472,34 @@ mod tests {
             title: format!("Game {app_id}"),
             cover_url: None,
             paused: false,
+            provider: DownloadProvider::Steam,
         }
+    }
+
+    #[test]
+    fn restores_legacy_v1_steam_queue_and_mixed_msstore_items() {
+        let legacy: Vec<QueuedDownload> =
+            serde_json::from_str(r#"[{"appId":"570","title":"Dota 2"}]"#).unwrap();
+        assert_eq!(legacy[0].provider, DownloadProvider::Steam);
+
+        let mut items = legacy;
+        items.push(QueuedDownload {
+            app_id: "9P8LR42PTRGJ".into(),
+            title: "33 Immortals".into(),
+            cover_url: None,
+            paused: false,
+            provider: DownloadProvider::MsStore,
+        });
+        items.push(QueuedDownload {
+            app_id: "../bad".into(),
+            title: "Bad".into(),
+            cover_url: None,
+            paused: false,
+            provider: DownloadProvider::MsStore,
+        });
+        let restored = DownloadQueue::restore(items);
+        assert_eq!(ids(&restored), ["570", "9P8LR42PTRGJ"]);
+        assert_eq!(restored.pending[1].provider, DownloadProvider::MsStore);
     }
 
     fn ids(queue: &DownloadQueue) -> Vec<&str> {

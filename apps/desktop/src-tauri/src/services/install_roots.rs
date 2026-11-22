@@ -49,7 +49,10 @@ pub fn lexical_root(path: &Path) -> Option<PathBuf> {
         if up == "common" && top.eq_ignore_ascii_case("steamapps") {
             return Some(ancestor.to_path_buf());
         }
-        if own == "install" && up.starts_with("steam-") && top == "games" {
+        if own == "install" && (up.starts_with("steam-") || up.starts_with("msstore-")) && top == "games" {
+            return Some(ancestor.to_path_buf());
+        }
+        if up == "msstore" && top == crate::services::install_locations::LIBRARY_FOLDER {
             return Some(ancestor.to_path_buf());
         }
         if up == "games"
@@ -204,6 +207,7 @@ pub struct GameRoot {
     pub entry_id: String,
     pub title: String,
     pub steam_app_id: Option<String>,
+    pub msstore_product_id: Option<String>,
     pub cover: Option<String>,
     pub root: PathBuf,
     pub bytes: u64,
@@ -234,6 +238,10 @@ pub fn game_roots(entries: &[LibraryEntry]) -> Vec<GameRoot> {
                 entry_id: entry.id.clone(),
                 title: entry.game.title.clone(),
                 steam_app_id: entry.steam_app_id.clone(),
+                msstore_product_id: (entry.game.provider
+                    == crate::models::GameProvider::MsStore)
+                    .then(|| entry.game.source_id.clone())
+                    .flatten(),
                 cover: entry
                     .game
                     .artwork

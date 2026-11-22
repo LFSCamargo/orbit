@@ -190,7 +190,8 @@ export function StorageItemsTable({
                       noScale
                       disabled={!removable}
                       aria-label={
-                        item.removal.type === 'game'
+                        item.removal.type === 'game' ||
+                        item.removal.type === 'msStoreGame'
                           ? `Uninstall ${item.name}`
                           : `Remove ${item.name}`
                       }

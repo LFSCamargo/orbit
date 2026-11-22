@@ -142,6 +142,10 @@ controller shows up once.
 
 `runtimes/wine_capabilities.rs` reports `controllers` when `winebus.so` has the
 SDL backend, and Play prefers such an Orbit Wine over a newer one without it.
+It also reports `msstore_file_map` when `ntdll.so` includes Orbit's
+`0003-ntdll-WINE_DLL_FILE_MAP.patch`, which Microsoft Store GDK launches require
+to execute RAM-disk-decrypted binaries without writing plaintext executables to SSD
+(see [MS_STORE.md](MS_STORE.md)).
 
 Known limit: a receiver that reports a vendor HID page instead of a gamepad
 (for example the 8BitDo Ultimate 2 2.4 GHz receiver, `2DC8:6013`, usage page

@@ -1,4 +1,5 @@
-export type GameProvider = 'astris' | 'steam' | 'native' | 'manual' | 'xcloud'
+export type GameProvider =
+  'astris' | 'steam' | 'native' | 'manual' | 'xcloud' | 'ms-store'
 
 export type GamePlatform =
   'nintendo-switch' | 'macos' | 'windows' | 'linux' | 'cloud' | 'unknown'

@@ -18,6 +18,7 @@ export function detailsPrimaryAction(input: {
   launching: boolean
   cancelling: boolean
   signedIn: boolean
+  msStoreSignedIn?: boolean
 }): DetailsPrimaryAction {
   const installation = selectInstallation(input.entry)
   // Cloud games stream in the browser: always playable, never installed.
@@ -69,6 +70,12 @@ export function detailsPrimaryAction(input: {
   }
   if (input.entry.owned && input.entry.steamAppId) {
     if (!input.signedIn) return { kind: 'sign-in', label: 'Sign in to Steam' }
+    return { kind: 'install', label: 'Install' }
+  }
+  if (input.entry.game.provider === 'ms-store') {
+    if (!input.msStoreSignedIn) {
+      return { kind: 'sign-in', label: 'Sign in to Microsoft Store' }
+    }
     return { kind: 'install', label: 'Install' }
   }
   if (input.entry.game.launchConfig.type === 'wine') {

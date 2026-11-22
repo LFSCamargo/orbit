@@ -67,6 +67,11 @@ pub mod library;
 
 pub mod steam_manifest;
 
+pub mod msstore_auth;
+pub mod msstore_catalog;
+pub mod msstore_download;
+pub mod msstore_ipc;
+pub mod msstore_play;
 pub mod xbox_auth;
 pub mod xcloud_catalog;
 pub mod xcloud_launch;

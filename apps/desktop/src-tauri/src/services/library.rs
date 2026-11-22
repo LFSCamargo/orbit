@@ -130,6 +130,13 @@ pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEn
         let id = app_id
             .as_ref()
             .map(|id| format!("steam:{id}"))
+            .or_else(|| {
+                (game.provider == GameProvider::MsStore)
+                    .then(|| game.source_id.as_deref())
+                    .flatten()
+                    .filter(|pid| orbit_msstore::valid_product_id(pid))
+                    .map(|pid| format!("msstore:{}", pid.to_ascii_uppercase()))
+            })
             .unwrap_or_else(|| game.id.clone());
         let install = installation(&game);
         match entries.get_mut(&id) {
@@ -371,8 +378,18 @@ pub fn entry_matches(entry: &LibraryEntry, id: &str) -> bool {
     if entry.id == id || entry.installations.iter().any(|i| i.game_id == id) {
         return true;
     }
-    id.strip_prefix("xcloud:").is_some_and(|product| {
+    if id.strip_prefix("xcloud:").is_some_and(|product| {
         entry.game.provider == crate::models::GameProvider::Xcloud
+            && entry
+                .game
+                .source_id
+                .as_deref()
+                .is_some_and(|source| source.eq_ignore_ascii_case(product))
+    }) {
+        return true;
+    }
+    id.strip_prefix("msstore:").is_some_and(|product| {
+        entry.game.provider == crate::models::GameProvider::MsStore
             && entry
                 .game
                 .source_id
@@ -399,7 +416,10 @@ pub fn apply_download_sizes(entries: &mut [LibraryEntry], sizes: &HashMap<String
 /// True for game files Orbit downloaded itself, which Orbit may uninstall.
 pub fn is_orbit_managed(path: Option<&str>) -> bool {
     path.is_some_and(|path| {
-        path.contains("/runtimes/containers/games/steam-") || path.contains("/steam-windows/games/")
+        path.contains("/runtimes/containers/games/steam-")
+            || path.contains("/runtimes/containers/games/msstore-")
+            || path.contains("/steam-windows/games/")
+            || path.contains("/Orbit Games/msstore/")
     })
 }
 

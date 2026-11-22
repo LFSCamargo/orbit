@@ -16,6 +16,9 @@ pub struct WineCapabilities {
     /// winebus has its SDL backend, which maps HID controllers (Bluetooth or
     /// USB) to XInput. Without it generic gamepads never reach the game.
     pub controllers: bool,
+    /// ntdll has Orbit's `WINE_DLL_FILE_MAP` loader patch so Microsoft Store
+    /// GDK executables can be mapped directly from RAM-disk FDs.
+    pub msstore_file_map: bool,
 }
 
 impl WineCapabilities {
@@ -129,6 +132,7 @@ fn scan(bytes: &[u8]) -> WineCapabilities {
         metal_view: contains(bytes, b"metal_view") || contains(bytes, b"macdrv_create_metal"),
         d3dmetal: contains(bytes, b"D3DMetal") || contains(bytes, b"libd3dshared"),
         controllers: false,
+        msstore_file_map: contains(bytes, b"WINE_DLL_FILE_MAP"),
     }
 }
 
@@ -168,15 +172,17 @@ mod tests {
 
     #[test]
     fn detects_msync_and_metal_view_strings() {
-        let bytes = b"Wine WINEMSYNC macdrv_create_metal_view D3DMetal";
+        let bytes = b"Wine WINEMSYNC macdrv_create_metal_view D3DMetal WINE_DLL_FILE_MAP";
         let caps = scan(bytes);
         assert!(caps.msync);
         assert!(caps.metal_view);
         assert!(caps.d3dmetal);
+        assert!(caps.msstore_file_map);
         let empty = scan(b"wine-11.21");
         assert!(!empty.msync);
         assert!(!empty.metal_view);
         assert!(!empty.d3dmetal);
+        assert!(!empty.msstore_file_map);
     }
 
     fn fake_wine(root: &Path, version: &str, ntdll: &[u8]) -> PathBuf {

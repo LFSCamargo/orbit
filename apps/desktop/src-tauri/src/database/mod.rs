@@ -9,4 +9,5 @@ pub mod cloud_launches;
 pub mod gamehub_removal;
 pub mod library_migration;
 pub mod library_state;
+pub mod msstore_catalog_cache;
 pub mod xcloud_catalog_cache;

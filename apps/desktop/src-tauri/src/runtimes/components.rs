@@ -33,6 +33,7 @@ pub enum ComponentKind {
     Gptk,
     Vkd3dProton,
     Zink,
+    XgameRuntime,
 }
 
 impl ComponentKind {
@@ -45,6 +46,7 @@ impl ComponentKind {
             "gptk" => Some(ComponentKind::Gptk),
             "vkd3d-proton" => Some(ComponentKind::Vkd3dProton),
             "zink" => Some(ComponentKind::Zink),
+            "xgameruntime" => Some(ComponentKind::XgameRuntime),
             _ => None,
         }
     }
@@ -565,6 +567,13 @@ fn validate_installation(dir: &Path, kind: ComponentKind) -> Result<String> {
             })
             .context("The zink package does not contain a zink driver library")?;
             let root = driver.parent().unwrap_or(dir);
+            Ok(root.to_string_lossy().into_owned())
+        }
+        ComponentKind::XgameRuntime => {
+            // LGPL-2.1 xgameruntime.dll (GDK / Xbox Gaming Runtime bridge for Wine).
+            let dll = find_file_within(dir, |_, name| name.eq_ignore_ascii_case("xgameruntime.dll"))
+                .context("The xgameruntime package does not contain xgameruntime.dll")?;
+            let root = dll.parent().unwrap_or(dir);
             Ok(root.to_string_lossy().into_owned())
         }
     }

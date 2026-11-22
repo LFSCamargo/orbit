@@ -8,6 +8,7 @@ const COLORS: Record<GameProvider, string> = {
   native: 'orbit-glass-control bg-emerald-500/20 text-emerald-100 ring-emerald-400/30',
   manual: 'orbit-glass-control bg-violet-500/20 text-violet-100 ring-violet-400/30',
   xcloud: 'orbit-glass-control bg-green-500/20 text-green-100 ring-green-400/30',
+  'ms-store': 'orbit-glass-control bg-teal-500/20 text-teal-100 ring-teal-400/30',
 }
 
 export function ProviderBadge({

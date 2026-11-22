@@ -42,13 +42,36 @@ impl PreparedWineLaunch {
         steam_app_id: Option<&str>,
         cancel: &AtomicBool,
     ) -> Result<Box<dyn RuntimeProcess>> {
+        self.spawn_with_extra_env(steam_app_id, &[], None, cancel)
+    }
+
+    pub(crate) fn spawn_with_extra_env(
+        mut self,
+        steam_app_id: Option<&str>,
+        extra_env: &[(String, String)],
+        extra_dll_overrides: Option<&str>,
+        cancel: &AtomicBool,
+    ) -> Result<Box<dyn RuntimeProcess>> {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             bail!("Launch cancelled");
         }
-        let child = process::spawn_logged(
-            &mut process::detached(&self.command(steam_app_id)?)?,
-            &self.log,
-        )?;
+        if let Some(overrides) = extra_dll_overrides.filter(|o| !o.is_empty()) {
+            let existing = self
+                .profile
+                .environment
+                .entry("WINEDLLOVERRIDES".into())
+                .or_default();
+            if !existing.is_empty() {
+                *existing = format!("{existing};{overrides}");
+            } else {
+                *existing = overrides.to_string();
+            }
+        }
+        let mut command = self.command(steam_app_id)?;
+        for (key, value) in extra_env {
+            command.env(key, value);
+        }
+        let child = process::spawn_logged(&mut process::detached(&command)?, &self.log)?;
         // `detached` makes the child a session leader: its pid is the session.
         let child_session = child.id() as i32;
         Ok(Box::new(WineProcess {
@@ -74,9 +97,45 @@ impl WineAdapter {
         cancel: &AtomicBool,
         progress: &mut F,
     ) -> Result<PreparedWineLaunch> {
+        self.prepare_inner(profile, game_id, root, false, cancel, progress)
+    }
+
+    /// Prepares a Microsoft Store GDK container where the on-disk `.exe` stays
+    /// encrypted and PE header verification happens after RAM-disk decryption.
+    pub fn prepare_msstore<F: FnMut(&str)>(
+        &self,
+        profile: &WineProfile,
+        game_id: &str,
+        root: &Path,
+        cancel: &AtomicBool,
+        progress: &mut F,
+    ) -> Result<PreparedWineLaunch> {
+        self.prepare_inner(profile, game_id, root, true, cancel, progress)
+    }
+
+    fn prepare_inner<F: FnMut(&str)>(
+        &self,
+        profile: &WineProfile,
+        game_id: &str,
+        root: &Path,
+        allow_encrypted_exe: bool,
+        cancel: &AtomicBool,
+        progress: &mut F,
+    ) -> Result<PreparedWineLaunch> {
         progress("resolve");
         profile.validate_options()?;
-        let executable = validation::windows_executable(Path::new(&profile.executable))?;
+        let exe_input = Path::new(&profile.executable);
+        let executable = if allow_encrypted_exe {
+            if !exe_input
+                .extension()
+                .is_some_and(|s| s.eq_ignore_ascii_case("exe"))
+            {
+                bail!("Choose a Windows .exe file");
+            }
+            validation::absolute_file(exe_input)?
+        } else {
+            validation::windows_executable(exe_input)?
+        };
         progress("runtime");
         let mut runtime = probe(Path::new(&profile.runtime_path))?;
         let dir = prefix::game_directory(root, game_id)?;

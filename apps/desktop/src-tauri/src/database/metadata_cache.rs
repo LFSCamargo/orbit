@@ -82,6 +82,25 @@ impl MetadataCacheRepository {
                 market TEXT PRIMARY KEY NOT NULL,
                 fetched_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS msstore_catalog (
+                market TEXT NOT NULL,
+                product_id TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                entry_json TEXT NOT NULL,
+                PRIMARY KEY (market, product_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS msstore_catalog_fetches (
+                market TEXT PRIMARY KEY NOT NULL,
+                fetched_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS msstore_owned (
+                product_id TEXT PRIMARY KEY NOT NULL,
+                entry_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             "#,
         )?;
         Ok(Self {

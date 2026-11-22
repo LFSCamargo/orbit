@@ -12,6 +12,7 @@ import { useDownloadStore } from '@/lib/downloadProgress'
 import { formatBytes } from '@/lib/format'
 import {
   addInstallLocation,
+  enqueueMsStoreDownload,
   enqueueSteamDownload,
   listInstallLocations,
   removeInstallLocation,
@@ -48,7 +49,7 @@ export function InstallLocationDialog({
   game,
   onClose,
 }: {
-  game: { appId: string; title: string } | null
+  game: { appId: string; title: string; provider?: 'steam' | 'ms-store' } | null
   onClose: () => void
 }) {
   const open = game !== null
@@ -110,10 +111,14 @@ export function InstallLocationDialog({
 
   const install = () => {
     if (!game) return
-    const key = `steam:${game.appId}`
+    const isMsStore = game.provider === 'ms-store'
+    const key = isMsStore ? `msstore:${game.appId}` : `steam:${game.appId}`
     useDownloadStore.getState().start({ key, label: game.title })
     onClose()
-    void enqueueSteamDownload(game.appId, selected)
+    const request = isMsStore
+      ? enqueueMsStoreDownload(game.appId, selected)
+      : enqueueSteamDownload(game.appId, selected)
+    void request
       .then(() => refresh())
       .catch((error: unknown) => useDownloadStore.getState().fail(key, errorText(error)))
   }

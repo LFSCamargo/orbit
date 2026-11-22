@@ -80,7 +80,10 @@ cloud Steam login, Steam DRM bypass, and social features. Windows games run in
 Orbit-owned Wine containers with a lightweight native Steam client for catalog,
 downloads, and cloud file lists; games still authenticate through Valve's client
 inside the container. See [STEAM_WINDOWS.md](STEAM_WINDOWS.md) and
-[CONTAINERS.md](CONTAINERS.md).
+[CONTAINERS.md](CONTAINERS.md). Legitimate Microsoft Store / PC Game Pass GDK
+(`MSIXVC`) titles authenticated against Microsoft's official TokenBroker and
+licensing APIs (keeping executables encrypted on disk and decrypting transiently
+to a macOS RAM disk for Orbit Wine) are in scope; see [MS_STORE.md](MS_STORE.md).
 Bulk “enrich entire library” jobs and Switch title-ID databases are deferred past 0.2.
 
 ---

@@ -39,6 +39,7 @@ pub fn enqueue_steam_download(
             app_id,
             title,
             paused: false,
+            provider: download_queue::DownloadProvider::Steam,
         },
     )
 }

@@ -37,6 +37,7 @@ and is keyed by `(component_id, version)`. Installable components:
 - Wine Stable/Development/Staging from Gcenx builds.
 - DXVK-macOS and DXMT graphics translation layers.
 - MoltenVK (required by DXVK on macOS).
+- `xgameruntime` (LGPL-2.1 Xbox GDK runtime DLL for Microsoft Store / PC Game Pass installs; see [MS_STORE.md](MS_STORE.md)).
 
 The UI exposes a download/install button on each catalog row, and every transfer
 reports phase and percentage through one shared tracker.

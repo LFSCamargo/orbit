@@ -11,6 +11,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { selectActive, selectCompleted, useDownloadStore } from '@/lib/downloadProgress'
 import {
   listLibraryEntries,
+  enqueueMsStoreDownload,
   enqueueSteamDownload,
   pauseActiveDownload,
   removeQueuedDownload,
@@ -26,10 +27,15 @@ import { SectionHeading } from './downloads/SectionHeading'
 import { QueueRow } from './downloads/QueueRow'
 import { ICON_BUTTON, ROW } from './downloads/styles'
 
-/** `steam:<appid>` for game downloads; Steam setup and components have none. */
-function steamAppId(key: string): string | null {
-  const match = /^steam:(\d+)$/.exec(key)
-  return match ? match[1] : null
+/** `steam:<appid>` or `msstore:<productId>` for game downloads. */
+function downloadTarget(
+  key: string,
+): { provider: 'steam' | 'ms-store'; id: string } | null {
+  const steam = /^steam:(\d+)$/.exec(key)
+  if (steam) return { provider: 'steam', id: steam[1] }
+  const msstore = /^msstore:([A-Za-z0-9]{12})$/.exec(key)
+  if (msstore) return { provider: 'ms-store', id: msstore[1].toUpperCase() }
+  return null
 }
 
 /** The downloads panel: Orbit's drawer (components/ui/drawer.tsx) from the
@@ -99,21 +105,22 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
               />
             )}
             {downloads.map((task, index) => {
-              const appId = steamAppId(task.key)
+              const target = downloadTarget(task.key)
+              const appId = target?.id ?? null
               const running = task.progress?.phase !== 'Ready'
               const isQueued = appId !== null && queue.active?.appId === appId
               return (
                 <DownloadRow
                   key={task.key}
                   task={task}
-                  appId={appId}
+                  appId={target?.provider === 'steam' ? appId : null}
                   coverUrl={isQueued ? queue.active?.coverUrl : null}
                   order={10 + index}
                   onPause={
                     isQueued && running ? () => void pauseActiveDownload() : undefined
                   }
                   onCancel={
-                    isQueued && running
+                    isQueued && running && appId
                       ? () => void removeQueuedDownload(appId)
                       : undefined
                   }
@@ -122,13 +129,13 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
               )
             })}
             {failed.map(([key, failure], index) => {
-              const appId = steamAppId(key)
+              const target = downloadTarget(key)
               return (
                 <div key={key} className={ROW} role="alert">
                   <p className="m-0 min-w-0 flex-1 text-[12px] leading-[1.4] text-[#ffb4b4]">
                     {failure}
                   </p>
-                  {appId && (
+                  {target && (
                     <Focusable
                       focusId={`steam-retry-${key}`}
                       group="steam-activity"
@@ -138,7 +145,9 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
                       className={ICON_BUTTON}
                       onClick={() => {
                         clear(key)
-                        void enqueueSteamDownload(appId)
+                        void (target.provider === 'ms-store'
+                          ? enqueueMsStoreDownload(target.id)
+                          : enqueueSteamDownload(target.id))
                       }}
                     >
                       <RotateCw size={14} />

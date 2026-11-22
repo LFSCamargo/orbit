@@ -1,0 +1,95 @@
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -1629,6 +1629,77 @@
+     return status;
+ }
+ 
++/* Orbit / Xodus: allow the host launcher to pass pre-opened file descriptors for
++ * decrypted Microsoft Store GDK executables via WINE_DLL_FILE_MAP so plaintext
++ * binaries never hit persistent storage. Format: "<fd>:<nt_path>|<fd>:<nt_path>" */
++static NTSTATUS open_mapped_dll_file( const char *name, HANDLE *handle, HANDLE *mapping,
++                                      SECTION_IMAGE_INFORMATION *image_info,
++                                      const struct file_id *id )
++{
++    const char *env = getenv( "WINE_DLL_FILE_MAP" );
++    const char *p;
++    int mapped_fd = -1;
++    size_t name_len;
++    NTSTATUS status;
++    struct stat st;
++    int dup_fd;
++
++    if (!env || !name || !*name) return STATUS_OBJECT_NAME_NOT_FOUND;
++    name_len = strlen( name );
++
++    for (p = env; *p; )
++    {
++        const char *colon = strchr( p, ':' );
++        const char *sep;
++        size_t path_len;
++        char *endptr = NULL;
++        long fd_val;
++
++        if (!colon) break;
++        sep = strchr( colon + 1, '|' );
++        path_len = sep ? (size_t)(sep - (colon + 1)) : strlen( colon + 1 );
++
++        if (path_len == name_len && !strncasecmp( colon + 1, name, path_len ))
++        {
++            fd_val = strtol( p, &endptr, 10 );
++            if (endptr == colon && fd_val >= 0 && fd_val <= 65535)
++            {
++                mapped_fd = (int)fd_val;
++                break;
++            }
++        }
++        if (!sep) break;
++        p = sep + 1;
++    }
++
++    if (mapped_fd < 0) return STATUS_OBJECT_NAME_NOT_FOUND;
++    if (fstat( mapped_fd, &st ) == -1) return STATUS_OBJECT_NAME_NOT_FOUND;
++
++    dup_fd = dup( mapped_fd );
++    if (dup_fd == -1) return errno_to_status( errno );
++
++    status = server_fd_to_handle( dup_fd, GENERIC_READ | SYNCHRONIZE, OBJ_INHERIT, handle );
++    close( dup_fd );
++    if (status) return status;
++
++    if (mapping)
++    {
++        OBJECT_ATTRIBUTES attr;
++        InitializeObjectAttributes( &attr, NULL, 0, NULL, NULL );
++        status = NtCreateSection( mapping, STANDARD_RIGHTS_REQUIRED | SECTION_QUERY |
++                                  SECTION_MAP_READ | SECTION_MAP_EXECUTE,
++                                  &attr, NULL, PAGE_EXECUTE_READ, SEC_IMAGE, *handle );
++        if (!status && image_info)
++        {
++            NtQuerySection( *mapping, SectionImageInformation,
++                            image_info, sizeof(*image_info), NULL );
++        }
++        if (status)
++        {
++            NtClose( *handle );
++            *handle = 0;
++        }
++    }
++    return status;
++}
++
+ /***********************************************************************
+  *           open_dll_file
+  */
+@@ -1641,6 +1712,11 @@
+     int fd, needs_close;
+     NTSTATUS status;
+ 
++    if (!open_mapped_dll_file( name, &handle, mapping, image_info, id ))
++    {
++        NtClose( handle );
++        return STATUS_SUCCESS;
++    }
+     if ((status = open_unix_file( &handle, name, GENERIC_READ | SYNCHRONIZE, &attr, 0,
+                                   FILE_SHARE_READ | FILE_SHARE_DELETE, FILE_OPEN,
+                                   FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE, NULL, 0 )))

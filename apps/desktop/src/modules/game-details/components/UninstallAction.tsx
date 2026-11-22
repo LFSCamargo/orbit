@@ -9,12 +9,14 @@ export function UninstallAction({
   appId,
   title,
   sizeBytes,
+  provider,
   disabled,
   order,
 }: {
   appId: string
   title: string
   sizeBytes: number | null
+  provider?: 'steam' | 'ms-store'
   disabled?: boolean
   order: number
 }) {
@@ -40,7 +42,7 @@ export function UninstallAction({
         </span>
       </Focusable>
       <UninstallDialog
-        game={open ? { appId, title, sizeBytes } : null}
+        game={open ? { appId, title, sizeBytes, provider } : null}
         onClose={() => setOpen(false)}
       />
     </>

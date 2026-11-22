@@ -45,7 +45,8 @@ export function StorageSettings() {
 
   const data = overview.data
   const onRemove = (item: StorageItem) => {
-    if (item.removal.type === 'game') setUninstalling(item)
+    if (item.removal.type === 'game' || item.removal.type === 'msStoreGame')
+      setUninstalling(item)
     else if (item.removal.type === 'component') setRemoving(item)
   }
   const reveal = (item: StorageItem) => {
@@ -113,8 +114,16 @@ export function StorageSettings() {
                 appId: uninstalling.removal.appId,
                 title: uninstalling.name,
                 sizeBytes: uninstalling.sizeBytes,
+                provider: 'steam',
               }
-            : null
+            : uninstalling?.removal.type === 'msStoreGame'
+              ? {
+                  appId: uninstalling.removal.productId,
+                  title: uninstalling.name,
+                  sizeBytes: uninstalling.sizeBytes,
+                  provider: 'ms-store',
+                }
+              : null
         }
         onClose={() => setUninstalling(null)}
       />

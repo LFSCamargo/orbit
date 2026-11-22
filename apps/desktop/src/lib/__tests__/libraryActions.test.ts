@@ -155,14 +155,59 @@ describe('detailsPrimaryAction', () => {
       }).kind,
     ).toBe('cancel')
   })
+
+  it('asks for Microsoft Store sign-in before installing MS Store PC titles', () => {
+    const msStoreEntry = entry({
+      id: 'msstore:9P8LR42PTRGJ',
+      steamAppId: null,
+      owned: true,
+      installations: [],
+      game: {
+        ...entry().game,
+        id: 'msstore:9P8LR42PTRGJ',
+        provider: 'ms-store',
+        platform: 'windows',
+        sourceId: '9P8LR42PTRGJ',
+      },
+    })
+    expect(
+      detailsPrimaryAction({
+        entry: msStoreEntry,
+        running: false,
+        launching: false,
+        cancelling: false,
+        signedIn: false,
+        msStoreSignedIn: false,
+      }),
+    ).toMatchObject({ kind: 'sign-in', label: 'Sign in to Microsoft Store' })
+
+    expect(
+      detailsPrimaryAction({
+        entry: msStoreEntry,
+        running: false,
+        launching: false,
+        cancelling: false,
+        signedIn: false,
+        msStoreSignedIn: true,
+      }),
+    ).toMatchObject({ kind: 'install', label: 'Install' })
+  })
 })
 
 describe('isOrbitManagedDownload', () => {
-  it('recognizes Orbit SteamCMD install paths', () => {
+  it('recognizes Orbit SteamCMD and Microsoft Store install paths', () => {
     expect(
       isOrbitManagedDownload(
         '/Users/me/Library/Application Support/orbit/runtimes/containers/games/steam-10/install',
       ),
+    ).toBe(true)
+    expect(
+      isOrbitManagedDownload(
+        '/Users/me/Library/Application Support/orbit/runtimes/containers/games/msstore-9p8lr42ptrgj/install',
+      ),
+    ).toBe(true)
+    expect(
+      isOrbitManagedDownload('/Volumes/SSD/Orbit Games/msstore/9P8LR42PTRGJ/Game.exe'),
     ).toBe(true)
     expect(
       isOrbitManagedDownload(

@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { Focusable } from '@/components/focus/Focusable'
 import { formatBytes } from '@/lib/format'
-import { uninstallSteamGame } from '@/lib/tauri'
+import { uninstallMsStoreGame, uninstallSteamGame } from '@/lib/tauri'
 import { notify } from '@/lib/toast'
 import type { UninstallReport } from '@/types/downloads'
 
@@ -14,6 +14,7 @@ const INSTALL_STATE_KEYS = [
   'library-entry',
   'games',
   'steam-windows-library',
+  'msstore-catalog',
   'storage-overview',
 ]
 
@@ -34,15 +35,27 @@ export function UninstallDialog({
   game,
   onClose,
 }: {
-  game: { appId: string; title: string; sizeBytes: number | null } | null
+  game: {
+    appId: string
+    title: string
+    sizeBytes: number | null
+    provider?: 'steam' | 'ms-store'
+  } | null
   onClose: () => void
 }) {
   const client = useQueryClient()
   const [deleteSaves, setDeleteSaves] = useState(false)
   useEffect(() => setDeleteSaves(false), [game?.appId])
   const uninstall = useMutation({
-    mutationFn: (target: { appId: string; title: string; deleteSaves: boolean }) =>
-      uninstallSteamGame(target.appId, target.deleteSaves),
+    mutationFn: (target: {
+      appId: string
+      title: string
+      deleteSaves: boolean
+      provider?: 'steam' | 'ms-store'
+    }) =>
+      target.provider === 'ms-store'
+        ? uninstallMsStoreGame(target.appId, target.deleteSaves)
+        : uninstallSteamGame(target.appId, target.deleteSaves),
     onSuccess: (report, target) => {
       for (const key of INSTALL_STATE_KEYS)
         void client.invalidateQueries({ queryKey: [key] })
@@ -73,7 +86,13 @@ export function UninstallDialog({
       busy={uninstall.isPending}
       onCancel={onClose}
       onConfirm={() => {
-        if (game) uninstall.mutate({ appId: game.appId, title: game.title, deleteSaves })
+        if (game)
+          uninstall.mutate({
+            appId: game.appId,
+            title: game.title,
+            deleteSaves,
+            provider: game.provider,
+          })
       }}
     >
       <Focusable

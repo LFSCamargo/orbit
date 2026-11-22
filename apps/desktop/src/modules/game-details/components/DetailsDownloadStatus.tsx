@@ -9,17 +9,24 @@ import {
   useDownloadStore,
 } from '@/lib/downloadProgress'
 import { progressLines } from '@/hooks/useDownloadToasts'
+import { msStoreProductId } from '@/lib/libraryEntries'
 import type { LibraryEntry } from '@/types/library'
 
 /**
- * Glass status panel beside the details command bar: what Steam is doing
- * with this game right now. Hidden when nothing is running or queued.
+ * Glass status panel beside the details command bar: what Steam or Microsoft Store
+ * is doing with this game right now. Hidden when nothing is running or queued.
  */
 export function DetailsDownloadStatus({ entry }: { entry: LibraryEntry }) {
-  const key = entry.steamAppId ? `steam:${entry.steamAppId}` : null
+  const productId = msStoreProductId(entry)
+  const queueId = entry.steamAppId ?? productId
+  const key = entry.steamAppId
+    ? `steam:${entry.steamAppId}`
+    : productId
+      ? `msstore:${productId}`
+      : null
   const task = useDownloadStore((state) => (key ? state.tasks[key] : undefined))
   const queue = useDownloadQueue()
-  const waiting = queuePosition(queue, entry.steamAppId)
+  const waiting = queuePosition(queue, queueId)
   const running = task && task.progress?.phase !== 'Ready'
   if (!running && !waiting) return null
   const percent = running ? downloadPercent(task.progress) : null

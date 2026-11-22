@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/orbit-motion", "crates/orbit-images", "crates/orbit-steam"]
+members = ["crates/orbit-motion", "crates/orbit-images", "crates/orbit-steam", "crates/orbit-msstore"]
 # Built only for Windows by helpers/steam-agent/build.sh; never part of the
 # macOS app build or `cargo test`.
 exclude = ["helpers/steam-agent"]
@@ -23,6 +23,7 @@ tauri-build = { version = "2", features = [] }
 orbit-motion = { path = "crates/orbit-motion" }
 orbit-images = { path = "crates/orbit-images" }
 orbit-steam = { path = "crates/orbit-steam" }
+orbit-msstore = { path = "crates/orbit-msstore" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"

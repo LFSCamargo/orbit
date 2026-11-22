@@ -21,7 +21,8 @@ import { StorageSettings } from '@/modules/settings/components/storage/StorageSe
 import { ThemeSettings } from '@/modules/settings/components/ThemeSettings'
 import { GeneralPreferences } from '@/modules/settings/components/GeneralPreferences'
 import { XboxCloudSettings } from '@/modules/settings/components/XboxCloudSettings'
-import { XBOX_CLOUD_ENABLED } from '@/lib/features'
+import { MsStoreSettings } from '@/modules/settings/components/MsStoreSettings'
+import { MSSTORE_ENABLED, XBOX_CLOUD_ENABLED } from '@/lib/features'
 
 const TABS: {
   id: SettingsTab
@@ -123,6 +124,11 @@ export function SettingsPage() {
                   {XBOX_CLOUD_ENABLED && (
                     <SettingsCard>
                       <XboxCloudSettings />
+                    </SettingsCard>
+                  )}
+                  {MSSTORE_ENABLED && (
+                    <SettingsCard>
+                      <MsStoreSettings />
                     </SettingsCard>
                   )}
                 </section>

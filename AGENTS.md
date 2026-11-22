@@ -78,6 +78,8 @@ ROM downloads or decryption, key management, emulator distribution, automatic on
 
 A local official Steam client for Windows games on macOS is specified in [docs/STEAM_WINDOWS.md](docs/STEAM_WINDOWS.md). The first slice is implemented there. Do not start a second design. An in-prefix silent Steam client for Steamworks titles is still outstanding.
 
+Native Microsoft Store / PC Game Pass GDK (`MSIXVC`) discovery, streaming installation, and Orbit Wine launch (authenticated against Microsoft's official TokenBroker and licensing endpoints; never bypassing DRM or decrypting ROMs) is specified in [docs/MS_STORE.md](docs/MS_STORE.md).
+
 ## Committing
 
 Only commit when asked. Use Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, …). No commented-out code, debug logs, or secrets in the diff. For PR bodies follow the `write-pr-description` skill.

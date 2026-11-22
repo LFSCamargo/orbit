@@ -5,6 +5,7 @@ import { InstallLocationDialog } from '@/components/game/InstallLocationDialog'
 import { useDownloadStore } from '@/lib/downloadProgress'
 import { queuePosition, useDownloadQueue } from '@/hooks/useDownloadQueue'
 import { detailsPrimaryAction } from '@/lib/libraryActions'
+import { msStoreProductId } from '@/lib/libraryEntries'
 import { cancelGameLaunch } from '@/lib/tauri'
 import { open } from '@/lib/dialog'
 import { useUiStore } from '@/stores/ui.store'
@@ -20,34 +21,45 @@ export function DetailsPrimaryAction({
   running,
   sessionId,
   signedIn,
+  msStoreSignedIn = false,
 }: {
   entry: LibraryEntry
   game: Game
   running: boolean
   sessionId: string | null
   signedIn: boolean
+  msStoreSignedIn?: boolean
 }) {
   const { launch, playEntry, stop, update } = useGameActions()
   const setScreen = useUiStore((state) => state.setScreen)
   const setSettingsTab = useUiStore((state) => state.setSettingsTab)
   const [cancelling, setCancelling] = useState(false)
-  const [installing, setInstalling] = useState<{ appId: string; title: string } | null>(
-    null,
-  )
+  const [installing, setInstalling] = useState<{
+    appId: string
+    title: string
+    provider?: 'steam' | 'ms-store'
+  } | null>(null)
   const tasks = useDownloadStore((state) => state.tasks)
   const queue = useDownloadQueue()
+  const productId = msStoreProductId(entry)
   const action = detailsPrimaryAction({
     entry,
     running,
     launching: launch.isPending || playEntry.isPending,
     cancelling,
     signedIn,
+    msStoreSignedIn,
   })
-  const downloadKey = entry.steamAppId ? `steam:${entry.steamAppId}` : null
+  const activeQueueId = entry.steamAppId ?? productId
+  const downloadKey = entry.steamAppId
+    ? `steam:${entry.steamAppId}`
+    : productId
+      ? `msstore:${productId}`
+      : null
   const task = downloadKey ? tasks[downloadKey] : undefined
-  const waiting = queuePosition(queue, entry.steamAppId)
+  const waiting = queuePosition(queue, activeQueueId)
   const downloading =
-    queue.active?.appId === entry.steamAppId ||
+    (activeQueueId !== null && queue.active?.appId === activeQueueId) ||
     Boolean(task && task.progress?.phase !== 'Ready')
   // Steam is writing this game's files: Install and Play wait for it. Progress
   // lives in the status panel beside the command bar and in a toast.
@@ -78,11 +90,23 @@ export function DetailsPrimaryAction({
       return
     }
     if (action.kind === 'install' && entry.steamAppId) {
-      setInstalling({ appId: entry.steamAppId, title: entry.game.title })
+      setInstalling({
+        appId: entry.steamAppId,
+        title: entry.game.title,
+        provider: 'steam',
+      })
+      return
+    }
+    if (action.kind === 'install' && productId) {
+      setInstalling({
+        appId: productId,
+        title: entry.game.title,
+        provider: 'ms-store',
+      })
       return
     }
     if (action.kind === 'sign-in') {
-      setSettingsTab('steam')
+      setSettingsTab(entry.game.provider === 'ms-store' ? 'general' : 'steam')
       setScreen('settings')
       return
     }

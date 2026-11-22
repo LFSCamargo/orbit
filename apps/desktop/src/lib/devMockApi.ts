@@ -3,6 +3,11 @@ import type { LibraryQuery, LibraryEntryPatch } from '@/types/library'
 import type { SteamOwnedGame } from '@/types/steam'
 import type { SteamWindowsPreferences } from '@/types/steam'
 import { localThemeArtwork } from './bundledArtwork'
+import {
+  isMsStoreCommand,
+  mockMsStore,
+  mockMsStoreLibraryEntries,
+} from './devMockMsStore'
 import { isXcloudCommand, mockXcloud, mockXcloudLibraryEntries } from './devMockXcloud'
 import type { Game, GameSession } from '@/types/game'
 import type { ThemeDefinition } from '@/themes/types'
@@ -217,6 +222,7 @@ export async function mockInvoke<T>(
   args?: Record<string, unknown>,
 ): Promise<T> {
   if (isXcloudCommand(cmd)) return mockXcloud(cmd, args, games) as T
+  if (isMsStoreCommand(cmd)) return mockMsStore(cmd, args, games) as T
   switch (cmd) {
     case 'list_library_entries':
     case 'get_library_entry': {
@@ -225,7 +231,7 @@ export async function mockInvoke<T>(
       const entries = [
         ...mockLibrary(games, catalog),
         ...(cmd === 'get_library_entry' || query.includeCloudCatalog
-          ? mockXcloudLibraryEntries(games)
+          ? [...mockXcloudLibraryEntries(games), ...mockMsStoreLibraryEntries(games)]
           : []),
       ]
       return (
@@ -234,9 +240,11 @@ export async function mockInvoke<T>(
               (e) =>
                 e.id === args?.entryId ||
                 e.installations.some((i) => i.gameId === args?.entryId) ||
-                // A saved cloud title keeps its catalog id (as in Rust).
+                // A saved cloud or MS Store title keeps its catalog id (as in Rust).
                 (e.game.provider === 'xcloud' &&
-                  `xcloud:${e.game.sourceId}` === args?.entryId),
+                  `xcloud:${e.game.sourceId}` === args?.entryId) ||
+                (e.game.provider === 'ms-store' &&
+                  `msstore:${e.game.sourceId}` === args?.entryId),
             ) ?? null)
           : mockLibraryPage(entries, query)
       ) as T
@@ -300,6 +308,13 @@ export async function mockInvoke<T>(
             ],
             ['dxmt', 'DirectX 11 graphics', 'DXMT', ['v0.80', 'v0.74', 'v0.73'], true],
             ['moltenvk', 'Vulkan on Metal', 'MoltenVK', ['v1.4.2', 'v1.4.1-rc1'], true],
+            [
+              'xgameruntime',
+              'Xbox GDK runtime',
+              'xgameruntime (LGPL-2.1)',
+              ['v0.1.0'],
+              true,
+            ],
             [
               'gptk',
               'DirectX 11/12 graphics',

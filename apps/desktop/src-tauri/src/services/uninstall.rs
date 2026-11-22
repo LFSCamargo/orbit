@@ -59,6 +59,31 @@ pub fn removal_plan(
     })
 }
 
+/// Builds a strictly contained removal plan for an Orbit-managed Microsoft Store install.
+pub fn msstore_removal_plan(
+    runtimes_root: &Path,
+    product_id: &str,
+    external_library: Option<&Path>,
+    delete_prefix: bool,
+) -> Result<RemovalPlan, String> {
+    if !orbit_msstore::valid_product_id(product_id) {
+        return Err("Microsoft Store product id must be 12 alphanumeric characters".into());
+    }
+    let pid = product_id.to_ascii_uppercase();
+    let games = crate::runtimes::containers::root_in(runtimes_root).join("games");
+    let container = games.join(format!("msstore-{}", pid.to_ascii_lowercase()));
+    let mut installs = vec![(container.join("install"), games.clone())];
+    if let Some(lib) = external_library {
+        let msstore_root = lib.join("msstore");
+        installs.push((msstore_root.join(&pid), msstore_root));
+    }
+    Ok(RemovalPlan {
+        installs,
+        prefix: delete_prefix.then(|| (container.join("prefix"), games)),
+        manifests: Vec::new(),
+    })
+}
+
 /// Adds a Windows game installed in a Steam library folder Orbit reads
 /// (`<library>/steamapps/common`). The folder comes from the app's own
 /// appmanifest and must hold a Windows executable, so a Mac Steam game or an
@@ -349,6 +374,27 @@ mod tests {
             "312990",
         );
         assert!(!plan.finds_game_files(), "steam-windows is never touched");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn msstore_removal_plan_deletes_install_keeps_prefix_by_default_and_rejects_traversal() {
+        let root = temp_root();
+        let runtimes = root.join("runtimes");
+        let external = root.join("External/Orbit Games");
+        let plan = msstore_removal_plan(&runtimes, "9P8LR42PTRGJ", Some(&external), false).unwrap();
+        game_files(&plan.installs[0].0);
+        game_files(&plan.installs[1].0);
+        let prefix = plan.installs[0].0.parent().unwrap().join("prefix");
+        fs::create_dir_all(prefix.join("drive_c/users")).unwrap();
+
+        assert!(plan.finds_game_files());
+        let report = execute(&plan).unwrap();
+        assert_eq!(report.removed_bytes, 256);
+        assert!(!plan.installs[0].0.exists());
+        assert!(!plan.installs[1].0.exists());
+        assert!(prefix.exists(), "saves stay unless delete_prefix is true");
+        assert!(msstore_removal_plan(&runtimes, "../escape", None, false).is_err());
         let _ = fs::remove_dir_all(root);
     }
 }

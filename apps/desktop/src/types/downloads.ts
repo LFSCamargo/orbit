@@ -3,6 +3,7 @@ export interface QueuedDownload {
   title: string
   coverUrl: string | null
   paused: boolean
+  provider?: 'steam' | 'ms-store'
 }
 
 /** The native download queue: one active SteamCMD transfer, the rest in order. */

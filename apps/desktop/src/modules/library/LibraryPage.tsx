@@ -8,6 +8,7 @@ import { useHasFavorites } from '@/hooks/useHasFavorites'
 import { useLibrary } from '@/hooks/useLibrary'
 import { fallbackLibraryView, showFavoritesTab } from '@/lib/favoritesTab'
 import {
+  listMsStoreCatalog,
   listXcloudCatalog,
   refreshSteamWindowsLibrary,
   scanSteamInstallations,
@@ -21,7 +22,8 @@ import { LibrarySkeleton } from './components/LibrarySkeleton'
 import { LibraryToolbar } from './components/LibraryToolbar'
 import { BusyLabel } from '@/components/feedback/BusyLabel'
 import { useXcloudCatalog } from '@/modules/xcloud/hooks/useXcloud'
-import { XBOX_CLOUD_ENABLED } from '@/lib/features'
+import { useMsStoreCatalog } from '@/modules/msstore/hooks/useMsStore'
+import { MSSTORE_ENABLED, XBOX_CLOUD_ENABLED } from '@/lib/features'
 import { useEffect } from 'react'
 
 /** How long typing must pause before Library and Search look a title up. */
@@ -47,10 +49,11 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
   // The Game Pass cloud catalog is cached server-side; once it arrives, All
   // games picks it up as its own section.
   const cloudCatalog = useXcloudCatalog(XBOX_CLOUD_ENABLED)
+  const msStoreCatalog = useMsStoreCatalog(MSSTORE_ENABLED)
   useEffect(() => {
-    if (cloudCatalog.dataUpdatedAt)
+    if (cloudCatalog.dataUpdatedAt || msStoreCatalog.dataUpdatedAt)
       void client.invalidateQueries({ queryKey: ['library'] })
-  }, [client, cloudCatalog.dataUpdatedAt])
+  }, [client, cloudCatalog.dataUpdatedAt, msStoreCatalog.dataUpdatedAt])
   // The field follows every key; the lookup waits for typing to pause.
   const query = search ? searchQuery : filters.query
   const lookup = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
@@ -72,6 +75,7 @@ export function LibraryPage({ search = false }: { search?: boolean }) {
         scanSteamInstallations(),
         refreshSteamWindowsLibrary(),
         ...(XBOX_CLOUD_ENABLED ? [listXcloudCatalog(true)] : []),
+        ...(MSSTORE_ENABLED ? [listMsStoreCatalog(true)] : []),
       ])
     },
     onSuccess: async () => {

@@ -43,9 +43,12 @@ pub struct Saved {
     /// Folders the person added, canonical, in the order added.
     #[serde(default)]
     pub roots: Vec<String>,
-    /// App id → folder for games not on This Mac.
+    /// App id → folder for Steam games not on This Mac.
     #[serde(default)]
     pub by_app: HashMap<String, String>,
+    /// Product id → folder for Microsoft Store games not on This Mac.
+    #[serde(default)]
+    pub by_msstore: HashMap<String, String>,
     /// The location the last download used.
     #[serde(default)]
     pub last: Option<String>,
@@ -58,6 +61,8 @@ impl Saved {
         let roots = self.roots.clone();
         self.by_app
             .retain(|app_id, root| valid_app_id(app_id) && roots.contains(root));
+        self.by_msstore
+            .retain(|pid, root| orbit_msstore::valid_product_id(pid) && roots.contains(root));
         if self.last.as_ref().is_some_and(|last| !roots.contains(last)) {
             self.last = None;
         }
@@ -66,6 +71,11 @@ impl Saved {
 
     fn game_count(&self, root: &str) -> usize {
         self.by_app.values().filter(|value| *value == root).count()
+            + self
+                .by_msstore
+                .values()
+                .filter(|value| *value == root)
+                .count()
     }
 
     /// The folder for a new download: the app's own folder when Steam already
@@ -313,6 +323,67 @@ pub fn choose_for_download(
 pub fn forget_app(repo: &GameRepository, app_id: &str) {
     with_state(repo, |saved| {
         saved.by_app.remove(app_id);
+    });
+}
+
+/// The Orbit Games folder holding a Microsoft Store game when not on This Mac.
+pub fn library_for_msstore(product_id: &str) -> Option<PathBuf> {
+    let pid = product_id.to_ascii_uppercase();
+    let root = snapshot().by_msstore.get(&pid).cloned()?;
+    Some(library_dir(Path::new(&root)))
+}
+
+/// Records where a Microsoft Store download goes and returns that library (None is This Mac).
+pub fn choose_for_msstore_download(
+    repo: &GameRepository,
+    product_id: &str,
+    requested: Option<&str>,
+) -> Result<Option<PathBuf>, String> {
+    if !orbit_msstore::valid_product_id(product_id) {
+        return Err("Microsoft Store product id must be 12 alphanumeric characters".into());
+    }
+    let pid = product_id.to_ascii_uppercase();
+    let root = with_state(repo, |saved| -> Result<Option<String>, String> {
+        if let Some(current) = saved.by_msstore.get(&pid) {
+            if library_dir(Path::new(current))
+                .join("msstore")
+                .join(&pid)
+                .is_dir()
+            {
+                return Ok(Some(current.clone()));
+            }
+        }
+        let wanted = match requested {
+            Some(THIS_MAC) => None,
+            Some(root) => Some(
+                saved
+                    .roots
+                    .iter()
+                    .find(|known| known.as_str() == root)
+                    .cloned()
+                    .ok_or_else(|| "Choose an install location from the list".to_string())?,
+            ),
+            None => saved.last.clone(),
+        };
+        match &wanted {
+            Some(root) => {
+                saved.by_msstore.insert(pid.clone(), root.clone());
+            }
+            None => {
+                saved.by_msstore.remove(&pid);
+            }
+        }
+        saved.last = wanted.clone();
+        Ok(wanted)
+    })?;
+    Ok(root.map(|root| library_dir(Path::new(&root))))
+}
+
+/// After an uninstall, the Microsoft Store game no longer holds its location.
+pub fn forget_msstore(repo: &GameRepository, product_id: &str) {
+    let pid = product_id.to_ascii_uppercase();
+    with_state(repo, |saved| {
+        saved.by_msstore.remove(&pid);
     });
 }
 

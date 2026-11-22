@@ -3,6 +3,7 @@ export type StorageKind = 'game' | 'tool' | 'runtime' | 'other'
 type StorageRemoval =
   | { type: 'none' }
   | { type: 'game'; appId: string }
+  | { type: 'msStoreGame'; productId: string }
   | { type: 'component'; id: string; version: string }
 
 export interface StorageItem {

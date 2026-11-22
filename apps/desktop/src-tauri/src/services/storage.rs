@@ -31,6 +31,7 @@ pub enum StorageKind {
 pub enum StorageRemoval {
     None,
     Game { app_id: String },
+    MsStoreGame { product_id: String },
     Component { id: String, version: String },
 }
 
@@ -164,6 +165,7 @@ fn component_label(id: &str) -> String {
         "gptk" => "Game Porting Toolkit".into(),
         "vkd3d-proton" => "VKD3D-Proton".into(),
         "zink" => "Zink".into(),
+        "xgameruntime" => "Xbox GDK Runtime (xgameruntime)".into(),
         other => other.into(),
     }
 }
@@ -212,9 +214,12 @@ impl Scan<'_> {
             if game.bytes == 0 {
                 continue;
             }
-            let removal = match (&game.steam_app_id, game.removable) {
-                (Some(app_id), true) => StorageRemoval::Game {
+            let removal = match (&game.steam_app_id, &game.msstore_product_id, game.removable) {
+                (Some(app_id), _, true) => StorageRemoval::Game {
                     app_id: app_id.clone(),
+                },
+                (_, Some(product_id), true) => StorageRemoval::MsStoreGame {
+                    product_id: product_id.clone(),
                 },
                 _ => StorageRemoval::None,
             };
@@ -276,30 +281,69 @@ impl Scan<'_> {
             }
             for container in children(&kind) {
                 let folder = name_of(&container);
-                let Some(app_id) = folder
+                if let Some(app_id) = folder
                     .strip_prefix("steam-")
                     .filter(|id| crate::services::steam_download::valid_app_id(id))
-                else {
-                    self.other(&container, &format!("container:{folder}"), "Game container");
-                    continue;
-                };
-                for part in children(&container) {
-                    if name_of(&part) == "install" {
-                        self.game(&part, app_id);
-                    } else {
-                        let title = self
-                            .context
-                            .titles
-                            .get(app_id)
-                            .cloned()
-                            .unwrap_or_else(|| format!("Steam {app_id}"));
-                        self.other(
-                            &part,
-                            &format!("game-data:{app_id}:{}", name_of(&part)),
-                            &format!("{title} · saves & settings"),
-                        );
+                {
+                    for part in children(&container) {
+                        if name_of(&part) == "install" {
+                            self.game(&part, app_id);
+                        } else {
+                            let title = self
+                                .context
+                                .titles
+                                .get(app_id)
+                                .cloned()
+                                .unwrap_or_else(|| format!("Steam {app_id}"));
+                            self.other(
+                                &part,
+                                &format!("game-data:{app_id}:{}", name_of(&part)),
+                                &format!("{title} · saves & settings"),
+                            );
+                        }
                     }
+                    continue;
                 }
+                if let Some(product_id) = folder
+                    .strip_prefix("msstore-")
+                    .filter(|id| orbit_msstore::valid_product_id(id))
+                {
+                    let pid = product_id.to_ascii_uppercase();
+                    for part in children(&container) {
+                        if name_of(&part) == "install" {
+                            let name = self
+                                .context
+                                .titles
+                                .get(&pid)
+                                .cloned()
+                                .unwrap_or_else(|| format!("Microsoft Store {pid}"));
+                            self.push(
+                                &part,
+                                format!("game:msstore:{pid}"),
+                                name,
+                                StorageKind::Game,
+                                StorageRemoval::MsStoreGame {
+                                    product_id: pid.clone(),
+                                },
+                                None,
+                            );
+                        } else {
+                            let title = self
+                                .context
+                                .titles
+                                .get(&pid)
+                                .cloned()
+                                .unwrap_or_else(|| format!("Microsoft Store {pid}"));
+                            self.other(
+                                &part,
+                                &format!("game-data:msstore:{pid}:{}", name_of(&part)),
+                                &format!("{title} · saves & settings"),
+                            );
+                        }
+                    }
+                    continue;
+                }
+                self.other(&container, &format!("container:{folder}"), "Game container");
             }
         }
     }
@@ -627,6 +671,7 @@ mod tests {
             entry_id: id.into(),
             title: title.into(),
             steam_app_id: None,
+            msstore_product_id: None,
             cover: None,
             root: canonical(dir),
             bytes,

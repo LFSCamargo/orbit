@@ -1,0 +1,26 @@
+[package]
+name = "orbit-msstore"
+version = "0.1.0"
+edition = "2021"
+description = "Clean-room Microsoft Store / Xbox PC (GDK / MSIXVC) protocol, licensing, and streaming installer crate for Orbit"
+
+[dependencies]
+aes = "0.8"
+aes-kw = "0.2"
+base64 = "0.22"
+cbc = { version = "0.1", features = ["alloc"] }
+chrono = { version = "0.4", features = ["serde"] }
+cipher = "0.4"
+hmac = "0.12"
+num-bigint-dig = "0.8"
+num-integer = "0.1"
+quick-xml = "0.37"
+rand = "0.8"
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking"], default-features = false }
+rsa = { version = "0.9", default-features = false, features = ["std", "sha2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+zeroize = { version = "1.9", features = ["derive"] }

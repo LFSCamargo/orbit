@@ -40,8 +40,14 @@ pub(crate) fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, String> {
         &state.repo,
         &mut games,
     );
+    let msstore = crate::services::msstore_catalog::catalog_library_entries(
+        &state.metadata_cache,
+        &state.repo,
+        &games,
+    );
     let mut result = library::merge(games, catalog);
     result.extend(cloud);
+    result.extend(msstore);
     result.sort_by(|a, b| {
         a.game
             .sort_title
@@ -118,7 +124,9 @@ pub async fn list_library_entries(
         let mut entries: Vec<_> = entries(&state)?
             .into_iter()
             .filter(|e| {
-                (catalog || !crate::services::xcloud_library::is_unsaved(e))
+                (catalog
+                    || (!crate::services::xcloud_library::is_unsaved(e)
+                        && !crate::services::msstore_catalog::is_unsaved(e)))
                     && !e.game.hidden
                     && crate::utils::search_text::matches(&e.game.title, &term)
                     && match query.view.as_deref().unwrap_or("installed") {

@@ -27,9 +27,11 @@ import {
   entryInstallStatus,
   entrySizes,
   isPlaceholderDescription,
-  uninstallAppId as findUninstallAppId,
+  uninstallTarget as findUninstallTarget,
   selectInstallation,
 } from '@/lib/libraryEntries'
+import { MSSTORE_ENABLED } from '@/lib/features'
+import { useMsStoreStatus } from '@/modules/msstore/hooks/useMsStore'
 import { isOrbitManagedDownload } from '@/lib/libraryActions'
 import { downloadSteamWindowsGame, enrichGameMetadata, revealPath } from '@/lib/tauri'
 import { AchievementList } from './components/AchievementList'
@@ -76,6 +78,7 @@ export function GameDetailsPage() {
   const { update, remove } = useLibraryActions()
   const { launch, playEntry } = useGameActions()
   const steam = useSteamWindows()
+  const msStore = useMsStoreStatus(MSSTORE_ENABLED)
   const queryClient = useQueryClient()
   const activeSession = useSessionStore((s) => s.activeSession)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -141,7 +144,7 @@ export function GameDetailsPage() {
   const installation = selectInstallation(entry)
   const canSave = entryCanSave(entry)
   const installStatus = entryInstallStatus(entry)
-  const uninstallAppId = findUninstallAppId(entry)
+  const uninstallTarget = findUninstallTarget(entry)
   const known = entrySizes(entry)
   const sizes = {
     diskBytes: installSize.measured?.sizeBytes ?? known.diskBytes,
@@ -194,6 +197,7 @@ export function GameDetailsPage() {
           running={running}
           sessionId={activeSession?.id ?? null}
           signedIn={steam.status.data?.sessionReady === true}
+          msStoreSignedIn={msStore.data?.signedIn === true}
         />
         {game.provider === 'xcloud' && (
           <CloudGameActions
@@ -422,9 +426,10 @@ export function GameDetailsPage() {
                     </span>
                   </Focusable>
                 )}
-                {uninstallAppId && (
+                {uninstallTarget && (
                   <UninstallAction
-                    appId={uninstallAppId}
+                    appId={uninstallTarget.id}
+                    provider={uninstallTarget.provider}
                     title={game.title}
                     sizeBytes={sizes.diskBytes}
                     disabled={running}

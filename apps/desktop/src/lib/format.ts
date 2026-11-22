@@ -56,6 +56,8 @@ export function providerLabel(provider: string): string {
       return 'Manual'
     case 'xcloud':
       return 'Xbox Cloud Gaming'
+    case 'ms-store':
+      return 'Microsoft Store'
     default:
       return provider
   }

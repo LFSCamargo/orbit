@@ -278,6 +278,33 @@ fn zink_component() -> CatalogComponent {
     )
 }
 
+/// LGPL-2.1 `xgameruntime.dll` bridge for Microsoft Store / PC Game Pass GDK titles.
+async fn xgameruntime_component() -> CatalogComponent {
+    let versions = match fetch_releases("xodus-gaming/xgameruntime").await {
+        Ok(releases) => compatible_versions(releases, |asset| {
+            asset.name.ends_with(".tar.gz")
+                || asset.name.ends_with(".tar.xz")
+                || asset.name.ends_with(".tar.zst")
+        }),
+        Err(_) => Vec::new(),
+    };
+    let downloadable = !versions.is_empty();
+    let distribution = if downloadable {
+        "LGPL-2.1 builds (or register a local path)"
+    } else {
+        "LGPL-2.1 · Register a local path"
+    };
+    component(
+        "xgameruntime",
+        "Xbox GDK runtime",
+        "xgameruntime (LGPL-2.1)",
+        "https://github.com/xodus-gaming/xgameruntime",
+        distribution,
+        versions,
+        downloadable,
+    )
+}
+
 async fn gptk_component() -> Result<CatalogComponent> {
     // Versioned GPTK installs across three legitimate sources:
     // 1. Apple's official Homebrew formula: only Apple's current build.
@@ -344,13 +371,14 @@ pub async fn catalog(force_refresh: bool) -> CompatibilityCatalog {
             }
         }
     }
-    let (wine, dxvk, dxmt, moltenvk, vkd3d, gptk) = tokio::join!(
+    let (wine, dxvk, dxmt, moltenvk, vkd3d, gptk, xgameruntime) = tokio::join!(
         wine_components(),
         dxvk_component(),
         dxmt_component(),
         moltenvk_component(),
         vkd3d_proton_component(),
         gptk_component(),
+        xgameruntime_component(),
     );
     let mut components = Vec::new();
     let mut warnings = Vec::new();
@@ -369,6 +397,7 @@ pub async fn catalog(force_refresh: bool) -> CompatibilityCatalog {
         }
     }
     components.push(zink_component());
+    components.push(xgameruntime);
     let catalog = CompatibilityCatalog {
         components,
         fetched_at: chrono::Utc::now().to_rfc3339(),
