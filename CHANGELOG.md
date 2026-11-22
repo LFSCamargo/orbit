@@ -20,6 +20,32 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-21
+
+Controller and gameplay performance, smoother cloud streaming, and codebase cleanup
+
+### Changed
+
+- Gamepad polling runs only while a controller is connected and not suspended, using a 500 ms discovery check when idle instead of polling every frame.
+- Controller input no longer re-renders the entire app on every press or stick-scroll frame, and navigation listeners stay mounted across screen transitions without leaking Tauri event listeners.
+- Spatial focus notifies only the controls gaining or losing focus (`O(1)` per move) and filters candidates by geometry before checking computed styles.
+- Right-stick pane scrolling resolves the scrollable container once per gesture instead of walking computed styles at 60 Hz.
+- Home hero artwork and entry lookups wait 160 ms for focus to settle so holding the D-pad does not decode full-size art for every tile passed.
+- Orbit backs off background work while a local game or cloud stream is active: native Home-button polling slows from 50 ms to 100 ms, network updates only fire on online-state changes, process liveness uses `kill(pid, 0)` directly instead of spawning a subprocess, and active-session polling drops to a 10 s safety net.
+- Xbox Cloud Gaming streams request keyframes on demand (after a 1 s freeze or when resuming from the Home menu, throttled to once every 2 s) instead of every 5 s, suspend Orbit's in-page and native controller polling during play, stop painting Orbit screens behind the player, and avoid per-frame input allocations at 60 Hz.
+- Windows Steam container sessions move `steamwebhelper` browser processes in the game's `WINEPREFIX` to macOS background priority (`PRIO_DARWIN_BG`) during play while keeping `steam.exe` and `wineserver` at normal priority, restoring normal priority when play ends.
+- Added Knip (`yarn knip`) as a quality gate to catch unused files, exports, and dependencies.
+
+### Fixed
+
+- Steam Input is now off by default for Windows container games so `winebus` delivers controller input directly via Orbit's SDL mappings without Wine/Rosetta translation stutter. Existing saved choices are preserved, and Settings → Steam can still enable it per setup.
+
+### Removed
+
+- Unused frontend components, hooks, helpers, and stale modules identified by Knip across desktop and landing.
+
+[2.2.0]: https://github.com/LFSCamargo/orbit/releases/tag/v2.2.0
+
 ## [2.1.0] - 2026-11-20
 
 Xbox Cloud Gaming in Orbit, game themes, and launch showcases
