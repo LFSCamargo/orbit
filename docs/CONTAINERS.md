@@ -107,6 +107,17 @@ and Rosetta it translates every controller report inside Steam and stutters
 games; winebus already gives the game the pad as XInput). A file Orbit
 cannot round-trip, or one over 256 KB, is left alone.
 
+While a container game plays, `services/steam_helper_priority.rs` moves that
+container's `steamwebhelper` processes (Steam's Chromium, matched by
+`WINEPREFIX=` in their environment) to macOS background priority
+(`setpriority(PRIO_DARWIN_PROCESS, PRIO_DARWIN_BG)`: efficiency cores,
+throttled I/O). Under Wine and Rosetta the helper wakes on saves,
+achievements and cloud sync, which games trigger as a new area loads, and its
+bursts dropped frames there. `steam.exe` (the game's Steamworks peer) and the
+wineserver keep their priority. The session monitor sweeps 2 s and 10 s after
+start, then once a minute for a restarted helper; the session's end restores
+normal priority for the resident client.
+
 ## Controllers in games
 
 Games see controllers through Wine's `winebus`. On macOS its IOHID backend

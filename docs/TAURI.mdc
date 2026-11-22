@@ -121,6 +121,7 @@ src-tauri/src/
     steam_native/          # Container install paths, depot plan, cloud, agent presence
     steam_client.rs        # Settings phase labels from signed-in state; no keep-alive
     steam_play.rs          # Per-game container seed + game EXE with SteamAppId
+    steam_helper_priority.rs # Container's steamwebhelper at background priority while its game plays
     steam_library_paths.rs # Additional Steam library folders
     steam_client_library.rs # Wine Steam libraryfolders.vdf + extra-library links
     library.rs             # Canonical LibraryEntry merge
