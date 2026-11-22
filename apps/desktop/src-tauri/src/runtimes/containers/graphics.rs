@@ -4,10 +4,20 @@ use anyhow::{Context, Result};
 use std::{
     collections::BTreeMap,
     fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 
 use crate::runtimes::settings::GraphicsBackend;
+
+const GRAPHICS_DLLS: [&str; 6] = [
+    "d3d10.dll",
+    "d3d10core.dll",
+    "d3d11.dll",
+    "d3d12.dll",
+    "d3d12core.dll",
+    "dxgi.dll",
+];
 
 #[derive(Default)]
 pub struct GraphicsLinks {
@@ -37,6 +47,7 @@ pub fn apply(
         GraphicsBackend::Dxmt => {
             let source = selected(selections, "dxmt")?;
             if source.join("x86_64-windows/d3d11.dll").is_file() {
+                remove_native_graphics_dlls(prefix);
                 link_named(
                     prefix,
                     &source.join("x86_64-windows/winemetal.dll"),
@@ -69,6 +80,7 @@ pub fn apply(
             .into_iter()
             .find(|path| path.join("x86_64-windows/d3d11.dll").is_file())
             .context("The Game Porting Toolkit has no D3DMetal libraries. Reimport the evaluation environment")?;
+            remove_native_graphics_dlls(prefix);
             for name in ["d3d11", "dxgi", "d3d12", "d3d12core", "d3d10"] {
                 let source = libraries.join(format!("x86_64-windows/{name}.dll"));
                 if source.is_file() {
@@ -78,13 +90,47 @@ pub fn apply(
             let mut env = crate::runtimes::wine::gptk_bridge_env(&payload, &libraries);
             env.extend(ahead_of_wine_builtins(&libraries));
             Ok(GraphicsLinks {
-                overrides: "d3d11=b;d3d10=b;d3d12=b;d3d12core=b;dxgi=b".into(),
+                overrides: "d3d11=b;d3d10=b;d3d10core=b;d3d12=b;d3d12core=b;dxgi=b".into(),
                 dll_path: Some(libraries.to_string_lossy().into_owned()),
                 env,
             })
         }
-        GraphicsBackend::Auto | GraphicsBackend::Wine => Ok(GraphicsLinks::default()),
+        GraphicsBackend::Auto | GraphicsBackend::Wine => {
+            remove_native_graphics_dlls(prefix);
+            Ok(GraphicsLinks::default())
+        }
     }
+}
+
+/// Remove native (non-builtin) graphics DLLs left in `system32` or `syswow64`
+/// by an earlier DXVK run so Wine and builtin backends (D3DMetal, DXMT) do not
+/// find stray native PE files in the prefix.
+fn remove_native_graphics_dlls(prefix: &Path) {
+    for dir in ["drive_c/windows/system32", "drive_c/windows/syswow64"] {
+        let folder = prefix.join(dir);
+        for name in GRAPHICS_DLLS {
+            let path = folder.join(name);
+            if path.is_file() && !is_wine_builtin(&path) {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+}
+
+fn is_wine_builtin(path: &Path) -> bool {
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut header = [0u8; 256];
+    let Ok(read) = file.read(&mut header) else {
+        return false;
+    };
+    header[..read]
+        .windows(b"Wine builtin DLL".len())
+        .any(|window| window == b"Wine builtin DLL")
+        || header[..read]
+            .windows(b"Wine placeholder DLL".len())
+            .any(|window| window == b"Wine placeholder DLL")
 }
 
 /// Builtin translation DLLs must be found before Wine's own `dxgi`/`d3d1x`, or
@@ -218,6 +264,47 @@ mod tests {
             links.env.get("WINEDLLPATH_PREPEND").map(String::as_str),
             libraries.to_str()
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn d3dmetal_removes_stray_native_dxvk_dlls_and_keeps_wine_builtins() {
+        let root = std::env::temp_dir().join(format!("orbit-gfx-clean-{}", uuid::Uuid::new_v4()));
+        let payload = root.join("gptk");
+        let libraries = payload.join("redist/lib/wine");
+        fs::create_dir_all(libraries.join("x86_64-windows")).unwrap();
+        let builtin = b"MZ\x90\x00Wine builtin DLL\x00";
+        for name in ["d3d11", "dxgi", "d3d12", "d3d12core", "d3d10"] {
+            fs::write(
+                libraries.join(format!("x86_64-windows/{name}.dll")),
+                builtin,
+            )
+            .unwrap();
+        }
+        let prefix = root.join("prefix");
+        let system32 = prefix.join("drive_c/windows/system32");
+        let syswow64 = prefix.join("drive_c/windows/syswow64");
+        fs::create_dir_all(&system32).unwrap();
+        fs::create_dir_all(&syswow64).unwrap();
+        // Stray native DXVK DLLs from an earlier run.
+        fs::write(system32.join("d3d10core.dll"), b"MZ native dxvk").unwrap();
+        fs::write(syswow64.join("d3d11.dll"), b"MZ native dxvk 32").unwrap();
+        fs::write(syswow64.join("d3d10core.dll"), b"MZ native dxvk 32").unwrap();
+        // Wine's own 32-bit builtin dxgi.dll must stay.
+        fs::write(syswow64.join("dxgi.dll"), builtin).unwrap();
+
+        apply(
+            &prefix,
+            GraphicsBackend::D3dmetal,
+            &BTreeMap::from([("gptk".into(), payload.to_string_lossy().into_owned())]),
+        )
+        .unwrap();
+
+        assert!(!system32.join("d3d10core.dll").exists());
+        assert!(!syswow64.join("d3d11.dll").exists());
+        assert!(!syswow64.join("d3d10core.dll").exists());
+        assert!(syswow64.join("dxgi.dll").is_file());
+        assert_eq!(fs::read(system32.join("d3d11.dll")).unwrap(), builtin);
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -4,9 +4,11 @@
 //! container included: Capcom's RE Engine titles crash in DirectX 12 under
 //! D3DMetal (Devil May Cry 5: a null read inside the game), so their own ini
 //! is set to DirectX 11, and Steam's overlay, which those games also trip on,
-//! stays off. Any other game that crashes while starting steps down a ladder
-//! on its next launch: RE Engine games (found by `re_chunk_000.pak`) switch
-//! to DirectX 11, then the graphics layer switches to DXVK.
+//! stays off. An RE Engine game (found by `re_chunk_000.pak`) that crashes
+//! while starting gets DirectX 11 in its own ini on the next launch.
+//!
+//! The graphics layer is the person's choice and is never changed here: an
+//! earlier ladder switched crashing games to DXVK, which broke GPTK setups.
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -15,7 +17,6 @@ use parking_lot::Mutex;
 use serde_json::json;
 
 use crate::database::GameRepository;
-use crate::runtimes::settings::GraphicsBackend;
 use crate::services::steam_download::valid_app_id;
 
 struct KnownGame {
@@ -53,21 +54,22 @@ const SCAN_LIMIT: usize = 256;
 const STARTUP_SECONDS: i64 = 120;
 /// Steam was not ready; Orbit already explains it and graphics are not at fault.
 const STEAM_NOT_READY: i32 = 53;
+/// Killed by a signal (`ExitStatus::code() == None`): Stop, or Wine torn down.
+/// Not a crash the game made while starting.
+const SIGNAL_TERMINATED: i32 = -1;
 
 /// How far down the ladder a game is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Fallback {
     None = 0,
     DirectX11 = 1,
-    Dxvk = 2,
 }
 
 impl Fallback {
     fn from_step(step: u8) -> Self {
         match step {
-            0 => Self::None,
             1 => Self::DirectX11,
-            _ => Self::Dxvk,
+            _ => Self::None,
         }
     }
 }
@@ -78,6 +80,20 @@ fn known(app_id: &str) -> Option<&'static KnownGame> {
     KNOWN.iter().find(|game| game.app_id == app_id)
 }
 
+/// Valid entries only. Step 2 (DXVK) from earlier builds is dropped so the
+/// game launches with the person's graphics layer again; the bool says
+/// whether anything was dropped. O(n), n ≤ 1024.
+fn sanitize_steps(steps: HashMap<String, u8>) -> (HashMap<String, u8>, bool) {
+    let before = steps.len();
+    let kept: HashMap<String, u8> = steps
+        .into_iter()
+        .filter(|(app_id, step)| valid_app_id(app_id) && *step == Fallback::DirectX11 as u8)
+        .take(1024)
+        .collect();
+    let dropped = kept.len() != before;
+    (kept, dropped)
+}
+
 /// Loads the recorded fallbacks once at startup.
 pub fn restore(repo: &GameRepository) {
     let steps: HashMap<String, u8> = repo
@@ -86,13 +102,11 @@ pub fn restore(repo: &GameRepository) {
         .flatten()
         .and_then(|value| serde_json::from_value(value).ok())
         .unwrap_or_default();
-    *STEPS.lock() = Some(
-        steps
-            .into_iter()
-            .filter(|(app_id, step)| valid_app_id(app_id) && *step <= 2)
-            .take(1024)
-            .collect(),
-    );
+    let (steps, dropped) = sanitize_steps(steps);
+    if dropped {
+        let _ = repo.set_setting(FALLBACK_KEY, &json!(steps));
+    }
+    *STEPS.lock() = Some(steps);
 }
 
 pub fn fallback(app_id: &str) -> Fallback {
@@ -110,20 +124,22 @@ pub fn overlay_allowed(app_id: &str, preferred: bool) -> bool {
 }
 
 pub fn is_startup_crash(exit_code: Option<i32>, duration_seconds: i64) -> bool {
-    matches!(exit_code, Some(code) if code != 0 && code != STEAM_NOT_READY)
-        && duration_seconds < STARTUP_SECONDS
+    matches!(
+        exit_code,
+        Some(code) if code != 0 && code != SIGNAL_TERMINATED && code != STEAM_NOT_READY
+    ) && duration_seconds < STARTUP_SECONDS
 }
 
 pub fn is_re_engine(install_dir: &Path) -> bool {
     install_dir.join("re_chunk_000.pak").is_file()
 }
 
-/// The next step after a startup crash, or None when the ladder is used up.
+/// The next step after a startup crash, or None when there is nothing left
+/// Orbit may change. Only RE Engine games have a step (their own ini).
 pub fn next_fallback(current: Fallback, re_engine: bool) -> Option<Fallback> {
     match current {
         Fallback::None if re_engine => Some(Fallback::DirectX11),
-        Fallback::None | Fallback::DirectX11 => Some(Fallback::Dxvk),
-        Fallback::Dxvk => None,
+        Fallback::None | Fallback::DirectX11 => None,
     }
 }
 
@@ -143,21 +159,6 @@ pub fn record_startup_crash(
     steps.insert(app_id.to_string(), next as u8);
     let _ = repo.set_setting(FALLBACK_KEY, &json!(steps));
     Some(next)
-}
-
-/// The graphics layer to launch with: DXVK once the ladder reached it and
-/// DXVK is installed, otherwise the resolved choice. O(1).
-pub fn graphics_for(
-    app_id: &str,
-    resolved: GraphicsBackend,
-    selections: &std::collections::BTreeMap<String, String>,
-) -> GraphicsBackend {
-    let dxvk_ready = selections.contains_key("dxvk") && selections.contains_key("moltenvk");
-    if fallback(app_id) == Fallback::Dxvk && dxvk_ready {
-        GraphicsBackend::Dxvk
-    } else {
-        resolved
-    }
 }
 
 /// The ini with `TargetPlatform` set to DirectX 11, or None when it already is.
@@ -294,6 +295,10 @@ mod tests {
         assert!(is_startup_crash(Some(-1_073_741_819), 20));
         assert!(!is_startup_crash(Some(0), 20), "a clean quit");
         assert!(
+            !is_startup_crash(Some(-1), 20),
+            "a signal kill is not a game crash"
+        );
+        assert!(
             !is_startup_crash(Some(53), 5),
             "Steam not ready has its own message"
         );
@@ -303,12 +308,12 @@ mod tests {
             next_fallback(Fallback::None, true),
             Some(Fallback::DirectX11)
         );
-        assert_eq!(next_fallback(Fallback::None, false), Some(Fallback::Dxvk));
         assert_eq!(
-            next_fallback(Fallback::DirectX11, true),
-            Some(Fallback::Dxvk)
+            next_fallback(Fallback::None, false),
+            None,
+            "the graphics layer is never changed behind the person's back"
         );
-        assert_eq!(next_fallback(Fallback::Dxvk, true), None);
+        assert_eq!(next_fallback(Fallback::DirectX11, true), None);
     }
 
     #[test]
@@ -338,36 +343,27 @@ mod tests {
             fs::read_to_string(dir.join("other.ini")).unwrap(),
             "Volume=10\n"
         );
+        assert_eq!(record_startup_crash(&repo, "1196590", Some(&dir)), None);
         let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
-    fn dxvk_is_used_only_when_reached_and_installed() {
+    fn restore_drops_legacy_dxvk_fallbacks() {
         let repo = GameRepository::open_in_memory().unwrap();
-        let mut selections = std::collections::BTreeMap::new();
-        assert_eq!(
-            record_startup_crash(&repo, "2000001", None),
-            Some(Fallback::Dxvk)
-        );
-        assert_eq!(
-            graphics_for("2000001", GraphicsBackend::D3dmetal, &selections),
-            GraphicsBackend::D3dmetal,
-            "DXVK is not installed"
-        );
-        selections.insert("dxvk".into(), "/dxvk".into());
-        selections.insert("moltenvk".into(), "/mvk".into());
-        assert_eq!(
-            graphics_for("2000001", GraphicsBackend::D3dmetal, &selections),
-            GraphicsBackend::Dxvk
-        );
-        assert_eq!(
-            graphics_for("2000002", GraphicsBackend::D3dmetal, &selections),
-            GraphicsBackend::D3dmetal
-        );
-        assert_eq!(
-            record_startup_crash(&repo, "2000001", None),
-            None,
-            "ladder used up"
-        );
+        repo.set_setting(
+            FALLBACK_KEY,
+            &json!({
+                "1593500": 2,
+                "1196590": 1
+            }),
+        )
+        .unwrap();
+        restore(&repo);
+        assert_eq!(fallback("1593500"), Fallback::None);
+        assert_eq!(fallback("1196590"), Fallback::DirectX11);
+        let stored: HashMap<String, u8> =
+            serde_json::from_value(repo.get_setting(FALLBACK_KEY).unwrap().unwrap()).unwrap();
+        assert!(!stored.contains_key("1593500"));
+        assert_eq!(stored.get("1196590"), Some(&1));
     }
 }

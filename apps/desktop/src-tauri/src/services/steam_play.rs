@@ -49,8 +49,6 @@ pub fn launch_owned_with(
     let preferences = steam_windows::preferences(repo).unwrap_or_default();
     let mut resolved = crate::runtimes::settings::resolve_profile(repo, &profile)
         .map_err(|err| format!("{err:#}"))?;
-    resolved.effective.graphics =
-        super::game_fixes::graphics_for(app_id, resolved.effective.graphics, &resolved.selections);
     let prefix = play_environment(&resolved, app_id, cancel, &preferences, progress)?;
     resolved.shared_prefix = Some(prefix.to_string_lossy().into_owned());
     start_title(&resolved, &game.id, app_id, cancel, progress)

@@ -116,13 +116,6 @@ impl SessionManager {
                                 .ok_or_else(|| {
                                     anyhow::anyhow!("This game's Steam id must be a number")
                                 })?;
-                            // A game that crashed while starting launches with
-                            // the next fallback graphics layer.
-                            resolved.effective.graphics = crate::services::game_fixes::graphics_for(
-                                &app_id,
-                                resolved.effective.graphics,
-                                &resolved.selections,
-                            );
                             let preferences = crate::services::steam_windows::preferences(repo)
                                 .unwrap_or_default();
                             *last_step.lock() = "container".to_string();
@@ -356,8 +349,8 @@ impl SessionManager {
     }
 }
 
-/// A Windows game that crashed while starting gets the next fallback on its
-/// next launch; the launch card says what changed instead of only the code.
+/// An RE Engine game that crashed while starting switches its ini to DirectX 11
+/// for the next launch; the launch card says what changed.
 fn record_crash_fallback(app: &AppHandle, repo: &GameRepository, ended: &GameSession) {
     use crate::services::game_fixes::{self, Fallback};
     if !game_fixes::is_startup_crash(ended.exit_code, ended.duration_seconds.unwrap_or(i64::MAX)) {
@@ -390,7 +383,6 @@ fn record_crash_fallback(app: &AppHandle, repo: &GameRepository, ended: &GameSes
     };
     let change = match next {
         Fallback::DirectX11 => "switched it to DirectX 11",
-        Fallback::Dxvk => "switched it to the DXVK graphics layer",
         Fallback::None => return,
     };
     let name = title.unwrap_or_else(|| "The game".into());

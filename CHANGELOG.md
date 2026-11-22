@@ -39,6 +39,7 @@ Controller and gameplay performance, smoother cloud streaming, and codebase clea
 ### Fixed
 
 - Steam Input is now off by default for Windows container games so `winebus` delivers controller input directly via Orbit's SDL mappings without Wine/Rosetta translation stutter. Existing saved choices are preserved, and Settings → Steam can still enable it per setup.
+- Startup crash recovery no longer overrides the selected graphics layer (such as D3DMetal / GPTK) to DXVK or triggers on signal terminations (`-1`), while keeping RE Engine DirectX 11 `.ini` fixes (`Devil May Cry 5`, `Resident Evil 2`, `Resident Evil 3`). Legacy DXVK fallback entries are dropped on startup, and stray non-builtin graphics DLLs in `system32` and `syswow64` are cleaned up when applying D3DMetal or DXMT.
 
 ### Removed
 
