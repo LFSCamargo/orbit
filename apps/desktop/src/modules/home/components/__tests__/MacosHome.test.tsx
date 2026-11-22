@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { focusManager } from '@/controllers/FocusManager'
@@ -275,5 +276,29 @@ it('offers Install, not "Jump back in", for a game that is not on this Mac', () 
   )
   expect(screen.queryByText('Jump back in')).toBeNull()
   expect(document.querySelector('.macos-play')?.textContent).toContain('Install')
+  expect(onPlay).not.toHaveBeenCalled()
+})
+
+it('never launches the hero game when it is not on this Mac', () => {
+  // Regression: "Jump back in" on a game not on this Mac ended in "Game not
+  // found". It offers Install (Steam) or details instead.
+  const onPlay = vi.fn()
+  const away: LibraryEntry = {
+    ...entry,
+    installations: [{ ...entry.installations[0], available: false }],
+  }
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MacosHome
+        entries={[away]}
+        heroEntry={away}
+        activeSession={null}
+        onPlay={onPlay}
+        onStop={vi.fn()}
+        onFavorite={vi.fn()}
+      />
+    </QueryClientProvider>,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Install' }))
   expect(onPlay).not.toHaveBeenCalled()
 })

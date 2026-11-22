@@ -20,7 +20,7 @@ import { notify } from '@/lib/toast'
 import type { InstallLocation } from '@/types/downloads'
 
 const GROUP = 'install-location'
-export const INSTALL_LOCATIONS_KEY = ['install-locations'] as const
+const INSTALL_LOCATIONS_KEY = ['install-locations'] as const
 
 /** The location preselected when the picker opens: the last one used while
  * it is connected, else This Mac. */

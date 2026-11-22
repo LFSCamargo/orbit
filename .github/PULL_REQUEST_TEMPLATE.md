@@ -9,6 +9,7 @@
 ## Test plan
 
 - [ ] `yarn run format:check`
+- [ ] `yarn knip`
 - [ ] `yarn run typecheck`
 - [ ] `yarn run test:unit`
 - [ ] `yarn run test:rust` (if `apps/desktop/src-tauri/` touched)

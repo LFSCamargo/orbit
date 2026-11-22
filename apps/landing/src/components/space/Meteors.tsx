@@ -10,7 +10,7 @@ function seeded(seed: number) {
   }
 }
 
-export function meteorField(count: number, seed = 5) {
+function meteorField(count: number, seed = 5) {
   const random = seeded(seed)
   return Array.from({ length: count }, (_, index) => ({
     // Spread across the width (and a little past the right edge, since

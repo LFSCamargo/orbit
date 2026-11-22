@@ -1,5 +1,4 @@
-import { MacosHome } from './components/MacosHome'
-import type { ThemeHomeProps } from './hooks/useHomeGameActions'
+import { MacosHome, type ThemeHomeProps } from './components/MacosHome'
 
 export type { ThemeHomeProps }
 

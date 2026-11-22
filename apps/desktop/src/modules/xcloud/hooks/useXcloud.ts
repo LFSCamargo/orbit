@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   deleteLibraryEntry,
-  launchXcloudGame,
   saveXcloudGame,
   listXcloudCatalog,
   xboxAccountStatus,
@@ -39,28 +38,6 @@ export function useXcloudCatalog(enabled = true) {
     queryFn: () => listXcloudCatalog(false),
     enabled,
     staleTime: 10 * 60 * 1000,
-  })
-}
-
-export function useRefreshXcloudCatalog() {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: () => listXcloudCatalog(true),
-    onSuccess: (catalog) => client.setQueryData(['xcloud-catalog'], catalog),
-  })
-}
-
-/** First successful launch adds the title to the library (Installed). */
-export function useLaunchXcloudGame() {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: launchXcloudGame,
-    onSuccess: () =>
-      Promise.all([
-        client.invalidateQueries({ queryKey: ['xcloud-catalog'] }),
-        client.invalidateQueries({ queryKey: ['library'] }),
-        client.invalidateQueries({ queryKey: ['games'] }),
-      ]),
   })
 }
 

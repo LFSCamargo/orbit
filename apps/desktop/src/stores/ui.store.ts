@@ -2,7 +2,7 @@ import type { GameSource } from '@/lib/gameSource'
 import { create } from 'zustand'
 import type { AppScreen, LibraryFilters } from '@/types/game'
 
-export type LibraryView = 'installed' | 'all' | 'favorites'
+type LibraryView = 'installed' | 'all' | 'favorites'
 
 export type SettingsTab =
   | 'general'
@@ -14,7 +14,7 @@ export type SettingsTab =
   | 'storage'
   | 'metadata'
 
-export type SteamLibraryGame = {
+type SteamLibraryGame = {
   appId: string
   title: string
   description?: string | null

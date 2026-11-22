@@ -13,16 +13,6 @@ export interface StudioDraft {
   wallpaper?: string
 }
 
-export const LOGO_STYLES: { id: LogoStyle; label: string }[] = [
-  { id: 'clean', label: 'Clean' },
-  { id: 'serif', label: 'Epic serif' },
-  { id: 'gothic', label: 'Gothic' },
-  { id: 'glitch', label: 'Glitch' },
-  { id: 'heavy', label: 'Heavy' },
-  { id: 'neon', label: 'Neon' },
-  { id: 'rounded', label: 'Rounded' },
-]
-
 function isStudioTheme(theme: ThemeDefinition): boolean {
   return theme.kind === 'custom' && theme.id.startsWith('custom-')
 }

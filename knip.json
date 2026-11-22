@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": ["cwebp"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "scripts/__tests__/*.test.mjs"],
+      "project": ["scripts/**/*.mjs"]
+    },
+    "apps/desktop": {
+      "entry": ["e2e/**/*.spec.ts"],
+      "project": ["src/**/*.{ts,tsx,css}", "e2e/**/*.ts"]
+    },
+    "apps/landing": {
+      "project": ["src/**/*.{ts,tsx,css}"]
+    }
+  }
+}

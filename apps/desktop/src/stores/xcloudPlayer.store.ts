@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export interface XcloudStreamRequest {
+interface XcloudStreamRequest {
   /** Microsoft Store product id; Rust maps it to xCloud's title id. */
   productId: string
   title: string

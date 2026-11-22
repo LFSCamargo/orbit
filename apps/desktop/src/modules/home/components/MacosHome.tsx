@@ -32,8 +32,28 @@ import { formatPlaytime, providerLabel, formatRelativeDate } from '@/lib/format'
 import { homeLaunchId } from '../lib/homeHero'
 import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
 import { useUiStore } from '@/stores/ui.store'
-import type { ThemeHomeProps } from '../hooks/useHomeGameActions'
+import type { GameSession } from '@/types/game'
+import type { LibraryEntry } from '@/types/library'
 import { useSettledHero } from '@/hooks/useSettledHero'
+
+type HomeView = 'recent' | 'installed' | 'favorites'
+
+export interface ThemeHomeProps {
+  view?: HomeView
+  onView?: (view: HomeView) => void
+  shelfEntries?: LibraryEntry[]
+  shelfPending?: boolean
+  shelfError?: boolean
+  onRetry?: () => void
+  entries: LibraryEntry[]
+  heroEntry: LibraryEntry
+  activeSession: GameSession | null
+  onPlay: (entry: LibraryEntry) => void
+  onStop: () => void
+  onFavorite: (entry: LibraryEntry) => void
+  showFavorites?: boolean
+  steamReady?: boolean
+}
 import { SkeletonBlock } from '@/components/feedback/Skeleton'
 
 export function MacosHome({

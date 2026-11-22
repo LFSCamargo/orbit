@@ -1,5 +1,5 @@
 /** Horizon peak, as a share of the card height from the top. */
-export const HORIZON_RATIO = 0.84
+const HORIZON_RATIO = 0.84
 /** The rim meets the card's bottom edge this far in from each side. */
 const CORNER_INSET = 0.03
 /** The globe photo's arc has a radius of ~0.869 × its width. */

@@ -1,7 +1,7 @@
 import { isOrbitManagedDownload, selectInstallation } from './libraryEntries'
 import type { LibraryEntry, LibraryInstallation } from '@/types/library'
 
-export type DetailsActionKind =
+type DetailsActionKind =
   'play' | 'cancel' | 'stop' | 'install' | 'sign-in' | 'setup' | 'locate'
 
 export type DetailsPrimaryAction = {

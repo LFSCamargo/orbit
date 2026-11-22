@@ -9,7 +9,7 @@ export interface ThemeColors {
   border: string
 }
 
-export type ThemeKind = 'color' | 'game' | 'custom'
+type ThemeKind = 'color' | 'game' | 'custom'
 
 export type LogoStyle =
   'clean' | 'serif' | 'gothic' | 'glitch' | 'heavy' | 'neon' | 'rounded'

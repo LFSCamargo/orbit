@@ -4,7 +4,7 @@ const SCROLL_ROOT_SELECTOR = '.macos-main'
 const DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"], [aria-modal="true"]'
 
 /** Scroll container for the active theme shell or the document. */
-export function getPageScrollRoot(): HTMLElement {
+function getPageScrollRoot(): HTMLElement {
   return (
     document.querySelector<HTMLElement>(SCROLL_ROOT_SELECTOR) ??
     (document.scrollingElement as HTMLElement | null) ??

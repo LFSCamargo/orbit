@@ -3,7 +3,6 @@ import {
   clearLibrary,
   createGame,
   deleteGame,
-  detectImporters,
   getActiveSession,
   getGame,
   importGamePath,
@@ -35,13 +34,6 @@ export function useGame(gameId: string | null) {
     queryKey: ['games', gameId],
     queryFn: () => (gameId ? getGame(gameId) : Promise.resolve(null)),
     enabled: Boolean(gameId),
-  })
-}
-
-export function useImporters() {
-  return useQuery({
-    queryKey: ['importers'],
-    queryFn: detectImporters,
   })
 }
 

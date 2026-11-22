@@ -7,7 +7,7 @@ import { buttonClass } from '@/components/ui/button'
 import { BusyLabel } from '@/components/feedback/BusyLabel'
 
 export const ONBOARDING_PRIMARY_ID = 'onboarding-primary'
-export const ONBOARDING_BACK_ID = 'onboarding-back'
+const ONBOARDING_BACK_ID = 'onboarding-back'
 
 /** ← Back on the left, the orange primary with → on the right (centered on
  * its own), sitting over the planet's horizon.

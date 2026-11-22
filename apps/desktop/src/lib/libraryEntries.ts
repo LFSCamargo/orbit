@@ -78,7 +78,7 @@ export function isOrbitManagedDownload(path: string | null | undefined) {
 
 /** Windows game files Orbit may delete: its own downloads, or a Steam library
  * folder (`steamapps/common`), never the Steam client's `steam-windows` prefix. */
-export function isUninstallablePath(path: string | null | undefined) {
+function isUninstallablePath(path: string | null | undefined) {
   if (!path) return false
   if (isOrbitManagedDownload(path)) return true
   return path.includes('/steamapps/common/') && !path.includes('/steam-windows/')

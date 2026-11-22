@@ -9,7 +9,7 @@ import { notify } from '@/lib/toast'
 import type { UninstallReport } from '@/types/downloads'
 
 /** Queries that show install state or disk usage. */
-export const INSTALL_STATE_KEYS = [
+const INSTALL_STATE_KEYS = [
   'library',
   'library-entry',
   'games',

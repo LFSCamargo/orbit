@@ -189,6 +189,7 @@ Run E2E after changes to navigation, themes, controller focus, or screen layouts
 
 ```bash
 yarn typecheck
+yarn knip
 yarn format:check    # or yarn format to fix
 ```
 
@@ -257,6 +258,7 @@ Run before opening a PR (see [CONTRIBUTING.md](CONTRIBUTING.md)):
 
 ```bash
 yarn run format:check
+yarn knip
 yarn run typecheck
 yarn run test:unit      # when src/lib/, landing, or unit-tested helpers changed
 yarn run test:rust      # when apps/desktop/src-tauri/ changed
@@ -343,5 +345,6 @@ yarn test:rust            # Rust unit tests
 yarn test:e2e             # Playwright E2E
 yarn format               # Prettier write
 yarn format:check         # Prettier check
+yarn knip                 # Unused files, exports, and dependencies
 yarn metadata:fetch -- …  # Standalone metadata + artwork cache CLI
 ```

@@ -1,4 +1,4 @@
-export interface GameContentSummary {
+interface GameContentSummary {
   gameId: string
   versionLabel?: string
   versionDetail?: string
@@ -10,12 +10,4 @@ export interface GameContentSummary {
 
 export interface HomeContentInventory {
   summaries: GameContentSummary[]
-}
-
-export type GameContentMap = Record<string, GameContentSummary>
-
-export function toContentMap(inventory: HomeContentInventory): GameContentMap {
-  return Object.fromEntries(
-    inventory.summaries.map((summary) => [summary.gameId, summary]),
-  )
 }

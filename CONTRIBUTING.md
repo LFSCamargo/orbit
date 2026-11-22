@@ -101,6 +101,7 @@ All gates must pass before a PR is ready for review:
 
 ```bash
 yarn run format:check
+yarn knip
 yarn run typecheck
 yarn run test:unit
 yarn run test:rust      # if apps/desktop/src-tauri/ touched

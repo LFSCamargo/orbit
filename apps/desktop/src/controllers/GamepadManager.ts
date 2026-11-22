@@ -13,7 +13,7 @@ export type GamepadEventHandler = (
   event: GamepadActionEvent,
 ) => void
 
-export interface GamepadActionEvent {
+interface GamepadActionEvent {
   action: ControllerAction
   family: ControllerFamily
   gamepadId: string
@@ -29,7 +29,7 @@ interface ButtonState {
 const SCROLL_DEADZONE = 0.14
 const SCROLL_SPEED_PX_PER_MS = 0.55
 
-export interface GamepadScrollEvent {
+interface GamepadScrollEvent {
   deltaX: number
   deltaY: number
 }

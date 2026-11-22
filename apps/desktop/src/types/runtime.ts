@@ -10,9 +10,9 @@ export interface WineInstallation {
   serverPath: string
   version: string
 }
-export type GraphicsBackend = 'auto' | 'wine' | 'dxvk' | 'dxmt' | 'd3dmetal'
-export type Synchronization = 'default' | 'esync' | 'msync'
-export type Resolution = 'auto' | 'custom'
+type GraphicsBackend = 'auto' | 'wine' | 'dxvk' | 'dxmt' | 'd3dmetal'
+type Synchronization = 'default' | 'esync' | 'msync'
+type Resolution = 'auto' | 'custom'
 
 export interface CompatibilitySettings {
   graphics: GraphicsBackend
@@ -67,7 +67,7 @@ export interface LocalGptkPackage {
   digestVerified: boolean
 }
 
-export interface ComponentVersion {
+interface ComponentVersion {
   version: string
   prerelease: boolean
   asset: {
