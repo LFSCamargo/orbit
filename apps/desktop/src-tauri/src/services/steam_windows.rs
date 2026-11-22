@@ -84,8 +84,11 @@ pub struct SteamWindowsPreferences {
     pub verify_files: bool,
     #[serde(default)]
     pub additional_library_paths: Vec<String>,
-    /// Steam Input (controller configuration) for games. On is Steam's default.
-    #[serde(default = "steam_input_default")]
+    /// Steam Input (controller configuration) for games. Off by default: under
+    /// Wine and Rosetta it translates every controller report in Steam's own
+    /// process, which stutters games; winebus already hands the pad to the
+    /// game as XInput (see `runtimes::controllers`).
+    #[serde(default)]
     pub steam_input: bool,
     /// Steam's in-game overlay (Shift+Tab). Off: it hooks the game's rendering.
     #[serde(default)]
@@ -96,17 +99,13 @@ pub struct SteamWindowsPreferences {
     legacy_play_engine: Option<serde_json::Value>,
 }
 
-fn steam_input_default() -> bool {
-    true
-}
-
 impl Default for SteamWindowsPreferences {
     fn default() -> Self {
         Self {
             offline_mode: false,
             verify_files: true,
             additional_library_paths: Vec::new(),
-            steam_input: true,
+            steam_input: false,
             steam_overlay: false,
             legacy_play_engine: None,
         }
@@ -2015,17 +2014,26 @@ mod tests {
     }
 
     #[test]
-    fn saved_preferences_from_before_play_options_keep_steam_input_and_drop_the_overlay() {
+    fn steam_input_and_the_overlay_default_off_and_a_saved_choice_is_kept() {
         let older: SteamWindowsPreferences = serde_json::from_value(serde_json::json!({
             "offlineMode": true,
             "verifyFiles": true,
             "additionalLibraryPaths": ["/Games/steamapps/common"]
         }))
         .unwrap();
-        assert!(older.steam_input);
+        // Regression: Steam Input on by default stuttered controller play in
+        // Wine containers while keyboard and mouse played smoothly.
+        assert!(!older.steam_input);
         assert!(!older.steam_overlay);
         let defaults = SteamWindowsPreferences::default();
-        assert!(defaults.steam_input && !defaults.steam_overlay);
+        assert!(!defaults.steam_input && !defaults.steam_overlay);
+        let chosen: SteamWindowsPreferences = serde_json::from_value(serde_json::json!({
+            "offlineMode": false,
+            "verifyFiles": true,
+            "steamInput": true
+        }))
+        .unwrap();
+        assert!(chosen.steam_input, "a game that needs Steam Input keeps it");
     }
 
     #[test]

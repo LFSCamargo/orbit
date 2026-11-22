@@ -7,7 +7,7 @@ import type { SteamWindowsPreferences } from '@/types/steam'
 const DEFAULTS: SteamWindowsPreferences = {
   offlineMode: false,
   verifyFiles: true,
-  steamInput: true,
+  steamInput: false,
   steamOverlay: false,
 }
 
@@ -120,15 +120,15 @@ export function SteamSettings() {
                 id="steam-input-help"
                 className="settings-row-desc mt-1 max-w-[520px] text-[13px] text-[#ffffffa0]"
               >
-                Steam maps controllers for each game, as in Steam Big Picture. Turn it off
-                to give games the controller directly.
+                Steam maps controllers for each game, as in Steam Big Picture. Off gives
+                games the controller directly, which plays smoother.
               </p>
             </div>
             <Switch
               id="steam-input"
               aria-labelledby="steam-input-label"
               aria-describedby="steam-input-help"
-              checked={current.steamInput !== false}
+              checked={current.steamInput === true}
               disabled={savePreferences.isPending}
               onCheckedChange={(steamInput) => save({ ...current, steamInput })}
             />

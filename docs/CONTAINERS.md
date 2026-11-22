@@ -102,7 +102,9 @@ own `userdata/<account>/config/localconfig.vdf` (Steam rewrites it on exit, and
 the Mac Steam client is never touched): `EnableGameOverlay` from Settings →
 Steam → "Steam overlay in games" (off by default; it hooks every frame),
 `EnableShaderBackgroundProcessing` 0, and per game `UseSteamControllerConfig`
-(2 on, 0 off) from "Steam Input for controllers" (on by default). A file Orbit
+(2 on, 0 off) from "Steam Input for controllers" (off by default: under Wine
+and Rosetta it translates every controller report inside Steam and stutters
+games; winebus already gives the game the pad as XInput). A file Orbit
 cannot round-trip, or one over 256 KB, is left alone.
 
 ## Controllers in games
