@@ -32,7 +32,8 @@ import { formatPlaytime, providerLabel, formatRelativeDate } from '@/lib/format'
 import { homeLaunchId } from '../lib/homeHero'
 import { isWindowsSteamPlay } from '@/lib/playLibraryEntry'
 import { useUiStore } from '@/stores/ui.store'
-import { createHomeGameHandlers, type ThemeHomeProps } from '../hooks/useHomeGameActions'
+import type { ThemeHomeProps } from '../hooks/useHomeGameActions'
+import { useSettledHero } from '@/hooks/useSettledHero'
 import { SkeletonBlock } from '@/components/feedback/Skeleton'
 
 export function MacosHome({
@@ -51,7 +52,6 @@ export function MacosHome({
   showFavorites = false,
   steamReady = true,
 }: ThemeHomeProps) {
-  const setHero = useUiStore((s) => s.setHeroGameId)
   const details = useUiStore((s) => s.openGameDetails)
   const navigate = useUiStore((s) => s.setScreen)
   const setSettingsTab = useUiStore((s) => s.setSettingsTab)
@@ -60,14 +60,7 @@ export function MacosHome({
   const stopShelfScroll = useRef(() => {})
   useEffect(() => () => stopShelfScroll.current(), [])
   const heroGame = heroEntry.game
-  const { selectGame } = createHomeGameHandlers(
-    activeSession,
-    setHero,
-    onPlay,
-    onStop,
-    heroEntry.id,
-    steamReady,
-  )
+  const settleHero = useSettledHero()
   const running = activeSession?.gameId === homeLaunchId(heroEntry)
   const steamBlocked = isWindowsSteamPlay(heroEntry) && !steamReady && !running
   // Regression: "Jump back in" on a game that is not on this Mac ended in
@@ -437,7 +430,7 @@ export function MacosHome({
                     '[@media(max-height:740px)_and_(min-width:900px)]:flex-[0_0_130px]',
                   )}
                   onFocusSelect={() => {
-                    selectGame(entry)
+                    settleHero(entry.id)
                     const shelf = shelfRef.current
                     const node = focusManager.getFocusedNode()?.element
                     if (!shelf || !node || !shelf.contains(node)) return

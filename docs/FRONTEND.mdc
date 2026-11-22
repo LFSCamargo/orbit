@@ -164,6 +164,7 @@ src/
     useSteamClientEvents.ts # steam-client phases patch steam-windows-status
     useSteamDownloadEvents.ts
     useNetworkStats.ts     # network-stats: live download/upload rate, online, sparkline history
+    useSettledHero.ts      # Sets the hero once focus rests (160 ms), not for every tile passed
     useNow.ts              # Ticking clock for elapsed / time-left readouts
     useHeroTone.ts
     useModalFocus.ts

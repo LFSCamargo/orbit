@@ -1,4 +1,5 @@
 import { GameCard } from '@/components/game/GameCard'
+import { useSettledHero } from '@/hooks/useSettledHero'
 import { useUiStore } from '@/stores/ui.store'
 import type { Game } from '@/types/game'
 
@@ -10,7 +11,7 @@ export function CollectionGrid({
   screen: 'library' | 'search'
 }) {
   const openGameDetails = useUiStore((s) => s.openGameDetails)
-  const setHeroGameId = useUiStore((s) => s.setHeroGameId)
+  const settleHero = useSettledHero()
   return (
     <section aria-labelledby={`${screen}-collection-title`}>
       <div className="mb-4 flex items-baseline justify-between gap-4">
@@ -31,7 +32,7 @@ export function CollectionGrid({
             focusId={`${screen}-game-${game.id}`}
             group={`${screen}-grid`}
             order={index}
-            onSelect={setHeroGameId}
+            onSelect={settleHero}
             onOpen={openGameDetails}
           />
         ))}
