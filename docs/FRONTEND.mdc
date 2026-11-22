@@ -104,14 +104,13 @@ src/
       hooks/               # useRandomArtwork (Random SteamGridDB per slot)
     imports/
       AddGamePage.tsx
-      ImportsPage.tsx
       hooks/               # useImportScan (shared Steam/Astris/native scans)
     settings/
       SettingsPage.tsx
-      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, GeneralPreferences, XboxCloudSettings, SettingsInsights
+      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, GeneralPreferences, AppUpdateSettings, XboxCloudSettings, SettingsInsights
     xcloud/                # Xbox Cloud Gaming: device-code modal, catalog tab, hooks (docs/XBOX_CLOUD.md)
     xcloud-player/         # Orbit's own stream player; hooks/useStreamStandDown, keyframePolicy (docs/XBOX_CLOUD.md)
-      hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useSteamWindowsInstall, useCompatibilitySetup
+      hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useCompatibilitySetup
     session/
       PlayingScreen.tsx
       components/          # LaunchOverlay (hero banner, Steam wordmark, startup caption)
@@ -168,19 +167,20 @@ src/
     useNetworkStats.ts     # network-stats: live download/upload rate, online, sparkline history
     useSettledHero.ts      # Sets the hero once focus rests (160 ms), not for every tile passed
     useNow.ts              # Ticking clock for elapsed / time-left readouts
-    useHeroTone.ts
     useModalFocus.ts
     useCursorAutoHide.ts
     useFullscreen.ts
     useActiveTheme.ts      # Active ThemeDefinition from the theme store
     useSessionEvents.ts    # Listen for session start/stop
+    useAppUpdateEvents.ts  # app-update → appUpdate.store; one "ready" toast, held back during a game
     useLaunchProgress.ts   # Steam Windows / Wine launch overlay events
   stores/
     ui.store.ts            # Screen stack, filters, hero selection
+    appUpdate.store.ts     # Orbit's own update state (app-update event)
     theme.store.ts         # Active theme, custom themes, save/delete studio themes
     session.store.ts       # Active game session
     launch.store.ts        # In-flight launch overlay (step, error)
-    preferences.store.ts   # App preferences (onboarding, startup scan, runtime updates, Xbox)
+    preferences.store.ts   # App preferences (onboarding, startup scan, runtime updates, Orbit updates, Xbox)
   themes/
     types.ts               # ThemeDefinition, ThemeBranding
     catalog.ts             # BUILT_IN_THEMES (color + game), DEFAULT_THEME_ID, legacy id migration
@@ -200,7 +200,7 @@ src/
     themeColors.ts         # RGB ↔ hex, focus derivation, custom- theme ids
     artwork.ts / artworkApi.ts
     steamArtwork.ts        # Original Steam CDN cover/hero candidates
-    format.ts / media.ts / heroBlur.ts / heroTone.ts
+    format.ts / media.ts / heroTone.ts
     launchProgress.ts      # Steam Windows launch step labels and status
     backdropImage.ts / backdropLighting.ts
   types/
@@ -386,4 +386,4 @@ Scan installed games action retries discovery for already-saved folders.
 
 `useLaunchProgress` restores the launch failure banner on `game-session-ended` with a nonzero exit code and `process-exited` reason, even after `game-session-started` cleared it. It preserves an existing detailed failure, ignores exits from another game while a launch banner is active, and cleans up listeners that resolve after unmount.
 
-SteamQrModal keeps its host mounted while opening, uses useSteamLoginPlacement for bounded native placement, traps Orbit controller focus, and waits for native cancellation before closing. The browser is ready only when placement succeeds. The host is a native-window placeholder, not embedded Steam HTML.
+SteamQrModal draws Valve's QR sign-in challenge in Orbit (no Steam window), traps Orbit controller focus, and cancels the pending sign-in before closing.

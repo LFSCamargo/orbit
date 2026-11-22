@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app'
 import { Channel, invoke } from '@tauri-apps/api/core'
 import { isTauriRuntime, mockInvoke } from '@/lib/devMockApi'
 import type {
@@ -100,6 +101,25 @@ export async function openXboxCloud(): Promise<void> {
 
 export async function quitOrbit(): Promise<void> {
   return run('quit_orbit')
+}
+
+/** The running Orbit's version. */
+export function appVersion(): Promise<string> {
+  return isTauriRuntime() ? getVersion() : Promise.resolve('dev')
+}
+
+export function appUpdateStatus() {
+  return run<import('@/types/appUpdate').AppUpdateState>('app_update_status')
+}
+
+/** "Check now": checks GitHub even when automatic updates are off. */
+export function appUpdateCheck() {
+  return run<import('@/types/appUpdate').AppUpdateState>('app_update_check')
+}
+
+/** Install the downloaded update and relaunch Orbit. */
+export function appUpdateRestart() {
+  return run<void>('app_update_restart')
 }
 
 export async function detectImporters(): Promise<ImporterStatus[]> {

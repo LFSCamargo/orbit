@@ -55,6 +55,7 @@ rsa = { version = "0.9", default-features = false, features = ["std"] }
 rand = "0.8"
 zeroize = "1.9"
 zip = { version = "9.6.1", default-features = false, features = ["deflate"] }
+tauri-plugin-updater = "2"
 
 [profile.release]
 codegen-units = 1

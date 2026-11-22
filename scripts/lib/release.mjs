@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([\w.+-]+))?$/
+const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([\w.+-]+))?$/
 
 export const DEFAULT_GITHUB_REPO = 'LFSCamargo/orbit'
 
-export const DESKTOP_DIR = 'apps/desktop'
+const DESKTOP_DIR = 'apps/desktop'
 
 export function parseSemver(version) {
   const match = version.match(SEMVER_RE)
@@ -19,7 +19,7 @@ export function parseSemver(version) {
   }
 }
 
-export function formatSemver({ major, minor, patch, prerelease }) {
+function formatSemver({ major, minor, patch, prerelease }) {
   return prerelease
     ? `${major}.${minor}.${patch}-${prerelease}`
     : `${major}.${minor}.${patch}`

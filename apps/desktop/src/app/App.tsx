@@ -14,6 +14,7 @@ import { useCursorAutoHide } from '@/hooks/useCursorAutoHide'
 import { useFullscreenSync } from '@/hooks/useFullscreen'
 import { useActiveSessionQuery } from '@/hooks/useGames'
 import { useSessionEvents } from '@/hooks/useSessionEvents'
+import { useAppUpdateEvents } from '@/hooks/useAppUpdateEvents'
 import { useLaunchProgress } from '@/hooks/useLaunchProgress'
 import { LaunchOverlay } from '@/modules/session/components/LaunchOverlay'
 import { useSteamDownloadEvents } from '@/hooks/useSteamDownloadEvents'
@@ -56,6 +57,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   useSteamClientEvents()
   useStartupScan()
   useRuntimeAutoUpdate()
+  useAppUpdateEvents()
 
   // On a first run, onboarding (in #root) rises above the splash, which stays
   // behind it, blurred, until onboarding finishes (index.html).

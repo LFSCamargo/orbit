@@ -652,6 +652,11 @@ export async function mockInvoke<T>(
     case 'quit_orbit':
       console.info('[devMockApi] quit_orbit')
       return undefined as T
+    case 'app_update_status':
+    case 'app_update_check':
+      return { status: 'upToDate', checkedAt: new Date().toISOString() } as T
+    case 'app_update_restart':
+      return undefined as T
     case 'steam_windows_status':
     case 'disconnect_steam_windows': {
       if (cmd === 'disconnect_steam_windows') steamAccount = null

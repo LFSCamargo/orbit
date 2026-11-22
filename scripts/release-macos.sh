@@ -179,7 +179,17 @@ fi
 echo "==> Tauri build"
 # CI=true makes Tauri skip the Finder layout script. On macOS 27 that script
 # fails with AppleEvent -1743 (not allowed to control Finder) and aborts the DMG.
-CI=true yarn workspace @orbit/desktop tauri build --target "$TARGET"
+# Releases carry signed updater artifacts (docs/UPDATES.md). Without the key
+# (local --install builds) Tauri skips them, so the build still works.
+TAURI_ARGS=(--target "$TARGET")
+if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+  SIGNED=true
+else
+  SIGNED=false
+  echo "    no TAURI_SIGNING_PRIVATE_KEY: building without update signatures"
+  TAURI_ARGS+=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
+fi
+CI=true yarn workspace @orbit/desktop tauri build "${TAURI_ARGS[@]}"
 echo
 
 mkdir -p "$OUT_DIR"
@@ -198,8 +208,26 @@ APP_BASENAME="$(basename "$APP_SRC" .app)"
 APP_ARCHIVE="$OUT_DIR/${APP_BASENAME}-${VERSION}-${LABEL}.app.tar.gz"
 
 echo "==> Archive .app"
-tar -czf "$APP_ARCHIVE" -C "$(dirname "$APP_SRC")" "$(basename "$APP_SRC")"
-echo "    $APP_ARCHIVE"
+if [[ "$SIGNED" == true ]]; then
+  # Tauri's own archive: its .sig covers exactly these bytes.
+  SIGNED_ARCHIVE="$BUNDLE_DIR/macos/${APP_BASENAME}.app.tar.gz"
+  if [[ ! -f "$SIGNED_ARCHIVE" || ! -f "$SIGNED_ARCHIVE.sig" ]]; then
+    echo "error: signed updater archive missing: $SIGNED_ARCHIVE(.sig)" >&2
+    exit 1
+  fi
+  cp "$SIGNED_ARCHIVE" "$APP_ARCHIVE"
+  cp "$SIGNED_ARCHIVE.sig" "$APP_ARCHIVE.sig"
+  node "$ROOT/scripts/updater-manifest.mjs" \
+    --version "$VERSION" \
+    --sig "$APP_ARCHIVE.sig" \
+    --archive "$(basename "$APP_ARCHIVE")" \
+    --notes "$ROOT/.github/release-notes/${VERSION}.md" \
+    --out "$OUT_DIR/latest.json"
+  echo "    $APP_ARCHIVE (+ .sig, latest.json)"
+else
+  tar -czf "$APP_ARCHIVE" -C "$(dirname "$APP_SRC")" "$(basename "$APP_SRC")"
+  echo "    $APP_ARCHIVE"
+fi
 
 DMG_COUNT=0
 if [[ -d "$BUNDLE_DIR/dmg" ]]; then
@@ -235,7 +263,7 @@ while IFS= read -r file; do
     cd "$OUT_DIR"
     shasum -a 256 "$(basename "$file")"
   ) >> "$CHECKSUMS"
-done < <(find "$OUT_DIR" -maxdepth 1 \( -name "*.tar.gz" -o -name "*.dmg" \) -type f | sort)
+done < <(find "$OUT_DIR" -maxdepth 1 \( -name "*.tar.gz" -o -name "*.dmg" -o -name "*.sig" -o -name "latest.json" \) -type f | sort)
 cat "$CHECKSUMS"
 
 echo

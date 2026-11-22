@@ -27,7 +27,9 @@ it('turns scanning on startup and runtime updates off and on', () => {
   expect(usePreferencesStore.getState().preferences.scanOnStartup).toBe(false)
   fireEvent.click(screen.getByRole('switch', { name: 'Update runtimes automatically' }))
   expect(usePreferencesStore.getState().preferences.autoUpdateRuntimes).toBe(false)
-  expect(saveAppPreferences).toHaveBeenCalledTimes(2)
+  fireEvent.click(screen.getByRole('switch', { name: 'Update Orbit automatically' }))
+  expect(usePreferencesStore.getState().preferences.autoUpdateApp).toBe(false)
+  expect(saveAppPreferences).toHaveBeenCalledTimes(3)
 })
 
 it('replays onboarding without forgetting that it was completed', () => {
