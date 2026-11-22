@@ -242,7 +242,7 @@ When adding a command: update Rust handler → register in `lib.rs` → add wrap
 
 ## Controller system
 
-1. `GamepadManager` polls `navigator.getGamepads()`.
+1. `GamepadManager` polls `navigator.getGamepads()` once per frame, and only while a pad is connected and nothing suspended it (`setSuspended`, used by a playing cloud stream). With no pad, a 500 ms discovery check finds pads WebKit exposes without a `gamepadconnected` event. Resuming records held buttons without firing them.
 2. `ControllerMapping` maps button indices → `ControllerAction` (family-aware).
 3. `useControllerNavigation` dispatches actions to `ui.store` (navigate, confirm, back, edit, add, section switch).
 4. `FocusManager` maintains spatial focus graph; `Focusable` registers focusable elements.
