@@ -127,6 +127,13 @@ Use these Netlify site settings:
   this app does not use a static export.
 - **Environment:** optional server-only `GITHUB_TOKEN`, as on Vercel.
 
+## Metadata and social sharing
+
+The root `app/opengraph-image.png` and `app/twitter-image.png` provide the social-card
+image for every route. Next.js serves them as hashed static assets and emits the matching
+`og:image` and `twitter:image` tags. Accompanying `.alt.txt` files describe the image for
+screen readers and platforms that consume alt text.
+
 Netlify discovers the root config when no package-level config exists. File-based build
 settings override dashboard values, including a previously inferred
 `nx run @orbit/landing:build` command. After this config reaches the branch Netlify builds,
