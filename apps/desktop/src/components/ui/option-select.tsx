@@ -50,7 +50,7 @@ export function OptionSelect({
       order: 0,
       disabled,
     })
-    const unsubscribe = focusManager.subscribe((next) => setFocused(next === id))
+    const unsubscribe = focusManager.subscribeId(id, setFocused)
     return () => {
       unsubscribe()
       focusManager.unregister(id)

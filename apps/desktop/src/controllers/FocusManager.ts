@@ -11,6 +11,7 @@ export interface FocusableNode {
 }
 
 type FocusListener = (id: string | null) => void
+type FocusedListener = (focused: boolean) => void
 
 export interface SetFocusOptions {
   /** Scroll the target into view (default true). */
@@ -137,6 +138,7 @@ export class FocusManager {
   private focusedId: string | null = null
   private focusStack: string[] = []
   private listeners = new Set<FocusListener>()
+  private idListeners = new Map<string, Set<FocusedListener>>()
   private groupPreference: string | null = null
   private groupTrap = false
 
@@ -150,10 +152,40 @@ export class FocusManager {
     return () => this.listeners.delete(listener)
   }
 
-  private emit() {
+  /**
+   * Whether `id` holds focus, now and on every change. Only the control that
+   * loses focus and the one that gains it are called: O(1) per move.
+   */
+  subscribeId(id: string, listener: FocusedListener): () => void {
+    let set = this.idListeners.get(id)
+    if (!set) {
+      set = new Set()
+      this.idListeners.set(id, set)
+    }
+    set.add(listener)
+    listener(this.focusedId === id)
+    return () => {
+      set.delete(listener)
+      if (set.size === 0 && this.idListeners.get(id) === set) this.idListeners.delete(id)
+    }
+  }
+
+  private changeFocus(next: string | null) {
+    const previous = this.focusedId
+    this.focusedId = next
+    if (previous !== next) {
+      if (previous) this.notifyId(previous, false)
+      if (next) this.notifyId(next, true)
+    }
     for (const listener of this.listeners) {
       listener(this.focusedId)
     }
+  }
+
+  private notifyId(id: string, focused: boolean) {
+    const set = this.idListeners.get(id)
+    if (!set) return
+    for (const listener of set) listener(focused)
   }
 
   register(node: FocusableNode) {
@@ -189,8 +221,7 @@ export class FocusManager {
       (this.groupTrap && this.groupPreference
         ? this.firstInGroup(this.groupPreference)
         : this.firstEnabled())
-    this.focusedId = fallback?.id ?? null
-    this.emit()
+    this.changeFocus(fallback?.id ?? null)
     // Avoid scrolling the page when focus falls back during screen remounts.
   }
 
@@ -229,8 +260,7 @@ export class FocusManager {
       return
     }
 
-    this.focusedId = id
-    this.emit()
+    this.changeFocus(id)
 
     if (node) this.focusDom(node.element, options?.dom)
 
@@ -303,8 +333,10 @@ export class FocusManager {
     let best: FocusableNode | null = null
     let bestScore = Number.POSITIVE_INFINITY
 
-    for (const node of this.candidates()) {
-      if (node.id === current.id) continue
+    // Geometry first (cheap once layout is clean); the style-reading
+    // visibility check only for nodes that could win. O(n).
+    for (const node of this.nodes.values()) {
+      if (node.id === current.id || !this.allowed(node)) continue
 
       const toRect = node.element.getBoundingClientRect()
       if (!isInDirection(fromRect, toRect, direction)) continue
@@ -316,7 +348,7 @@ export class FocusManager {
         score *= 0.85
       }
 
-      if (score < bestScore) {
+      if (score < bestScore && isNavigable(node.element)) {
         bestScore = score
         best = node
       }
@@ -327,17 +359,18 @@ export class FocusManager {
     }
   }
 
+  /** Enabled and inside the current trap. O(1). */
+  private allowed(node: FocusableNode) {
+    return (
+      !node.disabled &&
+      !(this.groupTrap && this.groupPreference && node.group !== this.groupPreference)
+    )
+  }
+
   /** Enabled, visible nodes the current trap allows. O(n). */
   private candidates() {
     return [...this.nodes.values()].filter(
-      (node) =>
-        !node.disabled &&
-        !(
-          this.groupTrap &&
-          this.groupPreference &&
-          node.group !== this.groupPreference
-        ) &&
-        isNavigable(node.element),
+      (node) => this.allowed(node) && isNavigable(node.element),
     )
   }
 
