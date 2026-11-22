@@ -20,6 +20,23 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-22
+
+D3DMetal DLSS & MetalFX Frame Generation, `D3DM_MAX_FPS`, and RE Engine stability
+
+### Changed
+
+- Enabled frame rate limiting on D3DMetal via `D3DM_MAX_FPS` in global Game graphics settings and per-game compatibility overrides, preserving the cap when toggling D3DMetal DLSS support.
+- Allowlisted `D3DM_MAX_FPS`, `D3DM_MTL4`, and `D3DM_SUPPORT_DXR` in `WineProfile::validate_options`.
+- Separated D3DMetal DLSS support from DXMT spatial upscaling and NVIDIA extensions, fixed Windows presentation to a 1920×1080 virtual desktop with Retina off, and updated Settings copy to reflect GPTK 4 MetalFX Super Resolution and Frame Generation behavior.
+
+### Fixed
+
+- Fixed D3DMetal DLSS initialization by staging both `.orbit/d3dmetal-dlss/x86_64-windows/nvngx.dll` and a symlinked `.orbit/d3dmetal-dlss/x86_64-unix/nvngx.so` (pointing to canonical `libd3dshared.dylib`) on `WINEDLLPATH_PREPEND`, replacing stale copies in existing containers, and letting D3DMetal manage NVIDIA/AMD adapter identity and `NGXCore\FullPath` natively from `D3DM_ENABLE_METALFX`.
+- Updated RE Engine pre-launch `.ini` fixes (`dmc5config.ini`, `re2_config.ini`, `re3_config.ini`, and crash-fallback configs) to also set `Capability=DirectX11` and `UseVendorExtention=Disable` under `[Render]` alongside `TargetPlatform=DirectX11`.
+
+[2.4.0]: https://github.com/LFSCamargo/orbit/releases/tag/v2.4.0
+
 ## [2.2.0] - 2026-11-21
 
 Controller and gameplay performance, smoother cloud streaming, and codebase cleanup
