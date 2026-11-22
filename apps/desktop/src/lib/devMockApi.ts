@@ -14,7 +14,7 @@ let steamLoginPolls = 0
 let steamPreferences: SteamWindowsPreferences = {
   offlineMode: false,
   verifyFiles: true,
-  steamInput: true,
+  steamInput: false,
   steamOverlay: false,
 }
 
@@ -671,8 +671,7 @@ export async function mockInvoke<T>(
           (args?.preferences as { verifyFiles?: boolean } | undefined)?.verifyFiles !==
           false,
         steamInput:
-          (args?.preferences as SteamWindowsPreferences | undefined)?.steamInput !==
-          false,
+          (args?.preferences as SteamWindowsPreferences | undefined)?.steamInput === true,
         steamOverlay:
           (args?.preferences as SteamWindowsPreferences | undefined)?.steamOverlay ===
           true,

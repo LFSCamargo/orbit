@@ -25,16 +25,9 @@ export async function fetchArtworkFromUrl(url: string): Promise<string> {
   return call<string>('fetch_artwork_from_url', { url })
 }
 
-export async function searchPublicArtwork(
-  query: string,
-  limit = 12,
-): Promise<ArtworkSearchHit[]> {
-  return call<ArtworkSearchHit[]>('search_public_artwork', { query, limit })
-}
-
 /** Normalize a path, URL, or existing data URL to a webview-loadable reference.
  *  Remote URLs are downloaded and cached locally so artwork renders offline. */
-export async function normalizeArtworkValue(
+async function normalizeArtworkValue(
   gameId: string,
   slot: string,
   value?: string | null,

@@ -1,6 +1,6 @@
 export type StorageKind = 'game' | 'tool' | 'runtime' | 'other'
 
-export type StorageRemoval =
+type StorageRemoval =
   | { type: 'none' }
   | { type: 'game'; appId: string }
   | { type: 'component'; id: string; version: string }

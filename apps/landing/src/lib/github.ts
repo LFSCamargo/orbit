@@ -1,7 +1,7 @@
 import { parseReleases, type Release } from './releases'
 import { GITHUB_REPO } from './site'
 
-export const RELEASES_REVALIDATE_SECONDS = 600
+const RELEASES_REVALIDATE_SECONDS = 600
 
 const RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`
 

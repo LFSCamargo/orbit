@@ -91,7 +91,7 @@ export function animateScrollBy(
 }
 
 /** Quiet time after the last wheel event before the spring settles on a card. */
-export const SHELF_WHEEL_SNAP_MS = 120
+const SHELF_WHEEL_SNAP_MS = 120
 
 type ScrollBox = { scrollLeft: number; scrollWidth: number; clientWidth: number }
 

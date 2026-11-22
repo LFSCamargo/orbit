@@ -56,6 +56,7 @@ pub mod theme_image_optimization;
 
 pub mod container_steam;
 pub mod steam_app_types;
+pub mod steam_helper_priority;
 pub mod steam_library_paths;
 pub mod steam_native;
 pub mod steam_play;

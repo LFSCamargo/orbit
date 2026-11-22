@@ -96,7 +96,7 @@ it('gives Steam its own authorization section and saves offline mode', async () 
     expect(save).toHaveBeenCalledWith({
       offlineMode: true,
       verifyFiles: true,
-      steamInput: true,
+      steamInput: false,
       steamOverlay: false,
     }),
   )
@@ -112,7 +112,8 @@ it('controls Steam Input and the in-game overlay for games', async () => {
   )
   const input = await screen.findByRole('switch', { name: 'Steam Input for controllers' })
   const overlay = screen.getByRole('switch', { name: 'Steam overlay in games' })
-  expect(input.getAttribute('aria-checked')).toBe('true')
+  // Regression: Steam Input on by default stuttered controller play in Wine.
+  expect(input.getAttribute('aria-checked')).toBe('false')
   expect(overlay.getAttribute('aria-checked')).toBe('false')
 
   fireEvent.click(input)
@@ -120,7 +121,7 @@ it('controls Steam Input and the in-game overlay for games', async () => {
     expect(save).toHaveBeenCalledWith({
       offlineMode: false,
       verifyFiles: true,
-      steamInput: false,
+      steamInput: true,
       steamOverlay: false,
     }),
   )

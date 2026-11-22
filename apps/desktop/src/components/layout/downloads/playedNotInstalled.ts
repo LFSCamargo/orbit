@@ -2,7 +2,7 @@ import { isNonGameApp } from '@/lib/nonGames'
 import type { LibraryEntry } from '@/types/library'
 
 /** How many played-but-not-installed games the sidebar suggests. */
-export const PLAYED_LIMIT = 5
+const PLAYED_LIMIT = 5
 
 /** Games you have played that are not on this Mac: most played first, then
  * the ones played without tracked time by recency. O(n log n). */

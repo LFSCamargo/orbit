@@ -1,4 +1,4 @@
-export const LIBRARY_EDGE_FADE_PX = 56
+const LIBRARY_EDGE_FADE_PX = 56
 
 /** Viewport-space mask so covers dissolve under chrome instead of a dimming band. */
 export function libraryViewportFadeMask(

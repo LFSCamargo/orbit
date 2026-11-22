@@ -26,6 +26,7 @@
     "tauri:build": "nx run desktop:tauri:build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "knip": "knip",
     "release:macos": "bash scripts/release-macos.sh",
     "monopipeline": "node scripts/monopipeline.mjs",
     "sync:skills": "bash scripts/sync-agent-skills.sh",
@@ -35,6 +36,7 @@
     "clean:deep": "node scripts/cleanup-dev-storage.mjs --deep"
   },
   "devDependencies": {
+    "knip": "^6.47.0",
     "nx": "^24.0.5",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1"

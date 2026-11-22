@@ -31,7 +31,7 @@ export function CollapsiblePanel({
       group: 'form-controls',
       order: 0,
     })
-    const unsubscribe = focusManager.subscribe((next) => setFocused(next === id))
+    const unsubscribe = focusManager.subscribeId(id, setFocused)
     return () => {
       unsubscribe()
       focusManager.unregister(id)

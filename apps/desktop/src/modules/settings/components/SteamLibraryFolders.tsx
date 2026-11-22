@@ -13,7 +13,7 @@ import {
 } from './libraryStyles'
 
 /** The library's own name: `…/GameHub/steamapps/common` reads as "GameHub". */
-export function libraryFolderName(path: string): string {
+function libraryFolderName(path: string): string {
   const parts = path.split('/').filter(Boolean)
   const steamapps = parts.lastIndexOf('steamapps')
   const name = steamapps > 0 ? parts[steamapps - 1] : parts[parts.length - 1]

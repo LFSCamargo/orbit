@@ -4,7 +4,7 @@ import { useDownloadStore } from '@/lib/downloadProgress'
 
 // The recommended setup is one tracked transfer among many, so it survives
 // panel navigation through the shared download store instead of its own copy.
-export const RECOMMENDED_SETUP_KEY = 'component:wine-stable:recommended'
+const RECOMMENDED_SETUP_KEY = 'component:wine-stable:recommended'
 
 export function useCompatibilitySetup() {
   const queryClient = useQueryClient()

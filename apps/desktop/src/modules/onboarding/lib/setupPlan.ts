@@ -11,7 +11,7 @@ import type {
 export type SetupRowId = 'wine' | 'gptk' | 'dxmt' | 'dxvk'
 
 /** One install behind a row: Orbit Wine with its container, or a catalog component. */
-export interface SetupPart {
+interface SetupPart {
   /** Download-store task key, shared with Settings and the downloads sidebar. */
   key: string
   orbitWine?: true

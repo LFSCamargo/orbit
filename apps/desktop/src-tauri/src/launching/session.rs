@@ -324,7 +324,7 @@ impl SessionManager {
         let ended = finalize_session(tracked.session, SessionStopReason::UserStopped, None);
         repo.record_play_end(&ended)?;
         let _ = app.emit("game-session-ended", &ended);
-        after_session(app);
+        after_session(app, tracked.steam_host.as_ref());
         Ok(ended)
     }
 
@@ -351,7 +351,7 @@ impl SessionManager {
             let _ = repo.record_play_end(&ended);
             let _ = app.emit("game-session-ended", &ended);
             record_crash_fallback(app, repo, &ended);
-            after_session(app);
+            after_session(app, tracked.steam_host.as_ref());
         }
     }
 }
@@ -474,8 +474,14 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
     });
 }
 
-fn after_session(app: &AppHandle) {
+fn after_session(app: &AppHandle, steam_host: Option<&SteamHost>) {
     super::game_activity::set_running(false);
+    if let Some(prefix) = steam_host.map(|host| host.prefix.clone()) {
+        // The resident client outlives the session at normal priority.
+        std::thread::spawn(move || {
+            crate::services::steam_helper_priority::set_background(&prefix, false)
+        });
+    }
     show_orbit(app);
 }
 
@@ -491,8 +497,10 @@ fn show_orbit(app: &AppHandle) {
 }
 
 fn spawn_monitor(app: AppHandle, session_id: String) {
+    let mut tick: u64 = 0;
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
+        tick += 1;
         let state = app.state::<AppState>();
         let active = state.sessions.get_active();
         let Some(session) = active else {
@@ -514,6 +522,11 @@ fn spawn_monitor(app: AppHandle, session_id: String) {
         };
         if stopping {
             continue;
+        }
+        if crate::services::steam_helper_priority::sweep_due(tick) {
+            if let Some(prefix) = state.sessions.active_steam_prefix() {
+                crate::services::steam_helper_priority::set_background(&prefix, true);
+            }
         }
         if let Some(status) = runtime_status {
             match status {

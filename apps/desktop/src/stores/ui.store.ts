@@ -2,7 +2,7 @@ import type { GameSource } from '@/lib/gameSource'
 import { create } from 'zustand'
 import type { AppScreen, LibraryFilters } from '@/types/game'
 
-export type LibraryView = 'installed' | 'all' | 'favorites'
+type LibraryView = 'installed' | 'all' | 'favorites'
 
 export type SettingsTab =
   | 'general'
@@ -14,7 +14,7 @@ export type SettingsTab =
   | 'storage'
   | 'metadata'
 
-export type SteamLibraryGame = {
+type SteamLibraryGame = {
   appId: string
   title: string
   description?: string | null
@@ -33,7 +33,6 @@ interface UiState {
   fullscreen: boolean
   cursorHidden: boolean
   navigationInput: 'pointer' | 'controller'
-  lastControllerActivityAt: number
   libraryFilters: LibraryFilters
   searchQuery: string
   homeMenuOpen: boolean
@@ -93,7 +92,6 @@ export const useUiStore = create<UiState>((set) => ({
   fullscreen: true,
   cursorHidden: false,
   navigationInput: 'pointer',
-  lastControllerActivityAt: 0,
   libraryFilters: defaultFilters,
   searchQuery: '',
   homeMenuOpen: false,
@@ -149,12 +147,14 @@ export const useUiStore = create<UiState>((set) => ({
   setHeroGameId: (gameId) => set({ heroGameId: gameId }),
   setFullscreen: (fullscreen) => set({ fullscreen }),
   setCursorHidden: (hidden) => set({ cursorHidden: hidden }),
+  // Called for every controller input (up to 60 Hz): unchanged state is
+  // returned as is so subscribers do not re-render.
   markControllerActivity: () =>
-    set({
-      lastControllerActivityAt: Date.now(),
-      cursorHidden: true,
-      navigationInput: 'controller',
-    }),
+    set((state) =>
+      state.cursorHidden && state.navigationInput === 'controller'
+        ? state
+        : { cursorHidden: true, navigationInput: 'controller' },
+    ),
   markMouseActivity: () =>
     set((state) =>
       !state.cursorHidden && state.navigationInput === 'pointer'

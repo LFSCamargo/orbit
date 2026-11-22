@@ -3,7 +3,7 @@
  * back in about half a second. Positions are px, time is seconds.
  */
 
-export const SHELF_SPRING = { stiffness: 180, damping: 16 }
+const SHELF_SPRING = { stiffness: 180, damping: 16 }
 
 /** Longest integration step; longer frames are split so the spring stays stable. */
 const MAX_STEP_S = 1 / 120

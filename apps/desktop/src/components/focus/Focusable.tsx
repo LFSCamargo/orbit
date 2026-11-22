@@ -49,11 +49,8 @@ export function Focusable({
     return () => focusManager.unregister(focusId)
   }, [focusId, group, order, disabled])
 
-  useEffect(() => {
-    return focusManager.subscribe((focusedId) => {
-      setFocused(focusedId === focusId)
-    })
-  }, [focusId])
+  // Only this control's own focus changes reach it, not every move.
+  useEffect(() => focusManager.subscribeId(focusId, setFocused), [focusId])
 
   useEffect(() => {
     if (!focused) return

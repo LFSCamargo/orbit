@@ -38,6 +38,10 @@ export function frameFromGamepad(pad: Gamepad, gamepadIndex: number): GamepadFra
   }
 }
 
+const FRAME_KEYS = Object.keys(NEUTRAL_FRAME) as Array<keyof GamepadFrame>
+
+/** Compared every input tick (60 Hz): one fixed key list, no allocation. */
 export function sameFrame(a: GamepadFrame, b: GamepadFrame) {
-  return (Object.keys(a) as Array<keyof GamepadFrame>).every((key) => a[key] === b[key])
+  for (const key of FRAME_KEYS) if (a[key] !== b[key]) return false
+  return true
 }

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 
-export interface VersionOption {
+interface VersionOption {
   version: string
   prerelease: boolean
 }

@@ -61,6 +61,7 @@ yarn dev                 # desktop frontend only, mock Tauri API
 yarn tauri:dev           # full desktop app
 yarn dev:landing         # landing site on :3000
 yarn format:check
+yarn knip                # unused files, exports and dependencies (knip.json)
 yarn typecheck           # both apps
 yarn test:unit           # Vitest, both apps
 yarn test:rust           # apps/desktop/src-tauri changes

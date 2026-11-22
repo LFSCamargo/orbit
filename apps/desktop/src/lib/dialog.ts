@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isTauriRuntime, mockInvoke } from '@/lib/devMockApi'
 
-export interface DialogFilter {
+interface DialogFilter {
   name: string
   extensions: string[]
 }

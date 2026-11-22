@@ -38,10 +38,3 @@ export function launchPathFieldLabel(config: LaunchConfiguration): string {
   if (config.type === 'open-application') return 'Application path'
   return 'Game file path'
 }
-
-export function launchPathHint(config: LaunchConfiguration): string {
-  if (config.type === 'open-application') {
-    return 'Path to the .app bundle if the game stopped launching.'
-  }
-  return 'Path to the ROM or executable. Fix this if the game opens the wrong file or fails to launch.'
-}

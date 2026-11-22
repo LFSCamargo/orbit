@@ -25,7 +25,7 @@ import { XBOX_CLOUD_ENABLED } from '@/lib/features'
 import { useEffect } from 'react'
 
 /** How long typing must pause before Library and Search look a title up. */
-export const SEARCH_DEBOUNCE_MS = 250
+const SEARCH_DEBOUNCE_MS = 250
 
 const workspaceButtonClass =
   'workspace-button inline-flex min-h-12 items-center justify-center gap-2.5 border border-white/[0.16] bg-white/[0.08] px-5 py-3 font-[550] disabled:opacity-45'

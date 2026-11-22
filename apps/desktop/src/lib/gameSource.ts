@@ -3,7 +3,7 @@ import type { Game } from '@/types/game'
 /** Where a game plays from, shown as a tile icon and a Library section. */
 export type GameSource = 'steam-mac' | 'steam-windows' | 'astris' | 'xcloud' | 'other'
 
-export const SOURCE_ORDER: GameSource[] = [
+const SOURCE_ORDER: GameSource[] = [
   'steam-mac',
   'steam-windows',
   'astris',

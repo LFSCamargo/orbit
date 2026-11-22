@@ -653,6 +653,11 @@ export function xcloudStreamStop() {
   return run<void>('xcloud_stream_stop')
 }
 
+/** The player shows the stream (true) or is paused or closed (false). */
+export function xcloudStreamPlaying(playing: boolean) {
+  return run<void>('xcloud_stream_playing', { playing })
+}
+
 /** Whether the linked account can stream in Orbit's player, and from where. */
 export function xcloudStreamStatus() {
   return run<import('@/types/xcloud').XcloudStreamStatus>('xcloud_stream_status')

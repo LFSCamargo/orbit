@@ -24,7 +24,7 @@ export const SETUP_QUERIES = {
   orbitWine: { queryKey: ['orbit-wine'], queryFn: orbitWineStatus },
 } as const
 
-export type SetupPhase = 'loading' | 'ready' | 'installing' | 'failed' | 'complete'
+type SetupPhase = 'loading' | 'ready' | 'installing' | 'failed' | 'complete'
 
 /** The Setup step: which components to install, one run that installs them
  * in order (a failure does not stop the rest), and retrying only failures.

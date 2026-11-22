@@ -1,4 +1,4 @@
-export type SteamClientPhase = 'stopped' | 'starting' | 'connecting' | 'ready' | 'failed'
+type SteamClientPhase = 'stopped' | 'starting' | 'connecting' | 'ready' | 'failed'
 
 export interface SteamWindowsStatus {
   signedIn: boolean

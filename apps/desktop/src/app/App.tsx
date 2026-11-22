@@ -25,9 +25,11 @@ import { useSteamClientEvents } from '@/hooks/useSteamClientEvents'
 import { useSteamLibraryEvents } from '@/hooks/useSteamLibraryEvents'
 import { useSessionStore } from '@/stores/session.store'
 import { useUiStore } from '@/stores/ui.store'
+import { useXcloudPlayerStore } from '@/stores/xcloudPlayer.store'
 import { OnboardingFlow } from '@/modules/onboarding/OnboardingFlow'
 import { useOnboardingVisible } from '@/modules/onboarding/lib/onboardingVisibility'
 import { useSplashActive } from './splash/useSplashHold'
+import { appLayerHidden } from './appLayer'
 import { useRuntimeAutoUpdate } from './startup/useRuntimeAutoUpdate'
 import { useStartupScan } from './startup/useStartupScan'
 
@@ -39,6 +41,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   const homeMenuOpen = useUiStore((s) => s.homeMenuOpen)
   const onboarding = useOnboardingVisible()
   const splashUp = useSplashActive()
+  const streaming = useXcloudPlayerStore((s) => s.stream !== null && !s.paused)
   const { family } = useControllerNavigation()
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const { data: activeSession } = useActiveSessionQuery()
@@ -78,8 +81,10 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
           homeMenuOpen || onboarding ? 'pointer-events-none select-none' : undefined
         }
         // On a first run onboarding sits over the splash; Home appears only
-        // when the splash opens it.
-        style={overSplash ? { visibility: 'hidden' } : undefined}
+        // when the splash opens it. A playing cloud stream covers it too.
+        style={
+          appLayerHidden({ overSplash, streaming }) ? { visibility: 'hidden' } : undefined
+        }
         aria-hidden={homeMenuOpen || onboarding}
         inert={onboarding}
       >

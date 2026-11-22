@@ -22,26 +22,27 @@ import type { AppScreen } from '@/types/game'
 /**
  * Wires GamepadManager + FocusManager into app navigation.
  * Keyboard arrows/Enter/Escape mirror controller actions.
+ *
+ * Mounted once: actions read the current screen from the store, so screen
+ * changes do not tear down the poller and its native listeners, and controller
+ * input re-renders nothing unless the pad family changes.
  */
 export function useControllerNavigation() {
   useNavigationInput()
   const [family, setFamily] = useState<ControllerFamily>('generic')
-  const screen = useUiStore((s) => s.screen)
-  const setScreen = useUiStore((s) => s.setScreen)
-  const selectedGameId = useUiStore((s) => s.selectedGameId)
-  const markControllerActivity = useUiStore((s) => s.markControllerActivity)
 
   useEffect(() => {
+    const { markControllerActivity, setScreen } = useUiStore.getState()
     gamepadManager.start()
     setFamily(gamepadManager.getFamily())
 
-    const unsubActivity = gamepadManager.onActivity(() => {
-      markControllerActivity()
-      setFamily(gamepadManager.getFamily())
-    })
+    const unsubConnection = gamepadManager.onConnectionChange(() =>
+      setFamily(gamepadManager.getFamily()),
+    )
+    const unsubActivity = gamepadManager.onActivity(markControllerActivity)
 
     const handleAction = (action: ControllerAction) => {
-      setFamily(gamepadManager.getFamily())
+      const { screen, selectedGameId } = useUiStore.getState()
       // A visible cloud game owns the controller (Home still opens Orbit's
       // menu); a paused one leaves Orbit fully usable.
       const cloud = useXcloudPlayerStore.getState()
@@ -212,25 +213,26 @@ export function useControllerNavigation() {
           applyStickScroll(deltaX, deltaY)
         })
 
-    let unlistenStickScroll: (() => void) | undefined
+    // A listener that resolves after cleanup is removed at once, not leaked.
+    let active = true
+    const unlisteners: Array<() => void> = []
+    const keep = (unlisten: () => void) => {
+      if (active) unlisteners.push(unlisten)
+      else unlisten()
+    }
     if (useNativeStickScroll) {
       void listen<{ deltaX: number; deltaY: number }>(
         'controller-stick-scroll',
         (event) => {
           applyStickScroll(event.payload.deltaX, event.payload.deltaY)
         },
-      ).then((unlisten) => {
-        unlistenStickScroll = unlisten
-      })
+      ).then(keep)
     }
 
-    let unlistenHome: (() => void) | undefined
     void listen<{ wasFocused: boolean }>('controller-home-pressed', (event) => {
       markControllerActivity()
       void handleHomePress(event.payload.wasFocused)
-    }).then((unlisten) => {
-      unlistenHome = unlisten
-    })
+    }).then(keep)
 
     const onKeyDown = (event: KeyboardEvent) => {
       const action = keyboardControllerAction(event)
@@ -244,15 +246,16 @@ export function useControllerNavigation() {
     window.addEventListener('keydown', onKeyDown)
 
     return () => {
+      active = false
       unsubPad()
       unsubScroll?.()
-      unlistenStickScroll?.()
+      unsubConnection()
       unsubActivity()
-      unlistenHome?.()
+      for (const unlisten of unlisteners) unlisten()
       window.removeEventListener('keydown', onKeyDown)
       gamepadManager.stop()
     }
-  }, [screen, selectedGameId, setScreen, markControllerActivity])
+  }, [])
 
   return { family }
 }

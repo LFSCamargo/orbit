@@ -3,7 +3,6 @@ import {
   clearLibrary,
   createGame,
   deleteGame,
-  detectImporters,
   getActiveSession,
   getGame,
   importGamePath,
@@ -38,19 +37,16 @@ export function useGame(gameId: string | null) {
   })
 }
 
-export function useImporters() {
-  return useQuery({
-    queryKey: ['importers'],
-    queryFn: detectImporters,
-  })
-}
+/** Safety-net poll while a game plays; events carry the real changes. */
+export const ACTIVE_SESSION_POLL_MS = 10_000
 
 export function useActiveSessionQuery() {
   return useQuery({
     queryKey: ['active-session'],
     queryFn: getActiveSession,
-    // Poll only while a session is active; still fetches once on mount.
-    refetchInterval: (query) => (query.state.data ? 2_000 : false),
+    // game-session-started/ended push changes (useSessionEvents); while a
+    // game plays this slow poll is only a safety net, so it stays cheap.
+    refetchInterval: (query) => (query.state.data ? ACTIVE_SESSION_POLL_MS : false),
   })
 }
 

@@ -95,8 +95,7 @@ export interface ImporterStatus {
   experimental: boolean
 }
 
-export type SessionStopReason =
-  'process-exited' | 'user-stopped' | 'launch-failed' | 'unknown'
+type SessionStopReason = 'process-exited' | 'user-stopped' | 'launch-failed' | 'unknown'
 
 export interface GameSession {
   id: string

@@ -19,7 +19,7 @@ export function isWindowsSteamPlay(entry: LibraryEntry) {
 }
 
 /** Cloud games stream in Orbit's player: no local session to track. */
-export function isCloudPlay(entry: LibraryEntry) {
+function isCloudPlay(entry: LibraryEntry) {
   return entry.game.provider === 'xcloud'
 }
 

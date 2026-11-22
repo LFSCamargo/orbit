@@ -96,3 +96,43 @@ it('picks up from what is on screen after the stick scrolled focus away', () => 
   manager.move('up')
   expect(manager.getFocusedId()).toBe('visible-bottom')
 })
+
+it('tells only the controls that gain or lose focus', () => {
+  // Regression: every focusable was called on every move, O(n) per step.
+  const manager = new FocusManager()
+  place(manager, 'a', { x: 0, y: 0 })
+  place(manager, 'b', { x: 0, y: 100 })
+  place(manager, 'c', { x: 0, y: 200 })
+  const calls: string[] = []
+  for (const id of ['a', 'b', 'c']) {
+    manager.subscribeId(id, (focused) => calls.push(`${id}:${focused}`))
+  }
+  expect(calls).toEqual(['a:true', 'b:false', 'c:false'])
+  calls.length = 0
+
+  manager.setFocus('b', { scroll: false })
+  expect(calls).toEqual(['a:false', 'b:true'])
+  calls.length = 0
+  manager.setFocus('b', { scroll: false })
+  expect(calls).toEqual([])
+
+  // Losing the focused control to unregister still updates its fallback.
+  manager.unregister('b')
+  expect(calls).toEqual(['b:false', `${manager.getFocusedId()}:true`])
+})
+
+it('skips hidden controls without measuring every one in the wrong direction', () => {
+  const manager = new FocusManager()
+  place(manager, 'here', { x: 0, y: 100 })
+  const above = place(manager, 'above', { x: 0, y: 0 })
+  place(manager, 'below', { x: 0, y: 200 })
+  let checks = 0
+  above.checkVisibility = () => {
+    checks += 1
+    return true
+  }
+  manager.setFocus('here', { scroll: false })
+  manager.move('down')
+  expect(manager.getFocusedId()).toBe('below')
+  expect(checks).toBe(0)
+})

@@ -1,14 +1,6 @@
 import { test as base } from '@playwright/test'
 
-export {
-  chromium,
-  devices,
-  expect,
-  type Browser,
-  type BrowserContext,
-  type Locator,
-  type Page,
-} from '@playwright/test'
+export { chromium, expect, type Locator, type Page } from '@playwright/test'
 
 /** Orbit ignores input until its startup splash has gone (app/splash), so
  * every navigation waits for it, as a player would; on a first run the

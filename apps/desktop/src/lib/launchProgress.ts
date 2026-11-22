@@ -12,8 +12,6 @@ export const LAUNCH_STEPS = [
   { id: 'running', label: 'Game is running' },
 ] as const
 
-export type LaunchStepId = (typeof LAUNCH_STEPS)[number]['id']
-
 export type LaunchProgress = {
   gameId: string
   step: string

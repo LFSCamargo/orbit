@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn'
 // Types
 // ============================================================================
 
-export interface GlobeMarker {
+interface GlobeMarker {
   lat: number
   lng: number
   src: string
@@ -76,7 +76,7 @@ export interface Globe3DConfig {
 /** Orbit: render one window of a larger virtual frame (see
  * `PerspectiveCamera.setViewOffset`), so a globe far bigger than the canvas
  * draws only the part that is visible. */
-export interface GlobeViewOffset {
+interface GlobeViewOffset {
   fullWidth: number
   fullHeight: number
   x: number
@@ -598,5 +598,3 @@ export function Globe3D({
     </div>
   )
 }
-
-export default Globe3D

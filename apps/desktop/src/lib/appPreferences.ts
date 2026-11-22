@@ -2,7 +2,7 @@ import { isTauriRuntime } from '@/lib/devMockApi'
 import { getSetting, listGames, setSetting, windowsCompatibility } from '@/lib/tauri'
 
 /** App-level preferences, stored as one JSON value in the settings table. */
-export const APP_PREFERENCES_KEY = 'app-preferences-v1'
+const APP_PREFERENCES_KEY = 'app-preferences-v1'
 
 export interface AppPreferences {
   onboardingCompleted: boolean
