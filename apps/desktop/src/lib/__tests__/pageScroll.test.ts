@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { focusManager } from '@/controllers/FocusManager'
 import { applyPageScroll } from '../pageScroll'
 
@@ -83,4 +83,25 @@ it('keeps an open dialog from scrolling the page behind it', () => {
 
   expect(main.scrollTop).toBe(0)
   focusManager.unregister('dialog-ok')
+})
+
+it('finds the pane once per stick gesture, not on every frame', () => {
+  // Regression: each 60 Hz scroll frame walked computed styles up the DOM.
+  const main = scrollable('macos-main')
+  const pane = scrollable('library-pane')
+  const control = button('library-card')
+  pane.append(control)
+  main.append(pane)
+  document.body.append(main)
+  focusManager.register({ id: 'library-card', element: control, group: 'lib', order: 0 })
+  focusManager.setFocus('library-card', { scroll: false })
+
+  applyPageScroll(0, 10)
+  const spy = vi.spyOn(window, 'getComputedStyle')
+  applyPageScroll(0, 10)
+  applyPageScroll(0, 10)
+  expect(spy).not.toHaveBeenCalled()
+  expect(pane.scrollTop).toBe(30)
+  spy.mockRestore()
+  focusManager.unregister('library-card')
 })

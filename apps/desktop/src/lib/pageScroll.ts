@@ -74,14 +74,65 @@ function scrollBy(element: HTMLElement, axis: Axis, delta: number) {
   else element.scrollLeft += delta
 }
 
+/** A stick gesture keeps its pane while frames keep coming this close together. */
+const GESTURE_GAP_MS = 150
+
+interface Gesture {
+  focused: Element | null
+  axis: Axis
+  forward: boolean
+  target: HTMLElement | null
+  lastAt: number
+}
+
+const gestures: Record<Axis, Gesture | null> = { x: null, y: null }
+
+/** Room left toward `delta`, reading only scroll metrics (no styles). */
+function hasRoom(element: HTMLElement, axis: Axis, delta: number) {
+  if (element === document.documentElement || element === document.scrollingElement)
+    return true
+  const max =
+    axis === 'y'
+      ? element.scrollHeight - element.clientHeight
+      : element.scrollWidth - element.clientWidth
+  const position = axis === 'y' ? element.scrollTop : element.scrollLeft
+  return delta > 0 ? position < max - 0.5 : position > 0.5
+}
+
+/**
+ * The pane for this frame: the walk in `scrollTarget` runs once per gesture,
+ * then later frames (60 Hz) reuse it while focus, direction and room hold.
+ * O(1) per frame within a gesture.
+ */
+function gestureTarget(axis: Axis, delta: number, now: number) {
+  const focused = focusManager.getFocusedNode()?.element ?? null
+  const forward = delta > 0
+  const previous = gestures[axis]
+  if (
+    previous &&
+    now - previous.lastAt < GESTURE_GAP_MS &&
+    previous.focused === focused &&
+    previous.forward === forward &&
+    (!previous.target ||
+      (previous.target.isConnected && hasRoom(previous.target, axis, delta)))
+  ) {
+    previous.lastAt = now
+    return previous.target
+  }
+  const target = scrollTarget(axis, delta)
+  gestures[axis] = { focused, axis, forward, target, lastAt: now }
+  return target
+}
+
 /** Right-stick scroll: moves the pane holding focus, falling back to the page. */
 export function applyPageScroll(deltaX: number, deltaY: number) {
+  const now = performance.now()
   if (deltaY !== 0) {
-    const target = scrollTarget('y', deltaY)
+    const target = gestureTarget('y', deltaY, now)
     if (target) scrollBy(target, 'y', deltaY)
   }
   if (deltaX !== 0) {
-    const target = scrollTarget('x', deltaX)
+    const target = gestureTarget('x', deltaX, now)
     if (target) scrollBy(target, 'x', deltaX)
   }
 }

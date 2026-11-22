@@ -245,8 +245,10 @@ When adding a command: update Rust handler → register in `lib.rs` → add wrap
 
 1. `GamepadManager` polls `navigator.getGamepads()` once per frame, and only while a pad is connected and nothing suspended it (`setSuspended`, used by a playing cloud stream). With no pad, a 500 ms discovery check finds pads WebKit exposes without a `gamepadconnected` event. Resuming records held buttons without firing them.
 2. `ControllerMapping` maps button indices → `ControllerAction` (family-aware).
-3. `useControllerNavigation` dispatches actions to `ui.store` (navigate, confirm, back, edit, add, section switch).
-4. `FocusManager` maintains spatial focus graph; `Focusable` registers focusable elements.
+3. `useControllerNavigation` (mounted once) dispatches actions to `ui.store` (navigate, confirm, back, edit, add, section switch), reading the current screen from the store.
+4. `FocusManager` maintains spatial focus graph; `Focusable` registers focusable elements and subscribes to its own id (`subscribeId`), so a move notifies only the control losing focus and the one gaining it.
+
+**Performance.** Controller input must not re-render the app: `markControllerActivity` changes state only on the first controller input after the pointer, and the pad family updates only when the connected pad changes. On Home and in the Library grid the hero changes once focus rests (`useSettledHero`), so holding the D-pad does not load full-size art for every tile it passes. Right-stick scrolling finds its pane once per gesture and reuses it for later frames.
 
 **Sticks.** The left stick steps focus once per flick (engage 0.5, release 0.32) and repeats after 380 ms, then every 140 ms, like a held D-pad. The right stick scrolls the innermost scrollable pane around the focused control (`lib/pageScroll.ts`), falling back to the page, and never past an open dialog. On macOS the native gilrs listener sends the right stick; its up-positive Y is flipped so up scrolls up.
 
