@@ -96,7 +96,7 @@ pub fn update_compatibility_settings(
 ) -> Result<runtimes::settings::CompatibilitySettings, String> {
     runtimes::settings::save_global(&app.state::<AppState>().repo, &settings)
         .map_err(|e| format!("{e:#}"))?;
-    Ok(settings)
+    runtimes::settings::load_global(&app.state::<AppState>().repo).map_err(|e| format!("{e:#}"))
 }
 
 #[tauri::command]

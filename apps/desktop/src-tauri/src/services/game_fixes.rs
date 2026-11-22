@@ -2,10 +2,12 @@
 //!
 //! Known games get their fix before every launch, the first one in a new
 //! container included: Capcom's RE Engine titles crash in DirectX 12 under
-//! D3DMetal (Devil May Cry 5: a null read inside the game), so their own ini
-//! is set to DirectX 11, and Steam's overlay, which those games also trip on,
-//! stays off. An RE Engine game (found by `re_chunk_000.pak`) that crashes
-//! while starting gets DirectX 11 in its own ini on the next launch.
+//! D3DMetal (Devil May Cry 5: a null read inside the game) and can hang on
+//! vendor GPU extensions or mismatched DX12 capability flags, so their own ini
+//! is set to DirectX 11 (`TargetPlatform=DirectX11`, `Capability=DirectX11`,
+//! `UseVendorExtention=Disable`), and Steam's overlay stays off. An RE Engine
+//! game (found by `re_chunk_000.pak`) that crashes while starting gets the
+//! same DirectX 11 ini normalization on the next launch.
 //!
 //! The graphics layer is the person's choice and is never changed here: an
 //! earlier ladder switched crashing games to DXVK, which broke GPTK setups.
@@ -161,31 +163,81 @@ pub fn record_startup_crash(
     Some(next)
 }
 
-/// The ini with `TargetPlatform` set to DirectX 11, or None when it already is.
+/// The RE Engine ini normalized for DirectX 11 stability (`TargetPlatform`,
+/// `Capability`, and `UseVendorExtention=Disable`), or None when it already is.
+/// Complexity: O(L) over lines of a config file bounded by `CONFIG_LIMIT`.
 pub fn with_directx11(text: &str) -> Option<String> {
-    let mut found = false;
+    if text.trim().is_empty() {
+        return Some(
+            "[Render]\nCapability=DirectX11\nTargetPlatform=DirectX11\nUseVendorExtention=Disable\n"
+                .to_string(),
+        );
+    }
+    let mut found_target = false;
+    let mut found_capability = false;
+    let mut found_vendor_ext = false;
+    let mut render_section = None;
     let mut changed = false;
-    let lines: Vec<String> = text
+    let mut lines: Vec<String> = text
         .lines()
-        .map(|line| match line.split_once('=') {
-            Some((key, value)) if key.trim() == "TargetPlatform" => {
-                found = true;
-                if value.trim() == "DirectX11" {
-                    line.to_string()
-                } else {
-                    changed = true;
-                    "TargetPlatform=DirectX11".to_string()
-                }
+        .enumerate()
+        .map(|(index, line)| {
+            if line.trim().eq_ignore_ascii_case("[render]") && render_section.is_none() {
+                render_section = Some(index);
+                return line.to_string();
             }
-            _ => line.to_string(),
+            match line.split_once('=') {
+                Some((key, value)) => match key.trim() {
+                    "TargetPlatform" => {
+                        found_target = true;
+                        if value.trim() == "DirectX11" {
+                            line.to_string()
+                        } else {
+                            changed = true;
+                            "TargetPlatform=DirectX11".to_string()
+                        }
+                    }
+                    "Capability" => {
+                        found_capability = true;
+                        if value.trim() == "DirectX11" {
+                            line.to_string()
+                        } else {
+                            changed = true;
+                            "Capability=DirectX11".to_string()
+                        }
+                    }
+                    "UseVendorExtention" => {
+                        found_vendor_ext = true;
+                        if value.trim() == "Disable" {
+                            line.to_string()
+                        } else {
+                            changed = true;
+                            "UseVendorExtention=Disable".to_string()
+                        }
+                    }
+                    _ => line.to_string(),
+                },
+                None => line.to_string(),
+            }
         })
         .collect();
-    if !found {
-        let mut text = text.to_string();
-        if !text.is_empty() && !text.ends_with('\n') {
-            text.push('\n');
+    let mut missing = Vec::new();
+    if !found_capability {
+        missing.push("Capability=DirectX11".to_string());
+    }
+    if !found_target {
+        missing.push("TargetPlatform=DirectX11".to_string());
+    }
+    if !found_vendor_ext {
+        missing.push("UseVendorExtention=Disable".to_string());
+    }
+    if !missing.is_empty() {
+        changed = true;
+        if let Some(index) = render_section {
+            lines.splice(index + 1..index + 1, missing);
+        } else {
+            lines.extend(missing);
         }
-        return Some(format!("{text}TargetPlatform=DirectX11\n"));
     }
     changed.then(|| lines.join("\n") + "\n")
 }
@@ -254,20 +306,32 @@ mod tests {
     #[test]
     fn directx12_is_switched_to_directx11_and_the_rest_is_kept() {
         // Regression: Devil May Cry 5 crashed at start (page fault reading
-        // 0x0 in devilmaycry5.exe) with TargetPlatform=DirectX12 on D3DMetal.
-        let text = "Capability=DirectX12\nTargetPlatform=DirectX12\nWindowMode=FullScreen\n";
+        // 0x0 in devilmaycry5.exe) with TargetPlatform=DirectX12 on D3DMetal
+        // and froze mid-scene with Capability=DirectX12 + UseVendorExtention=Enable.
+        let text = "[Render]\nCapability=DirectX12\nTargetPlatform=DirectX12\nUseVendorExtention=Enable\n[RenderConfig]\nWindowMode=FullScreen\n";
         let updated = with_directx11(text).expect("changed");
         assert!(updated.contains("TargetPlatform=DirectX11"));
-        assert!(
-            updated.contains("Capability=DirectX12"),
-            "only the target changes"
-        );
-        assert!(updated.contains("WindowMode=FullScreen"));
+        assert!(updated.contains("Capability=DirectX11"));
+        assert!(updated.contains("UseVendorExtention=Disable"));
+        assert!(updated.contains("[RenderConfig]\nWindowMode=FullScreen"));
         assert_eq!(with_directx11(&updated), None);
         assert_eq!(
             with_directx11("").as_deref(),
-            Some("TargetPlatform=DirectX11\n")
+            Some(
+                "[Render]\nCapability=DirectX11\nTargetPlatform=DirectX11\nUseVendorExtention=Disable\n"
+            )
         );
+    }
+
+    #[test]
+    fn dmc5_missing_render_keys_are_inserted_under_render_section() {
+        let text = "[Render]\nTargetPlatform=DirectX11\n[RenderConfig]\nFullScreenMode=true\n";
+        let updated = with_directx11(text).expect("changed");
+        assert_eq!(
+            updated,
+            "[Render]\nCapability=DirectX11\nUseVendorExtention=Disable\nTargetPlatform=DirectX11\n[RenderConfig]\nFullScreenMode=true\n"
+        );
+        assert_eq!(with_directx11(&updated), None);
     }
 
     #[test]
@@ -282,7 +346,7 @@ mod tests {
         apply("883710", &dir);
         assert_eq!(
             fs::read_to_string(dir.join("re2_config.ini")).unwrap(),
-            "TargetPlatform=DirectX11\n"
+            "[Render]\nCapability=DirectX11\nTargetPlatform=DirectX11\nUseVendorExtention=Disable\n"
         );
         assert!(!overlay_allowed("601150", true));
         assert!(overlay_allowed("570", true));

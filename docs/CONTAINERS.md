@@ -56,7 +56,17 @@ one that passes `runtimes/wine_capabilities.rs`, and otherwise falls back to the
 Steam sign-in Wine. For D3DMetal Orbit exports GPTK's `libd3dshared.dylib` as
 `CX_APPLEGPTK_LIBD3DSHARED_PATH`, the framework as `D3DMETAL_FRAMEWORK_PATH`,
 and its libraries as `WINEDLLPATH_PREPEND` (Orbit Wine patch) so they win over
-Wine's builtins. Everything on a container's wineserver shares one sync mode
+Wine's builtins. For DLSS (Super Resolution and Frame Generation via MetalFX), Orbit copies
+Apple's opt-in `nvngx-on-metalfx.dll` as `nvngx.dll` plus `nvapi64.dll` into
+system32 and stages both `x86_64-windows/nvngx.dll` and a symlinked
+`x86_64-unix/nvngx.so` (pointing to canonical `libd3dshared.dylib`) under the
+prefix's `.orbit/d3dmetal-dlss` DLL path so Wine initializes the builtin Unix
+call table cleanly. Orbit lets D3DMetal manage NVIDIA (`0x10de`/`0x2684`) vs AMD
+Compatibility Mode identity from `D3DM_ENABLE_METALFX` rather than forcing
+`D3DM_VENDOR_ID` unconditionally. With DLSS enabled, launch also sets the
+prefix's `NGXCore\FullPath` to `C:\windows\system32` for NGX discovery. The
+shared GPTK component is never renamed or modified.
+Everything on a container's wineserver shares one sync mode
 (`WINEMSYNC=1` exactly when the Wine has MSync); a mismatch makes the game exit 1.
 The Steam login is DPAPI-wrapped with the container's own Wine on each Play,
 because a blob from another Wine build does not unwrap. A Wine change keeps the

@@ -76,7 +76,7 @@ const recommended: CompatibilitySettings = {
   frameGenerationVsync: false,
   frameRateLimit: null,
   dxmtNvidiaExtensions: false,
-  resolution: 'auto',
+  resolution: 'custom',
   resolutionWidth: 1920,
   resolutionHeight: 1080,
 }
@@ -120,7 +120,16 @@ export function CompatibilityGlobalSettings() {
   }
 
   const patch = (values: Partial<CompatibilitySettings>) => {
-    if (data) setDraft({ ...data, ...values })
+    if (data) {
+      setDraft({
+        ...data,
+        ...values,
+        resolution: 'custom',
+        resolutionWidth: 1920,
+        resolutionHeight: 1080,
+        retinaMode: false,
+      })
+    }
     setNotice('')
   }
 
@@ -135,8 +144,11 @@ export function CompatibilityGlobalSettings() {
   // Installed packages unlock the controls. The launch engine still has to be
   // the backend that reads each option, so editing one selects that engine
   // when the form is still on Automatic or Wine.
-  const frameRateReady = hasDxmt || (hasDxvk && hasMoltenVk)
-  const metalFxReady = hasDxmt || hasGptk
+  const frameRateReady = hasGptk || hasDxmt || (hasDxvk && hasMoltenVk)
+  const d3dmetalActive =
+    data.graphics === 'd3dmetal' || (data.graphics === 'auto' && hasGptk)
+  const dxmtActive =
+    data.graphics === 'dxmt' || (data.graphics === 'auto' && !hasGptk && hasDxmt)
 
   return (
     <form
@@ -200,7 +212,7 @@ export function CompatibilityGlobalSettings() {
                       : graphics === 'dxvk'
                         ? { upscaling: false, dxmtNvidiaExtensions: false }
                         : graphics === 'd3dmetal'
-                          ? { dxmtNvidiaExtensions: false, frameRateLimit: null }
+                          ? { dxmtNvidiaExtensions: false }
                           : {}
                   patch({ graphics, ...clearsTranslation })
                 }}
@@ -248,59 +260,23 @@ export function CompatibilityGlobalSettings() {
 
         <SettingsGroup
           title="Display & compatibility"
-          description="Use the game’s own display settings first. These options are fallbacks."
+          description="Output is fixed at 1080p; the game controls its internal rendering."
         >
           <Field
             label="Display mode"
-            help="Use a virtual desktop if a game has trouble with fullscreen."
+            help="Fixed at 1920×1080 for every game. The virtual desktop and disabled Retina mode prevent automatic high-resolution presentation; select 1920×1080 in the game as well."
           >
             <OptionSelect
               aria-label="Default display mode"
               className={field}
-              value={data.resolution}
-              onValueChange={(selectedValue) =>
-                patch({
-                  resolution: selectedValue as CompatibilitySettings['resolution'],
-                })
-              }
+              value="custom"
+              onValueChange={() => undefined}
+              disabled
             >
-              <option value="auto">Automatic · Recommended</option>
-              <option value="custom">Virtual desktop</option>
+              <option value="custom">1080p · 1920 × 1080</option>
             </OptionSelect>
           </Field>
-          {data.resolution === 'custom' && (
-            <div className="settings-control-rows contents">
-              <Field label="Width">
-                <input
-                  aria-label="Default resolution width"
-                  className={field}
-                  type="number"
-                  min={640}
-                  max={7680}
-                  value={data.resolutionWidth}
-                  onChange={(e) => patch({ resolutionWidth: Number(e.target.value) })}
-                />
-              </Field>
-              <Field label="Height">
-                <input
-                  aria-label="Default resolution height"
-                  className={field}
-                  type="number"
-                  min={480}
-                  max={4320}
-                  value={data.resolutionHeight}
-                  onChange={(e) => patch({ resolutionHeight: Number(e.target.value) })}
-                />
-              </Field>
-            </div>
-          )}
           <div className="settings-control-rows contents">
-            <Toggle
-              label="High Resolution Mode"
-              description="Sharper rendering on Retina displays. Turn off if a game scales incorrectly."
-              checked={data.retinaMode}
-              onChange={(retinaMode) => patch({ retinaMode })}
-            />
             <Toggle
               label="AVX instructions"
               description="Enable for games that require AVX instructions through Rosetta."
@@ -328,18 +304,19 @@ export function CompatibilityGlobalSettings() {
           focusId="graphics-advanced"
         >
           <p className="text-xs leading-relaxed text-orbit-muted">
-            Frame rate, MetalFX, and NVIDIA extensions unlock when DXVK, DXMT, or D3DMetal
-            is installed. Turning one on selects the graphics engine that can apply it.
-            Upscale ratio and frame generation need a separate frame-generation package,
-            which DXMT does not include.
+            Frame rate, MetalFX, and NVIDIA extensions unlock when D3DMetal, DXMT, or DXVK
+            is installed. D3DMetal DLSS selects D3DMetal and enables supported in-game
+            DLSS Super Resolution and Frame Generation through MetalFX; DXMT-only options
+            require DXMT as the active graphics engine. Apple D3DMetal exposes no separate
+            frame-generation, VSync, or upscale-ratio override.
           </p>
           <div className="settings-control-rows contents">
             <Field
               label="Frame rate limit"
               help={
                 frameRateReady
-                  ? 'Caps the frame rate through DXVK or DXMT. Leave empty for unlimited.'
-                  : 'Install DXVK or DXMT to cap the frame rate.'
+                  ? 'Caps the frame rate through D3DMetal, DXMT, or DXVK. Leave empty for unlimited.'
+                  : 'Install Apple GPTK, DXMT, or DXVK to cap the frame rate.'
               }
             >
               <input
@@ -355,18 +332,25 @@ export function CompatibilityGlobalSettings() {
                   const frameRateLimit = e.target.value ? Number(e.target.value) : null
                   const needsEngine =
                     frameRateLimit != null &&
+                    data.graphics !== 'd3dmetal' &&
                     data.graphics !== 'dxvk' &&
                     data.graphics !== 'dxmt'
                   patch({
                     frameRateLimit,
-                    graphics: needsEngine ? (hasDxmt ? 'dxmt' : 'dxvk') : data.graphics,
+                    graphics: needsEngine
+                      ? hasGptk
+                        ? 'd3dmetal'
+                        : hasDxmt
+                          ? 'dxmt'
+                          : 'dxvk'
+                      : data.graphics,
                   })
                 }}
               />
             </Field>
             <Field
               label="Upscale ratio"
-              help="DXMT has no ratio control. Frame generation is a separate package and is not available yet."
+              help="Neither DXMT nor Apple D3DMetal exposes an external upscale ratio override; choose quality presets inside the game."
             >
               <input
                 aria-label="Default upscale ratio"
@@ -384,56 +368,50 @@ export function CompatibilityGlobalSettings() {
           </div>
           <div className="settings-control-rows contents">
             <Toggle
-              label="MetalFX upscaling"
-              description={
-                metalFxReady
-                  ? 'Use supported MetalFX upscaling.'
-                  : 'Install DXMT or D3DMetal to use MetalFX.'
-              }
-              disabled={!metalFxReady}
-              checked={data.upscaling}
-              onChange={(upscaling) => {
-                const supported = data.graphics === 'dxmt' || data.graphics === 'd3dmetal'
+              label="D3DMetal DLSS support"
+              description="Translate supported in-game DLSS Super Resolution and Frame Generation to MetalFX (with Metal 4 on macOS 27+) via Apple GPTK. Select DLSS or Frame Generation inside the game after relaunching."
+              disabled={!hasGptk}
+              checked={Boolean(d3dmetalActive && data.upscaling)}
+              onChange={(upscaling) =>
                 patch({
                   upscaling,
-                  graphics:
-                    upscaling && !supported
-                      ? hasDxmt
-                        ? 'dxmt'
-                        : 'd3dmetal'
-                      : data.graphics,
+                  graphics: 'd3dmetal',
+                  dxmtNvidiaExtensions: false,
                 })
+              }
+            />
+            <Toggle
+              label="DXMT spatial upscaling"
+              description="Upscale the presentation surface with DXMT within Orbit's fixed 1080p desktop. Select DXMT as the graphics engine to change this option."
+              disabled={!hasDxmt || !dxmtActive}
+              checked={Boolean(dxmtActive && data.upscaling)}
+              onChange={(upscaling) => {
+                if (dxmtActive) patch({ upscaling, graphics: 'dxmt' })
               }}
             />
             <Toggle
               label="DXMT NVIDIA extensions"
               description={
                 hasDxmt
-                  ? 'Enable supported HDR and DLSS integrations.'
-                  : 'Install DXMT to enable HDR and DLSS integrations.'
+                  ? 'Enable supported HDR and NVIDIA integrations for DXMT. Select DXMT as the graphics engine to change this option.'
+                  : 'Install DXMT to enable HDR and NVIDIA integrations.'
               }
-              disabled={!hasDxmt}
+              disabled={!hasDxmt || !dxmtActive}
               checked={data.dxmtNvidiaExtensions}
-              onChange={(dxmtNvidiaExtensions) =>
-                patch({
-                  dxmtNvidiaExtensions,
-                  graphics:
-                    dxmtNvidiaExtensions && data.graphics !== 'dxmt'
-                      ? 'dxmt'
-                      : data.graphics,
-                })
-              }
+              onChange={(dxmtNvidiaExtensions) => {
+                if (dxmtActive) patch({ dxmtNvidiaExtensions, graphics: 'dxmt' })
+              }}
             />
             <Toggle
               label="Frame generation"
-              description="Needs a GPTK 4 frame-generation package. DXMT does not include one."
+              description="Enabled automatically with D3DMetal DLSS support for games that include DLSS Frame Generation; Apple D3DMetal has no separate toggle."
               disabled
               checked={data.frameGeneration}
               onChange={(frameGeneration) => patch({ frameGeneration })}
             />
             <Toggle
               label="Frame generation VSync"
-              description="Needs the same GPTK 4 frame-generation package."
+              description="Not exposed by Apple D3DMetal; configure VSync inside the game."
               disabled
               checked={data.frameGenerationVsync}
               onChange={(frameGenerationVsync) => patch({ frameGenerationVsync })}

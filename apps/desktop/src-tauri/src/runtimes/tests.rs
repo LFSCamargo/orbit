@@ -58,6 +58,11 @@ fn rejects_non_pe_files_and_reserved_environment() {
         .insert("DYLD_INSERT_LIBRARIES".into(), "evil".into());
     assert!(profile.validate_options().is_err());
     profile.environment.clear();
+    profile.environment.insert("D3DM_MAX_FPS".into(), "60".into());
+    profile.environment.insert("D3DM_MTL4".into(), "1".into());
+    profile
+        .environment
+        .insert("D3DM_SUPPORT_DXR".into(), "1".into());
     profile.arguments = vec!["a b".into(), "$(touch /tmp/should-not-exist)".into()];
     assert!(profile.validate_options().is_ok());
     fs::remove_dir_all(root).unwrap();

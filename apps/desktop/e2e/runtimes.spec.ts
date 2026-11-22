@@ -47,14 +47,14 @@ test('graphics defaults save explicitly and drafts survive section navigation', 
   await expect(page.getByLabel('Default synchronization')).toHaveText(
     'MSync · Recommended',
   )
-  await page.getByRole('switch', { name: 'High Resolution Mode', exact: true }).click()
+  await page.getByRole('switch', { name: 'AVX instructions', exact: true }).click()
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Changes saved.')).toBeVisible()
   await page.getByRole('button', { name: 'General', exact: true }).click()
   await page.getByRole('button', { name: 'Game graphics', exact: true }).click()
   await expect(
-    page.getByRole('switch', { name: 'High Resolution Mode', exact: true }),
-  ).toBeChecked()
+    page.getByRole('switch', { name: 'AVX instructions', exact: true }),
+  ).not.toBeChecked()
 })
 
 test('one graphics selector lists engines with version status and replaces the selection', async ({
@@ -122,4 +122,22 @@ test('component rows expose a per-row install action and honest preview errors',
   await expect(page.locator('[data-focus-id="runtime-install-wine"]')).toContainText(
     'Retry',
   )
+})
+
+test('display is fixed at 1080p and DLSS support remains available', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('[data-focus-id="macos-nav-settings"]').click()
+  await page.getByRole('button', { name: 'Game graphics', exact: true }).click()
+  await expect(page.getByLabel('Default display mode')).toHaveText('1080p · 1920 × 1080')
+  await expect(page.getByLabel('Default display mode')).toBeDisabled()
+  await expect(
+    page.getByRole('switch', { name: 'High Resolution Mode', exact: true }),
+  ).toHaveCount(0)
+  await page.getByText('Advanced graphics options', { exact: true }).click()
+  await expect(
+    page.getByRole('switch', { name: 'D3DMetal DLSS support', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText(/DLSS Super Resolution and Frame Generation to MetalFX/),
+  ).toBeVisible()
 })

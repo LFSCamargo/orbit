@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
+  getCompatibilitySettings,
   getComponentStatus,
   installWindowsCompatibility,
   updateCompatibilitySettings,
@@ -100,7 +101,7 @@ vi.mock('@/lib/tauri', () => ({
     frameGenerationVsync: false,
     frameRateLimit: null,
     dxmtNvidiaExtensions: false,
-    resolution: 'auto',
+    resolution: 'custom',
     resolutionWidth: 1920,
     resolutionHeight: 1080,
   }),
@@ -321,4 +322,150 @@ it('keeps download progress across navigation and exposes retry after failure', 
   expect(await screen.findByRole('alert')).toHaveTextContent('Network disconnected')
   expect(screen.getByRole('button', { name: 'Retry installation' })).toBeEnabled()
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+})
+
+it('fixes every game to a 1080p desktop without automatic or Retina controls', async () => {
+  renderSettings(true)
+  const display = await screen.findByLabelText('Default display mode')
+  expect(display).toHaveTextContent('1080p · 1920 × 1080')
+  expect(display).toBeDisabled()
+  expect(
+    screen.queryByRole('switch', { name: 'High Resolution Mode' }),
+  ).not.toBeInTheDocument()
+
+  await chooseSync('Default')
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(updateCompatibilitySettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolution: 'custom',
+        resolutionWidth: 1920,
+        resolutionHeight: 1080,
+        retinaMode: false,
+      }),
+    ),
+  )
+})
+
+it('switches an existing DXMT configuration to D3DMetal DLSS when both are installed', async () => {
+  vi.mocked(getCompatibilitySettings).mockResolvedValueOnce({
+    graphics: 'dxmt',
+    synchronization: 'msync',
+    retinaMode: false,
+    metalHud: true,
+    avx: true,
+    upscaling: false,
+    upscaleRatio: 0,
+    frameGeneration: false,
+    frameGenerationVsync: false,
+    frameRateLimit: null,
+    dxmtNvidiaExtensions: true,
+    resolution: 'custom',
+    resolutionWidth: 1920,
+    resolutionHeight: 1080,
+  })
+  vi.mocked(getComponentStatus).mockResolvedValue([
+    {
+      id: 'dxmt',
+      version: 'v0.80',
+      kind: 'dxmt',
+      path: '/components/dxmt',
+      installedAt: '2026-11-22T00:00:00Z',
+    },
+    {
+      id: 'gptk',
+      version: '4.0 beta 3',
+      kind: 'gptk',
+      path: '/components/gptk',
+      installedAt: '2026-11-22T00:00:00Z',
+    },
+  ])
+  renderSettings(true)
+  await openAdvancedGraphics()
+  const dlss = screen.getByRole('switch', { name: 'D3DMetal DLSS support' })
+  expect(dlss).toBeEnabled()
+  expect(dlss).not.toBeChecked()
+  fireEvent.click(dlss)
+  expect(screen.getByLabelText('Default graphics')).toHaveTextContent('D3DMetal')
+  expect(dlss).toBeChecked()
+  expect(screen.getByRole('switch', { name: 'DXMT spatial upscaling' })).not.toBeChecked()
+  expect(screen.getByRole('switch', { name: 'DXMT spatial upscaling' })).toBeDisabled()
+  expect(screen.getByRole('switch', { name: 'DXMT NVIDIA extensions' })).not.toBeChecked()
+  expect(screen.getByRole('switch', { name: 'DXMT NVIDIA extensions' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(updateCompatibilitySettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        graphics: 'd3dmetal',
+        upscaling: true,
+        dxmtNvidiaExtensions: false,
+      }),
+    ),
+  )
+})
+
+it('enables D3DMetal DLSS through GPTK without selecting DXMT', async () => {
+  vi.mocked(getComponentStatus).mockResolvedValue([
+    {
+      id: 'gptk',
+      version: '4',
+      kind: 'gptk',
+      path: '/components/gptk',
+      installedAt: '2026-11-22T00:00:00Z',
+    },
+  ])
+  renderSettings(true)
+  await openAdvancedGraphics()
+  const dlss = screen.getByRole('switch', { name: 'D3DMetal DLSS support' })
+  expect(dlss).toBeEnabled()
+  // The fresh-install flag is on; disable it, then explicitly enable D3DMetal.
+  fireEvent.click(dlss)
+  fireEvent.click(dlss)
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(updateCompatibilitySettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        graphics: 'd3dmetal',
+        upscaling: true,
+        dxmtNvidiaExtensions: false,
+      }),
+    ),
+  )
+})
+
+it('unlocks frame rate limiting on D3DMetal and keeps it when toggling DLSS', async () => {
+  vi.mocked(getComponentStatus).mockResolvedValue([
+    {
+      id: 'gptk',
+      version: '4.0 beta 3',
+      kind: 'gptk',
+      path: '/components/gptk',
+      installedAt: '2026-11-22T00:00:00Z',
+    },
+  ])
+  renderSettings(true)
+  await openAdvancedGraphics()
+
+  const limit = await screen.findByLabelText('Default frame rate limit')
+  expect(limit).toBeEnabled()
+  fireEvent.change(limit, { target: { value: '60' } })
+  expect(screen.getByLabelText('Default graphics')).toHaveTextContent('D3DMetal')
+
+  const dlss = screen.getByRole('switch', { name: 'D3DMetal DLSS support' })
+  fireEvent.click(dlss)
+  fireEvent.click(dlss)
+  expect(limit).toHaveValue(60)
+  expect(screen.getByRole('switch', { name: 'Frame generation' })).toBeDisabled()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(updateCompatibilitySettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        graphics: 'd3dmetal',
+        upscaling: true,
+        frameRateLimit: 60,
+        dxmtNvidiaExtensions: false,
+      }),
+    ),
+  )
 })

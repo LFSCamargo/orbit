@@ -37,7 +37,8 @@ pub fn prepare(wine: &Path, graphics: &Path, root: &Path) -> Result<PathBuf> {
         .context("Invalid Wine distribution layout")?;
     let graphics = graphics.canonicalize()?;
     let mut hasher = Sha256::new();
-    hasher.update(b"orbit-graphics-layer-v1");
+    // v2 adds the opt-in NVNGX aliases, so existing cached layers are rebuilt.
+    hasher.update(b"orbit-graphics-layer-v2");
     for path in [
         base,
         graphics.as_path(),
@@ -135,11 +136,26 @@ pub fn prepare(wine: &Path, graphics: &Path, root: &Path) -> Result<PathBuf> {
             if !item.path().is_file() {
                 continue;
             }
-            let target = target.join(item.file_name());
+            let name = item.file_name();
+            let target = target.join(&name);
             if target.symlink_metadata().is_ok() {
                 fs::remove_file(&target)?;
             }
             link(&item.path(), &target)?;
+            // Apple's DLSS bridge ships under an opt-in filename. Alias it in
+            // the private layer instead of renaming the shared GPTK payload.
+            let alias = match name.to_str() {
+                Some("nvngx-on-metalfx.dll") => Some("nvngx.dll"),
+                Some("nvngx-on-metalfx.so") => Some("nvngx.so"),
+                _ => None,
+            };
+            if let Some(alias) = alias {
+                let target = target.with_file_name(alias);
+                if target.symlink_metadata().is_ok() {
+                    fs::remove_file(&target)?;
+                }
+                link(&item.path(), &target)?;
+            }
         }
     }
     // FOSS WineCX engines use @loader_path/../../ for their shared dependencies.
@@ -173,6 +189,7 @@ mod tests {
             base.join("lib/wine/x86_64-unix"),
             base.join("lib/wine/x86_64-windows"),
             graphics.join("x86_64-windows"),
+            graphics.join("x86_64-unix"),
         ] {
             fs::create_dir_all(dir).unwrap();
         }
@@ -181,6 +198,16 @@ mod tests {
         fs::write(base.join("lib/wine/x86_64-unix/ntdll.so"), b"unix").unwrap();
         fs::write(base.join("lib/wine/x86_64-windows/d3d11.dll"), b"default").unwrap();
         fs::write(graphics.join("x86_64-windows/d3d11.dll"), b"selected").unwrap();
+        fs::write(
+            graphics.join("x86_64-windows/nvngx-on-metalfx.dll"),
+            b"nvngx",
+        )
+        .unwrap();
+        fs::write(
+            graphics.join("x86_64-unix/nvngx-on-metalfx.so"),
+            b"metalfx bridge",
+        )
+        .unwrap();
         let layer = prepare(&base.join("bin/wine"), &graphics, &root.join("layers")).unwrap();
         let layered = layer.parent().unwrap().parent().unwrap();
         assert_eq!(
@@ -191,6 +218,15 @@ mod tests {
             fs::read(base.join("lib/wine/x86_64-windows/d3d11.dll")).unwrap(),
             b"default"
         );
+        assert_eq!(
+            fs::read(layered.join("lib/wine/x86_64-windows/nvngx.dll")).unwrap(),
+            b"nvngx"
+        );
+        assert_eq!(
+            fs::read(layered.join("lib/wine/x86_64-unix/nvngx.so")).unwrap(),
+            b"metalfx bridge"
+        );
+        assert!(!graphics.join("x86_64-unix/nvngx.so").exists());
         assert!(!layered
             .join("lib/wine/x86_64-unix/ntdll.so")
             .symlink_metadata()

@@ -194,7 +194,8 @@ reference and licensing preservation only.
 `windows-compatibility-settings-v1`. Until a row is saved, launch uses the
 built-in fresh-install defaults: Automatic graphics (which picks GPTK 4.0
 beta 3 D3DMetal once the Apple package is imported), MSync, Rosetta AVX on,
-and MetalFX upscaling on. Each `WineProfile.compatibility` contains
+MetalFX upscaling on, and a fixed 1920×1080 virtual desktop with Retina off.
+Each `WineProfile.compatibility` contains
 only explicit per-game overrides; missing fields inherit the current global
 values at launch rather than copying them. The resolved settings are never
 written back to the game's JSON.
@@ -208,32 +209,57 @@ Implemented launch behavior:
 - Synchronization: Default, ESync (`WINEESYNC`), or MSync (`WINEMSYNC`), mutually
   exclusive; the default is MSync. Wine builds without MSync support downgrade
   it at spawn. Explicit advanced environment values retain highest priority.
-- High Resolution Mode: Wine's documented `HKCU\Software\Wine\Mac Driver`
-  `RetinaMode` value via `reg add ... /d`.
-- Display: automatic or a bounded virtual-desktop resolution through Wine's
-  `Explorer` / `Explorer\Desktops` registry values (`reg add` with `/d`).
+- Display is fixed to 1920×1080 for every launch. Orbit always writes Wine's
+  `HKCU\Software\Wine\Mac Driver\RetinaMode=n`, `Explorer\Desktop=Orbit`, and
+  `Explorer\Desktops\Orbit=1920x1080` values. Legacy global and per-game
+  Automatic, high-resolution and custom-dimension values are normalized when
+  loaded or resolved; they cannot bypass the launch boundary.
 - Metal HUD (`MTL_HUD_ENABLED`) and Rosetta AVX (`ROSETTA_ADVERTISE_AVX`).
-- Global save and per-game resolution happen only for new launches, not a running
-  session.
+- Global saves return the canonical fixed-display settings. Display changes apply
+  on new launches, not to an already running session.
 
-Frame rate limit, MetalFX upscaling (on by default), and DXMT NVIDIA
+Frame rate limit (`D3DM_MAX_FPS`, `DXMT_CONFIG`, `DXVK_FRAME_RATE`), MetalFX upscaling (on by default), and DXMT NVIDIA
 extensions unlock when
-DXVK, DXMT, or D3DMetal is installed. Automatic launch prefers GPTK, then DXMT,
+D3DMetal, DXMT, or DXVK is installed. Automatic launch prefers GPTK, then DXMT,
 then DXVK, and Play sanitizes options that do not apply to that engine; with no
 MetalFX-capable engine installed, the upscaling default is dropped at launch
 rather than failing the game. An
-explicit Wine, DXMT, or DXVK choice still wins. Upscale ratio and frame generation stay disabled:
-DXMT has no ratio control, and frame generation needs a GPTK 4 Metal 4 package
-that Orbit does not launch. `validate_launchable` still rejects an option whose
-component or engine is missing. Play sanitizes leftover DXMT NVIDIA, MetalFX,
-and frame-rate flags that do not apply to the resolved engine instead of
-failing on the first overlay step.
+explicit Wine, DXMT, or DXVK choice still wins. Upscale ratio and the separate
+frame-generation / frame-generation VSync switches stay disabled: DXMT has no
+ratio control, and Apple's D3DMetal enables DLSS Frame Generation together with
+`D3DM_ENABLE_METALFX=1` for games that ship `nvngx_dlssg.dll` (using Metal 4 on
+macOS 27+, configurable via allowlisted `D3DM_MTL4`) with no separate
+frame-generation or VSync override. `validate_launchable` still rejects an
+option whose component or engine is missing. Play sanitizes leftover DXMT
+NVIDIA, MetalFX, and frame-rate flags that do not apply to the resolved engine
+instead of failing on the first overlay step. Advanced per-game environment
+overrides allowlist `D3DM_MAX_FPS`, `D3DM_MTL4`, and `D3DM_SUPPORT_DXR`.
 
 D3DMetal also accepts engine-style GPTK packages that ship a flat `wine/`
 directory plus `external/libd3dshared.dylib`; that layout sets
 `WINE_GPTK_LIBD3DSHARED_PATH` instead of relying on Apple's `@rpath`. Payloads
 whose native bridge is ARM64-only (`aarch64-unix` without `x86_64-unix`) are
 never selected: Orbit's Wine runs as x86_64 under Rosetta.
+
+D3DMetal DLSS support is separate from DXMT spatial upscaling. When Apple's
+opt-in files are present, Orbit copies `nvngx-on-metalfx.dll` as `nvngx.dll` and
+`nvapi64.dll` into system32, and stages both `x86_64-windows/nvngx.dll` (copy)
+and `x86_64-unix/nvngx.so` (symlink to the canonical GPTK `libd3dshared.dylib`
+on Unix) inside the prefix-owned `.orbit/d3dmetal-dlss` DLL directory prepended
+to `WINEDLLPATH_PREPEND`; legacy Wine's private runtime layer creates the same
+aliases and uses cache format v2 so existing layers are rebuilt. Pairing both
+the Windows PE and symlinked Unix bridge in the same prepended directory is
+required so Wine's builtin loader initializes `nvngx.dll` cleanly instead of
+failing `DllMain` with `ERROR_DLL_INIT_FAILED`. The shared component remains
+unchanged. Orbit does not force `D3DM_VENDOR_ID`: once `nvngx.dll` loads,
+D3DMetal natively switches adapter identity (`0x10de`/`0x2684`) and registers
+`NGXCore\FullPath` whenever `D3DM_ENABLE_METALFX=1`, and stays on AMD
+Compatibility Mode when `D3DM_ENABLE_METALFX=0`. Launch still sets
+`HKLM\Software\NVIDIA Corporation\Global\NGXCore\FullPath` to
+`C:\windows\system32` while DLSS is enabled. `D3DM_ENABLE_METALFX` follows the
+toggle and unlocks both DLSS Super Resolution (`nvngx_dlss.dll`) and DLSS Frame
+Generation (`nvngx_dlssg.dll`) on macOS 26+ when the game and package support
+them.
 
 Startup cleanup in `runtimes/retired_components.rs` drops Orbit's own component
 manifests that only pointed at a retired third-party engine folder, and clears
@@ -244,9 +270,10 @@ component store, and it skips any folder that holds more than the pointer.
 
 CrossOver behavior was checked against CodeWeavers' official
 [CrossOver 26 advanced settings documentation](https://support.codeweavers.com/en_US/advanced-settings-in-crossover-mac-26):
-Auto/DXMT/D3DMetal/DXVK/Wine graphics, ESync/MSync, High Resolution Mode, and
-MetalFX-powered DLSS. CSMT is always on in current CrossOver and is not exposed
-as a fake Orbit toggle.
+Auto/DXMT/D3DMetal/DXVK/Wine graphics, ESync/MSync, and MetalFX-powered DLSS
+are supported. Orbit intentionally fixes display output to 1080p and does not
+expose CrossOver's High Resolution Mode. CSMT is always on in current CrossOver
+and is not exposed as a fake Orbit toggle.
 
 The remaining implementation backlog is a real backend contract, not more menu
 items: DXVK/DXMT download and per-prefix DLL injection, Apple GPTK package import

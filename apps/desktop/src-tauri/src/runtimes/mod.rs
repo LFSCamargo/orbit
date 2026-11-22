@@ -74,6 +74,9 @@ impl WineProfile {
             "DXMT_ENABLE_NVEXT",
             "DXMT_METALFX_SPATIAL_SWAPCHAIN",
             "D3DM_ENABLE_METALFX",
+            "D3DM_MAX_FPS",
+            "D3DM_MTL4",
+            "D3DM_SUPPORT_DXR",
             "ROSETTA_ADVERTISE_AVX",
             "MTL_HUD_ENABLED",
         ];

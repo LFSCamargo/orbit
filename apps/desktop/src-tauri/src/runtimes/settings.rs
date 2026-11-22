@@ -54,12 +54,8 @@ pub struct CompatibilitySettings {
     pub resolution_height: u32,
 }
 
-const fn default_width() -> u32 {
-    1920
-}
-const fn default_height() -> u32 {
-    1080
-}
+const DISPLAY_WIDTH: u32 = 1920;
+const DISPLAY_HEIGHT: u32 = 1080;
 
 /// The fresh-install defaults, used verbatim until the user saves a global
 /// row: Automatic picks GPTK (D3DMetal, the current Apple package is 4.0
@@ -80,9 +76,9 @@ impl Default for CompatibilitySettings {
             frame_generation_vsync: false,
             frame_rate_limit: None,
             dxmt_nvidia_extensions: false,
-            resolution: Resolution::Auto,
-            resolution_width: default_width(),
-            resolution_height: default_height(),
+            resolution: Resolution::Custom,
+            resolution_width: DISPLAY_WIDTH,
+            resolution_height: DISPLAY_HEIGHT,
         }
     }
 }
@@ -169,9 +165,12 @@ impl CompatibilitySettings {
             bail!("DXMT NVIDIA extensions require DXMT");
         }
         if self.frame_rate_limit.is_some()
-            && !matches!(self.graphics, GraphicsBackend::Dxvk | GraphicsBackend::Dxmt)
+            && !matches!(
+                self.graphics,
+                GraphicsBackend::Dxvk | GraphicsBackend::Dxmt | GraphicsBackend::D3dmetal
+            )
         {
-            bail!("Frame rate limiting requires the DXVK or DXMT graphics engine");
+            bail!("Frame rate limiting requires the D3DMetal, DXMT, or DXVK graphics engine");
         }
         if self.frame_rate_limit.is_some() && self.graphics == GraphicsBackend::Dxvk && !has_dxvk {
             bail!("Frame rate limiting requires DXVK");
@@ -179,14 +178,20 @@ impl CompatibilitySettings {
         if self.frame_rate_limit.is_some() && self.graphics == GraphicsBackend::Dxmt && !has_dxmt {
             bail!("Frame rate limiting requires DXMT");
         }
+        if self.frame_rate_limit.is_some()
+            && self.graphics == GraphicsBackend::D3dmetal
+            && !has_gptk
+        {
+            bail!("Frame rate limiting requires D3DMetal");
+        }
         if self.frame_generation || self.frame_generation_vsync {
-            bail!("Frame generation requires a GPTK 4 package with the Metal 4 backend. It cannot work with the installed version");
+            bail!("D3DMetal enables DLSS Frame Generation together with D3DMetal DLSS support for games that include it, and exposes no separate frame-generation or VSync override");
         }
         Ok(())
     }
 
     pub fn merged(&self, overrides: &CompatibilityOverrides) -> Self {
-        Self {
+        let mut merged = Self {
             graphics: overrides.graphics.unwrap_or(self.graphics),
             synchronization: overrides.synchronization.unwrap_or(self.synchronization),
             retina_mode: overrides.retina_mode.unwrap_or(self.retina_mode),
@@ -207,7 +212,18 @@ impl CompatibilitySettings {
             resolution_height: overrides
                 .resolution_height
                 .unwrap_or(self.resolution_height),
-        }
+        };
+        merged.enforce_display_limit();
+        merged
+    }
+
+    /// The Windows desktop is deliberately bounded: Retina and Automatic can
+    /// otherwise resize the presentation surface to the native Retina display.
+    fn enforce_display_limit(&mut self) {
+        self.retina_mode = false;
+        self.resolution = Resolution::Custom;
+        self.resolution_width = DISPLAY_WIDTH;
+        self.resolution_height = DISPLAY_HEIGHT;
     }
 
     /// Automatic prefers GPTK, then DXMT, then DXVK. An explicit Wine choice stays Wine.
@@ -271,6 +287,9 @@ impl CompatibilitySettings {
             }
             GraphicsBackend::D3dmetal => {
                 set("D3DM_ENABLE_METALFX", flag(self.upscaling));
+                if let Some(limit) = self.frame_rate_limit {
+                    set("D3DM_MAX_FPS", limit.to_string());
+                }
             }
             GraphicsBackend::Dxvk => {
                 if let Some(limit) = self.frame_rate_limit {
@@ -284,6 +303,7 @@ impl CompatibilitySettings {
     /// Drop flags that cannot apply to the resolved engine so Play is not
     /// blocked by a leftover DXMT NVIDIA / MetalFX / frame-rate setting.
     pub fn sanitize_for_engine(&mut self) {
+        self.enforce_display_limit();
         if self.graphics != GraphicsBackend::Dxmt {
             self.dxmt_nvidia_extensions = false;
         }
@@ -293,7 +313,10 @@ impl CompatibilitySettings {
         ) {
             self.upscaling = false;
         }
-        if !matches!(self.graphics, GraphicsBackend::Dxvk | GraphicsBackend::Dxmt) {
+        if !matches!(
+            self.graphics,
+            GraphicsBackend::Dxvk | GraphicsBackend::Dxmt | GraphicsBackend::D3dmetal
+        ) {
             self.frame_rate_limit = None;
         }
         self.frame_generation = false;
@@ -306,18 +329,21 @@ impl CompatibilitySettings {
     pub fn registry_adds(&self) -> Vec<[String; 7]> {
         let mut operations = vec![
             hide_tray_icons(),
+            reg_sz(r"HKCU\Software\Wine\Mac Driver", "RetinaMode", "n"),
+            reg_sz(r"HKCU\Software\Wine\Explorer", "Desktop", "Orbit"),
             reg_sz(
-                r"HKCU\Software\Wine\Mac Driver",
-                "RetinaMode",
-                if self.retina_mode { "y" } else { "n" },
-            ),
-        ];
-        if self.resolution == Resolution::Custom {
-            operations.push(reg_sz(r"HKCU\Software\Wine\Explorer", "Desktop", "Orbit"));
-            operations.push(reg_sz(
                 r"HKCU\Software\Wine\Explorer\Desktops",
                 "Orbit",
-                &format!("{}x{}", self.resolution_width, self.resolution_height),
+                &format!("{DISPLAY_WIDTH}x{DISPLAY_HEIGHT}"),
+            ),
+        ];
+        if self.graphics == GraphicsBackend::D3dmetal && self.upscaling {
+            // NVIDIA's game-side NGX library looks here for the driver-side core.
+            // An empty NGXCore key lets NVAPI/Reflex work while DLSS stays hidden.
+            operations.push(reg_sz(
+                r"HKLM\Software\NVIDIA Corporation\Global\NGXCore",
+                "FullPath",
+                r"C:\windows\system32",
             ));
         }
         operations
@@ -352,10 +378,12 @@ fn reg_sz(key: &str, name: &str, data: &str) -> [String; 7] {
 
 pub fn load_global(repo: &GameRepository) -> Result<CompatibilitySettings> {
     let value = repo.get_setting(GLOBAL_SETTINGS_KEY)?;
-    match value {
-        Some(value) => Ok(serde_json::from_value(value)?),
-        None => Ok(CompatibilitySettings::default()),
-    }
+    let mut settings = match value {
+        Some(value) => serde_json::from_value(value)?,
+        None => CompatibilitySettings::default(),
+    };
+    settings.enforce_display_limit();
+    Ok(settings)
 }
 
 pub fn save_global(repo: &GameRepository, settings: &CompatibilitySettings) -> Result<()> {
@@ -369,10 +397,11 @@ pub fn save_global_in(
     repo: &GameRepository,
     settings: &CompatibilitySettings,
 ) -> Result<()> {
-    settings.validate()?;
     let actives = super::selections::load(repo)?;
     let selections = super::selections::resolve(root, &actives);
     let mut settings = settings.clone();
+    settings.enforce_display_limit();
+    settings.validate()?;
     settings.graphics = settings.launch_graphics(&selections);
     settings.sanitize_for_engine();
     settings.validate_launchable(&selections)?;
@@ -525,6 +554,10 @@ mod tests {
         assert_eq!(settings.synchronization, Synchronization::Msync);
         assert!(settings.avx);
         assert!(settings.upscaling);
+        assert_eq!(settings.resolution, Resolution::Custom);
+        assert_eq!(settings.resolution_width, 1920);
+        assert_eq!(settings.resolution_height, 1080);
+        assert!(!settings.retina_mode);
         drop(repo);
         let _ = fs::remove_dir_all(root);
     }
@@ -684,19 +717,86 @@ mod tests {
     }
 
     #[test]
-    fn retina_and_custom_resolution_emit_literal_registry_values() {
-        let settings = CompatibilitySettings {
-            retina_mode: true,
-            resolution: Resolution::Custom,
-            resolution_width: 2560,
-            resolution_height: 1440,
+    fn d3dmetal_dlss_registers_the_ngx_core_path() {
+        let mut settings = CompatibilitySettings {
+            graphics: GraphicsBackend::D3dmetal,
+            upscaling: true,
             ..Default::default()
         };
+        // Regression: GoW exposed Reflex but hid DLSS while NGXCore had no FullPath.
+        let has_ngx_path = |operations: &[[String; 7]]| {
+            operations.iter().any(|operation| {
+                operation[0] == r"HKLM\Software\NVIDIA Corporation\Global\NGXCore"
+                    && operation[2] == "FullPath"
+                    && operation[6] == r"C:\windows\system32"
+            })
+        };
+        assert!(has_ngx_path(&settings.registry_adds()));
+
+        settings.upscaling = false;
+        assert!(!has_ngx_path(&settings.registry_adds()));
+        settings.upscaling = true;
+        settings.graphics = GraphicsBackend::Dxmt;
+        assert!(!has_ngx_path(&settings.registry_adds()));
+    }
+
+    #[test]
+    fn d3dmetal_applies_frame_rate_limit_and_rejects_separate_frame_gen_flags() {
+        let selections = BTreeMap::from([("gptk".into(), "/components/gptk".into())]);
+        let mut settings = CompatibilitySettings {
+            graphics: GraphicsBackend::Auto,
+            upscaling: true,
+            frame_rate_limit: Some(60),
+            ..Default::default()
+        };
+        settings.graphics = settings.launch_graphics(&selections);
+        settings.sanitize_for_engine();
+        settings.validate_launchable(&selections).unwrap();
+        assert_eq!(settings.graphics, GraphicsBackend::D3dmetal);
+        assert_eq!(settings.frame_rate_limit, Some(60));
+        let mut environment = BTreeMap::new();
+        settings.apply_environment(&mut environment);
+        assert_eq!(environment.get("D3DM_ENABLE_METALFX").unwrap(), "1");
+        assert_eq!(environment.get("D3DM_MAX_FPS").unwrap(), "60");
+
+        let mut custom = BTreeMap::from([("D3DM_MAX_FPS".into(), "120".into())]);
+        settings.apply_environment(&mut custom);
+        assert_eq!(custom.get("D3DM_MAX_FPS").unwrap(), "120");
+
+        let mut fg = settings.clone();
+        fg.frame_generation = true;
+        let err = fg.validate_launchable(&selections).unwrap_err();
+        assert!(err.to_string().contains("D3DMetal DLSS support"));
+    }
+
+    #[test]
+    fn display_is_fixed_to_1080p_for_globals_and_game_overrides() {
+        let settings = CompatibilitySettings {
+            retina_mode: true,
+            resolution: Resolution::Auto,
+            resolution_width: 3840,
+            resolution_height: 2160,
+            ..Default::default()
+        };
+        let resolved = settings.merged(&CompatibilityOverrides {
+            retina_mode: Some(true),
+            resolution: Some(Resolution::Custom),
+            resolution_width: Some(3840),
+            resolution_height: Some(2160),
+            ..Default::default()
+        });
+        assert!(!resolved.retina_mode);
+        assert_eq!(resolved.resolution, Resolution::Custom);
+        assert_eq!(resolved.resolution_width, 1920);
+        assert_eq!(resolved.resolution_height, 1080);
+
+        // Registry writes are the final launch boundary: even a stale profile
+        // cannot re-enable Retina or select a larger automatic desktop.
         let operations = settings.registry_adds();
         assert_eq!(operations[1][5], "/d");
-        assert_eq!(operations[1][6], "y");
+        assert_eq!(operations[1][6], "n");
         assert_eq!(operations[3][5], "/d");
-        assert_eq!(operations[3][6], "2560x1440");
+        assert_eq!(operations[3][6], "1920x1080");
     }
 
     #[test]

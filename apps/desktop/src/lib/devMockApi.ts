@@ -447,8 +447,8 @@ export async function mockInvoke<T>(
       throw new Error('Local Apple package import requires the Orbit desktop app.')
     case 'register_component_path':
       throw new Error('Component registration requires the Orbit desktop app.')
-    case 'compatibility_settings':
-      return (settings.get('windows-compatibility-settings-v1') ?? {
+    case 'compatibility_settings': {
+      const current = (settings.get('windows-compatibility-settings-v1') ?? {
         graphics: 'auto',
         synchronization: 'msync',
         retinaMode: false,
@@ -460,13 +460,28 @@ export async function mockInvoke<T>(
         frameGenerationVsync: false,
         frameRateLimit: null,
         dxmtNvidiaExtensions: false,
-        resolution: 'auto',
+        resolution: 'custom',
         resolutionWidth: 1920,
         resolutionHeight: 1080,
-      }) as T
+      }) as Record<string, unknown>
+      return {
+        ...current,
+        resolution: 'custom',
+        resolutionWidth: 1920,
+        resolutionHeight: 1080,
+        retinaMode: false,
+      } as T
+    }
     case 'update_compatibility_settings': {
-      settings.set('windows-compatibility-settings-v1', args?.settings)
-      return args?.settings as T
+      const next = {
+        ...(args?.settings as Record<string, unknown>),
+        resolution: 'custom',
+        resolutionWidth: 1920,
+        resolutionHeight: 1080,
+        retinaMode: false,
+      }
+      settings.set('windows-compatibility-settings-v1', next)
+      return next as T
     }
     case 'detect_runtimes':
       return [] as T

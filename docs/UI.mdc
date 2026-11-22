@@ -444,3 +444,9 @@ seven or fewer games remain a finite strip.
 When a game process exits unsuccessfully after the loading banner has closed, reopen the banner with its exit code and a Dismiss action. Keep that failure visible across remounts until dismissed. Normal exits and user-requested stops leave it closed.
 
 Steam sign-in opens as an Orbit modal while Valve's Steam window is open. Cancel closes that window. After Steam saves the account, Orbit closes Wine and keeps the login. A failure is shown in the dialog.
+
+### D3DMetal DLSS and fixed 1080p display
+
+Game graphics exposes D3DMetal DLSS support separately from DXMT spatial upscaling, globally and in per-game compatibility overrides. Selecting DLSS chooses D3DMetal and enables `D3DM_ENABLE_METALFX` (covering supported in-game DLSS Super Resolution and DLSS Frame Generation through MetalFX, with Metal 4 on macOS 27+); Orbit installs Apple's NVNGX/MetalFX bridge automatically when the selected GPTK package includes it. Frame rate limiting (`D3DM_MAX_FPS`) is also available for D3DMetal and preserved when toggling DLSS. DXMT spatial upscaling and NVIDIA extensions are editable only while DXMT is active (or inherited per game), so they cannot pull a D3DMetal selection back to DXMT. Availability depends on macOS 26+, the package and the game. Enable DLSS or Frame Generation inside the game after relaunching.
+
+Display mode is a disabled `1080p · 1920 × 1080` value for every game. Automatic, arbitrary custom dimensions and High Resolution Mode controls are absent globally and per game. The fixed Wine virtual desktop prevents Retina or automatic display selection from raising the presentation surface above 1080p. In-game internal and dynamic rendering remain game-controlled, so the game should also be set to 1920×1080; MetalFX can scale from a lower input to the fixed 1080p target.

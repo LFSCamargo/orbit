@@ -89,8 +89,15 @@ pub fn apply(
             }
             let mut env = crate::runtimes::wine::gptk_bridge_env(&payload, &libraries);
             env.extend(ahead_of_wine_builtins(&libraries));
+            let mut overrides =
+                "d3d11=b;d3d10=b;d3d10core=b;d3d12=b;d3d12core=b;dxgi=b".to_string();
+            if let Some(dlss) =
+                crate::runtimes::wine::install_d3dmetal_dlss(prefix, &libraries, &mut env)?
+            {
+                overrides.push_str(dlss);
+            }
             Ok(GraphicsLinks {
-                overrides: "d3d11=b;d3d10=b;d3d10core=b;d3d12=b;d3d12core=b;dxgi=b".into(),
+                overrides,
                 dll_path: Some(libraries.to_string_lossy().into_owned()),
                 env,
             })
@@ -215,6 +222,17 @@ mod tests {
             fs::write(libraries.join(format!("x86_64-windows/{name}.dll")), b"PE").unwrap();
             fs::write(libraries.join(format!("x86_64-unix/{name}.so")), b"so").unwrap();
         }
+        fs::write(
+            libraries.join("x86_64-windows/nvngx-on-metalfx.dll"),
+            b"nvngx",
+        )
+        .unwrap();
+        fs::write(libraries.join("x86_64-windows/nvapi64.dll"), b"nvapi").unwrap();
+        fs::write(
+            libraries.join("x86_64-unix/nvngx-on-metalfx.so"),
+            b"metalfx bridge",
+        )
+        .unwrap();
         // Regression: containers never exported Apple's redist/lib/external
         // bridge, so CrossOver-class Wine ran D3DMetal without it.
         let shared = payload.join("redist/lib/external/libd3dshared.dylib");
@@ -260,10 +278,34 @@ mod tests {
             framework.to_str()
         );
         // Regression: Wine's own builtins won, so RE2 ran on wined3d.
+        let prepend = links.env["WINEDLLPATH_PREPEND"].clone();
+        assert!(prepend.contains(libraries.to_str().unwrap()));
+        assert!(prepend.contains(".orbit/d3dmetal-dlss"));
+        assert!(!links.env.contains_key("D3DM_VENDOR_ID"));
+        assert!(!links.env.contains_key("D3DM_DEVICE_ID"));
+        assert!(!links.env.contains_key("D3DM_DEVICE_DESCRIPTION"));
+        assert!(links.overrides.contains("nvngx=b"));
+        assert!(links.overrides.contains("nvapi64=b"));
         assert_eq!(
-            links.env.get("WINEDLLPATH_PREPEND").map(String::as_str),
-            libraries.to_str()
+            fs::read(prefix.join("drive_c/windows/system32/nvngx.dll")).unwrap(),
+            b"nvngx"
         );
+        assert_eq!(
+            fs::read(prefix.join("drive_c/windows/system32/nvapi64.dll")).unwrap(),
+            b"nvapi"
+        );
+        assert_eq!(
+            fs::read(prefix.join(".orbit/d3dmetal-dlss/x86_64-windows/nvngx.dll")).unwrap(),
+            b"nvngx"
+        );
+        let staged_unix = prefix.join(".orbit/d3dmetal-dlss/x86_64-unix/nvngx.so");
+        assert_eq!(fs::read(&staged_unix).unwrap(), b"metalfx bridge");
+        #[cfg(unix)]
+        assert!(staged_unix
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
         let _ = fs::remove_dir_all(root);
     }
 

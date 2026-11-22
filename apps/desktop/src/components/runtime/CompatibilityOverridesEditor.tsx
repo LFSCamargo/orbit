@@ -21,7 +21,10 @@ export function CompatibilityOverridesEditor({
   const hasDxmt = installed?.some((component) => component.id === 'dxmt') ?? false
   const hasGptk = installed?.some((component) => component.id === 'gptk') ?? false
   const hasMoltenVk = installed?.some((component) => component.id === 'moltenvk') ?? false
-  const frameRateReady = hasDxmt || (hasDxvk && hasMoltenVk)
+  const frameRateReady = hasGptk || hasDxmt || (hasDxvk && hasMoltenVk)
+  const dxmtActive =
+    value.graphics === 'dxmt' || (value.graphics === 'auto' && !hasGptk && hasDxmt)
+  const canEditDxmt = value.graphics === undefined || dxmtActive
   const patch = (next: CompatibilityOverrides) => onChange({ ...value, ...next })
   return (
     <div className="space-y-4 rounded-card bg-white/[0.03] p-4">
@@ -29,7 +32,8 @@ export function CompatibilityOverridesEditor({
         <h3 className="font-medium">Game-specific compatibility</h3>
         <p className="mt-1 text-xs text-orbit-muted">
           “Use global default” inherits Settings → Compatibility without copying its
-          values.
+          values. Display is fixed at 1920 × 1080 with high-resolution mode disabled for
+          every game.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -80,24 +84,6 @@ export function CompatibilityOverridesEditor({
           </OptionSelect>
         </label>
         <label className="text-sm text-orbit-muted">
-          Display
-          <OptionSelect
-            aria-label="Game display override"
-            className={field}
-            value={value.resolution ?? ''}
-            onValueChange={(selectedValue) =>
-              patch({
-                resolution: (selectedValue ||
-                  undefined) as CompatibilityOverrides['resolution'],
-              })
-            }
-          >
-            <option value="">Use global default</option>
-            <option value="auto">Automatic</option>
-            <option value="custom">Virtual desktop</option>
-          </OptionSelect>
-        </label>
-        <label className="text-sm text-orbit-muted">
           Frame rate limit
           <input
             aria-label="Game frame rate limit override"
@@ -105,55 +91,31 @@ export function CompatibilityOverridesEditor({
             type="number"
             min={1}
             max={1000}
-            placeholder={frameRateReady ? 'Unlimited' : 'Install DXVK or DXMT'}
+            placeholder={frameRateReady ? 'Unlimited' : 'Install GPTK, DXMT, or DXVK'}
             disabled={!frameRateReady}
             value={value.frameRateLimit ?? ''}
             onChange={(e) => {
               const frameRateLimit = e.target.value ? Number(e.target.value) : undefined
               const needsEngine =
                 frameRateLimit != null &&
+                value.graphics !== 'd3dmetal' &&
                 value.graphics !== 'dxvk' &&
                 value.graphics !== 'dxmt'
               patch({
                 frameRateLimit,
-                graphics: needsEngine ? (hasDxmt ? 'dxmt' : 'dxvk') : value.graphics,
+                graphics: needsEngine
+                  ? hasGptk
+                    ? 'd3dmetal'
+                    : hasDxmt
+                      ? 'dxmt'
+                      : 'dxvk'
+                  : value.graphics,
               })
             }}
           />
         </label>
       </div>
-      {value.resolution === 'custom' && (
-        <div className="grid grid-cols-2 gap-4">
-          <label className="text-sm text-orbit-muted">
-            Width
-            <input
-              aria-label="Game resolution width"
-              className={field}
-              type="number"
-              min={640}
-              value={value.resolutionWidth ?? 1920}
-              onChange={(e) => patch({ resolutionWidth: Number(e.target.value) })}
-            />
-          </label>
-          <label className="text-sm text-orbit-muted">
-            Height
-            <input
-              aria-label="Game resolution height"
-              className={field}
-              type="number"
-              min={480}
-              value={value.resolutionHeight ?? 1080}
-              onChange={(e) => patch({ resolutionHeight: Number(e.target.value) })}
-            />
-          </label>
-        </div>
-      )}
       <div className="grid gap-4 md:grid-cols-2">
-        <BooleanOverride
-          label="High Resolution Mode"
-          value={value.retinaMode}
-          onChange={(retinaMode) => patch({ retinaMode })}
-        />
         <BooleanOverride
           label="Metal performance HUD"
           value={value.metalHud}
@@ -165,35 +127,40 @@ export function CompatibilityOverridesEditor({
           onChange={(avx) => patch({ avx })}
         />
         <BooleanOverride
-          label="MetalFX upscaling"
-          disabled={!hasDxmt && !hasGptk}
-          value={value.upscaling}
-          onChange={(upscaling) => {
-            const supported = value.graphics === 'dxmt' || value.graphics === 'd3dmetal'
+          label="D3DMetal DLSS support"
+          disabled={!hasGptk}
+          value={
+            value.graphics === undefined || value.graphics === 'd3dmetal'
+              ? value.upscaling
+              : false
+          }
+          onChange={(upscaling) =>
             patch({
               upscaling,
-              graphics:
-                upscaling && !supported
-                  ? hasDxmt
-                    ? 'dxmt'
-                    : 'd3dmetal'
-                  : value.graphics,
+              graphics: 'd3dmetal',
+              dxmtNvidiaExtensions: false,
             })
+          }
+        />
+        <BooleanOverride
+          label="DXMT spatial upscaling"
+          disabled={!hasDxmt || !canEditDxmt}
+          value={
+            value.graphics === undefined || value.graphics === 'dxmt'
+              ? value.upscaling
+              : false
+          }
+          onChange={(upscaling) => {
+            if (canEditDxmt) patch({ upscaling, graphics: 'dxmt' })
           }}
         />
         <BooleanOverride
           label="DXMT NVIDIA extensions"
-          disabled={!hasDxmt}
+          disabled={!hasDxmt || !canEditDxmt}
           value={value.dxmtNvidiaExtensions}
-          onChange={(dxmtNvidiaExtensions) =>
-            patch({
-              dxmtNvidiaExtensions,
-              graphics:
-                dxmtNvidiaExtensions && value.graphics !== 'dxmt'
-                  ? 'dxmt'
-                  : value.graphics,
-            })
-          }
+          onChange={(dxmtNvidiaExtensions) => {
+            if (canEditDxmt) patch({ dxmtNvidiaExtensions, graphics: 'dxmt' })
+          }}
         />
         <BooleanOverride
           label="Frame generation"

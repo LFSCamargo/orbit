@@ -447,9 +447,13 @@ pub fn setup_graphics(
                         .with_context(|| format!("Cannot install D3DMetal {name}"))?;
                 }
             }
-            let env = gptk_bridge_env(&payload, &libraries);
+            let mut env = gptk_bridge_env(&payload, &libraries);
+            let mut overrides = "d3d11=b;d3d10=b;d3d12=b;d3d12core=b;dxgi=b".to_string();
+            if let Some(dlss) = install_d3dmetal_dlss(prefix, &libraries, &mut env)? {
+                overrides.push_str(dlss);
+            }
             Ok(GraphicsSetup {
-                overrides: "d3d11=b;d3d10=b;d3d12=b;d3d12core=b;dxgi=b".into(),
+                overrides,
                 dll_path: Some(libraries.to_string_lossy().into_owned()),
                 env,
             })
@@ -459,6 +463,101 @@ pub fn setup_graphics(
             Ok(GraphicsSetup::default())
         }
     }
+}
+
+/// Install Apple's opt-in DLSS-to-MetalFX bridge without renaming files in the
+/// shared GPTK component. Wine requires both the renamed PE builtin
+/// (`x86_64-windows/nvngx.dll`) and its matching Unix bridge
+/// (`x86_64-unix/nvngx.so`) inside the prepended DLL directory, plus copies in
+/// `system32` so games loading `nvngx.dll` initialize the Unix call table
+/// cleanly. `nvngx.so` is symlinked to the canonicalized GPTK target
+/// (`libd3dshared.dylib`) so `dyld` shares the same loaded image as `dxgi.so`
+/// and `d3d11.so`. D3DMetal then switches adapter identity and registers
+/// `NGXCore\FullPath` automatically whenever `D3DM_ENABLE_METALFX=1`, and
+/// stays on AMD Compatibility Mode when `D3DM_ENABLE_METALFX=0`.
+/// Older GPTK packages without the complete bridge keep working without DLSS.
+/// Complexity: O(1); only Apple's fixed bridge files are inspected/staged.
+pub(crate) fn install_d3dmetal_dlss(
+    prefix: &Path,
+    libraries: &Path,
+    env: &mut std::collections::BTreeMap<String, String>,
+) -> Result<Option<&'static str>> {
+    let windows = libraries.join("x86_64-windows");
+    let unix = libraries.join("x86_64-unix");
+    let nvngx = [
+        windows.join("nvngx-on-metalfx.dll"),
+        windows.join("nvngx.dll"),
+    ]
+    .into_iter()
+    .find(|path| path.is_file());
+    let nvngx_unix = [unix.join("nvngx-on-metalfx.so"), unix.join("nvngx.so")]
+        .into_iter()
+        .find(|path| path.is_file());
+    let nvapi = windows.join("nvapi64.dll");
+    let (Some(nvngx), Some(nvngx_unix)) = (nvngx, nvngx_unix) else {
+        return Ok(None);
+    };
+    if !nvapi.is_file() {
+        return Ok(None);
+    }
+
+    let system32 = prefix.join("drive_c/windows/system32");
+    fs::create_dir_all(&system32)?;
+    replace_with_copy(&nvngx, &system32.join("nvngx.dll"))
+        .context("Cannot install D3DMetal DLSS (nvngx)")?;
+    replace_with_copy(&nvapi, &system32.join("nvapi64.dll"))
+        .context("Cannot install D3DMetal DLSS (nvapi64)")?;
+
+    let alias = prefix.join(".orbit/d3dmetal-dlss");
+    let alias_windows = alias.join("x86_64-windows");
+    let alias_unix = alias.join("x86_64-unix");
+    for dir in [&alias, &alias_windows, &alias_unix] {
+        if dir
+            .symlink_metadata()
+            .is_ok_and(|meta| meta.file_type().is_symlink())
+        {
+            bail!("D3DMetal DLSS staging directory cannot be a symlink");
+        }
+        fs::create_dir_all(dir)?;
+    }
+    replace_with_copy(&nvngx, &alias_windows.join("nvngx.dll"))
+        .context("Cannot stage D3DMetal's Windows MetalFX bridge")?;
+    stage_unix_bridge(&nvngx_unix, &alias_unix.join("nvngx.so"))
+        .context("Cannot install D3DMetal's Unix MetalFX bridge")?;
+    let mut paths = vec![alias];
+    if let Some(existing) = env.get("WINEDLLPATH_PREPEND") {
+        paths.push(PathBuf::from(existing));
+    }
+    env.insert(
+        "WINEDLLPATH_PREPEND".into(),
+        std::env::join_paths(paths)
+            .context("Cannot construct D3DMetal's DLSS library path")?
+            .to_string_lossy()
+            .into_owned(),
+    );
+    Ok(Some(";nvngx=b;nvapi64=b"))
+}
+
+fn replace_with_copy(source: &Path, target: &Path) -> Result<()> {
+    if target.symlink_metadata().is_ok() {
+        fs::remove_file(target)?;
+    }
+    fs::copy(source, target)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn stage_unix_bridge(source: &Path, target: &Path) -> Result<()> {
+    if target.symlink_metadata().is_ok() {
+        fs::remove_file(target)?;
+    }
+    std::os::unix::fs::symlink(source.canonicalize()?, target)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn stage_unix_bridge(source: &Path, target: &Path) -> Result<()> {
+    replace_with_copy(source, target)
 }
 
 /// GPTK's Metal bridge for the game's environment. It sits beside the payload
@@ -701,6 +800,17 @@ mod tests {
             fs::write(libraries.join(format!("x86_64-windows/{dll}.dll")), b"PE").unwrap();
             fs::write(libraries.join(format!("x86_64-unix/{dll}.so")), b"bridge").unwrap();
         }
+        fs::write(
+            libraries.join("x86_64-windows/nvngx-on-metalfx.dll"),
+            b"nvngx",
+        )
+        .unwrap();
+        fs::write(libraries.join("x86_64-windows/nvapi64.dll"), b"nvapi").unwrap();
+        fs::write(
+            libraries.join("x86_64-unix/nvngx-on-metalfx.so"),
+            b"metalfx bridge",
+        )
+        .unwrap();
         let selections = BTreeMap::from([("gptk".into(), root.to_string_lossy().into_owned())]);
         let setup = setup_graphics(
             &root.join("prefix"),
@@ -710,14 +820,61 @@ mod tests {
         .unwrap();
         assert_eq!(setup.dll_path.as_deref(), libraries.to_str());
         assert!(setup.overrides.contains("d3d11=b"));
+        assert!(setup.overrides.contains("nvngx=b"));
+        assert!(setup.overrides.contains("nvapi64=b"));
         assert_eq!(
             fs::read(root.join("prefix/drive_c/windows/system32/d3d11.dll")).unwrap(),
             b"PE"
         );
+        assert_eq!(
+            fs::read(root.join("prefix/drive_c/windows/system32/nvngx.dll")).unwrap(),
+            b"nvngx"
+        );
+        assert_eq!(
+            fs::read(root.join("prefix/drive_c/windows/system32/nvapi64.dll")).unwrap(),
+            b"nvapi"
+        );
+        // Regression: Wine requires x86_64-windows/nvngx.dll beside x86_64-unix/nvngx.so
+        // on WINEDLLPATH_PREPEND; omitting the PE file failed DllMain with ERROR_DLL_INIT_FAILED.
+        assert_eq!(
+            fs::read(root.join("prefix/.orbit/d3dmetal-dlss/x86_64-windows/nvngx.dll")).unwrap(),
+            b"nvngx"
+        );
+        let staged_unix = root.join("prefix/.orbit/d3dmetal-dlss/x86_64-unix/nvngx.so");
+        assert_eq!(fs::read(&staged_unix).unwrap(), b"metalfx bridge");
+        #[cfg(unix)]
+        {
+            assert!(staged_unix
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink());
+            assert_eq!(
+                staged_unix.canonicalize().unwrap(),
+                libraries
+                    .join("x86_64-unix/nvngx-on-metalfx.so")
+                    .canonicalize()
+                    .unwrap()
+            );
+        }
+        assert!(setup.env["WINEDLLPATH_PREPEND"].contains(".orbit/d3dmetal-dlss"));
+        // D3DMetal manages NVIDIA/AMD adapter identity from D3DM_ENABLE_METALFX once nvngx loads.
+        assert!(!setup.env.contains_key("D3DM_VENDOR_ID"));
+        assert!(!setup.env.contains_key("D3DM_DEVICE_ID"));
+        assert!(!setup.env.contains_key("D3DM_DEVICE_DESCRIPTION"));
         assert!(!root
             .join("prefix/drive_c/windows/syswow64/d3d11.dll")
             .exists());
-        assert!(setup.env.is_empty(), "no Metal bridge in this payload");
+        for key in [
+            "CX_APPLEGPTK_LIBD3DSHARED_PATH",
+            "WINE_GPTK_LIBD3DSHARED_PATH",
+            "D3DMETAL_FRAMEWORK_PATH",
+        ] {
+            assert!(
+                !setup.env.contains_key(key),
+                "no Metal bridge in this payload"
+            );
+        }
         // Regression: Apple's layout keeps the bridge in redist/lib/external,
         // so CrossOver-class Wine never received it.
         let shared = root.join("redist/lib/external/libd3dshared.dylib");
@@ -742,6 +899,62 @@ mod tests {
             &selections
         )
         .is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn d3dmetal_dlss_replaces_stale_unix_copy_with_canonical_symlink_and_stages_pe() {
+        let root = std::env::temp_dir().join(format!("orbit-metal-heal-{}", uuid::Uuid::new_v4()));
+        let libraries = root.join("redist/lib/wine");
+        let external = root.join("redist/lib/external");
+        fs::create_dir_all(libraries.join("x86_64-windows")).unwrap();
+        fs::create_dir_all(libraries.join("x86_64-unix")).unwrap();
+        fs::create_dir_all(&external).unwrap();
+        let shared = external.join("libd3dshared.dylib");
+        fs::write(&shared, b"shared dylib").unwrap();
+        for dll in ["d3d11", "dxgi", "d3d12"] {
+            fs::write(libraries.join(format!("x86_64-windows/{dll}.dll")), b"PE").unwrap();
+            std::os::unix::fs::symlink(
+                "../../external/libd3dshared.dylib",
+                libraries.join(format!("x86_64-unix/{dll}.so")),
+            )
+            .unwrap();
+        }
+        fs::write(
+            libraries.join("x86_64-windows/nvngx-on-metalfx.dll"),
+            b"nvngx-pe",
+        )
+        .unwrap();
+        fs::write(libraries.join("x86_64-windows/nvapi64.dll"), b"nvapi-pe").unwrap();
+        std::os::unix::fs::symlink(
+            "../../external/libd3dshared.dylib",
+            libraries.join("x86_64-unix/nvngx-on-metalfx.so"),
+        )
+        .unwrap();
+
+        // Simulate an existing prefix left by an earlier Orbit build: copied nvngx.so, no PE.
+        let prefix = root.join("prefix");
+        let stale_unix = prefix.join(".orbit/d3dmetal-dlss/x86_64-unix/nvngx.so");
+        fs::create_dir_all(stale_unix.parent().unwrap()).unwrap();
+        fs::write(&stale_unix, b"stale copy").unwrap();
+
+        let selections = BTreeMap::from([("gptk".into(), root.to_string_lossy().into_owned())]);
+        setup_graphics(&prefix, settings::GraphicsBackend::D3dmetal, &selections).unwrap();
+
+        assert_eq!(
+            fs::read(prefix.join(".orbit/d3dmetal-dlss/x86_64-windows/nvngx.dll")).unwrap(),
+            b"nvngx-pe"
+        );
+        assert!(stale_unix
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            stale_unix.canonicalize().unwrap(),
+            shared.canonicalize().unwrap()
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

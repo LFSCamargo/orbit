@@ -112,7 +112,7 @@ src-tauri/src/
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
     download_queue.rs      # FIFO Steam download queue: one worker, pause/resume, waits offline, saved in settings
-    game_fixes.rs          # Known-game fixes before launch; RE Engine DirectX 11 crash fallback
+    game_fixes.rs          # Known-game fixes before launch; RE Engine DirectX 11 stability (TargetPlatform, Capability, UseVendorExtention=Disable) and crash fallback
     install_locations.rs   # This Mac or picked folders ("Orbit Games" Steam libraries), per-game choice
     network_monitor.rs     # Interface byte counters once a second, Steam reachability probe, network-stats event
     uninstall.rs           # Deletes Orbit-downloaded game folders inside allow-listed roots only
@@ -344,7 +344,11 @@ and logs. See [CONTAINERS.md](CONTAINERS.md). `commands/runtimes.rs` exposes `wi
 `update_compatibility_settings`, `detect_runtimes`, `register_wine_runtime` and
 `runtime_diagnostics`. `runtimes/settings.rs` merges SQLite global defaults with
 optional per-game overrides at launch, applies bounded environment/registry
-settings, and rejects unavailable backends. Managed setup reports a Tauri
+settings, and rejects unavailable backends. Display values are canonicalized to
+a 1920×1080 virtual desktop with Retina off at load, save and profile resolution;
+legacy per-game values cannot override that boundary. The update command returns
+the reloaded canonical settings rather than the caller's unnormalized object.
+Managed setup reports a Tauri
 `Channel<SetupProgress>`,
 uses the macOS-only `system.supported` contract, verifies the pinned archive, and
 persists the activated path only after a successful probe. `commands/session.rs`
