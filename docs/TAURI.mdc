@@ -82,8 +82,9 @@ src-tauri/src/
     app_launch.rs          # Shared open-app + 3s delay helpers
     context.rs             # Launch-time screen context from Orbit window
     first_launch.rs        # Container → compatibility → Steam files → cloud → start
+    game_activity.rs       # A game or cloud stream is playing: controller poll 100 ms (Home only), network-stats paused
     launcher.rs            # Resolve LaunchConfiguration → Command
-    process_monitor.rs     # Watch child process exit
+    process_monitor.rs     # Watch child process exit (kill(pid, 0) syscall, no spawned `kill`)
     session.rs             # SessionManager — active session state
   models/
     mod.rs

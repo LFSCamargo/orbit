@@ -182,12 +182,23 @@ fn run_sampler(app: &AppHandle) {
             upload_rate,
         };
         *STATS.lock() = stats;
-        let _ = app.emit(STATS_EVENT, stats);
+        if should_push(
+            changed.is_some(),
+            crate::launching::game_activity::running(),
+        ) {
+            let _ = app.emit(STATS_EVENT, stats);
+        }
         if let Some(online) = changed {
             crate::services::download_queue::network_changed(app, online);
         }
         std::thread::sleep(SAMPLE);
     }
+}
+
+/// Whether a sample goes to the WebView. While a game plays nobody sees the
+/// panel, so only a change of online state does; the queue reacts either way.
+fn should_push(online_changed: bool, game_running: bool) -> bool {
+    online_changed || !game_running
 }
 
 /// Probes only while downloads need the network; an idle Orbit makes no
@@ -312,6 +323,17 @@ mod tests {
             sent,
             routable: true,
         }
+    }
+
+    #[test]
+    fn samples_stay_out_of_the_webview_while_a_game_plays() {
+        // Regression: a 1 Hz event kept re-rendering the hidden sidebar in game.
+        assert!(should_push(false, false));
+        assert!(!should_push(false, true));
+        assert!(
+            should_push(true, true),
+            "going offline still reaches the UI"
+        );
     }
 
     #[test]
