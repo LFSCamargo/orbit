@@ -7,6 +7,7 @@ import { SiteHeader } from '@/components/layout/SiteHeader'
 import { SpaceBackdrop } from '@/components/space/SpaceBackdrop'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://orbit.thelittleluiz.me'),
   title: {
     default: 'Orbit — Your games. One orbit.',
     template: '%s · Orbit',

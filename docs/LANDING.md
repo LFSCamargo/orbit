@@ -134,6 +134,9 @@ image for every route. Next.js serves them as hashed static assets and emits the
 `og:image` and `twitter:image` tags. Accompanying `.alt.txt` files describe the image for
 screen readers and platforms that consume alt text.
 
+`src/app/layout.tsx` sets `metadataBase` to `https://orbit.thelittleluiz.me` so these
+images resolve to absolute URLs in production.
+
 Netlify discovers the root config when no package-level config exists. File-based build
 settings override dashboard values, including a previously inferred
 `nx run @orbit/landing:build` command. After this config reaches the branch Netlify builds,
