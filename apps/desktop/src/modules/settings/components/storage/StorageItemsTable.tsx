@@ -198,8 +198,8 @@ export function StorageItemsTable({
                         removable
                           ? undefined
                           : item.kind === 'game'
-                            ? 'Installed outside Orbit; remove it from Steam'
-                            : 'Orbit needs this to run your games'
+                            ? 'Installed outside Orbit; remove it from Steam or Finder'
+                            : 'Managed outside Orbit'
                       }
                       className={ACTION}
                       onClick={() => onRemove(item)}

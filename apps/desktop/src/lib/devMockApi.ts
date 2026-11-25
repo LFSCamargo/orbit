@@ -1,5 +1,6 @@
 import { mockLibrary, mockLibraryPage, mockUpdateLibrary } from './devMockLibrary'
 import type { LibraryQuery, LibraryEntryPatch } from '@/types/library'
+import type { InstallLocation } from '@/types/downloads'
 import type { SteamOwnedGame } from '@/types/steam'
 import type { SteamWindowsPreferences } from '@/types/steam'
 import { localThemeArtwork } from './bundledArtwork'
@@ -17,6 +18,18 @@ let steamPreferences: SteamWindowsPreferences = {
   steamInput: false,
   steamOverlay: false,
 }
+let mockInstallLocations: InstallLocation[] = [
+  {
+    id: 'this-mac',
+    label: 'This Mac',
+    path: null,
+    available: true,
+    freeBytes: 120_000_000_000,
+    totalBytes: 494_000_000_000,
+    isDefault: true,
+    gameCount: 0,
+  },
+]
 
 function mockStorageOverview() {
   const items = [
@@ -32,6 +45,7 @@ function mockStorageOverview() {
       entryId: 'steam:730',
       source: 'Orbit',
       onDataVolume: true,
+      driveId: 'this-mac',
     },
     {
       id: 'tool:steam-windows:prefix',
@@ -41,10 +55,11 @@ function mockStorageOverview() {
       installedAt: '2026-11-03T12:00:00.000Z',
       path: '/Orbit/steam-windows/prefix',
       artwork: null,
-      removal: { type: 'none' },
+      removal: { type: 'orbitData', paths: ['/Orbit/steam-windows/prefix'] },
       entryId: null,
       source: 'Orbit',
       onDataVolume: true,
+      driveId: 'this-mac',
     },
     {
       id: 'component:dxvk:2.3',
@@ -58,6 +73,7 @@ function mockStorageOverview() {
       entryId: null,
       source: 'Orbit',
       onDataVolume: true,
+      driveId: 'this-mac',
     },
     {
       id: 'other:artwork-cache',
@@ -67,10 +83,11 @@ function mockStorageOverview() {
       installedAt: null,
       path: '/Orbit/artwork-cache',
       artwork: null,
-      removal: { type: 'none' },
+      removal: { type: 'orbitData', paths: ['/Orbit/artwork-cache'] },
       entryId: null,
       source: 'Orbit',
       onDataVolume: true,
+      driveId: 'this-mac',
     },
   ]
   const sum = (kind: string) =>
@@ -83,11 +100,35 @@ function mockStorageOverview() {
     runtimes: sum('runtime'),
     other: sum('other'),
   }
+  const orbitBytes = totals.games + totals.tools + totals.runtimes + totals.other
+  const drives = [
+    {
+      id: 'this-mac',
+      name: 'This Mac',
+      mountPath: '/',
+      isDataVolume: true,
+      totalBytes: 500_000_000_000,
+      freeBytes: 120_000_000_000,
+      orbitBytes,
+      totals,
+    },
+    {
+      id: '/Volumes/T7',
+      name: 'T7',
+      mountPath: '/Volumes/T7',
+      isDataVolume: false,
+      totalBytes: 1_000_000_000_000,
+      freeBytes: 640_000_000_000,
+      orbitBytes: 0,
+      totals: { games: 0, tools: 0, runtimes: 0, other: 0 },
+    },
+  ]
   return {
-    volumeTotalBytes: 1_860_000_000_000,
-    volumeFreeBytes: 620_000_000_000,
-    orbitBytes: totals.games + totals.tools + totals.runtimes + totals.other,
+    volumeTotalBytes: drives.reduce((total, drive) => total + drive.totalBytes, 0),
+    volumeFreeBytes: drives.reduce((total, drive) => total + drive.freeBytes, 0),
+    orbitBytes,
     totals,
+    drives,
     items,
     truncated: false,
     scannedAt: '2026-11-17T12:00:00.000Z',
@@ -775,26 +816,47 @@ export async function mockInvoke<T>(
     case 'pause_active_download':
     case 'remove_component':
       return undefined as T
+    case 'remove_storage_item':
+      return 0 as T
     case 'get_download_queue':
       return { active: null, pending: [], waitingForNetwork: false } as T
     case 'steam_controller_support':
       return 'full' as T
     case 'list_install_locations':
-      return [
-        {
-          id: 'this-mac',
-          label: 'This Mac',
-          path: null,
-          available: true,
-          freeBytes: 120_000_000_000,
-          totalBytes: 494_000_000_000,
-          isDefault: true,
-          gameCount: 0,
-        },
-      ] as T
-    case 'add_install_location':
-    case 'remove_install_location':
-      throw new Error('Install locations require the Orbit desktop app.')
+      return [...mockInstallLocations] as T
+    case 'add_install_location': {
+      const raw = String(args?.path ?? '')
+        .trim()
+        .replace(/\\([ \\()'"&;])/g, '$1')
+        .replace(/\/+$/, '')
+      if (!raw.startsWith('/')) {
+        throw new Error('Choose a folder by its full path')
+      }
+      const existing = mockInstallLocations.find((item) => item.id === raw)
+      if (existing) return existing as T
+      const parts = raw.split('/').filter(Boolean)
+      const label =
+        parts[0] === 'Volumes' && parts.length > 2
+          ? `${parts[1]} · ${parts[parts.length - 1]}`
+          : (parts[parts.length - 1] ?? raw)
+      const added: InstallLocation = {
+        id: raw,
+        label,
+        path: raw,
+        available: true,
+        freeBytes: 900_000_000_000,
+        totalBytes: 1_000_000_000_000,
+        isDefault: false,
+        gameCount: 0,
+      }
+      mockInstallLocations = [...mockInstallLocations, added]
+      return added as T
+    }
+    case 'remove_install_location': {
+      const id = String(args?.id ?? '')
+      mockInstallLocations = mockInstallLocations.filter((item) => item.id !== id)
+      return undefined as T
+    }
     case 'get_network_stats':
       return { online: true, downloadRate: 0, uploadRate: 0 } as T
     case 'uninstall_steam_game':

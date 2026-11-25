@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { Focusable } from '@/components/focus/Focusable'
 import { UninstallDialog } from '@/components/game/UninstallDialog'
 import { formatBytes, formatRelativeDate } from '@/lib/format'
-import { removeComponent, revealPath } from '@/lib/tauri'
+import { removeComponent, removeStorageItem, revealPath } from '@/lib/tauri'
 import { notify } from '@/lib/toast'
 import type { StorageItem } from '@/types/storage'
 import { LargestInstalls } from './LargestInstalls'
@@ -13,8 +13,20 @@ import { StorageDistribution } from './StorageDistribution'
 import { StorageItemsTable } from './StorageItemsTable'
 import { StorageOverviewCard } from './StorageOverviewCard'
 import { StorageSkeleton } from './StorageSkeleton'
-import type { StorageFilter, StorageSort } from './storageModel'
+import {
+  orbitRemovalDescription,
+  type StorageFilter,
+  type StorageSort,
+} from './storageModel'
 import { useStorageOverview } from './useStorageOverview'
+
+const INVALIDATE_ON_REMOVE = [
+  'storage-overview',
+  'component-status',
+  'active-components',
+  'steam-windows-status',
+  'install-locations',
+]
 
 /** Settings → Storage: what Orbit keeps on this Mac and what can be removed. */
 export function StorageSettings() {
@@ -27,15 +39,22 @@ export function StorageSettings() {
   const [removing, setRemoving] = useState<StorageItem | null>(null)
   const remove = useMutation({
     mutationFn: async (item: StorageItem) => {
-      if (item.removal.type !== 'component') return
-      await removeComponent(item.removal.id, item.removal.version)
+      if (item.removal.type === 'component') {
+        await removeComponent(item.removal.id, item.removal.version)
+        return item.sizeBytes
+      }
+      if (item.removal.type === 'orbitData') {
+        const freed = await removeStorageItem(item.removal.paths)
+        return freed > 0 ? freed : item.sizeBytes
+      }
+      return 0
     },
-    onSuccess: (_, item) => {
+    onSuccess: (freed, item) => {
       notify.success({
         title: `Removed ${item.name}`,
-        message: `Freed ${formatBytes(item.sizeBytes)}.`,
+        message: `Freed ${formatBytes(freed)}.`,
       })
-      for (const key of ['storage-overview', 'component-status', 'active-components'])
+      for (const key of INVALIDATE_ON_REMOVE)
         void client.invalidateQueries({ queryKey: [key] })
     },
     onError: (error) =>
@@ -46,7 +65,8 @@ export function StorageSettings() {
   const data = overview.data
   const onRemove = (item: StorageItem) => {
     if (item.removal.type === 'game') setUninstalling(item)
-    else if (item.removal.type === 'component') setRemoving(item)
+    else if (item.removal.type === 'component' || item.removal.type === 'orbitData')
+      setRemoving(item)
   }
   const reveal = (item: StorageItem) => {
     revealPath(item.path).catch((error: unknown) =>
@@ -121,7 +141,11 @@ export function StorageSettings() {
       <ConfirmDialog
         open={removing !== null}
         title={`Remove ${removing?.name ?? ''}?`}
-        description="Games set to use this version switch to another installed one. You can download it again from Compatibility."
+        description={
+          removing?.removal.type === 'orbitData'
+            ? orbitRemovalDescription(removing)
+            : 'Games set to use this version switch to another installed one. You can download it again from Compatibility.'
+        }
         confirmLabel="Remove"
         busyLabel="Removing…"
         busy={remove.isPending}

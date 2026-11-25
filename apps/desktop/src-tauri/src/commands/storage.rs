@@ -45,7 +45,8 @@ pub async fn get_storage_overview(
     .map_err(|_| "Storage scan stopped".to_string())?
 }
 
-/// Deletes one installed component version that no game is set to use.
+/// Deletes one installed component version. If it was pinned as active, the
+/// active selection is cleared so launches fall back to another installed version.
 #[tauri::command]
 pub async fn remove_component(app: AppHandle, id: String, version: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -56,13 +57,8 @@ pub async fn remove_component(app: AppHandle, id: String, version: String) -> Re
             .find(|item| item.id == id && item.version == version)
             .ok_or("That component is not installed")?;
         let actives = selections::load(&state.repo).map_err(|err| format!("{err:#}"))?;
-        let in_use = selections::resolve(&root, &actives)
-            .values()
-            .any(|path| path == &component.path)
-            || selections::active_wine_path(&root, &actives).as_deref()
-                == Some(component.path.as_str());
-        if in_use {
-            return Err("This version is in use. Pick another version in Runtimes first.".into());
+        if actives.get(&id).map(String::as_str) == Some(version.as_str()) {
+            selections::clear_active(&state.repo, &id).map_err(|err| format!("{err:#}"))?;
         }
         uninstall::remove_within(
             Path::new(&component.path),
@@ -73,4 +69,25 @@ pub async fn remove_component(app: AppHandle, id: String, version: String) -> Re
     })
     .await
     .map_err(|_| "Component removal stopped".to_string())?
+}
+
+/// Deletes one or more Orbit-created files or folders inside Orbit's data directory.
+#[tauri::command]
+pub async fn remove_storage_item(paths: Vec<String>) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let data_dir = app_data_dir();
+        let steam_dir = data_dir.join("steam-windows");
+        if paths
+            .iter()
+            .any(|raw| Path::new(raw).starts_with(&steam_dir))
+        {
+            crate::services::steam_resident::stop_all_except(None);
+        }
+        let freed = storage::remove_orbit_paths(&paths, &data_dir)?;
+        install_roots::forget_measurements();
+        storage::invalidate();
+        Ok(freed)
+    })
+    .await
+    .map_err(|_| "Storage item removal stopped".to_string())?
 }
