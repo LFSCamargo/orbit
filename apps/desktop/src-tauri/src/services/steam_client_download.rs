@@ -313,24 +313,29 @@ pub fn run(
         prefix: prefix.clone(),
     };
     let mut progress = |step: &str| {
+        let (step_id, detail) = crate::launching::progress::split_step(step);
+        let message = detail.unwrap_or_else(|| step_message(step_id));
         steam_windows::emit_game_progress(
             app,
             key,
             label,
-            json!({ "phase": "Installing", "component": label, "message": step_message(step) }),
+            json!({ "phase": "Installing", "component": label, "message": message }),
         );
     };
 
     // A new container is created (and signed in) once before the request is
     // written, so the manifest lands in the Steam library the client reads.
     if !container_steamapps.parent().is_some_and(Path::is_dir) {
-        super::steam_play::download_environment(
+        if let Err(err) = super::steam_play::download_environment(
             &profile,
             app_id,
             cancel,
             &preferences,
             &mut progress,
-        )?;
+        ) {
+            steam_windows::emit_status(app, repo);
+            return Err(err);
+        }
         if let Some(outcome) = steam_windows::stop_outcome() {
             container_steam::shutdown(&host);
             return Ok(outcome);
@@ -361,7 +366,16 @@ pub fn run(
             .with_file_name("logs")
             .join("content_log.txt"),
     );
-    super::steam_play::download_environment(&profile, app_id, cancel, &preferences, &mut progress)?;
+    if let Err(err) = super::steam_play::download_environment(
+        &profile,
+        app_id,
+        cancel,
+        &preferences,
+        &mut progress,
+    ) {
+        steam_windows::emit_status(app, repo);
+        return Err(err);
+    }
 
     let result = watch(app, &steamapps, app_id, key, label, &mut log);
     container_steam::shutdown(&host);

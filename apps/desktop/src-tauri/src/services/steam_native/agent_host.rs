@@ -286,15 +286,17 @@ fn helper_exe(prefix: &Path) -> Option<PathBuf> {
     Some(exe)
 }
 
-fn run_helper(mut command: std::process::Command) -> bool {
+fn run_helper(mut command: std::process::Command, cancel: &AtomicBool) -> Result<bool, String> {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    command.spawn().ok().is_some_and(|mut child| {
-        crate::runtimes::process::wait_bounded(&mut child, HELPER_TIMEOUT, &AtomicBool::new(false))
-            .is_ok_and(|status| status.success())
-    })
+    let mut child = command.spawn().map_err(|_| SEED_FAILED.to_string())?;
+    match crate::runtimes::process::wait_bounded(&mut child, HELPER_TIMEOUT, cancel) {
+        Ok(status) => Ok(status.success()),
+        Err(_) if cancel.load(Ordering::Relaxed) => Err("Launch cancelled".into()),
+        Err(_) => Ok(false),
+    }
 }
 
 /// Write the saved login into this container with the container's own Wine.
@@ -305,6 +307,19 @@ pub fn seed_saved_login(
     prefix: &Path,
     credentials: &AgentCredentials,
 ) -> Result<(), String> {
+    seed_saved_login_with_cancel(wine, prefix, credentials, &AtomicBool::new(false))
+}
+
+/// Variant of `seed_saved_login` that aborts immediately when `cancel` is set.
+pub fn seed_saved_login_with_cancel(
+    wine: &Path,
+    prefix: &Path,
+    credentials: &AgentCredentials,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Launch cancelled".into());
+    }
     let (local_disk, local_win) = local_vdf_paths(prefix)?;
     if let Some(parent) = local_disk.parent() {
         std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -329,12 +344,16 @@ pub fn seed_saved_login(
         )
         .env("ORBIT_AGENT_SEED_ONLY", "1")
         .current_dir(&control);
-    let seeded = run_helper(command);
-    let _ = std::fs::remove_file(&session);
-    if seeded {
-        Ok(())
-    } else {
-        Err(SEED_FAILED.into())
+    let result = run_helper(command, cancel);
+    if let Err(err) = std::fs::remove_file(&session) {
+        if err.kind() != std::io::ErrorKind::NotFound {
+            eprintln!("Temporary Steam agent request could not be removed: {err}");
+        }
+    }
+    match result {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(SEED_FAILED.into()),
+        Err(err) => Err(err),
     }
 }
 
@@ -368,9 +387,14 @@ pub fn unwrap_saved_token(wine: &Path, prefix: &Path, account: &str) -> Option<S
             format!(r"{STEAM_DIR_WIN}\{CONTROL_REL}\token"),
         )
         .current_dir(&control);
-    let unwrapped = run_helper(command);
+    let cancel = AtomicBool::new(false);
+    let unwrapped = run_helper(command, &cancel).unwrap_or(false);
     let token = std::fs::read(&out).ok();
-    let _ = std::fs::remove_file(&out);
+    if let Err(err) = std::fs::remove_file(&out) {
+        if err.kind() != std::io::ErrorKind::NotFound {
+            eprintln!("Temporary Steam unwrap token file could not be removed: {err}");
+        }
+    }
     if !unwrapped {
         return None;
     }
@@ -527,6 +551,27 @@ mod tests {
         fs::create_dir_all(steam_root(&root).join(CONTROL_REL)).unwrap();
         request_stop(&root);
         assert!(steam_root(&root).join(CONTROL_REL).join("stop").is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn seed_saved_login_returns_cancelled_without_spawning_wine() {
+        let root =
+            std::env::temp_dir().join(format!("orbit-agent-cancel-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("drive_c/users/crossover")).unwrap();
+        let cancel = AtomicBool::new(true);
+        let creds = AgentCredentials {
+            account_name: "orbit_user".into(),
+            steam_id: "76561198000000000".into(),
+            refresh_token: "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.payload.signature".into(),
+        };
+        let err =
+            seed_saved_login_with_cancel(Path::new("/nonexistent/wine"), &root, &creds, &cancel)
+                .unwrap_err();
+        assert_eq!(err, "Launch cancelled");
+        assert!(!root
+            .join("drive_c/users/crossover/AppData/Local/Steam/local.vdf")
+            .exists());
         let _ = fs::remove_dir_all(root);
     }
 }

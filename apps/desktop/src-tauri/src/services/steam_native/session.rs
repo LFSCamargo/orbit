@@ -59,7 +59,14 @@ pub fn store_refresh(
     steam_id: &str,
     refresh_token: &str,
 ) -> Result<(), String> {
-    persist_session(session_dir, account_name, steam_id, refresh_token, false)
+    let client_login = orbit_steam::is_client_token(refresh_token, steam_id);
+    persist_session(
+        session_dir,
+        account_name,
+        steam_id,
+        refresh_token,
+        client_login,
+    )
 }
 
 fn persist_session(
@@ -106,25 +113,129 @@ pub fn apply_to_prefix(prefix: &Path, session_dir: &Path) -> Result<(), String> 
     std::fs::create_dir_all(&config).map_err(|err| err.to_string())?;
     let login_path = config.join("loginusers.vdf");
     let config_path = config.join("config.vdf");
-    write_login_file(&login_path, &login_users(&stored))?;
-    write_login_file(&config_path, &client_config(&stored))
-}
-
-fn login_users(stored: &StoredSession) -> String {
-    format!(
-        "\"users\"\n{{\n\t\"{id}\"\n\t{{\n\t\t\"AccountName\"\t\t\"{name}\"\n\t\t\"PersonaName\"\t\t\"{name}\"\n\t\t\"RememberPassword\"\t\t\"1\"\n\t\t\"MostRecent\"\t\t\"1\"\n\t\t\"AllowAutoLogin\"\t\t\"1\"\n\t}}\n}}\n",
-        id = stored.steam_id,
-        name = stored.account_name,
+    write_login_file(
+        &login_path,
+        &orbit_steam::loginusers_vdf(&stored.steam_id, &stored.account_name),
+    )?;
+    write_login_file(
+        &config_path,
+        &orbit_steam::config_vdf(
+            &stored.steam_id,
+            &stored.account_name,
+            &stored.refresh_token,
+        ),
     )
 }
 
-fn client_config(stored: &StoredSession) -> String {
-    format!(
-        "\"InstallConfigStore\"\n{{\n\t\"Software\"\n\t{{\n\t\t\"Valve\"\n\t\t{{\n\t\t\t\"Steam\"\n\t\t\t{{\n\t\t\t\t\"Accounts\"\n\t\t\t\t{{\n\t\t\t\t\t\"{name}\"\n\t\t\t\t\t{{\n\t\t\t\t\t\t\"SteamID\"\t\t\"{id}\"\n\t\t\t\t\t\t\"RefreshToken\"\t\t\"{token}\"\n\t\t\t\t\t}}\n\t\t\t\t}}\n\t\t\t}}\n\t\t}}\n\t}}\n}}\n",
-        name = stored.account_name,
-        id = stored.steam_id,
-        token = stored.refresh_token,
-    )
+/// Clears rejected saved tokens across `session_dir` and any listed Wine prefixes
+/// while leaving installed games, cloud saves, and library history intact.
+pub fn invalidate_client_session(session_dir: &Path, prefixes: &[&Path]) -> Result<(), String> {
+    remove_regular_file(&session_dir.join(SESSION_FILE))?;
+    let mut seen = Vec::new();
+    for &prefix in prefixes {
+        if prefix.as_os_str().is_empty() || seen.contains(&prefix) {
+            continue;
+        }
+        seen.push(prefix);
+        clear_prefix_tokens(prefix)?;
+    }
+    Ok(())
+}
+
+fn clear_prefix_tokens(prefix: &Path) -> Result<(), String> {
+    if prefix
+        .symlink_metadata()
+        .is_ok_and(|meta| meta.file_type().is_symlink())
+        || !prefix.is_dir()
+    {
+        return Ok(());
+    }
+    for local in local_vdf_files(prefix) {
+        if has_no_symlink_components(prefix, &local) {
+            remove_regular_file(&local)?;
+        }
+    }
+    let config_dir = prefix.join("drive_c/Program Files (x86)/Steam/config");
+    if has_no_symlink_components(prefix, &config_dir) {
+        let config_path = config_dir.join("config.vdf");
+        if let Some(text) = read_text_capped(&config_path, 8 * 1024 * 1024)? {
+            let stripped = strip_refresh_tokens(&text);
+            if stripped != text {
+                write_login_file(&config_path, &stripped)?;
+            }
+        }
+        let login_path = config_dir.join("loginusers.vdf");
+        if let Some(text) = read_text_capped(&login_path, 8 * 1024 * 1024)? {
+            let disabled = disable_auto_login(&text);
+            if disabled != text {
+                write_login_file(&login_path, &disabled)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn has_no_symlink_components(base: &Path, path: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(base) else {
+        return false;
+    };
+    let mut current = base.to_path_buf();
+    for component in rel.components() {
+        current.push(component);
+        if current
+            .symlink_metadata()
+            .is_ok_and(|meta| meta.file_type().is_symlink())
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn remove_regular_file(path: &Path) -> Result<(), String> {
+    let meta = match path.symlink_metadata() {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.to_string()),
+    };
+    if meta.file_type().is_symlink() {
+        return Err("Steam login file cannot be a symlink".into());
+    }
+    if meta.is_file() {
+        std::fs::remove_file(path).map_err(|err| err.to_string())?;
+    }
+    Ok(())
+}
+
+fn strip_refresh_tokens(content: &str) -> String {
+    let mut out = String::with_capacity(content.len());
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("\"RefreshToken\"") {
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+fn disable_auto_login(content: &str) -> String {
+    let mut out = String::with_capacity(content.len());
+    for line in content.lines() {
+        let trimmed = line.trim();
+        let replaced = ["AutoLogin", "AllowAutoLogin", "RememberPassword"]
+            .iter()
+            .find(|key| trimmed.starts_with(&format!("\"{key}\"")));
+        if let Some(key) = replaced {
+            let indent = &line[..line.len() - line.trim_start().len()];
+            out.push_str(&format!("{indent}\"{key}\"\t\t\"0\"\n"));
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
 }
 
 fn write_login_file(path: &Path, body: &str) -> Result<(), String> {
@@ -358,6 +469,16 @@ impl std::fmt::Debug for AgentCredentials {
             .field("steam_id", &self.steam_id)
             .finish_non_exhaustive()
     }
+}
+
+/// Non-secret account identity saved in `native-session.json`, if valid.
+pub fn saved_identity(session_dir: &Path) -> Option<steam_account::SteamAccount> {
+    let stored = load_stored(session_dir)?;
+    let parsed = NativeSession::parse(&stored.account_name, &stored.steam_id).ok()?;
+    Some(steam_account::SteamAccount {
+        name: parsed.account_name,
+        steam_id: parsed.steam_id,
+    })
 }
 
 /// Whether Steam's own window saved a login that game containers can use.
@@ -672,5 +793,69 @@ mod tests {
             "[2026-11-17 00:46:34] [Logged On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse()\n[2026-11-17 01:20:00] [Connecting, 4, 0] [U:1:280673132] LogOn() called\n",
         )
         .unwrap();
+    }
+
+    #[test]
+    fn store_refresh_marks_client_jwt_as_container_usable() {
+        let root = std::env::temp_dir().join(format!("orbit-qr-client-{}", uuid::Uuid::new_v4()));
+        let token = client_jwt();
+        store_refresh(&root, "orbit_user", STEAM_ID, &token).unwrap();
+        assert!(has_saved(&root));
+        assert_eq!(agent_credentials(&root).unwrap().refresh_token, token);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn rejected_session_invalidation_clears_saved_tokens_and_prevents_recapture() {
+        let root = std::env::temp_dir().join(format!("orbit-invalidate-{}", uuid::Uuid::new_v4()));
+        let sw = root.join("steam-windows");
+        let container = root.join("container");
+        let session = root.join("session");
+        for prefix in [&sw, &container] {
+            let steam = prefix.join("drive_c/Program Files (x86)/Steam/config");
+            fs::create_dir_all(&steam).unwrap();
+            fs::create_dir_all(prefix.join("drive_c/users/crossover/AppData/Local/Steam")).unwrap();
+            fs::write(
+                prefix.join("drive_c/users/crossover/AppData/Local/Steam/local.vdf"),
+                orbit_steam::local_vdf("orbit_user", "0102030405060708"),
+            )
+            .unwrap();
+            fs::write(
+                steam.join("loginusers.vdf"),
+                orbit_steam::loginusers_vdf(STEAM_ID, "orbit_user"),
+            )
+            .unwrap();
+            fs::write(
+                steam.join("config.vdf"),
+                format!(
+                    "\"InstallConfigStore\"\n{{\n\t\"Software\"\n\t{{\n\t\t\"Valve\"\n\t\t{{\n\t\t\t\"Steam\"\n\t\t\t{{\n\t\t\t\t\"MTBF\"\t\t\"12345\"\n\t\t\t\t\"Accounts\"\n\t\t\t\t{{\n\t\t\t\t\t\"orbit_user\"\n\t\t\t\t\t{{\n\t\t\t\t\t\t\"SteamID\"\t\t\"{STEAM_ID}\"\n\t\t\t\t\t\t\"RefreshToken\"\t\t\"{token}\"\n\t\t\t\t\t}}\n\t\t\t\t}}\n\t\t\t}}\n\t\t}}\n\t}}\n}}\n",
+                    token = client_jwt()
+                ),
+            )
+            .unwrap();
+        }
+        persist_session(&session, "orbit_user", STEAM_ID, &client_jwt(), true).unwrap();
+        assert!(has_saved(&session));
+        assert!(client_login_ready(&sw));
+        assert!(client_login_ready(&container));
+
+        invalidate_client_session(&session, &[&sw, &container]).unwrap();
+
+        assert!(!has_saved(&session));
+        assert!(!client_login_ready(&sw));
+        assert!(!client_login_ready(&container));
+        assert!(!needs_capture(&sw, &session));
+        let sw_cfg =
+            fs::read_to_string(sw.join("drive_c/Program Files (x86)/Steam/config/config.vdf"))
+                .unwrap();
+        assert!(sw_cfg.contains("\"MTBF\"\t\t\"12345\""));
+        assert!(!sw_cfg.contains("RefreshToken"));
+        let sw_login =
+            fs::read_to_string(sw.join("drive_c/Program Files (x86)/Steam/config/loginusers.vdf"))
+                .unwrap();
+        assert!(sw_login.contains("\"AccountName\"\t\t\"orbit_user\""));
+        assert!(sw_login.contains("\"AutoLogin\"\t\t\"0\""));
+        assert!(sw_login.contains("\"RememberPassword\"\t\t\"0\""));
+        let _ = fs::remove_dir_all(root);
     }
 }

@@ -73,6 +73,24 @@ fn login_present(prefix: &Path) -> bool {
         .is_some_and(|root| root.join("config/loginusers.vdf").is_file())
 }
 
+struct StageReporter<'a, F: FnMut(&str)> {
+    emit: &'a mut F,
+    last: Option<&'static str>,
+}
+
+impl<'a, F: FnMut(&str)> StageReporter<'a, F> {
+    fn new(emit: &'a mut F) -> Self {
+        Self { emit, last: None }
+    }
+
+    fn update(&mut self, detail: &'static str) {
+        if self.last != Some(detail) {
+            self.last = Some(detail);
+            (self.emit)(&format!("login|{detail}"));
+        }
+    }
+}
+
 /// Start the container's Steam and wait until it is logged on with the saved
 /// Settings sign-in. Valve's client binaries are linked in on demand (they are
 /// not in the seed prefix). An expired session asks for Settings → Steam.
@@ -83,6 +101,23 @@ pub fn ensure_running(
     cancel: &AtomicBool,
     wait: ClientWait,
 ) -> Result<(), String> {
+    ensure_running_with(host, app_id, config, cancel, wait, &mut |_| {})
+}
+
+/// Starts the container's silent Steam client while reporting sub-stage progress
+/// (`"login|<detail>"`) so the launch overlay stays informative through boot.
+pub fn ensure_running_with(
+    host: &SteamHost,
+    app_id: &str,
+    config: super::steam_play_config::PlayConfig,
+    cancel: &AtomicBool,
+    wait: ClientWait,
+    progress: &mut impl FnMut(&str),
+) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Launch cancelled".into());
+    }
+    let mut reporter = StageReporter::new(progress);
     let session_dir = super::steam_windows::session_dir(&crate::utils::paths::app_data_dir());
     // Settings may have signed in without Orbit storing the token yet (or with
     // a newer login than the stored one). Store it now instead of failing.
@@ -96,10 +131,12 @@ pub fn ensure_running(
     };
     // One Orbit Steam at a time: another game's resident client goes first.
     super::steam_resident::stop_all_except(Some(&host.prefix));
-    super::steam_native::client_provision::provision_container(
-        &crate::runtimes::root(),
-        &host.prefix,
-    )?;
+    if !super::steam_native::client_provision::is_client_complete(&host.prefix) {
+        super::steam_native::client_provision::provision_container(
+            &crate::runtimes::root(),
+            &host.prefix,
+        )?;
+    }
     super::steam_native::session::apply_to_prefix(&host.prefix, &session_dir)?;
     if launch == SessionLaunch::Agent
         && start_agent(host, &credentials, cancel)? == AgentOutcome::Ready
@@ -118,7 +155,13 @@ pub fn ensure_running(
         .map(Path::to_path_buf)
         .ok_or(NO_CLIENT)?;
     if !ready(&host.prefix, &root, LogMarks::default(), wait) {
-        super::steam_native::agent_host::seed_saved_login(&host.wine, &host.prefix, &credentials)?;
+        reporter.update("Injecting the saved Steam login");
+        super::steam_native::agent_host::seed_saved_login_with_cancel(
+            &host.wine,
+            &host.prefix,
+            &credentials,
+            cancel,
+        )?;
         // Steam reads these at start and rewrites them on exit, so only now.
         if let Err(err) =
             super::steam_play_config::apply(&root, &credentials.steam_id, app_id, config)
@@ -126,7 +169,7 @@ pub fn ensure_running(
             eprintln!("Steam play options were not applied: {err}");
         }
     }
-    start_silent_client(host, cancel, wait)
+    start_silent_client(host, cancel, wait, &mut reporter)
 }
 
 fn start_agent(
@@ -156,11 +199,15 @@ fn start_agent(
     }
 }
 
-fn start_silent_client(
+fn start_silent_client<F: FnMut(&str)>(
     host: &SteamHost,
     cancel: &AtomicBool,
     wait: ClientWait,
+    reporter: &mut StageReporter<'_, F>,
 ) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Launch cancelled".into());
+    }
     let steam = steam_exe_in(&host.prefix);
     let root = steam
         .parent()
@@ -177,7 +224,7 @@ fn start_silent_client(
     steam_account::enable_saved_login(&loginusers);
     write_updater_lock(&root)?;
     if let Some(account) = saved_account_name(&loginusers) {
-        enable_auto_login(host, &account)?;
+        enable_auto_login(host, &account, cancel)?;
     }
     repair_library_folders(&root, &orbit_libraries(&host.prefix));
     if ready(&host.prefix, &root, LogMarks::default(), wait) {
@@ -187,19 +234,29 @@ fn start_silent_client(
     // left without a server by a crashed session. No game runs yet, so stop
     // this container's leftovers and start one client with the current login.
     if steam_running(&process_commands(), &host.prefix) {
-        if server_alive(&host.prefix) {
-            shutdown(host);
-        }
-        super::steam_resident::stop_prefix(&host.prefix);
+        force_stop(host);
     }
-    hide_tray(host);
-    // Only log lines written from here on can prove this client logged on.
-    let since = LogMarks {
-        connection: log_len(&root, "connection_log.txt"),
-        console: log_len(&root, "console_log.txt"),
-    };
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Launch cancelled".into());
+    }
+    if !tray_already_hidden(&host.prefix) {
+        hide_tray(host, cancel);
+    }
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Launch cancelled".into());
+    }
+    // Archive any previous log before spawning so a fresh launch starts at offset 0
+    // and cannot skip lines if Steam truncates then outgrows the prior file size.
+    prepare_fresh_logs(&root);
+    let mut since = LogMarks::default();
+    let ui_mark = log_len(&root, "steamui_login.txt");
+    reporter.update("Starting Steam for this game");
     {
-        let _ = std::fs::remove_file(root.join("steam.pid"));
+        if let Err(err) = std::fs::remove_file(root.join("steam.pid")) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                eprintln!("Previous Steam pid file could not be removed: {err}");
+            }
+        }
         // The browser helper is only needed to place a sign-in window. A
         // silent client can log on without it.
         if super::steam_browser::helper_dir(&root).is_some() {
@@ -219,25 +276,43 @@ fn start_silent_client(
     let deadline = Instant::now() + READY_TIMEOUT;
     while Instant::now() < deadline {
         if cancel.load(Ordering::Relaxed) {
+            force_stop(host);
             return Err("Launch cancelled".into());
         }
-        if ready(&host.prefix, &root, since, wait) {
+        since.track(&root);
+        let connection = read_log_from(&root, "connection_log.txt", since.connection);
+        let console = read_log_from(&root, "console_log.txt", since.console);
+        let steamui_login = read_log_from(&root, "steamui_login.txt", ui_mark);
+        if client_ready(
+            &process_commands(),
+            &host.prefix,
+            server_alive(&host.prefix),
+            &ClientLogs {
+                bootstrap: &read_log(&root, "bootstrap_log.txt"),
+                connection: &connection,
+                console: &console,
+            },
+            wait,
+        ) {
             return Ok(());
         }
-        if logon_refused(&read_log_from(
-            &root,
-            "connection_log.txt",
-            since.connection,
-        )) {
-            // Steam would wait on a hidden sign-in window forever.
-            shutdown(host);
-            return Err(
-                "Your saved Steam sign-in is no longer valid. Sign in again from Settings → Steam, then press Play"
-                    .into(),
+        if logon_refused_in(&connection, &console) {
+            // Invalidate persisted tokens BEFORE stopping Wine so an interrupted
+            // teardown can never leave Orbit reporting a refused login as Authorized.
+            let session_dir =
+                super::steam_windows::session_dir(&crate::utils::paths::app_data_dir());
+            let steam_prefix = super::steam_windows::steam_prefix();
+            let sync_prefix = super::steam_background_sync::sync_prefix(&crate::runtimes::root());
+            return handle_logon_refusal(
+                &session_dir,
+                &[&steam_prefix, &host.prefix, &sync_prefix],
+                || force_stop(host),
             );
         }
+        reporter.update(login_stage_detail(&connection, &steamui_login, wait));
         std::thread::sleep(Duration::from_millis(250));
     }
+    shutdown(host);
     if bootstrap_busy(&read_log(&root, "bootstrap_log.txt")) {
         Err("Steam is still updating for this game. Press Play again in a moment".into())
     } else {
@@ -245,12 +320,67 @@ fn start_silent_client(
     }
 }
 
+/// Clears rejected session state across `session_dir` and `prefixes` first,
+/// then stops the container runtime.
+pub(crate) fn clear_refused_session(session_dir: &Path, prefixes: &[&Path], stop: impl FnOnce()) {
+    if let Err(err) = super::steam_native::session::invalidate_client_session(session_dir, prefixes)
+    {
+        eprintln!("Rejected Steam session could not be cleared: {err}");
+    }
+    stop();
+}
+
+/// Immediately clears rejected session files across `session_dir` and Wine
+/// prefixes before running `stop`, then returns the re-authentication message.
+pub(crate) fn handle_logon_refusal(
+    session_dir: &Path,
+    prefixes: &[&Path],
+    stop: impl FnOnce(),
+) -> Result<(), String> {
+    clear_refused_session(session_dir, prefixes, stop);
+    Err(SIGN_IN_AGAIN.into())
+}
+
+/// Pure sub-stage label derived from the container client's active logs.
+pub(crate) fn login_stage_detail(
+    connection: &str,
+    steamui_login: &str,
+    wait: ClientWait,
+) -> &'static str {
+    if wait == ClientWait::Startup && steam_account::connection_logged_on(connection) {
+        return "Preparing Steam for launch";
+    }
+    if connection.contains("[Logging On")
+        || connection.contains("Using JWT")
+        || connection.contains("LogOn()")
+    {
+        return "Signing in to Steam";
+    }
+    if connection.contains("Connectivity test")
+        || connection.contains("PingWebSocketCM")
+        || steamui_login.contains("WaitingForNetwork")
+        || steamui_login.contains("Starting login")
+    {
+        return "Connecting to Steam";
+    }
+    "Starting Steam for this game"
+}
+
+/// Stops the container's Wine runtime immediately without waiting 8s for
+/// `steam.exe -shutdown` (used on cancelled launches or refused credentials).
+pub(crate) fn force_stop(host: &SteamHost) {
+    if super::steam_native::agent_host::installed(&host.prefix) {
+        super::steam_native::agent_host::request_stop(&host.prefix);
+    }
+    stop_steam_runtime(&host.wine, &host.prefix);
+    super::steam_resident::stop_prefix(&host.prefix);
+}
+
 /// Ask the container's Steam to exit, then stop everything left in the prefix.
 pub fn shutdown(host: &SteamHost) {
     if super::steam_native::agent_host::installed(&host.prefix) {
         // The agent is not Valve's steam.exe; it watches for a stop file.
-        super::steam_native::agent_host::request_stop(&host.prefix);
-        stop_steam_runtime(&host.wine, &host.prefix);
+        force_stop(host);
         return;
     }
     let steam = steam_exe_in(&host.prefix);
@@ -271,6 +401,7 @@ pub fn shutdown(host: &SteamHost) {
         }
     }
     stop_steam_runtime(&host.wine, &host.prefix);
+    super::steam_resident::stop_prefix(&host.prefix);
 }
 
 /// Where this start's lines begin in Steam's logs.
@@ -278,6 +409,67 @@ pub fn shutdown(host: &SteamHost) {
 struct LogMarks {
     connection: u64,
     console: u64,
+}
+
+impl LogMarks {
+    fn track(&mut self, root: &Path) {
+        if log_len(root, "connection_log.txt") < self.connection {
+            self.connection = 0;
+        }
+        if log_len(root, "console_log.txt") < self.console {
+            self.console = 0;
+        }
+    }
+}
+
+/// Reads from a log file while permanently resetting the cursor to 0 if Steam
+/// truncates or rotates the log mid-wait.
+pub(crate) struct LogTracker {
+    offset: u64,
+    high_water: u64,
+}
+
+impl LogTracker {
+    pub(crate) fn from_end(root: &Path, name: &str) -> Self {
+        let offset = log_len(root, name);
+        Self {
+            offset,
+            high_water: offset,
+        }
+    }
+
+    pub(crate) fn read(&mut self, root: &Path, name: &str) -> String {
+        let current = log_len(root, name);
+        if current < self.high_water {
+            self.offset = 0;
+        }
+        self.high_water = current;
+        read_log_from(root, name, self.offset)
+    }
+}
+
+pub(crate) fn prepare_fresh_logs(root: &Path) {
+    let logs = root.join("logs");
+    for (current, previous) in [
+        ("connection_log.txt", "connection_log.previous.txt"),
+        ("console_log.txt", "console_log.previous.txt"),
+    ] {
+        let from = logs.join(current);
+        let Ok(meta) = from.symlink_metadata() else {
+            continue;
+        };
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            continue;
+        }
+        let to = logs.join(previous);
+        if to
+            .symlink_metadata()
+            .is_ok_and(|item| item.file_type().is_symlink())
+        {
+            continue;
+        }
+        let _ = std::fs::rename(&from, &to);
+    }
 }
 
 struct ClientLogs<'a> {
@@ -323,22 +515,42 @@ fn startup_finished(console: &str) -> bool {
 }
 
 /// Steam refused the saved login: it will not retry on its own.
-fn logon_refused(connection: &str) -> bool {
-    connection.lines().any(|line| {
-        line.contains("RecvMsgClientLogOnResponse()")
-            && [
-                "'Invalid Password'",
-                "'Expired'",
-                "'Access Denied'",
-                "'Revoked'",
-                "'Account Logon Denied'",
-            ]
-            .iter()
-            .any(|reason| line.contains(reason))
-    }) || connection.contains("Do not reconnect")
+pub(crate) fn logon_refused(connection: &str) -> bool {
+    logon_refused_in(connection, "")
 }
 
-fn log_len(root: &Path, name: &str) -> u64 {
+/// Steam refused the saved login in either `connection_log.txt` or `console_log.txt`.
+pub(crate) fn logon_refused_in(connection: &str, console: &str) -> bool {
+    const CONNECTION_REASONS: &[&str] = &[
+        "'Invalid Password'",
+        "'Expired'",
+        "'Access Denied'",
+        "'Revoked'",
+        "'Account Logon Denied'",
+        "'Invalid Login Auth Code'",
+    ];
+    const CONSOLE_FAILURES: &[&str] = &[
+        "LogonFailure Access Denied",
+        "LogonFailure Invalid Password",
+        "LogonFailure Expired",
+        "LogonFailure Revoked",
+        "LogonFailure Account Logon Denied",
+    ];
+    connection.lines().any(|line| {
+        (line.contains("RecvMsgClientLogOnResponse()")
+            && CONNECTION_REASONS
+                .iter()
+                .any(|reason| line.contains(reason)))
+            || (line.contains("Clearing in-memory token") && line.contains("LogonFailureReceived"))
+    }) || connection.contains("Do not reconnect")
+        || console.lines().any(|line| {
+            CONSOLE_FAILURES
+                .iter()
+                .any(|failure| line.contains(failure))
+        })
+}
+
+pub(crate) fn log_len(root: &Path, name: &str) -> u64 {
     std::fs::metadata(root.join("logs").join(name))
         .map(|meta| meta.len())
         .unwrap_or(0)
@@ -457,7 +669,42 @@ fn is_main_library(path: &str) -> bool {
         .eq_ignore_ascii_case(r"C:\Program Files (x86)\Steam")
 }
 
-fn hide_tray(host: &SteamHost) {
+/// True when `user.reg` already disables Wine's systray icon, skipping a
+/// redundant `reg add` Wine spawn on launch.
+pub(crate) fn tray_already_hidden(prefix: &Path) -> bool {
+    const LIMIT: u64 = 8 * 1024 * 1024;
+    let path = prefix.join("user.reg");
+    let Ok(meta) = path.symlink_metadata() else {
+        return false;
+    };
+    if meta.file_type().is_symlink() || !meta.is_file() || meta.len() > LIMIT {
+        return false;
+    }
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut text = String::new();
+    if file.take(LIMIT + 1).read_to_string(&mut text).is_err() || text.len() as u64 > LIMIT {
+        return false;
+    }
+    let mut in_explorer = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_explorer = trimmed.starts_with(r"[Software\\Wine\\Explorer]");
+            continue;
+        }
+        if in_explorer && trimmed == "\"ShowSystray\"=dword:00000000" {
+            return true;
+        }
+    }
+    false
+}
+
+pub(crate) fn hide_tray(host: &SteamHost, cancel: &AtomicBool) {
+    if cancel.load(Ordering::Relaxed) {
+        return;
+    }
     let mut command = steam_runtime_command(&host.wine, &host.prefix);
     command
         .arg("reg")
@@ -467,10 +714,14 @@ fn hide_tray(host: &SteamHost) {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let cancel = AtomicBool::new(false);
     if let Ok(mut child) = command.spawn() {
-        let _ =
-            crate::runtimes::process::wait_bounded(&mut child, Duration::from_secs(20), &cancel);
+        if let Err(err) =
+            crate::runtimes::process::wait_bounded(&mut child, Duration::from_secs(20), cancel)
+        {
+            if !cancel.load(Ordering::Relaxed) {
+                eprintln!("Wine systray setting did not finish cleanly: {err}");
+            }
+        }
     }
 }
 
@@ -484,7 +735,14 @@ fn saved_account_name(loginusers: &Path) -> Option<String> {
 /// Steam stays logged off in silent mode unless this registry value names the
 /// saved account. The account name is not a secret; the token stays in the
 /// login files.
-fn enable_auto_login(host: &SteamHost, account: &str) -> Result<(), String> {
+pub(crate) fn enable_auto_login(
+    host: &SteamHost,
+    account: &str,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Launch cancelled".into());
+    }
     if !steam_account::valid_account_name(account) {
         return Err("Sign in with Steam before playing this game".into());
     }
@@ -505,32 +763,29 @@ fn enable_auto_login(host: &SteamHost, account: &str) -> Result<(), String> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let cancel = AtomicBool::new(false);
     let mut child = command
         .spawn()
         .map_err(|_| "Steam could not use the saved account for this game".to_string())?;
     let status =
-        crate::runtimes::process::wait_bounded(&mut child, Duration::from_secs(15), &cancel)
-            .map_err(|_| "Steam could not use the saved account for this game".to_string())?;
+        crate::runtimes::process::wait_bounded(&mut child, Duration::from_secs(15), cancel)
+            .map_err(|_| {
+                if cancel.load(Ordering::Relaxed) {
+                    "Launch cancelled".to_string()
+                } else {
+                    "Steam could not use the saved account for this game".to_string()
+                }
+            })?;
     if !status.success() {
         return Err("Steam could not use the saved account for this game".into());
     }
     Ok(())
 }
 
-fn write_updater_lock(root: &Path) -> Result<(), String> {
-    let path = root.join("steam.cfg");
-    if path
-        .symlink_metadata()
-        .is_ok_and(|meta| meta.file_type().is_symlink())
-    {
-        return Err("Steam configuration cannot be a symlink".into());
-    }
-    std::fs::write(
-        &path,
-        "BootStrapperInhibitAll = Enable\nBootStrapperForceSelfUpdate = False\n",
+pub(crate) fn write_updater_lock(root: &Path) -> Result<(), String> {
+    crate::runtimes::containers::steam::write_updater_config(
+        root,
+        "Steam could not skip its updater before play",
     )
-    .map_err(|_| "Steam could not skip its updater before play".to_string())
 }
 
 fn bootstrap_busy(log: &str) -> bool {
@@ -551,7 +806,7 @@ fn read_log(root: &Path, name: &str) -> String {
 
 /// The log's last `LOG_LIMIT` bytes, starting no earlier than `offset`. A log
 /// shorter than `offset` was rotated by Steam, so all of it is new.
-fn read_log_from(root: &Path, name: &str, offset: u64) -> String {
+pub(crate) fn read_log_from(root: &Path, name: &str, offset: u64) -> String {
     let path = root.join("logs").join(name);
     let Ok(metadata) = std::fs::metadata(&path) else {
         return String::new();
@@ -878,10 +1133,165 @@ mod tests {
     fn a_refused_saved_login_is_reported_instead_of_waited_on() {
         let refused = "[2026-11-16 21:44:08] [Logging On, 4, 7] [U:1:0] RecvMsgClientLogOnResponse() : [I:0:0] 'Invalid Password'\n[2026-11-16 21:44:08] [Logged Off, 0, 0] [U:1:0] Sending SteamServerConnectFailure_t Invalid Password Do not reconnect";
         assert!(logon_refused(refused));
+        let denied = "[2026-11-24 18:48:13] [Logging On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : [I:0:0] 'Access Denied'";
+        assert!(logon_refused(denied));
+        assert!(logon_refused_in(
+            "",
+            "[2026-11-24 18:48:13] LogonFailure Access Denied"
+        ));
+        assert!(!logon_refused_in(
+            "",
+            "[2026-11-24 18:49:20] LogonFailure No Connection"
+        ));
         let ok = "[2026-11-16 19:33:02] [Logging On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : [U:1:280673132] 'OK'";
         assert!(!logon_refused(ok));
         assert!(!logon_refused(
             "[Connecting, 0, 11] [U:1:0] Client thinks it can connect via: UDP - yes"
         ));
+    }
+
+    #[test]
+    fn log_tracker_keeps_reading_refusals_after_steam_truncates_connection_log() {
+        // Regression: Steam truncates `connection_log.txt` on launch and then grows
+        // it past the previous file length; a raw byte offset skipped right past
+        // the `Access Denied` lines written near the start of the new log.
+        let root = std::env::temp_dir().join(format!("orbit-log-track-{}", uuid::Uuid::new_v4()));
+        let logs = root.join("logs");
+        fs::create_dir_all(&logs).unwrap();
+        let conn = logs.join("connection_log.txt");
+        fs::write(&conn, "x".repeat(7_000)).unwrap();
+        let mut tracker = LogTracker::from_end(&root, "connection_log.txt");
+
+        // Steam truncates on startup, then flushes past 7_000 bytes with refusal early on.
+        let mut new_log = "prefix\n".repeat(400);
+        new_log.push_str(
+            "[2026-11-24 18:48:13] [Logging On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : [I:0:0] 'Access Denied'\n",
+        );
+        fs::write(&conn, &new_log).unwrap();
+        let first = tracker.read(&root, "connection_log.txt");
+        assert!(logon_refused(&first));
+
+        // Even if the log later outgrows 7_000 bytes, offset stays pinned at 0.
+        let grown = format!("{new_log}{}", "ping\n".repeat(1_000));
+        assert!(grown.len() > 7_000);
+        fs::write(&conn, &grown).unwrap();
+        assert!(logon_refused(&tracker.read(&root, "connection_log.txt")));
+
+        prepare_fresh_logs(&root);
+        assert!(!conn.exists());
+        assert!(logs.join("connection_log.previous.txt").is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn logon_refusal_invalidates_session_before_stopping_container() {
+        let root = std::env::temp_dir().join(format!("orbit-refusal-{}", uuid::Uuid::new_v4()));
+        let session_dir = root.join("session");
+        let steam_prefix = root.join("steam-windows/prefix");
+        let game_prefix = root.join("games/steam-1593500/prefix");
+        let sync_prefix = root.join("steam-sync/prefix");
+
+        super::super::steam_native::session::store_refresh(
+            &session_dir,
+            "orbit_user",
+            "76561198000000000",
+            "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiY2xpZW50Il0sInN1YiI6Ijc2NTYxMTk4MDAwMDAwMDAwIiwiZXhwIjoyMDAwMDAwMDAwfQ.sig",
+        )
+        .unwrap();
+        for prefix in [&steam_prefix, &game_prefix, &sync_prefix] {
+            fs::create_dir_all(prefix.join("drive_c/users/crossover/AppData/Local/Steam")).unwrap();
+            fs::write(
+                prefix.join("drive_c/users/crossover/AppData/Local/Steam/local.vdf"),
+                "token-blob",
+            )
+            .unwrap();
+            super::super::steam_native::session::apply_to_prefix(prefix, &session_dir).unwrap();
+        }
+
+        let mut cleared_before_stop = false;
+        let err = handle_logon_refusal(
+            &session_dir,
+            &[&steam_prefix, &game_prefix, &sync_prefix],
+            || {
+                cleared_before_stop = !session_dir.join("native-session.json").exists()
+                    && !steam_prefix
+                        .join("drive_c/users/crossover/AppData/Local/Steam/local.vdf")
+                        .exists()
+                    && !sync_prefix
+                        .join("drive_c/users/crossover/AppData/Local/Steam/local.vdf")
+                        .exists();
+            },
+        )
+        .unwrap_err();
+
+        assert!(
+            cleared_before_stop,
+            "session and prefix tokens must be invalidated before stopping Wine so an interrupted stop cannot leave a rejected session Authorized"
+        );
+        assert_eq!(err, SIGN_IN_AGAIN);
+        assert!(!super::super::steam_native::session::has_saved(
+            &session_dir
+        ));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn login_stage_detail_tracks_steam_startup_phases() {
+        assert_eq!(
+            login_stage_detail("", "", ClientWait::Startup),
+            "Starting Steam for this game"
+        );
+        assert_eq!(
+            login_stage_detail(
+                "Connectivity test: result=Connected",
+                "",
+                ClientWait::Startup
+            ),
+            "Connecting to Steam"
+        );
+        assert_eq!(
+            login_stage_detail(
+                "",
+                "[ None ] SetLoginState: WaitingForNetwork - OK",
+                ClientWait::Startup
+            ),
+            "Connecting to Steam"
+        );
+        assert_eq!(
+            login_stage_detail(
+                "[Logging On, 4, 7] [U:1:280673132] Using JWT 123",
+                "[ WaitingForNetwork ] Initiating LogOn",
+                ClientWait::Startup
+            ),
+            "Signing in to Steam"
+        );
+        assert_eq!(
+            login_stage_detail(
+                "[Logged On, 4, 7] [U:1:280673132] RecvMsgClientLogOnResponse() : processing complete",
+                "",
+                ClientWait::Startup
+            ),
+            "Preparing Steam for launch"
+        );
+    }
+
+    #[test]
+    fn tray_already_hidden_reads_user_reg() {
+        let root = std::env::temp_dir().join(format!("orbit-tray-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        assert!(!tray_already_hidden(&root));
+        fs::write(
+            root.join("user.reg"),
+            "[Software\\\\Wine\\\\Explorer] 123\n\"ShowSystray\"=dword:00000001\n",
+        )
+        .unwrap();
+        assert!(!tray_already_hidden(&root));
+        fs::write(
+            root.join("user.reg"),
+            "[Software\\\\Wine\\\\Explorer] 123\n\"ShowSystray\"=dword:00000000\n",
+        )
+        .unwrap();
+        assert!(tray_already_hidden(&root));
+        let _ = fs::remove_dir_all(root);
     }
 }

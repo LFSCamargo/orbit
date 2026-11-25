@@ -10,7 +10,11 @@ import {
 it('orders Steam Windows launch steps for the overlay', () => {
   expect(launchStepIndex('container')).toBe(2)
   expect(launchStepIndex('steam')).toBe(4)
+  expect(launchStepIndex('cloud')).toBe(5)
+  expect(launchStepIndex('login')).toBe(6)
   expect(launchStepIndex('prefix')).toBe(7)
+  expect(launchStepLabel('steam')).toBe('Linking Steam into the container')
+  expect(launchStepLabel('steam')).not.toMatch(/Seeding/)
   expect(launchStepLabel('graphics')).toBe('Applying graphics settings')
   expect(launchStepLabel('unknown')).toBe('Launching…')
 })

@@ -40,7 +40,7 @@ pub fn local_vdf(account_name: &str, token_hex: &str) -> String {
 /// it for silent auto-login.
 pub fn loginusers_vdf(steam_id: &str, account_name: &str) -> String {
     format!(
-        "\"users\"\n{{\n\t\"{id}\"\n\t{{\n\t\t\"AccountName\"\t\t\"{name}\"\n\t\t\"PersonaName\"\t\t\"{name}\"\n\t\t\"RememberPassword\"\t\t\"1\"\n\t\t\"AllowAutoLogin\"\t\t\"1\"\n\t\t\"MostRecent\"\t\t\"1\"\n\t}}\n}}\n",
+        "\"users\"\n{{\n\t\"{id}\"\n\t{{\n\t\t\"AccountName\"\t\t\"{name}\"\n\t\t\"PersonaName\"\t\t\"{name}\"\n\t\t\"RememberPassword\"\t\t\"1\"\n\t\t\"AutoLogin\"\t\t\"1\"\n\t\t\"AllowAutoLogin\"\t\t\"1\"\n\t\t\"MostRecent\"\t\t\"1\"\n\t}}\n}}\n",
         id = steam_id,
         name = account_name,
     )
@@ -116,6 +116,7 @@ mod tests {
     fn login_files_carry_the_account_and_refresh_token() {
         let login = loginusers_vdf("76561198000000000", "orbit_user");
         assert!(login.contains("\"AccountName\"\t\t\"orbit_user\""));
+        assert!(login.contains("\"AutoLogin\"\t\t\"1\""));
         assert!(login.contains("\"AllowAutoLogin\"\t\t\"1\""));
         let config = config_vdf("76561198000000000", "orbit_user", "SECRETTOKEN");
         assert!(config.contains("\"RefreshToken\"\t\t\"SECRETTOKEN\""));

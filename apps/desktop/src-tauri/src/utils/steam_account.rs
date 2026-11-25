@@ -38,19 +38,21 @@ pub fn most_recent_account(content: &str) -> Option<SteamAccount> {
             timestamp = 0;
             continue;
         }
-        if let Some(name) = quoted_field(line, "AccountName") {
+        if let Some(name) = quoted_field_ci(line, "AccountName") {
             if valid_account_name(&name) {
                 current_name = Some(name);
             }
             continue;
         }
-        if quoted_field(line, "MostRecent").as_deref() == Some("1") {
+        if quoted_field_ci(line, "MostRecent").as_deref() == Some("1") {
             most_recent = true;
         }
-        if quoted_field(line, "AutoLogin").as_deref() == Some("1") {
+        if quoted_field_ci(line, "AutoLogin").as_deref() == Some("1")
+            || quoted_field_ci(line, "AllowAutoLogin").as_deref() == Some("1")
+        {
             auto_login = true;
         }
-        if let Some(value) = quoted_field(line, "timestamp") {
+        if let Some(value) = quoted_field_ci(line, "timestamp") {
             timestamp = value.parse().unwrap_or(0);
         }
     }
@@ -386,6 +388,20 @@ fn quoted_field(line: &str, key: &str) -> Option<String> {
     }
 }
 
+fn quoted_field_ci(line: &str, key: &str) -> Option<String> {
+    let rest = line.trim().strip_prefix('"')?;
+    let (found_key, after) = rest.split_once('"')?;
+    if !found_key.eq_ignore_ascii_case(key) {
+        return None;
+    }
+    let value = after.trim_start().strip_prefix('"')?.strip_suffix('"')?;
+    if value.contains('\n') || value.contains('\0') {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -467,6 +483,30 @@ mod tests {
         let account = most_recent_account(content).unwrap();
         assert_eq!(account.name, "orbit_player");
         assert!(!format!("{account:?}").contains("Ignored"));
+    }
+
+    #[test]
+    fn reads_mac_steam_lowercase_mostrecent_and_allow_auto_login() {
+        let content = r#"
+"users"
+{
+	"76561197960265729"
+	{
+		"AccountName"		"older_user"
+		"AllowAutoLogin"		"1"
+		"Timestamp"		"100"
+	}
+	"76561198240938860"
+	{
+		"AccountName"		"active_user"
+		"mostrecent"		"1"
+		"Timestamp"		"200"
+	}
+}
+"#;
+        let account = most_recent_account(content).unwrap();
+        assert_eq!(account.name, "active_user");
+        assert_eq!(account.steam_id, "76561198240938860");
     }
 
     #[test]

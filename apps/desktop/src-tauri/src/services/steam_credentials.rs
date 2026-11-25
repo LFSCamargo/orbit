@@ -49,19 +49,28 @@ pub fn begin(account_name: &str, password: &str) -> Result<SteamPasswordStart, S
     let encrypted = encrypt_password(password, &key)?;
     let body = post_form(
         BEGIN_URL,
-        &[
-            ("device_friendly_name", "Orbit"),
-            ("account_name", account_name),
-            ("encrypted_password", &encrypted),
-            ("encryption_timestamp", &key.timestamp),
-            ("remember_login", "true"),
-            ("platform_type", "2"),
-            ("persistence", "1"),
-            ("website_id", "Community"),
-        ],
+        &begin_form_fields(account_name, &encrypted, &key.timestamp),
         BODY_LIMIT,
     )?;
     parse_begin_body(&body)
+}
+
+fn begin_form_fields<'a>(
+    account_name: &'a str,
+    encrypted_password: &'a str,
+    encryption_timestamp: &'a str,
+) -> [(&'a str, &'a str); 8] {
+    [
+        ("device_friendly_name", "Orbit"),
+        ("account_name", account_name),
+        ("encrypted_password", encrypted_password),
+        ("encryption_timestamp", encryption_timestamp),
+        ("remember_login", "true"),
+        // SteamClient (`1` / `Client`), not website `Community`: container logins reject `web` tokens.
+        ("platform_type", "1"),
+        ("persistence", "1"),
+        ("website_id", "Client"),
+    ]
 }
 
 pub fn submit_guard(
@@ -304,5 +313,13 @@ mod tests {
         assert!(!err.contains("super-secret-password"));
         assert!(valid_guard_code("AB12CD"));
         assert!(!valid_guard_code("bad code"));
+    }
+
+    #[test]
+    fn password_login_requests_a_steam_client_session_token() {
+        let fields = begin_form_fields("orbit_user", "enc", "123");
+        assert!(fields.contains(&("platform_type", "1")));
+        assert!(fields.contains(&("website_id", "Client")));
+        assert!(fields.contains(&("persistence", "1")));
     }
 }

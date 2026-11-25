@@ -25,9 +25,9 @@ it('shows each start-up step, then running', () => {
   expect(notify.progress).toHaveBeenCalledWith({
     id: 'game-launch',
     title: 'The Expendabros',
-    caption: 'Step 6 of 10 · Using the saved Steam login',
+    caption: 'Step 7 of 10 · Using the saved Steam login',
     message: undefined,
-    value: 60,
+    value: 70,
   })
   syncLaunchToast(launch('login'), launch('running'))
   expect(notify.success).toHaveBeenCalledWith(
@@ -50,4 +50,18 @@ it('reports the failed step and clears a cancelled start', () => {
   )
   syncLaunchToast(launch('container'), null)
   expect(notify.dismiss).toHaveBeenCalledWith('game-launch')
+})
+
+it('shows Step 7 login sub-stage detail alongside the step caption', () => {
+  syncLaunchToast(
+    launch('login', { message: 'Using the saved Steam login' }),
+    launch('login', { message: 'Connecting to Steam' }),
+  )
+  expect(notify.progress).toHaveBeenCalledWith({
+    id: 'game-launch',
+    title: 'The Expendabros',
+    caption: 'Step 7 of 10 · Using the saved Steam login',
+    message: 'Connecting to Steam',
+    value: 70,
+  })
 })

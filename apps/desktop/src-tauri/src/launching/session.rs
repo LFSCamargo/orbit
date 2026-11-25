@@ -126,7 +126,8 @@ impl SessionManager {
                                 &self.cancel,
                                 &preferences,
                                 &mut |step| {
-                                    *last_step.lock() = step.to_string();
+                                    let (step_id, _) = crate::launching::progress::split_step(step);
+                                    *last_step.lock() = step_id.to_string();
                                     emit_launch_progress(app, &game.id, step, Some(&game.title));
                                 },
                             ) {
@@ -162,10 +163,13 @@ impl SessionManager {
                                         &error,
                                         Some(&game.title),
                                     );
-                                    let _ = app.emit(
+                                    if let Err(err) = app.emit(
                                         "game-session-error",
                                         serde_json::json!({ "message": error }),
-                                    );
+                                    ) {
+                                        eprintln!("Could not emit game session error: {err}");
+                                    }
+                                    crate::services::steam_windows::emit_status(app, repo);
                                     Err(anyhow::anyhow!(error))
                                 }
                             }

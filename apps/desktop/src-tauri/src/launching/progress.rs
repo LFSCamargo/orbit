@@ -7,9 +7,9 @@ pub const WINE_LAUNCH_STEPS: &[(&str, &str)] = &[
     ("runtime", "Checking Steam for Windows"),
     ("container", "Preparing the game container"),
     ("compatibility", "Applying compatibility"),
-    ("steam", "Seeding Steam into the container"),
-    ("login", "Using the saved Steam login"),
+    ("steam", "Linking Steam into the container"),
     ("cloud", "Copying Steam Cloud saves"),
+    ("login", "Using the saved Steam login"),
     ("prefix", "Preparing the Windows environment"),
     ("graphics", "Applying graphics settings"),
     ("spawn", "Starting the game"),
@@ -46,6 +46,17 @@ pub fn wine_step_message(step: &str) -> &'static str {
         .unwrap_or("Launching…")
 }
 
+/// Splits `"step|detail"` into `(step_id, Some(detail))`, keeping plain step IDs intact.
+pub fn split_step(raw: &str) -> (&str, Option<&str>) {
+    match raw.split_once('|') {
+        Some((step, detail)) => {
+            let detail = detail.trim();
+            (step, (!detail.is_empty()).then_some(detail))
+        }
+        None => (raw, None),
+    }
+}
+
 pub fn launch_progress(
     game_id: &str,
     step: &str,
@@ -54,10 +65,10 @@ pub fn launch_progress(
     title: Option<&str>,
 ) -> LaunchProgress {
     let index = wine_step_index(step);
-    let message = if failed {
-        detail.unwrap_or("Launch failed").to_string()
-    } else {
-        wine_step_message(step).to_string()
+    let message = match detail.filter(|text| !text.trim().is_empty()) {
+        Some(text) => text.to_string(),
+        None if failed => "Launch failed".to_string(),
+        None => wine_step_message(step).to_string(),
     };
     LaunchProgress {
         game_id: game_id.to_string(),
@@ -71,10 +82,13 @@ pub fn launch_progress(
 }
 
 pub fn emit_launch_progress(app: &AppHandle, game_id: &str, step: &str, title: Option<&str>) {
-    let _ = app.emit(
+    let (step, detail) = split_step(step);
+    if let Err(err) = app.emit(
         "game-launch-progress",
-        launch_progress(game_id, step, false, None, title),
-    );
+        launch_progress(game_id, step, false, detail, title),
+    ) {
+        eprintln!("Could not emit launch progress: {err}");
+    }
 }
 
 pub fn emit_launch_failed(
@@ -84,10 +98,12 @@ pub fn emit_launch_failed(
     error: &str,
     title: Option<&str>,
 ) {
-    let _ = app.emit(
+    if let Err(err) = app.emit(
         "game-launch-progress",
         launch_progress(game_id, step, true, Some(error), title),
-    );
+    ) {
+        eprintln!("Could not emit launch failure: {err}");
+    }
 }
 
 #[cfg(test)]
@@ -99,9 +115,18 @@ mod tests {
         assert_eq!(wine_step_index("resolve"), 0);
         assert_eq!(wine_step_index("container"), 2);
         assert_eq!(wine_step_index("steam"), 4);
+        assert_eq!(wine_step_index("cloud"), 5);
+        assert_eq!(wine_step_index("login"), 6);
         assert_eq!(wine_step_index("prefix"), 7);
         assert_eq!(wine_step_index("running"), 10);
         assert_eq!(wine_step_index("unknown"), 0);
+        assert_eq!(
+            launch_progress("g1", "steam", false, None, None).message,
+            "Linking Steam into the container"
+        );
+        assert!(WINE_LAUNCH_STEPS
+            .iter()
+            .all(|(_, label)| !label.contains("Seeding")));
     }
 
     #[test]
@@ -119,5 +144,27 @@ mod tests {
         assert_eq!(payload.message, "Wine environment setup failed");
         assert_eq!(payload.total, 11);
         assert_eq!(payload.title.as_deref(), Some("God of War"));
+    }
+
+    #[test]
+    fn non_failed_progress_uses_substage_detail_when_provided() {
+        assert_eq!(
+            split_step("login|Connecting to Steam"),
+            ("login", Some("Connecting to Steam"))
+        );
+        assert_eq!(split_step("login"), ("login", None));
+        assert_eq!(split_step("login|   "), ("login", None));
+
+        let payload = launch_progress(
+            "g1",
+            "login",
+            false,
+            Some("Connecting to Steam"),
+            Some("God of War"),
+        );
+        assert_eq!(payload.step, "login");
+        assert_eq!(payload.index, 6);
+        assert!(!payload.failed);
+        assert_eq!(payload.message, "Connecting to Steam");
     }
 }
