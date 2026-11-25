@@ -53,6 +53,13 @@ it('leaves it out until then', () => {
   ).not.toBeInTheDocument()
 })
 
+it('renders the current Orbit app icon in the menu header', () => {
+  const { container } = renderMenu()
+  const brandImg = container.querySelector('.session-brand img')
+  expect(brandImg).toHaveAttribute('src', expect.stringContaining('app-icon'))
+  expect(brandImg?.getAttribute('src')).not.toContain('orbit.svg')
+})
+
 describe('during a cloud game', () => {
   beforeEach(() => {
     usePreferencesStore.setState({

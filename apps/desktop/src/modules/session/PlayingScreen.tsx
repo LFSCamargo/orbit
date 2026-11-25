@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { clsx } from 'clsx'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Play, Square, MoreHorizontal, Clock3 } from 'lucide-react'
+import appIcon from '@/assets/brand/app-icon.png'
 import { Focusable } from '@/components/focus/Focusable'
 import { ProviderBadge } from '@/components/game/ProviderBadge'
 import { SessionArtwork } from '@/components/session/SessionArtwork'
@@ -70,7 +71,7 @@ export function PlayingScreen({
               'session-brand flex items-center gap-2.5 text-[11px] tracking-[0.22em] text-white/60',
             )}
           >
-            <img src="/orbit.svg" alt="" className="size-7" />
+            <img src={appIcon} alt="" className="size-7" draggable={false} />
             ORBIT
           </div>
           <p
