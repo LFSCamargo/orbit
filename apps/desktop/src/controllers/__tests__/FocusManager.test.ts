@@ -136,3 +136,30 @@ it('skips hidden controls without measuring every one in the wrong direction', (
   expect(manager.getFocusedId()).toBe('below')
   expect(checks).toBe(0)
 })
+
+it('does not skip a two-column row between full-width buttons in an overlay', () => {
+  // Regression: in the quick menu during cloud play, pressing down from Continue
+  // or up from Quit Orbit skipped Stop game / Back to Orbit because center-to-center
+  // horizontal distance penalized half-width columns more than the farther full-width button.
+  const manager = new FocusManager()
+  place(manager, 'continue', { x: 24, y: 0, w: 752, h: 78 })
+  place(manager, 'stop', { x: 24, y: 88, w: 371, h: 78 })
+  place(manager, 'back-to-orbit', { x: 405, y: 88, w: 371, h: 78 })
+  place(manager, 'quit', { x: 24, y: 194, w: 752, h: 60 })
+
+  manager.setFocus('continue', { scroll: false })
+  manager.move('down')
+  expect(manager.getFocusedId()).toBe('stop')
+
+  manager.move('right')
+  expect(manager.getFocusedId()).toBe('back-to-orbit')
+
+  manager.move('down')
+  expect(manager.getFocusedId()).toBe('quit')
+
+  manager.move('up')
+  expect(manager.getFocusedId()).toBe('stop')
+
+  manager.move('up')
+  expect(manager.getFocusedId()).toBe('continue')
+})
