@@ -227,7 +227,7 @@ export function GameDetailsPage() {
         </Focusable>
       </DetailsHero>
       <div className="details-content relative z-[1] mt-[-27px] px-[var(--console-gutter)] max-[520px]:px-[22px]">
-        <MetaGrid game={game} sizes={sizes} />
+        <MetaGrid game={game} sizes={sizes} installed={installStatus === 'installed'} />
         <TabList label="Game details" className="mb-4 mt-6">
           {(['overview', 'settings'] as const).map((item, order) => (
             <Focusable

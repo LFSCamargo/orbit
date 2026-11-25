@@ -62,7 +62,12 @@ export function entrySizes(entry: LibraryEntry): {
   downloadBytes: number | null
 } {
   const installation = selectInstallation(entry)
-  if (!installation) return { diskBytes: null, downloadBytes: null }
+  if (!installation) {
+    return {
+      diskBytes: entry.game.installSizeBytes ?? null,
+      downloadBytes: null,
+    }
+  }
   return {
     diskBytes: installation.sizeBytes ?? entry.game.installSizeBytes ?? null,
     downloadBytes: installation.downloadSizeBytes ?? null,

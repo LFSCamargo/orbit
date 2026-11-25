@@ -155,6 +155,29 @@ pub fn libraries() -> Vec<PathBuf> {
         .collect()
 }
 
+/// Connected `steamapps/common` folders across picked install locations,
+/// so scans and play lookups find games installed on external drives.
+pub fn library_common_paths() -> Vec<String> {
+    libraries()
+        .into_iter()
+        .map(|library| library.join("steamapps/common"))
+        .filter(|common| common.is_dir())
+        .map(|common| common.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Appends connected install-location `steamapps/common` paths to `paths`
+/// without duplicates.
+pub fn merge_library_paths(paths: &[String]) -> Vec<String> {
+    let mut merged = paths.to_vec();
+    for extra in library_common_paths() {
+        if !merged.contains(&extra) {
+            merged.push(extra);
+        }
+    }
+    merged
+}
+
 /// This Mac first, then each picked folder with its drive's free space.
 pub fn list() -> Vec<InstallLocation> {
     let saved = snapshot();
@@ -214,9 +237,45 @@ pub fn label_for(path: &Path) -> String {
     name
 }
 
-/// A picked folder, canonical. Orbit's own data folder and the system root
-/// are refused: games there would mix with containers or need admin rights.
-pub fn validate_root(path: &Path, orbit_data: &Path) -> Result<PathBuf, String> {
+/// Normalizes a typed or pasted path (trimming whitespace/trailing slashes and
+/// unescaping terminal-escaped spaces like `/Volumes/Fast\ Drive/Orbit` when
+/// the literal path does not exist).
+pub fn clean_input_path(path: &Path) -> PathBuf {
+    let Some(raw) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    let trimmed = raw.trim();
+    let stripped = if trimmed.len() > 1 {
+        trimmed.trim_end_matches('/')
+    } else {
+        trimmed
+    };
+    if Path::new(stripped).exists() || !stripped.contains('\\') {
+        return PathBuf::from(stripped);
+    }
+    let mut unescaped = String::with_capacity(stripped.len());
+    let mut chars = stripped.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(&next) = chars.peek() {
+                if next == ' ' || next.is_ascii_punctuation() {
+                    unescaped.push(next);
+                    chars.next();
+                    continue;
+                }
+            }
+        }
+        unescaped.push(ch);
+    }
+    let result = if unescaped.len() > 1 {
+        unescaped.trim_end_matches('/')
+    } else {
+        unescaped.as_str()
+    };
+    PathBuf::from(result)
+}
+
+fn check_lexical_root(path: &Path) -> Result<(), String> {
     if path.as_os_str().len() > 1024
         || !path.is_absolute()
         || path
@@ -225,19 +284,23 @@ pub fn validate_root(path: &Path, orbit_data: &Path) -> Result<PathBuf, String> 
     {
         return Err("Choose a folder by its full path".into());
     }
-    let root = path
-        .canonicalize()
-        .map_err(|_| "That folder is not accessible")?;
-    if !root.is_dir() {
-        return Err("Choose a folder, not a file".into());
+    if path
+        .to_str()
+        .is_none_or(|text| text.chars().any(char::is_control))
+    {
+        return Err("Choose a folder whose name has no special characters".into());
     }
-    if root.parent().is_none() {
-        return Err("Choose a folder, not the whole disk".into());
+    Ok(())
+}
+
+fn verify_root_bounds(root: &Path, orbit_data: &Path) -> Result<(), String> {
+    if root.parent().is_none() || root == Path::new("/Volumes") {
+        return Err("Choose a folder inside a connected drive, not the whole disk".into());
     }
     let data = orbit_data
         .canonicalize()
-        .unwrap_or(orbit_data.to_path_buf());
-    if root.starts_with(&data) || data.starts_with(&root) {
+        .unwrap_or_else(|_| orbit_data.to_path_buf());
+    if root.starts_with(&data) || data.starts_with(root) {
         return Err("Choose a folder outside Orbit's own data".into());
     }
     if root
@@ -246,15 +309,82 @@ pub fn validate_root(path: &Path, orbit_data: &Path) -> Result<PathBuf, String> 
     {
         return Err("Choose a folder whose name has no special characters".into());
     }
+    Ok(())
+}
+
+/// A picked folder, canonical. Orbit's own data folder and the system root
+/// are refused: games there would mix with containers or need admin rights.
+pub fn validate_root(path: &Path, orbit_data: &Path) -> Result<PathBuf, String> {
+    check_lexical_root(path)?;
+    let root = path
+        .canonicalize()
+        .map_err(|_| "That folder is not accessible")?;
+    if !root.is_dir() {
+        return Err("Choose a folder, not a file".into());
+    }
+    verify_root_bounds(&root, orbit_data)?;
     Ok(root)
 }
 
-/// Adds a picked folder and prepares its `Orbit Games/steamapps/common`,
-/// which also proves the drive is writable.
+/// Validates and creates `path` when its parent folder or mounted volume
+/// already exists (for example `/Volumes/Fast Drive/Orbit` on a new SSD).
+/// Refuses to create a folder directly under `/Volumes` when a drive is not
+/// mounted.
+pub fn prepare_root(path: &Path, orbit_data: &Path) -> Result<PathBuf, String> {
+    check_lexical_root(path)?;
+    if path.exists() || path.symlink_metadata().is_ok() {
+        return validate_root(path, orbit_data);
+    }
+    if path == Path::new("/Volumes") {
+        return Err("Choose a folder inside a connected drive".into());
+    }
+    let mut missing = Vec::new();
+    let mut cursor = Some(path);
+    while let Some(current) = cursor {
+        if current.exists() || current.symlink_metadata().is_ok() {
+            break;
+        }
+        if let Some(name) = current.file_name() {
+            missing.push(name.to_os_string());
+        }
+        cursor = current.parent();
+    }
+    let existing = cursor.ok_or("That folder is not accessible")?;
+    let ancestor = existing
+        .canonicalize()
+        .map_err(|_| "That folder is not accessible")?;
+    if !ancestor.is_dir() {
+        return Err("Choose a folder, not a file".into());
+    }
+    if ancestor.parent().is_none() {
+        return Err("Choose a folder inside a connected drive, not the whole disk".into());
+    }
+    let volumes = Path::new("/Volumes")
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from("/Volumes"));
+    if path.starts_with("/Volumes") && ancestor == volumes {
+        return Err("That drive is not connected. Connect the drive first.".into());
+    }
+    let mut candidate = ancestor;
+    for part in missing.into_iter().rev() {
+        candidate.push(part);
+    }
+    verify_root_bounds(&candidate, orbit_data)?;
+    std::fs::create_dir_all(&candidate)
+        .map_err(|_| "Orbit cannot create that folder. Check the drive's permissions.")?;
+    validate_root(&candidate, orbit_data)
+}
+
+/// Adds a picked or new folder, creates it if needed, and prepares its
+/// `Orbit Games/steamapps/common` and `libraryfolder.vdf`, which also proves
+/// the drive is writable.
 pub fn add(repo: &GameRepository, path: &Path) -> Result<InstallLocation, String> {
-    let root = validate_root(path, &crate::utils::paths::app_data_dir())?;
-    std::fs::create_dir_all(library_dir(&root).join("steamapps/common"))
+    let cleaned = clean_input_path(path);
+    let root = prepare_root(&cleaned, &crate::utils::paths::app_data_dir())?;
+    let library = library_dir(&root);
+    std::fs::create_dir_all(library.join("steamapps/common"))
         .map_err(|_| "Orbit cannot write to that folder. Check the drive's permissions.")?;
+    super::steam_client_download::write_library_identity(&library)?;
     let id = root.to_string_lossy().into_owned();
     with_state(repo, |saved| {
         if saved.roots.contains(&id) {
@@ -411,5 +541,46 @@ mod tests {
             library_dir(Path::new("/Volumes/T7")),
             Path::new("/Volumes/T7/Orbit Games")
         );
+    }
+
+    #[test]
+    fn clean_input_path_unescapes_shell_spaces_when_literal_missing() {
+        let escaped = Path::new("/Volumes/Fast\\ Drive/Orbit/");
+        assert_eq!(
+            clean_input_path(escaped),
+            PathBuf::from("/Volumes/Fast Drive/Orbit")
+        );
+        let plain = Path::new("  /Volumes/Fast Drive/Orbit  ");
+        assert_eq!(
+            clean_input_path(plain),
+            PathBuf::from("/Volumes/Fast Drive/Orbit")
+        );
+    }
+
+    #[test]
+    fn prepare_root_creates_missing_folder_on_existing_parent_and_rejects_unmounted_volumes() {
+        let root = std::env::temp_dir().join(format!("orbit-prep-{}", uuid::Uuid::new_v4()));
+        let data = root.join("Data");
+        let ssd = root.join("Fast Drive");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::create_dir_all(&ssd).unwrap();
+
+        let target = ssd.join("Orbit");
+        let prepared = prepare_root(&target, &data).unwrap();
+        assert!(prepared.is_dir());
+        assert_eq!(prepared, target.canonicalize().unwrap());
+
+        assert!(prepare_root(&data.join("Child"), &data).is_err());
+        assert!(prepare_root(Path::new("/Volumes"), &data).is_err());
+        assert!(
+            prepare_root(
+                Path::new("/Volumes/orbit-unmounted-drive-9999/Orbit"),
+                &data
+            )
+            .is_err(),
+            "must never create a phantom drive folder under /Volumes"
+        );
+        assert!(prepare_root(&ssd.join("../Orbit"), &data).is_err());
+        let _ = std::fs::remove_dir_all(root);
     }
 }

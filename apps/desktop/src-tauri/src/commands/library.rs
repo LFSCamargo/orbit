@@ -48,7 +48,9 @@ pub(crate) fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, String> {
             .cmp(&b.game.sort_title)
             .then(a.id.cmp(&b.id))
     });
-    let paths = steam_windows::preferences(&state.repo)?.additional_library_paths;
+    let paths = crate::services::install_locations::merge_library_paths(
+        &steam_windows::preferences(&state.repo)?.additional_library_paths,
+    );
     library::attach_windows_installs(
         &mut result,
         &crate::services::steam_library_paths::index(&paths),

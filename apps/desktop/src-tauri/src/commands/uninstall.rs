@@ -36,6 +36,9 @@ pub async fn uninstall_steam_game(
             libraries.push(steamapps.join("common").to_string_lossy().into_owned());
         }
         uninstall::add_library_installs(&mut plan, &libraries, &session, &app_id);
+        if let Ok(entries) = crate::commands::library::entries(&state) {
+            uninstall::add_entry_installs(&mut plan, &entries, &session, &app_id);
+        }
         if !plan.finds_game_files() {
             return Err("Orbit could not find this game's files to uninstall.".into());
         }

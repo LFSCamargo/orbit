@@ -13,9 +13,11 @@ import type { Game } from '@/types/game'
 export function MetaGrid({
   game,
   sizes,
+  installed = true,
 }: {
   game: Game
   sizes?: { diskBytes: number | null; downloadBytes: number | null; measuring?: boolean }
+  installed?: boolean
 }) {
   const diskBytes = sizes ? sizes.diskBytes : (game.installSizeBytes ?? null)
   const achievements = game.achievements ?? []
@@ -35,7 +37,7 @@ export function MetaGrid({
     cloud
       ? { label: 'Plays in', value: 'Your browser', detail: undefined, icon: Cloud }
       : {
-          label: 'Disk usage',
+          label: installed ? 'Disk usage' : 'Space needed',
           value: diskBytes ? formatBytes(diskBytes) : 'Not available',
           detail: sizes?.measuring
             ? 'Measuring…'

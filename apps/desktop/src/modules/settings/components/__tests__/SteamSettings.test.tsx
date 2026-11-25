@@ -30,6 +30,7 @@ vi.mock('@/lib/tauri', () => ({
     verifyFiles: true,
   }),
   setSteamWindowsPreferences: (preferences: unknown) => save(preferences),
+  addInstallLocation: vi.fn(),
   connectSteamWindows: vi.fn(),
   openSteamWindowsLogin: vi.fn(),
   placeSteamWindowsLogin: vi.fn(),
