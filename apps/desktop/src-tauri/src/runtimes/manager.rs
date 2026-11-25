@@ -29,7 +29,11 @@ pub struct CompatibilityStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "phase")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "phase"
+)]
 pub enum SetupProgress {
     Downloading {
         component: String,
