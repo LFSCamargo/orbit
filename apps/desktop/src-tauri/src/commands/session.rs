@@ -8,6 +8,7 @@ pub async fn launch_game(app: AppHandle, game_id: String) -> Result<GameSession,
     tauri::async_runtime::spawn_blocking(move || {
         use tauri::Manager;
         let state = app.state::<AppState>();
+        state.steam_library_sync.cancel();
         let game = state
             .repo
             .get_game(&game_id)

@@ -32,6 +32,7 @@ import { useSplashActive } from './splash/useSplashHold'
 import { appLayerHidden } from './appLayer'
 import { useRuntimeAutoUpdate } from './startup/useRuntimeAutoUpdate'
 import { useStartupScan } from './startup/useStartupScan'
+import { useSteamStartupSync } from './startup/useSteamStartupSync'
 
 const pageTransition = { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const }
 
@@ -55,6 +56,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   useSteamLibraryEvents()
   useSteamClientEvents()
   useStartupScan()
+  useSteamStartupSync()
   useRuntimeAutoUpdate()
 
   // On a first run, onboarding (in #root) rises above the splash, which stays

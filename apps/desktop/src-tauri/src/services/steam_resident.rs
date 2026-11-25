@@ -98,16 +98,23 @@ fn pids_to_stop(snapshot: &Snapshot, prefixes: &[PathBuf], keep: Option<&Path>) 
 }
 
 fn container_prefixes() -> Vec<PathBuf> {
-    let games = crate::runtimes::containers::root_in(&crate::runtimes::root()).join("games");
-    let Ok(entries) = std::fs::read_dir(games) else {
-        return Vec::new();
+    let root = crate::runtimes::containers::root_in(&crate::runtimes::root());
+    let mut prefixes = Vec::new();
+    let sync = root.join("steam-sync").join("prefix");
+    if sync.is_dir() {
+        prefixes.push(sync);
+    }
+    let Ok(entries) = std::fs::read_dir(root.join("games")) else {
+        return prefixes;
     };
-    entries
-        .flatten()
-        .take(256)
-        .map(|entry| entry.path().join("prefix"))
-        .filter(|prefix| prefix.is_dir())
-        .collect()
+    prefixes.extend(
+        entries
+            .flatten()
+            .take(256)
+            .map(|entry| entry.path().join("prefix"))
+            .filter(|prefix| prefix.is_dir()),
+    );
+    prefixes
 }
 
 fn ps(args: &[&str]) -> String {

@@ -43,6 +43,8 @@ pub struct SteamCatalogEntry {
     pub playtime_seconds: i64,
     #[serde(default)]
     pub last_played_at: Option<String>,
+    #[serde(default)]
+    pub install_size_bytes: Option<i64>,
     /// Steam store `type` (`game`, `application`, `dlc`, …), lowercased.
     /// `None` until the store has been asked.
     #[serde(default)]
@@ -245,13 +247,29 @@ pub fn apply_owned_snapshot(
     local_ids: &[String],
     fetched: Option<&[SteamCatalogEntry]>,
 ) -> Vec<SteamCatalogEntry> {
-    let with_local = merge_owned_ids(existing, local_ids);
+    apply_owned_snapshot_with_local(existing, local_ids, &[], fetched)
+}
+
+/// Merge local `localconfig.vdf` IDs, local `packageinfo.vdf` + `appinfo.vdf`
+/// game entries (carrying real titles and app types), and an optional
+/// `GetOwnedGames` API snapshot without wiping saved metadata or playtimes.
+/// Complexity: O(existing + local_ids + local_entries + fetched).
+pub fn apply_owned_snapshot_with_local(
+    existing: &[SteamCatalogEntry],
+    local_ids: &[String],
+    local_entries: &[SteamCatalogEntry],
+    fetched: Option<&[SteamCatalogEntry]>,
+) -> Vec<SteamCatalogEntry> {
+    let mut base = merge_owned_ids(existing, local_ids);
+    if !local_entries.is_empty() {
+        base = merge_additive(&base, local_entries);
+    }
     let Some(fetched) = fetched.filter(|games| !games.is_empty()) else {
-        return with_local;
+        return base;
     };
-    let mut merged = merge_api_snapshot(&with_local, fetched.to_vec());
+    let mut merged = merge_api_snapshot(&base, fetched.to_vec());
     let seen: HashSet<String> = merged.iter().map(|entry| entry.app_id.clone()).collect();
-    for entry in with_local {
+    for entry in base {
         if merged.len() >= 2_000 {
             break;
         }
@@ -259,6 +277,54 @@ pub fn apply_owned_snapshot(
             continue;
         }
         merged.push(entry);
+    }
+    merged
+}
+
+/// Additively merge discovered catalog entries into `existing`, filling missing
+/// titles and app types while never discarding saved metadata, playtimes, or
+/// previously stored entries. O(existing + incoming).
+fn merge_additive(
+    existing: &[SteamCatalogEntry],
+    incoming: &[SteamCatalogEntry],
+) -> Vec<SteamCatalogEntry> {
+    let mut merged: Vec<_> = existing.iter().take(2_000).cloned().collect();
+    let mut positions: HashMap<String, usize> = merged
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.app_id.clone(), index))
+        .collect();
+    for candidate in incoming.iter().take(2_000) {
+        if !valid_app_id(&candidate.app_id) {
+            continue;
+        }
+        if let Some(&index) = positions.get(&candidate.app_id) {
+            let saved = &mut merged[index];
+            if is_placeholder_title(&saved.title, &saved.app_id)
+                && !is_placeholder_title(&candidate.title, &candidate.app_id)
+            {
+                saved.title = candidate.title.clone();
+            }
+            if saved.app_type.is_none() {
+                saved.app_type = candidate.app_type.clone();
+            }
+            if saved.install_size_bytes.is_none() {
+                saved.install_size_bytes = candidate.install_size_bytes;
+            }
+            if candidate.playtime_seconds > saved.playtime_seconds {
+                saved.playtime_seconds = candidate.playtime_seconds;
+            }
+            saved.last_played_at = crate::utils::steam_playtime::later_stamp(
+                saved.last_played_at.clone(),
+                candidate.last_played_at.clone(),
+            );
+            continue;
+        }
+        if merged.len() >= 2_000 {
+            break;
+        }
+        positions.insert(candidate.app_id.clone(), merged.len());
+        merged.push(candidate.clone());
     }
     merged
 }
@@ -275,6 +341,11 @@ pub fn merge_api_snapshot(
         .into_iter()
         .map(|mut entry| {
             if let Some(saved) = by_id.get(entry.app_id.as_str()) {
+                if is_placeholder_title(&entry.title, &entry.app_id)
+                    && !is_placeholder_title(&saved.title, &saved.app_id)
+                {
+                    entry.title = saved.title.clone();
+                }
                 entry.description = entry.description.or_else(|| saved.description.clone());
                 entry.cover_url = entry.cover_url.or_else(|| saved.cover_url.clone());
                 entry.hero_url = entry.hero_url.or_else(|| saved.hero_url.clone());
@@ -282,8 +353,17 @@ pub fn merge_api_snapshot(
                 entry.minimum_requirements = saved.minimum_requirements.clone();
                 entry.recommended_requirements = saved.recommended_requirements.clone();
                 entry.proton_tier = saved.proton_tier.clone();
-                entry.app_type = saved.app_type.clone();
-                entry.controller_support = saved.controller_support.clone();
+                entry.app_type = saved.app_type.clone().or(entry.app_type);
+                entry.controller_support = saved
+                    .controller_support
+                    .clone()
+                    .or(entry.controller_support);
+                entry.install_size_bytes = entry.install_size_bytes.or(saved.install_size_bytes);
+                entry.playtime_seconds = entry.playtime_seconds.max(saved.playtime_seconds);
+                entry.last_played_at = crate::utils::steam_playtime::later_stamp(
+                    entry.last_played_at,
+                    saved.last_played_at.clone(),
+                );
             }
             entry
         })
@@ -686,6 +766,7 @@ fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
                 return None;
             }
             Some(SteamCatalogEntry {
+                install_size_bytes: parsed.install_size_bytes.filter(|bytes| *bytes > 0),
                 title: clean_title(&app_id, &parsed.title)
                     .unwrap_or_else(|| placeholder_title(&app_id)),
                 description: parsed
@@ -1248,5 +1329,57 @@ mod tests {
             controller_support_of(&json!({ "controller_support": "partial" })),
             "partial"
         );
+    }
+
+    #[test]
+    fn local_catalog_entries_add_newly_bought_games_and_preserve_existing_playtime_and_copy() {
+        let existing = vec![
+            SteamCatalogEntry {
+                app_id: "1593500".into(),
+                title: "God of War".into(),
+                description: Some("Saved store copy.".into()),
+                cover_url: Some("https://cdn.steamgriddb.com/grid/gow.png".into()),
+                playtime_seconds: 7200,
+                last_played_at: Some("2026-11-20T12:00:00Z".into()),
+                app_type: Some("game".into()),
+                controller_support: Some("full".into()),
+                ..SteamCatalogEntry::default()
+            },
+            SteamCatalogEntry::from_app_id("2322010").unwrap(),
+        ];
+        let local_entries = vec![
+            SteamCatalogEntry {
+                app_id: "1593500".into(),
+                title: "God of War".into(),
+                app_type: Some("game".into()),
+                ..SteamCatalogEntry::default()
+            },
+            SteamCatalogEntry {
+                app_id: "2322010".into(),
+                title: "God of War Ragnarök".into(),
+                app_type: Some("game".into()),
+                ..SteamCatalogEntry::default()
+            },
+            SteamCatalogEntry {
+                app_id: "1808500".into(),
+                title: "ARC Raiders".into(),
+                app_type: Some("game".into()),
+                ..SteamCatalogEntry::default()
+            },
+        ];
+        let merged = apply_owned_snapshot_with_local(&existing, &[], &local_entries, None);
+        let gow = merged.iter().find(|e| e.app_id == "1593500").unwrap();
+        assert_eq!(gow.playtime_seconds, 7200);
+        assert_eq!(gow.last_played_at.as_deref(), Some("2026-11-20T12:00:00Z"));
+        assert_eq!(gow.description.as_deref(), Some("Saved store copy."));
+        assert_eq!(gow.controller_support.as_deref(), Some("full"));
+
+        let ragnarok = merged.iter().find(|e| e.app_id == "2322010").unwrap();
+        assert_eq!(ragnarok.title, "God of War Ragnarök");
+        assert_eq!(ragnarok.app_type.as_deref(), Some("game"));
+
+        let arc = merged.iter().find(|e| e.app_id == "1808500").unwrap();
+        assert_eq!(arc.title, "ARC Raiders");
+        assert_eq!(arc.app_type.as_deref(), Some("game"));
     }
 }

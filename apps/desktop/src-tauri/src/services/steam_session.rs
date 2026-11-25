@@ -29,7 +29,43 @@ use std::{
     time::{Duration, Instant},
 };
 const LIMIT: u64 = 1_048_576;
+/// Valve's `steamLoginSecure` JWT expires after 24 hours; allow generous clock
+/// skew before skipping the Wine unlock helper on clearly stale cookie files.
+const COOKIE_FRESH_WINDOW: Duration = Duration::from_secs(36 * 60 * 60);
 const HELPER: &[u8] = include_bytes!("../../assets/steam-session-helper.exe");
+
+/// True when any user profile in `prefix` has a non-symlink Chromium `Cookies`
+/// file modified within `COOKIE_FRESH_WINDOW`. Prevents spawning Wine on boot
+/// to decrypt cookies that have been expired for days. O(profiles <= 16).
+pub fn has_fresh_cookies(prefix: &Path) -> bool {
+    let Ok(users) = fs::read_dir(prefix.join("drive_c/users")) else {
+        return false;
+    };
+    let now = std::time::SystemTime::now();
+    for user in users.flatten().take(16) {
+        if !user.file_type().is_ok_and(|kind| kind.is_dir()) {
+            continue;
+        }
+        let cookies = user
+            .path()
+            .join("AppData/Local/Steam/htmlcache/Default/Network/Cookies");
+        let Ok(meta) = fs::symlink_metadata(&cookies) else {
+            continue;
+        };
+        if !meta.is_file() || meta.file_type().is_symlink() {
+            continue;
+        }
+        if meta
+            .modified()
+            .ok()
+            .and_then(|mtime| now.duration_since(mtime).ok())
+            .is_some_and(|age| age <= COOKIE_FRESH_WINDOW)
+        {
+            return true;
+        }
+    }
+    false
+}
 
 fn cookie_token(raw: &[u8], host: &str, account: &str, now: u64) -> Result<WebToken> {
     let hash = Sha256::digest(host.as_bytes());
@@ -266,5 +302,25 @@ mod tests {
         raw.extend_from_slice(format!("{id}||{}", token(id, 1000)).as_bytes());
         assert!(cookie_token(&raw, "store.steampowered.com", id, 500).is_ok());
         assert!(cookie_token(&raw, "steamcommunity.com", id, 500).is_err());
+    }
+
+    #[test]
+    fn fresh_cookies_check_skips_missing_and_expired_cookie_files() {
+        let root = std::env::temp_dir().join(format!("orbit-cookies-{}", uuid::Uuid::new_v4()));
+        assert!(!has_fresh_cookies(&root));
+        let cookies =
+            root.join("drive_c/users/player/AppData/Local/Steam/htmlcache/Default/Network/Cookies");
+        fs::create_dir_all(cookies.parent().unwrap()).unwrap();
+        fs::write(&cookies, b"sqlite").unwrap();
+        assert!(has_fresh_cookies(&root));
+        let stale = std::time::SystemTime::now() - Duration::from_secs(48 * 60 * 60);
+        fs::File::options()
+            .write(true)
+            .open(&cookies)
+            .unwrap()
+            .set_modified(stale)
+            .unwrap();
+        assert!(!has_fresh_cookies(&root));
+        let _ = fs::remove_dir_all(root);
     }
 }

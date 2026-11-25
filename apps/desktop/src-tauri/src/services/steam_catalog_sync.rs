@@ -44,6 +44,7 @@ fn merge_metadata(
                 entry.recommended_requirements = details.recommended_requirements;
                 entry.proton_tier = details.proton_tier;
                 entry.app_type = details.app_type;
+                entry.controller_support = details.controller_support.or(entry.controller_support);
                 entry.last_hydrated_at = details.last_hydrated_at;
             }
             entry
@@ -72,7 +73,11 @@ pub fn schedule(
     force: bool,
     account: Option<String>,
 ) {
-    let Some(job) = Job::claim(&app.state::<crate::AppState>().steam_catalog_job) else {
+    let state = app.state::<crate::AppState>();
+    if state.sessions.get_active().is_some() || state.sessions.is_launching() {
+        return;
+    }
+    let Some(job) = Job::claim(&state.steam_catalog_job) else {
         return;
     };
     tauri::async_runtime::spawn(async move {
@@ -91,6 +96,9 @@ pub fn schedule(
         let cloned = app.clone();
         let result = tauri::async_runtime::spawn_blocking(move || {
             let state = cloned.state::<crate::AppState>();
+            if state.sessions.get_active().is_some() || state.sessions.is_launching() {
+                return Ok(false);
+            }
             if super::steam_windows::stored_account(&state.repo)? != account {
                 return Ok(false);
             }

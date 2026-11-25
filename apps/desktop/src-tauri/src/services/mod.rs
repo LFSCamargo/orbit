@@ -29,6 +29,7 @@ pub use metadata_enrichment::MetadataEnrichmentService;
 
 pub mod theme_artwork;
 
+pub mod steam_background_sync;
 pub mod steam_browser;
 pub mod steam_catalog;
 pub mod steam_catalog_sync;
@@ -39,6 +40,7 @@ pub mod steam_credentials;
 pub mod steam_download;
 pub mod steam_launch;
 pub mod steam_library;
+pub mod steam_local_catalog;
 pub mod steam_login;
 pub mod steam_login_process;
 pub mod steam_qr;

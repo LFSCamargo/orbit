@@ -109,6 +109,8 @@ src-tauri/src/
     glass_material.rs      # One-time bounded grain rendering
     hero_lighting.rs       # Scoped local artwork sampling
     steam_library.rs       # Steam install handoff and platform check
+    steam_local_catalog.rs # Verified local Steam roots (packageinfo.vdf + appinfo.vdf + localconfig.vdf)
+    steam_background_sync.rs # Headless cancellable Steam CM sync in runtimes/containers/steam-sync
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
     download_queue.rs      # FIFO Steam download queue: one worker, pause/resume, waits offline, saved in settings

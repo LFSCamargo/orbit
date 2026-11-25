@@ -12,22 +12,58 @@ const MAX_DEPTH: usize = 16;
 /// Per-app fields between the app header and its key-values.
 const APP_PREAMBLE: usize = 4 + 4 + 8 + 20 + 4 + 20;
 
+/// Common metadata for one app from `appcache/appinfo.vdf`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AppSummary {
+    pub name: Option<String>,
+    pub app_type: Option<String>,
+    pub required_bytes: Option<u64>,
+}
+
 /// `appinfo/config/installdir` for each wanted app id found in the file.
+/// Complexity: O(bytes), single bounded pass.
 pub fn install_dirs(bytes: &[u8], wanted: &HashSet<u32>) -> HashMap<u32, String> {
     let mut found = HashMap::new();
+    scan_apps(bytes, wanted, |reader, app_id, start, end| {
+        if let Some(dir) = reader.installdir(start, end) {
+            found.insert(app_id, dir);
+        }
+        found.len() == wanted.len()
+    });
+    found
+}
+
+/// `appinfo/common/name` and lowercased `appinfo/common/type` for each wanted
+/// app id in `appcache/appinfo.vdf`. Complexity: O(bytes), single bounded pass.
+pub fn app_summaries(bytes: &[u8], wanted: &HashSet<u32>) -> HashMap<u32, AppSummary> {
+    let mut found = HashMap::new();
+    scan_apps(bytes, wanted, |reader, app_id, start, end| {
+        if let Some(summary) = reader.summary(start, end) {
+            found.insert(app_id, summary);
+        }
+        found.len() == wanted.len()
+    });
+    found
+}
+
+fn scan_apps(
+    bytes: &[u8],
+    wanted: &HashSet<u32>,
+    mut visit: impl FnMut(&Reader<'_>, u32, usize, usize) -> bool,
+) {
     if bytes.len() > MAX_BYTES || wanted.is_empty() {
-        return found;
+        return;
     }
     let Some(magic) = u32_at(bytes, 0) else {
-        return found;
+        return;
     };
     let strings = match magic {
         MAGIC_V29 => match string_table(bytes) {
             Some(table) => Some(table),
-            None => return found,
+            None => return,
         },
         MAGIC_V28 => None,
-        _ => return found,
+        _ => return,
     };
     let reader = Reader {
         bytes,
@@ -51,17 +87,13 @@ pub fn install_dirs(bytes: &[u8], wanted: &HashSet<u32>) -> HashMap<u32, String>
         else {
             break;
         };
-        if wanted.contains(&app_id) {
-            if let Some(dir) = reader.installdir(body + APP_PREAMBLE, next) {
-                found.insert(app_id, dir);
-                if found.len() == wanted.len() {
-                    break;
-                }
+        if wanted.contains(&app_id) && body + APP_PREAMBLE < next {
+            if visit(&reader, app_id, body + APP_PREAMBLE, next) {
+                break;
             }
         }
         at = next;
     }
-    found
 }
 
 fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
@@ -98,6 +130,28 @@ impl Reader<'_> {
         let mut found = None;
         self.walk(start, end, &mut path, &mut found)?;
         found
+    }
+
+    fn summary(&self, start: usize, end: usize) -> Option<AppSummary> {
+        let mut path = Vec::new();
+        let mut accum = SummaryAccum::default();
+        self.walk_summary(start, end, &mut path, &mut accum)?;
+        let mut found = accum.summary;
+        let required: u64 = accum
+            .depots
+            .into_iter()
+            .filter(|depot| {
+                !depot.is_dlc
+                    && depot
+                        .oslist
+                        .as_deref()
+                        .is_none_or(|os| os.is_empty() || os.contains("windows"))
+            })
+            .fold(0u64, |total, depot| total.saturating_add(depot.maxsize));
+        if required > 0 {
+            found.required_bytes = Some(required);
+        }
+        (found.name.is_some() || found.app_type.is_some()).then_some(found)
     }
 
     fn key(&self, at: usize, end: usize) -> Option<(&str, usize)> {
@@ -151,6 +205,134 @@ impl Reader<'_> {
             };
         }
     }
+
+    /// Walk one nested object; records `appinfo/common/name`, `appinfo/common/type`,
+    /// and Windows/shared depot `maxsize` under `appinfo/depots/<id>`.
+    fn walk_summary<'k>(
+        &'k self,
+        mut at: usize,
+        end: usize,
+        path: &mut Vec<&'k str>,
+        accum: &mut SummaryAccum,
+    ) -> Option<usize> {
+        if path.len() > MAX_DEPTH {
+            return None;
+        }
+        loop {
+            let kind = *self.bytes.get(at).filter(|_| at < end)?;
+            at += 1;
+            if kind == 0x08 {
+                return Some(at);
+            }
+            let (key, next) = self.key(at, end)?;
+            at = next;
+            let entering_depot = path.len() == 2
+                && path[0].eq_ignore_ascii_case("appinfo")
+                && path[1].eq_ignore_ascii_case("depots")
+                && !key.is_empty()
+                && key.bytes().all(|b| b.is_ascii_digit())
+                && accum.depots.len() < 256;
+            at = match kind {
+                0x00 => {
+                    if entering_depot {
+                        accum.depots.push(DepotAccum::default());
+                        accum.in_depot = true;
+                    }
+                    path.push(key);
+                    let next = self.walk_summary(at, end, path, accum)?;
+                    path.pop();
+                    if entering_depot {
+                        accum.in_depot = false;
+                    }
+                    next
+                }
+                0x01 => {
+                    let (value, next) = c_str(self.bytes, at, end)?;
+                    let in_common = path.len() == 2
+                        && path[0].eq_ignore_ascii_case("appinfo")
+                        && path[1].eq_ignore_ascii_case("common");
+                    if in_common {
+                        if accum.summary.name.is_none() && key.eq_ignore_ascii_case("name") {
+                            let trimmed = value.trim();
+                            if !trimmed.is_empty() {
+                                accum.summary.name = Some(trimmed.to_string());
+                            }
+                        } else if accum.summary.app_type.is_none()
+                            && key.eq_ignore_ascii_case("type")
+                        {
+                            let kind = value.trim().to_ascii_lowercase();
+                            if !kind.is_empty() {
+                                accum.summary.app_type = Some(kind);
+                            }
+                        }
+                    } else if accum.in_depot {
+                        if let Some(depot) = accum.depots.last_mut() {
+                            if path.len() == 3 && key.eq_ignore_ascii_case("maxsize") {
+                                if let Ok(bytes) = value.trim().parse::<u64>() {
+                                    depot.maxsize = bytes;
+                                }
+                            } else if path.len() == 5
+                                && depot.maxsize == 0
+                                && path[3].eq_ignore_ascii_case("manifests")
+                                && path[4].eq_ignore_ascii_case("public")
+                                && key.eq_ignore_ascii_case("size")
+                            {
+                                if let Ok(bytes) = value.trim().parse::<u64>() {
+                                    depot.maxsize = bytes;
+                                }
+                            } else if path.len() == 3 && key.eq_ignore_ascii_case("dlcappid") {
+                                depot.is_dlc = true;
+                            } else if path.len() == 4
+                                && path[3].eq_ignore_ascii_case("config")
+                                && key.eq_ignore_ascii_case("oslist")
+                            {
+                                depot.oslist = Some(value.trim().to_ascii_lowercase());
+                            }
+                        }
+                    }
+                    next
+                }
+                0x02 => {
+                    if accum.in_depot && path.len() == 3 {
+                        if let Some(depot) = accum.depots.last_mut() {
+                            if key.eq_ignore_ascii_case("maxsize") {
+                                depot.maxsize = u32_at(self.bytes, at)? as u64;
+                            } else if key.eq_ignore_ascii_case("dlcappid") {
+                                depot.is_dlc = true;
+                            }
+                        }
+                    }
+                    at + 4
+                }
+                0x03 | 0x04 | 0x06 => at + 4,
+                0x07 | 0x0a => {
+                    if accum.in_depot && path.len() == 3 && key.eq_ignore_ascii_case("maxsize") {
+                        if let Some(depot) = accum.depots.last_mut() {
+                            let lo = u32_at(self.bytes, at)? as u64;
+                            let hi = u32_at(self.bytes, at + 4)? as u64;
+                            depot.maxsize = lo | (hi << 32);
+                        }
+                    }
+                    at + 8
+                }
+                _ => return None,
+            };
+        }
+    }
+}
+
+#[derive(Default)]
+struct SummaryAccum {
+    summary: AppSummary,
+    depots: Vec<DepotAccum>,
+    in_depot: bool,
+}
+
+#[derive(Default)]
+struct DepotAccum {
+    maxsize: u64,
+    oslist: Option<String>,
+    is_dlc: bool,
 }
 
 #[cfg(test)]
@@ -227,5 +409,78 @@ mod tests {
         assert!(install_dirs(&file[..40], &HashSet::from([1593500])).is_empty());
         assert!(install_dirs(b"not appinfo at all", &HashSet::from([1])).is_empty());
         assert!(install_dirs(&[], &HashSet::from([1])).is_empty());
+        assert!(app_summaries(&file[..40], &HashSet::from([1593500])).is_empty());
+        assert!(app_summaries(b"not appinfo at all", &HashSet::from([1])).is_empty());
+    }
+
+    #[test]
+    fn app_summaries_read_common_name_and_lowercased_type_only() {
+        let strings = ["appinfo", "common", "name", "type", "config"];
+        let key =
+            |name: &str| (strings.iter().position(|s| *s == name).unwrap() as u32).to_le_bytes();
+        let entry = |id: u32, name: &str, kind: &str| {
+            let mut kv = Vec::new();
+            kv.push(0x00);
+            kv.extend(key("appinfo"));
+            kv.push(0x00);
+            kv.extend(key("config"));
+            kv.push(0x01);
+            kv.extend(key("name"));
+            kv.extend(b"decoy-name\0");
+            kv.push(0x01);
+            kv.extend(key("type"));
+            kv.extend(b"decoy-type\0");
+            kv.push(0x08);
+            kv.push(0x00);
+            kv.extend(key("common"));
+            kv.push(0x01);
+            kv.extend(key("name"));
+            kv.extend(name.as_bytes());
+            kv.push(0);
+            kv.push(0x01);
+            kv.extend(key("type"));
+            kv.extend(kind.as_bytes());
+            kv.push(0);
+            kv.push(0x08);
+            kv.push(0x08);
+            kv.push(0x08);
+            let mut body = vec![0u8; APP_PREAMBLE];
+            body.extend(kv);
+            let mut out = id.to_le_bytes().to_vec();
+            out.extend((body.len() as u32).to_le_bytes());
+            out.extend(body);
+            out
+        };
+        let mut apps = entry(2_322_010, "God of War Ragnarök", "Game");
+        apps.extend(entry(2_974_330, "Deluxe Upgrade", "DLC"));
+        apps.extend(0u32.to_le_bytes());
+        let table_at = 16 + apps.len();
+        let mut file = MAGIC_V29.to_le_bytes().to_vec();
+        file.extend(1u32.to_le_bytes());
+        file.extend((table_at as u64).to_le_bytes());
+        file.extend(apps);
+        file.extend((strings.len() as u32).to_le_bytes());
+        for name in strings {
+            file.extend(name.as_bytes());
+            file.push(0);
+        }
+        let found = app_summaries(&file, &HashSet::from([2_322_010, 2_974_330, 999]));
+        assert_eq!(
+            found.get(&2_322_010),
+            Some(&AppSummary {
+                name: Some("God of War Ragnarök".into()),
+                app_type: Some("game".into()),
+                required_bytes: None,
+            })
+        );
+        assert_eq!(
+            found.get(&2_974_330),
+            Some(&AppSummary {
+                name: Some("Deluxe Upgrade".into()),
+                app_type: Some("dlc".into()),
+                required_bytes: None,
+            })
+        );
+        assert!(!found.contains_key(&999));
     }
 }
