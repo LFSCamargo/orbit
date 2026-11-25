@@ -6,21 +6,26 @@ import {
   getCompatibilityCatalog,
   getComponentStatus,
   installComponent,
+  refreshSteamWindowsLibrary,
   scanNativeApps,
   scanSteamInstallations,
   scanSteamLibrary,
+  steamWindowsStatus,
 } from '@/lib/tauri'
 import { DEFAULT_APP_PREFERENCES } from '@/lib/appPreferences'
 import { useDownloadStore } from '@/lib/downloadProgress'
 import { usePreferencesStore } from '@/stores/preferences.store'
 import { useRuntimeAutoUpdate } from '../useRuntimeAutoUpdate'
 import { useStartupScan } from '../useStartupScan'
+import { useSteamStartupSync } from '../useSteamStartupSync'
 
 vi.mock('@/lib/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/tauri')>()),
   scanSteamLibrary: vi.fn(),
   scanSteamInstallations: vi.fn(),
   scanNativeApps: vi.fn(),
+  refreshSteamWindowsLibrary: vi.fn(),
+  steamWindowsStatus: vi.fn(),
   getCompatibilityCatalog: vi.fn(),
   getComponentStatus: vi.fn(),
   installComponent: vi.fn(),
@@ -43,6 +48,18 @@ beforeEach(() => {
   vi.mocked(scanSteamLibrary).mockReset().mockResolvedValue(scan)
   vi.mocked(scanSteamInstallations).mockReset().mockResolvedValue(scan)
   vi.mocked(scanNativeApps).mockReset().mockResolvedValue(scan)
+  vi.mocked(refreshSteamWindowsLibrary).mockReset().mockResolvedValue([])
+  vi.mocked(steamWindowsStatus).mockReset().mockResolvedValue({
+    signedIn: true,
+    accountName: 'orbit_user',
+    steamInstalled: true,
+    clientRunning: false,
+    clientLoggedIn: false,
+    clientPhase: 'ready',
+    clientCaption: 'Steam is ready',
+    ownedCount: 10,
+    sessionReady: true,
+  })
   vi.mocked(installComponent)
     .mockReset()
     .mockResolvedValue(undefined as never)
@@ -123,4 +140,49 @@ it('does not check for updates when auto-update is off', async () => {
   renderHook(() => useRuntimeAutoUpdate(), { wrapper })
   await new Promise((resolve) => setTimeout(resolve, 20))
   expect(getCompatibilityCatalog).not.toHaveBeenCalled()
+})
+
+it('refreshes the signed-in Steam library once on every boot even when scanOnStartup is off', async () => {
+  prefs({ scanOnStartup: false })
+  const client = new QueryClient()
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  const { rerender } = renderHook(() => useSteamStartupSync(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
+  rerender()
+  await waitFor(() => expect(refreshSteamWindowsLibrary).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['library'] }))
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['steam-windows-library'] })
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['games'] })
+})
+
+it('skips Steam startup sync when signed out, before onboarding, or before preferences load', async () => {
+  vi.mocked(steamWindowsStatus).mockResolvedValue({
+    signedIn: false,
+    accountName: null,
+    steamInstalled: false,
+    clientRunning: false,
+    clientLoggedIn: false,
+    clientPhase: 'stopped',
+    clientCaption: '',
+    ownedCount: 0,
+    sessionReady: false,
+  })
+  prefs({ scanOnStartup: true })
+  renderHook(() => useSteamStartupSync(), { wrapper })
+  prefs({ scanOnStartup: true, onboardingCompleted: false })
+  renderHook(() => useSteamStartupSync(), { wrapper })
+  prefs({ scanOnStartup: true }, false)
+  renderHook(() => useSteamStartupSync(), { wrapper })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  expect(refreshSteamWindowsLibrary).not.toHaveBeenCalled()
+})
+
+it('absorbs a failed Steam startup refresh without breaking boot', async () => {
+  prefs({ scanOnStartup: false })
+  vi.mocked(refreshSteamWindowsLibrary).mockRejectedValue(new Error('offline'))
+  renderHook(() => useSteamStartupSync(), { wrapper })
+  await waitFor(() => expect(refreshSteamWindowsLibrary).toHaveBeenCalledTimes(1))
 })

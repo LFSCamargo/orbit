@@ -337,6 +337,7 @@ fn run_one(app: &AppHandle, item: &QueuedDownload) -> Option<DownloadOutcome> {
     let result = if busy {
         Err("Close your game first. Downloads use Steam, which the game is using now.".into())
     } else {
+        state.steam_library_sync.cancel();
         steam_windows::download(app, &state.repo, &item.app_id, &item.title)
     };
     match result {

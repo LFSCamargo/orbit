@@ -576,6 +576,10 @@ export async function removeComponent(id: string, version: string): Promise<void
   return run('remove_component', { id, version })
 }
 
+export async function removeStorageItem(paths: string[]): Promise<number> {
+  return run('remove_storage_item', { paths })
+}
+
 export async function cancelSteamWindowsDownload(): Promise<void> {
   return run('cancel_steam_windows_download')
 }

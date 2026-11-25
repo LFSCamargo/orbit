@@ -77,7 +77,7 @@ src/
     App.tsx                # Screen router + motion wrapper; onboarding instead of the shell when visible
     appLayer.ts            # When the mounted screens are not painted (onboarding over splash, playing cloud stream)
     providers.tsx          # QueryClient + theme and app-preference init
-    startup/               # useStartupScan, useRuntimeAutoUpdate (once per launch, after onboarding)
+    startup/               # useStartupScan, useSteamStartupSync, useRuntimeAutoUpdate (once per launch, after onboarding)
   modules/
     onboarding/            # First run, see docs/ONBOARDING.md
       OnboardingFlow.tsx   # Steps, transitions, focus, back, skip, finish
@@ -108,7 +108,7 @@ src/
       hooks/               # useImportScan (shared Steam/Astris/native scans)
     settings/
       SettingsPage.tsx
-      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamLibraryFolders, GeneralPreferences, XboxCloudSettings, SettingsInsights
+      components/          # ThemeSettings, ApiKeySettings, LibrarySettings, SteamDownloadLocations, SteamLibraryFolders, GeneralPreferences, XboxCloudSettings, SettingsInsights
     xcloud/                # Xbox Cloud Gaming: device-code modal, catalog tab, hooks (docs/XBOX_CLOUD.md)
     xcloud-player/         # Orbit's own stream player; hooks/useStreamStandDown, keyframePolicy (docs/XBOX_CLOUD.md)
       hooks/               # useSettingsControllerFocus, useThemeStudio, useThemePreviews, useSteamWindowsInstall, useCompatibilitySetup
@@ -201,6 +201,7 @@ src/
     artwork.ts / artworkApi.ts
     steamArtwork.ts        # Original Steam CDN cover/hero candidates
     format.ts / media.ts / heroBlur.ts / heroTone.ts
+    installLocations.ts    # Install location formatting & default selection helpers
     launchProgress.ts      # Steam Windows launch step labels and status
     backdropImage.ts / backdropLighting.ts
   types/

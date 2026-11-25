@@ -63,18 +63,10 @@ fn inhibit_login_updater(steam_exe: &Path) -> Result<(), String> {
     let root = steam_exe
         .parent()
         .ok_or("Steam's sign-in window is not ready")?;
-    let path = root.join("steam.cfg");
-    if path
-        .symlink_metadata()
-        .is_ok_and(|meta| meta.file_type().is_symlink())
-    {
-        return Err("Steam configuration cannot be a symlink".into());
-    }
-    std::fs::write(
-        path,
-        "BootStrapperInhibitAll = Enable\nBootStrapperForceSelfUpdate = False\n",
+    crate::runtimes::containers::steam::write_updater_config(
+        root,
+        "Steam could not skip its updater before sign-in",
     )
-    .map_err(|_| "Steam could not skip its updater before sign-in".to_string())
 }
 
 pub fn login_argv(steam_exe: &Path) -> Vec<String> {

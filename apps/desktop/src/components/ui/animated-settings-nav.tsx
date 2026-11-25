@@ -25,7 +25,7 @@ export function AnimatedSettingsNav<T extends string>({
   return (
     <nav
       aria-label="Settings sections"
-      className="flex flex-col gap-1 max-[520px]:flex-row max-[520px]:overflow-x-auto"
+      className="flex flex-col gap-1 max-[520px]:flex-row max-[520px]:overflow-x-auto max-[520px]:p-1"
     >
       {items.map(({ id: key, label, icon: Icon }, index) => {
         const active = value === key

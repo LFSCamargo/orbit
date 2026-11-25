@@ -108,7 +108,7 @@ pub fn disk_usage(root: &Path, excluded: &[PathBuf], budget: &mut usize) -> u64 
             continue;
         };
         if let Ok(meta) = entry.metadata() {
-            if !meta.is_dir() {
+            if !meta.is_dir() && !meta.file_type().is_symlink() {
                 total = total.saturating_add(meta.blocks().saturating_mul(512));
             }
         }

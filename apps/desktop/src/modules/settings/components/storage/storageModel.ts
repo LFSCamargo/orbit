@@ -1,4 +1,9 @@
-import type { StorageItem, StorageKind, StorageOverview } from '@/types/storage'
+import type {
+  StorageDrive,
+  StorageItem,
+  StorageKind,
+  StorageOverview,
+} from '@/types/storage'
 
 export type StorageFilter = 'all' | StorageKind
 export type StorageSort = 'size' | 'name' | 'installed'
@@ -35,11 +40,45 @@ export function categoryShares(overview: StorageOverview) {
   })
 }
 
-/** Share of the whole disk in use, 0-100, or null when the volume is unknown. */
+/** Share of one drive or combined capacity in use, 0-100, or null when unknown. */
+export function volumeUsedPercent(totalBytes: number, freeBytes: number): number | null {
+  if (totalBytes <= 0) return null
+  const used = Math.max(0, totalBytes - freeBytes)
+  return Math.round((used / totalBytes) * 100)
+}
+
+/** Share of the whole disk (or all connected drives) in use, 0-100. */
 export function diskUsedPercent(overview: StorageOverview): number | null {
-  if (overview.volumeTotalBytes <= 0) return null
-  const used = overview.volumeTotalBytes - overview.volumeFreeBytes
-  return Math.round((used / overview.volumeTotalBytes) * 100)
+  return volumeUsedPercent(overview.volumeTotalBytes, overview.volumeFreeBytes)
+}
+
+/** Orbit bytes per category on one drive, for its dedicated status bar. */
+export function driveCategoryBytes(drive: StorageDrive): Record<StorageKind, number> {
+  return {
+    game: drive.totals.games,
+    tool: drive.totals.tools,
+    runtime: drive.totals.runtimes,
+    other: drive.totals.other,
+  }
+}
+
+/** Non-Orbit space used on one drive. */
+export function driveOtherAppsBytes(drive: StorageDrive): number {
+  return Math.max(0, drive.totalBytes - drive.freeBytes - drive.orbitBytes)
+}
+
+/** Tailored warning copy when deleting an Orbit-created file or folder. */
+export function orbitRemovalDescription(item: StorageItem): string {
+  if (item.id.startsWith('tool:steam-windows:')) {
+    return 'Deletes Orbit’s Windows Steam prefix and saved Steam sign-in. You can reinstall and sign in again from Steam settings.'
+  }
+  if (item.id.startsWith('game-data:')) {
+    return 'Permanently deletes this game’s Wine prefix, local saves, and settings stored by Orbit.'
+  }
+  if (item.id === 'other:library-data') {
+    return 'Deletes Orbit’s local database and settings files. Restarting Orbit will start with a fresh library.'
+  }
+  return 'Permanently deletes these Orbit-created files from your Mac. Orbit will recreate or re-download them if needed.'
 }
 
 export function largestGames(items: StorageItem[], count = 3): StorageItem[] {

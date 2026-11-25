@@ -9,18 +9,22 @@ import { open } from '@/lib/dialog'
 export function useLibraryPaths({ onAdded }: { onAdded?: () => Promise<unknown> } = {}) {
   const { preferences, savePreferences } = useSteamWindows()
   const [pickerError, setPickerError] = useState('')
+  const [failedPath, setFailedPath] = useState('')
   const current = preferences.data
   const paths = current?.additionalLibraryPaths ?? []
 
   /** Saves a folder; resolves false (keeping the caller's draft) when saving fails. */
   const add = async (value: string) => {
-    if (!current || !value.trim()) return false
+    const trimmed = value.trim()
+    if (!current || !trimmed) return false
+    setFailedPath('')
     try {
       await savePreferences.mutateAsync({
         ...current,
-        additionalLibraryPaths: [...new Set([...paths, value.trim()])],
+        additionalLibraryPaths: [...new Set([...paths, trimmed])],
       })
     } catch {
+      setFailedPath(trimmed)
       return false
     }
     try {
@@ -50,11 +54,18 @@ export function useLibraryPaths({ onAdded }: { onAdded?: () => Promise<unknown> 
     return false
   }
 
+  const clearFailed = () => {
+    setFailedPath('')
+    setPickerError('')
+    savePreferences.reset()
+  }
+
   return {
     paths,
     loaded: Boolean(current),
     saving: savePreferences.isPending,
     loadError: preferences.isError,
+    failedPath,
     error:
       pickerError ||
       (savePreferences.isError
@@ -65,5 +76,6 @@ export function useLibraryPaths({ onAdded }: { onAdded?: () => Promise<unknown> 
     add,
     remove,
     browse,
+    clearFailed,
   }
 }

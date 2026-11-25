@@ -65,7 +65,7 @@ export function CollapsiblePanel({
       </CollapsibleTrigger>
       <CollapsibleContent
         forceMount
-        className="grid overflow-hidden data-[state=closed]:h-0 data-[state=open]:h-auto"
+        className="grid data-[state=closed]:h-0 data-[state=open]:h-auto data-[state=closed]:overflow-hidden"
       >
         <div className="flex flex-col gap-4 border-t border-white/10 px-4 py-4 text-sm">
           {children}

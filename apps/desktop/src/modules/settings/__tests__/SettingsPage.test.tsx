@@ -25,6 +25,9 @@ vi.mock('@/modules/settings/components/ApiKeySettings', () => ({
 vi.mock('@/modules/settings/components/LibrarySettings', () => ({
   LibrarySettings: () => <div>Library settings view</div>,
 }))
+vi.mock('@/modules/settings/components/SteamDownloadLocations', () => ({
+  SteamDownloadLocations: () => <div>Steam download locations</div>,
+}))
 vi.mock('@/modules/settings/components/SteamLibraryFolders', () => ({
   SteamLibraryFolders: () => <div>Steam library folders</div>,
 }))

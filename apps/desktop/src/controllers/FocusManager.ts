@@ -94,6 +94,10 @@ function isInDirection(from: DOMRect, to: DOMRect, direction: FocusDirection): b
   }
 }
 
+/**
+ * Edge-to-edge spatial score so overlapping cross-axis spans (e.g. a full-width
+ * button above/below a two-column row) are not penalized by center offset. O(1).
+ */
 function scoreCandidate(from: DOMRect, to: DOMRect, direction: FocusDirection): number {
   const fromCx = from.left + from.width / 2
   const fromCy = from.top + from.height / 2
@@ -103,30 +107,40 @@ function scoreCandidate(from: DOMRect, to: DOMRect, direction: FocusDirection): 
   const dx = toCx - fromCx
   const dy = toCy - fromCy
 
-  let primary: number
-  let secondary: number
+  let primaryCenter: number
+  let primaryGap: number
+  let crossGap: number
+  let centerCross: number
 
   switch (direction) {
     case 'left':
-      primary = -dx
-      secondary = Math.abs(dy)
+      primaryCenter = -dx
+      primaryGap = Math.max(0, from.left - to.right)
+      crossGap = Math.max(0, from.top - to.bottom, to.top - from.bottom)
+      centerCross = Math.abs(dy)
       break
     case 'right':
-      primary = dx
-      secondary = Math.abs(dy)
+      primaryCenter = dx
+      primaryGap = Math.max(0, to.left - from.right)
+      crossGap = Math.max(0, from.top - to.bottom, to.top - from.bottom)
+      centerCross = Math.abs(dy)
       break
     case 'up':
-      primary = -dy
-      secondary = Math.abs(dx)
+      primaryCenter = -dy
+      primaryGap = Math.max(0, from.top - to.bottom)
+      crossGap = Math.max(0, from.left - to.right, to.left - from.right)
+      centerCross = Math.abs(dx)
       break
     case 'down':
-      primary = dy
-      secondary = Math.abs(dx)
+      primaryCenter = dy
+      primaryGap = Math.max(0, to.top - from.bottom)
+      crossGap = Math.max(0, from.left - to.right, to.left - from.right)
+      centerCross = Math.abs(dx)
       break
   }
 
-  if (primary <= 0) return Number.POSITIVE_INFINITY
-  return primary + secondary * 2.4
+  if (primaryCenter <= 0) return Number.POSITIVE_INFINITY
+  return primaryGap + crossGap * 2.4 + centerCross * 0.05
 }
 
 /**

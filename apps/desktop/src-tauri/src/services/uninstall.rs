@@ -104,6 +104,78 @@ pub fn add_library_installs(
     }
 }
 
+/// Adds Wine installations recorded for `app_id` in the library when their
+/// folder is uninstallable (Orbit-managed or inside a `steamapps/common`
+/// library outside `steam-windows`), even if the library is no longer listed in
+/// preferences or has no `appmanifest_<app_id>.acf`. O(e · i).
+pub fn add_entry_installs(
+    plan: &mut RemovalPlan,
+    entries: &[crate::services::library::LibraryEntry],
+    steam_session: &Path,
+    app_id: &str,
+) {
+    let protected = steam_session.canonicalize().ok();
+    for entry in entries
+        .iter()
+        .filter(|entry| entry.steam_app_id.as_deref() == Some(app_id))
+    {
+        for install in entry
+            .installations
+            .iter()
+            .filter(|install| install.launch_type == "wine")
+        {
+            let Some(path) = install.path.as_deref() else {
+                continue;
+            };
+            if !crate::services::library::is_uninstallable(Some(path)) {
+                continue;
+            }
+            let Some(lexical) = crate::services::install_roots::lexical_root(Path::new(path))
+            else {
+                continue;
+            };
+            let Ok(target) = lexical.canonicalize() else {
+                continue;
+            };
+            if protected
+                .as_ref()
+                .is_some_and(|root| target.starts_with(root))
+            {
+                continue;
+            }
+            let Some(parent) = target.parent().map(Path::to_path_buf) else {
+                continue;
+            };
+            if target == parent {
+                continue;
+            }
+            if !plan.installs.iter().any(|(known, _)| *known == target) {
+                plan.installs.push((target.clone(), parent.clone()));
+            }
+            let is_common = parent
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name == "common");
+            if is_common {
+                if let Some(steamapps) = parent.parent() {
+                    if steamapps
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.eq_ignore_ascii_case("steamapps"))
+                    {
+                        let manifest = steamapps.join(format!("appmanifest_{app_id}.acf"));
+                        if manifest.is_file()
+                            && !plan.manifests.iter().any(|(known, _)| *known == manifest)
+                        {
+                            plan.manifests.push((manifest, steamapps.to_path_buf()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Deletes one appmanifest only when it is the file in that `steamapps`.
 fn remove_manifest(manifest: &Path, steamapps: &Path) -> Result<(), String> {
     let (Some(parent), Ok(steamapps)) = (manifest.parent(), steamapps.canonicalize()) else {
@@ -349,6 +421,60 @@ mod tests {
             "312990",
         );
         assert!(!plan.finds_game_files(), "steam-windows is never touched");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn uninstalls_a_recorded_wine_library_entry_even_without_an_appmanifest() {
+        let root = temp_root();
+        let game_dir = root.join("External/steamapps/common/RESIDENT EVIL 2  BIOHAZARD RE2");
+        fs::create_dir_all(&game_dir).unwrap();
+        let exe = game_dir.join("re2.exe");
+        fs::write(&exe, vec![0u8; 256]).unwrap();
+        let session = root.join("steam-windows");
+        let mut plan = removal_plan(&root.join("runtimes"), &session, "883710", false).unwrap();
+        let entry = crate::services::library::LibraryEntry {
+            id: "steam:883710".into(),
+            game: crate::models::Game {
+                id: "steam-windows-883710".into(),
+                title: "Resident Evil 2".into(),
+                sort_title: "resident evil 2".into(),
+                description: None,
+                provider: crate::models::GameProvider::Steam,
+                platform: crate::models::GamePlatform::Windows,
+                source_id: Some("883710".into()),
+                launch_config: LaunchConfiguration::Steam {
+                    app_id: "883710".into(),
+                },
+                artwork: Default::default(),
+                favorite: false,
+                hidden: false,
+                date_added: String::new(),
+                last_played_at: None,
+                total_playtime_seconds: 0,
+                install_size_bytes: Some(256),
+                achievements: Vec::new(),
+            },
+            steam_app_id: Some("883710".into()),
+            owned: true,
+            installations: vec![crate::services::library::Installation {
+                id: "steam-windows-883710".into(),
+                game_id: "steam-windows-883710".into(),
+                platform: crate::models::GamePlatform::Windows,
+                launch_type: "wine".into(),
+                available: true,
+                path: Some(exe.to_string_lossy().into_owned()),
+                size_bytes: Some(256),
+                download_size_bytes: None,
+            }],
+            preferred_installation_id: None,
+            run_info: None,
+        };
+        add_entry_installs(&mut plan, &[entry], &session, "883710");
+        assert!(plan.finds_game_files());
+        let report = execute(&plan).unwrap();
+        assert_eq!(report.removed_bytes, 256);
+        assert!(!game_dir.exists());
         let _ = fs::remove_dir_all(root);
     }
 }

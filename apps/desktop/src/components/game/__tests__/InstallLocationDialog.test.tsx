@@ -120,3 +120,29 @@ it('keeps a location that still holds games', async () => {
   await screen.findByRole('radio', { name: /T7 · Games/ })
   expect(screen.queryByRole('button', { name: 'Remove T7 · Games' })).toBeNull()
 })
+
+it('creates and selects a typed folder path on a new SSD', async () => {
+  const fastDrive: InstallLocation = {
+    ...drive,
+    id: '/Volumes/Fast Drive/Orbit',
+    label: 'Fast Drive · Orbit',
+    path: '/Volumes/Fast Drive/Orbit',
+    isDefault: false,
+  }
+  vi.mocked(addInstallLocation).mockResolvedValue(fastDrive)
+  renderDialog()
+  await screen.findByRole('radio', { name: /This Mac/ })
+  vi.mocked(listInstallLocations).mockResolvedValue([mac, drive, fastDrive])
+
+  fireEvent.click(screen.getByRole('button', { name: 'Enter path…' }))
+  fireEvent.change(screen.getByLabelText('New install folder path'), {
+    target: { value: '/Volumes/Fast\\ Drive/Orbit' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+
+  await waitFor(() =>
+    expect(addInstallLocation).toHaveBeenCalledWith('/Volumes/Fast\\ Drive/Orbit'),
+  )
+  const created = await screen.findByRole('radio', { name: /Fast Drive · Orbit/ })
+  await waitFor(() => expect(created).toHaveAttribute('aria-checked', 'true'))
+})

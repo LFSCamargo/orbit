@@ -4,6 +4,25 @@ type StorageRemoval =
   | { type: 'none' }
   | { type: 'game'; appId: string }
   | { type: 'component'; id: string; version: string }
+  | { type: 'orbitData'; paths: string[] }
+
+interface StorageTotals {
+  games: number
+  tools: number
+  runtimes: number
+  other: number
+}
+
+export interface StorageDrive {
+  id: string
+  name: string
+  mountPath: string
+  isDataVolume: boolean
+  totalBytes: number
+  freeBytes: number
+  orbitBytes: number
+  totals: StorageTotals
+}
 
 export interface StorageItem {
   id: string
@@ -20,13 +39,18 @@ export interface StorageItem {
   source: string
   /** False when the folder is on another drive than Orbit's data. */
   onDataVolume: boolean
+  /** Identifier of the connected drive holding this item. */
+  driveId: string
 }
 
 export interface StorageOverview {
+  /** Sum of total capacity across all connected drives. */
   volumeTotalBytes: number
+  /** Sum of free space across all connected drives. */
   volumeFreeBytes: number
   orbitBytes: number
-  totals: { games: number; tools: number; runtimes: number; other: number }
+  totals: StorageTotals
+  drives: StorageDrive[]
   items: StorageItem[]
   /** Sizes are lower bounds when the scan hit its walk budget. */
   truncated: boolean

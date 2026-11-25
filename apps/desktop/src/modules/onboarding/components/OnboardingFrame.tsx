@@ -106,7 +106,7 @@ export function OnboardingFrame({
         <div className="relative z-10 mt-1 flex justify-center">
           <OnboardingStepper step={step} />
         </div>
-        <main className="onboarding-step relative z-10 mt-[clamp(10px,3cqh,28px)] flex min-h-0 flex-1 flex-col overflow-y-auto px-[clamp(20px,4cqw,44px)] pb-[clamp(16px,4cqh,30px)]">
+        <main className="onboarding-step relative z-10 mt-[clamp(10px,3cqh,28px)] flex min-h-0 flex-1 flex-col overflow-y-auto px-[clamp(20px,4cqw,44px)] pb-[clamp(16px,4cqh,30px)] pt-1.5">
           {children}
         </main>
       </motion.div>

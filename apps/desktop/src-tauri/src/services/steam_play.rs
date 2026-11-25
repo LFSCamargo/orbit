@@ -130,8 +130,8 @@ fn environment(
     prepare_play_steam(&prepared.container.prefix, extra_libraries)?;
     // Steamworks titles need a logged-on client in their own container; run it
     // silently there instead of letting the game open a visible Steam.
-    progress("steam");
-    super::container_steam::ensure_running(
+    progress("login");
+    super::container_steam::ensure_running_with(
         &super::container_steam::SteamHost {
             wine: wine.to_path_buf(),
             prefix: prepared.container.prefix.clone(),
@@ -143,6 +143,7 @@ fn environment(
         },
         cancel,
         wait,
+        progress,
     )?;
     Ok(prepared.container.prefix)
 }
@@ -189,7 +190,7 @@ fn prepare_play_steam(prefix: &Path, extra_libraries: &[String]) -> Result<(), S
     if loginusers.is_file() {
         steam_account::enable_saved_login(&loginusers);
     }
-    let _ = write_play_steam_cfg(steam_root);
+    write_play_steam_cfg(steam_root)?;
     if extra_libraries.is_empty() {
         return Ok(());
     }
@@ -210,18 +211,10 @@ pub fn silent_client_args(steam_exe: &Path) -> Vec<String> {
 }
 
 fn write_play_steam_cfg(steam_root: &Path) -> Result<(), String> {
-    let path = steam_root.join("steam.cfg");
-    if path
-        .symlink_metadata()
-        .is_ok_and(|meta| meta.file_type().is_symlink())
-    {
-        return Err("Steam configuration cannot be a symlink".into());
-    }
-    std::fs::write(
-        &path,
-        "BootStrapperInhibitAll = Enable\nBootStrapperForceSelfUpdate = False\n",
+    crate::runtimes::containers::steam::write_updater_config(
+        steam_root,
+        "Steam could not skip its updater before play",
     )
-    .map_err(|_| "Steam could not skip its updater before play".to_string())
 }
 
 fn process_commands() -> String {

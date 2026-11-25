@@ -169,7 +169,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | ------- | ---- | ------- | ----- |
 | `enqueue_steam_download` | `appId`, `location?` | `void` | Adds an owned title to the FIFO queue; progress arrives as `steam-download-progress`. `location` is an install location id; without one the game keeps its current or last-used location, and a paused or installed copy always keeps its own |
 | `list_install_locations` | — | `InstallLocation[]` | This Mac, then each added folder with free/total bytes, `available`, `isDefault`, `gameCount` |
-| `add_install_location` | `path` | `InstallLocation` | Canonical absolute folder outside Orbit's data and not the disk root; prepares `<path>/Orbit Games/steamapps/common`; up to 8 |
+| `add_install_location` | `path` | `InstallLocation` | Canonical absolute folder outside Orbit's data and not the disk root or an unmounted `/Volumes` drive; creates missing subfolders on an existing parent/volume and prepares `<path>/Orbit Games/steamapps/common` + `libraryfolder.vdf`; up to 8 |
 | `remove_install_location` | `id` | `void` | Refused while games are installed there; files are never deleted |
 | `get_download_queue` | — | `DownloadQueue` | `{ active, pending[], waitingForNetwork }`; changes emit `download-queue-changed` |
 | `remove_queued_download` | `appId` | `void` | Drops a waiting title or cancels the running one |
@@ -177,9 +177,10 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `pause_active_download` | — | `void` | Stops the container's Steam client and requeues the title at the front, paused |
 | `get_network_stats` | — | `NetworkStats` | `{ online, downloadRate, uploadRate }` from the Mac's interface counters; a new sample arrives every second as `network-stats` (while a game or cloud stream plays, only when online state changes) |
 | `uninstall_steam_game` | `appId`, `deletePrefix` | `UninstallReport` | Orbit downloads and Windows copies in Steam library folders (never `steam-windows`); saves kept unless asked and never when the prefix holds a Steam login |
-| `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder and every library game's real folder, by category, plus volume totals |
+| `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder, every library game's real folder, and all connected drives under `/Volumes` with per-drive breakdown and summed total/free space |
 | `get_install_sizes` | `entryId`, `refresh` | `InstallSize[]` | Disk usage of each installed copy measured from its real game folder; saved to the game row |
-| `remove_component` | `id`, `version` | `void` | Refuses a version that games are set to use |
+| `remove_component` | `id`, `version` | `void` | Removes any installed component version; clears active selection if pinned |
+| `remove_storage_item` | `paths` | `number` | Deletes Orbit-created files or folders strictly inside Orbit's data directory; returns freed bytes |
 
 ### Importers
 

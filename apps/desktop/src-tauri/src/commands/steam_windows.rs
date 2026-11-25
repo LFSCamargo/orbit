@@ -93,6 +93,7 @@ pub async fn poll_steam_windows_qr(
 pub async fn open_steam_windows_login(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
+        state.steam_library_sync.cancel();
         steam_login::open(&app, &state.steam_login)
     })
     .await
@@ -152,6 +153,7 @@ pub async fn cancel_steam_windows_sign_in(app: AppHandle) -> Result<(), String> 
 
 #[tauri::command]
 pub fn disconnect_steam_windows(state: State<'_, AppState>) -> Result<SteamWindowsStatus, String> {
+    state.steam_library_sync.cancel();
     steam_windows::disconnect(&state.repo, &crate::utils::paths::app_data_dir())?;
     steam_windows::status(&state.repo)
 }
@@ -211,6 +213,7 @@ async fn catalog_library(
         })
         .await
         .map_err(|_| "Steam library refresh stopped".to_string())??;
+    let sync_app = app.clone();
     crate::services::steam_catalog_sync::schedule(
         app,
         entries.clone(),
@@ -220,6 +223,9 @@ async fn catalog_library(
         force,
         account,
     );
+    if refresh_ids {
+        crate::services::steam_background_sync::schedule(sync_app);
+    }
     tauri::async_runtime::spawn_blocking(move || steam_windows::present(entries, &paths))
         .await
         .map_err(|_| "Steam library inspection stopped".to_string())
@@ -257,6 +263,7 @@ pub async fn play_steam_windows_game(
     tauri::async_runtime::spawn_blocking(move || {
         use crate::launching::progress::{emit_launch_failed, emit_launch_progress};
         let state = app.state::<AppState>();
+        state.steam_library_sync.cancel();
         let synthetic_id = format!("steam-windows:{app_id}");
         let fallback_title = || steam_title_for_overlay(&state.repo, &app_id);
 

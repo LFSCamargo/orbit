@@ -395,15 +395,7 @@ the grid compositor (rAF-batched, no React re-renders while scrolling).
 Controller focus rings remain separate from the selected state. Editor Save/Discard actions
 flow inline with the form; they have no opaque or sticky footer surface.
 
-Settings → Library is three cards: **Steam library folders** (each saved folder as a row
-with its library name, full path and a remove button, an empty state, **Scan installed
-games** in the card header, and the path field with Browse / Add), **Switch content**,
-and **Clear library** in a rose danger card. Shared styles live in
-`modules/settings/components/libraryStyles.ts`. It accepts additional Steam library roots or a
-folder picker and supports removal. Saved folders update installed-game detection;
-new download destinations are unchanged. Settings form controls participate in
-spatial focus: D-pad moves controls, A activates switches/buttons or focuses text,
-Left returns to the active section and Right enters its first enabled control.
+Settings → Library is four cards: **Steam download locations** (`This Mac` plus external SSDs or new folder paths where Orbit creates `<path>/Orbit Games/steamapps/common` for downloads), **Steam library folders** (each saved folder as a row with its library name, full path and a remove button, an empty state, **Scan installed games** in the card header, the path field with Browse / Add, and a one-click option to initialize an empty or new folder as a download location when needed), **Switch content**, and **Clear library** in a rose danger card. Shared styles live in `modules/settings/components/libraryStyles.ts`. It accepts additional Steam library roots or a folder picker and supports removal. Saved library folders update installed-game detection; download locations govern new downloads. Settings form controls participate in spatial focus: D-pad moves controls, A activates switches/buttons or focuses text, Left returns to the active section and Right enters its first enabled control.
 
 Adding an additional Steam folder now starts a Windows import scan and reports the
 result. Existing configured folders can be rescanned with **Scan installed games**.

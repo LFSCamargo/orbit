@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Home, LayoutGrid, LogOut, Play, Settings, Square, Undo2, X } from 'lucide-react'
+import appIcon from '@/assets/brand/app-icon.png'
 import { XboxIcon } from '@/components/brand/AccountIcons'
 import { Focusable } from '@/components/focus/Focusable'
 import type { ControllerFamily } from '@/controllers/ControllerMapping'
@@ -295,7 +296,7 @@ export function HomeMenuModal({ family }: { family: ControllerFamily }) {
                   'session-brand flex items-center gap-2.5 text-[11px] tracking-[0.22em] text-white/60',
                 )}
               >
-                <img src="/orbit.svg" alt="" className="size-7" />
+                <img src={appIcon} alt="" className="size-7" draggable={false} />
                 {activeSession || cloudStream
                   ? 'SESSION CONTROLS'
                   : 'MAKE YOURSELF AT HOME'}

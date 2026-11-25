@@ -180,7 +180,7 @@ export function Drawer({
           <div
             data-testid={`${id}-scroll`}
             aria-busy={bodyBusy}
-            className={`${id}-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-[18px] pb-7 pt-2 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] ${bodyClassName ?? ''}`}
+            className={`${id}-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-[18px] pb-7 pt-3.5 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] ${bodyClassName ?? ''}`}
           >
             {children}
           </div>

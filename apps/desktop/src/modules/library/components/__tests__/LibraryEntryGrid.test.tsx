@@ -46,6 +46,13 @@ it('keeps the focus ring on the cover instead of boxing the title', () => {
   expect(card.querySelector('.orbit-art-focus-target')).not.toBeNull()
 })
 
+it('gives the grid border box room for outer focus rings without paint clipping', () => {
+  const { container } = render(<LibraryEntryGrid entries={[entry]} />)
+  const grid = container.querySelector('.library-entry-grid')
+  expect(grid).not.toHaveClass('[contain:layout_paint]')
+  expect(grid).toHaveClass('-m-2.5', 'p-2.5')
+})
+
 const windowsEntry: LibraryEntry = {
   ...entry,
   id: 'steam:1593500',

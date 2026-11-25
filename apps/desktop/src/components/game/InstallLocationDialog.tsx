@@ -3,13 +3,18 @@ import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { clsx } from 'clsx'
-import { FolderPlus, HardDrive, Laptop, X } from 'lucide-react'
+import { FolderPlus, HardDrive, Laptop, Plus, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { useOverlayBack } from '@/controllers/overlayStack'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { open as openPanel } from '@/lib/dialog'
 import { useDownloadStore } from '@/lib/downloadProgress'
-import { formatBytes } from '@/lib/format'
+import {
+  errorText,
+  initialLocation,
+  INSTALL_LOCATIONS_KEY,
+  spaceCaption,
+} from '@/lib/installLocations'
 import {
   addInstallLocation,
   enqueueSteamDownload,
@@ -20,25 +25,8 @@ import { notify } from '@/lib/toast'
 import type { InstallLocation } from '@/types/downloads'
 
 const GROUP = 'install-location'
-const INSTALL_LOCATIONS_KEY = ['install-locations'] as const
 
-/** The location preselected when the picker opens: the last one used while
- * it is connected, else This Mac. */
-export function initialLocation(locations: InstallLocation[]): string {
-  const preferred = locations.find((location) => location.isDefault && location.available)
-  return preferred?.id ?? 'this-mac'
-}
-
-export function spaceCaption(location: InstallLocation): string {
-  if (!location.available) return 'Not connected'
-  if (location.freeBytes == null) return location.path ?? ''
-  const total = location.totalBytes ? ` of ${formatBytes(location.totalBytes)}` : ''
-  return `${formatBytes(location.freeBytes)} free${total}`
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
+export { initialLocation, spaceCaption }
 
 /**
  * Asks where to install a Steam game before it joins the download queue:
@@ -60,12 +48,16 @@ export function InstallLocationDialog({
   })
   const [selected, setSelected] = useState('this-mac')
   const [busy, setBusy] = useState(false)
+  const [showPathInput, setShowPathInput] = useState(false)
+  const [customPath, setCustomPath] = useState('')
   // Preselect once per opening; a refetch after adding a folder must not
   // undo the person's pick.
   const preselected = useRef<string | null>(null)
   useEffect(() => {
     if (!game) {
       preselected.current = null
+      setShowPathInput(false)
+      setCustomPath('')
       return
     }
     if (locations.data && preselected.current !== game.appId) {
@@ -80,22 +72,30 @@ export function InstallLocationDialog({
 
   const refresh = () => client.invalidateQueries({ queryKey: INSTALL_LOCATIONS_KEY })
 
+  const addPath = async (targetPath: string) => {
+    const trimmed = targetPath.trim()
+    if (!trimmed) return
+    setBusy(true)
+    try {
+      const added = await addInstallLocation(trimmed)
+      await refresh()
+      setSelected(added.id)
+      setCustomPath('')
+      setShowPathInput(false)
+    } catch (error) {
+      notify.error({ title: 'Could not use that folder', message: errorText(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const addFolder = async () => {
     const picked = await openPanel({
       directory: true,
       title: 'Choose where to install games',
     })
     if (!picked || Array.isArray(picked)) return
-    setBusy(true)
-    try {
-      const added = await addInstallLocation(picked)
-      await refresh()
-      setSelected(added.id)
-    } catch (error) {
-      notify.error({ title: 'Could not use that folder', message: errorText(error) })
-    } finally {
-      setBusy(false)
-    }
+    await addPath(picked)
   }
 
   const remove = async (location: InstallLocation) => {
@@ -203,24 +203,65 @@ export function InstallLocationDialog({
                   </div>
                 )
               })}
-              <Focusable
-                focusId="install-location-add"
-                group={GROUP}
-                order={list.length}
-                noScale
-                disabled={busy}
-                onClick={() => void addFolder()}
-                className="flex items-center gap-3 rounded-full border border-dashed border-white/20 px-4 py-3 text-left text-sm font-semibold text-white/85 hover:bg-white/[0.05]"
-              >
-                <FolderPlus size={18} aria-hidden />
-                Add a folder…
-              </Focusable>
+              <div className="flex flex-wrap gap-2">
+                <Focusable
+                  focusId="install-location-add"
+                  group={GROUP}
+                  order={list.length}
+                  noScale
+                  disabled={busy}
+                  onClick={() => void addFolder()}
+                  className="flex flex-1 items-center gap-3 rounded-full border border-dashed border-white/20 px-4 py-3 text-left text-sm font-semibold text-white/85 hover:bg-white/[0.05]"
+                >
+                  <FolderPlus size={18} aria-hidden />
+                  Add a folder…
+                </Focusable>
+                <Focusable
+                  focusId="install-location-enter-path"
+                  group={GROUP}
+                  order={list.length + 1}
+                  noScale
+                  disabled={busy}
+                  onClick={() => setShowPathInput((current) => !current)}
+                  className="flex items-center gap-2 rounded-full border border-dashed border-white/20 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/[0.05]"
+                >
+                  <Plus size={16} aria-hidden />
+                  Enter path…
+                </Focusable>
+              </div>
+              {showPathInput && (
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    aria-label="New install folder path"
+                    className="orbit-input min-h-[40px] min-w-0 flex-1 rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm text-orbit-foreground placeholder:text-white/30"
+                    value={customPath}
+                    disabled={busy}
+                    onChange={(event) => setCustomPath(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void addPath(customPath)
+                    }}
+                    placeholder="/Volumes/Fast Drive/Orbit"
+                    spellCheck={false}
+                  />
+                  <Focusable
+                    focusId="install-location-create-path"
+                    group={GROUP}
+                    order={list.length + 2}
+                    noScale
+                    disabled={busy || !customPath.trim()}
+                    onClick={() => void addPath(customPath)}
+                    className="rounded-full bg-white/15 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-45"
+                  >
+                    Add
+                  </Focusable>
+                </div>
+              )}
             </div>
             <div className="mt-7 flex justify-end gap-3">
               <Focusable
                 focusId="install-location-cancel"
                 group={GROUP}
-                order={list.length + 1}
+                order={list.length + 3}
                 disabled={busy}
                 onClick={onClose}
                 className="orbit-glass-control rounded-full bg-white/10 px-5 py-3 font-semibold"
@@ -230,7 +271,7 @@ export function InstallLocationDialog({
               <Focusable
                 focusId="install-location-confirm"
                 group={GROUP}
-                order={list.length + 2}
+                order={list.length + 4}
                 disabled={busy || !choice?.available}
                 onClick={install}
                 className="rounded-full bg-orbit-accent px-5 py-3 font-semibold text-white disabled:opacity-45"

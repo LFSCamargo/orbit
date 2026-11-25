@@ -150,12 +150,24 @@ pub fn status(repo: &GameRepository) -> Result<SteamWindowsStatus, String> {
     })
 }
 
+pub(crate) fn emit_status(app: &AppHandle, repo: &GameRepository) {
+    if let Ok(current) = status(repo) {
+        if let Err(err) = app.emit("steam-client", &current) {
+            eprintln!("Could not emit Steam client status: {err}");
+        }
+    }
+}
+
 pub(crate) fn set_login_window_running(running: bool) {
     CLIENT_RUNNING.store(running, Ordering::Relaxed);
 }
 
 pub(crate) fn login_in_progress() -> bool {
     CLIENT_RUNNING.load(Ordering::Relaxed)
+}
+
+pub(crate) fn download_active() -> bool {
+    DOWNLOAD_ACTIVE.load(Ordering::SeqCst)
 }
 
 pub fn cancel_sign_in() {
@@ -174,6 +186,7 @@ pub fn disconnect(repo: &GameRepository, data_dir: &Path) -> Result<(), String> 
     if let Some(wine) = steam_wine_binary() {
         stop_steam_wineserver(&wine, &session_dir(data_dir).join("prefix"));
     }
+    super::steam_background_sync::remove_sync_dir(&crate::runtimes::root())?;
     remove_session_dir(data_dir)?;
     repo.set_setting(ACCOUNT_KEY, &json!(null))
         .map_err(|err| err.to_string())?;
@@ -280,34 +293,36 @@ pub fn refresh_library(repo: &GameRepository) -> Result<Vec<SteamOwnedGame>, Str
 pub fn refresh_owned_ids(repo: &GameRepository) -> Result<(), String> {
     let account =
         stored_account(repo)?.ok_or("Sign in with Steam before refreshing the library")?;
-    let Some(support) = steam_support_dir() else {
-        return Err("Sign in once with Steam before refreshing the library".into());
-    };
-    let login_path = support.join("config/loginusers.vdf");
-    if !login_path.is_file() {
-        return Err("Sign in with Steam before refreshing the library".into());
-    }
-    let metadata =
-        fs::metadata(&login_path).map_err(|_| "Steam has not saved a local login yet")?;
-    if metadata.len() > 8 * 1024 * 1024 {
-        return Err("Steam login file was too large".into());
-    }
-    let login =
-        fs::read_to_string(&login_path).map_err(|_| "Steam has not saved a local login yet")?;
-    let recent = most_recent_account(&login).ok_or("Steam has not saved a local login yet")?;
-    if recent.name != account {
-        return Err("Steam is signed in as a different account. Sign in again.".into());
-    }
-    let local_ids = read_owned_ids(&support, &recent.steam_id)?;
+    let recent = saved_account_identity(&account)?;
+    let primary_root = steam_support_dir();
+    let mac_root = crate::utils::steam_paths::detect_steam_root();
+    let containers_root = crate::runtimes::containers::root_in(&crate::runtimes::root());
+    let roots = super::steam_local_catalog::matching_steam_roots(
+        &recent,
+        primary_root.as_deref(),
+        mac_root.as_deref(),
+        &containers_root,
+    );
+    let local = super::steam_local_catalog::discover(&recent, &roots);
     // The web cookie is DPAPI-wrapped by the sign-in prefix's own Wine, so only
-    // that Wine can read it (never the Wine games play with).
-    let fetched = steam_wine_binary().and_then(|wine| {
-        super::steam_session::web_token(&wine, &steam_prefix(), &recent.steam_id)
-            .ok()
-            .and_then(|token| super::steam_qr::fetch_owned_games(token.expose()).ok())
-    });
-    let entries =
-        steam_catalog::apply_owned_snapshot(&stored_entries(repo)?, &local_ids, fetched.as_deref());
+    // that Wine can read it (never the Wine games play with). Skip spawning Wine
+    // when the cookie database is already past its 24h JWT lifetime.
+    let prefix = steam_prefix();
+    let fetched = if super::steam_session::has_fresh_cookies(&prefix) {
+        steam_wine_binary().and_then(|wine| {
+            super::steam_session::web_token(&wine, &prefix, &recent.steam_id)
+                .ok()
+                .and_then(|token| super::steam_qr::fetch_owned_games(token.expose()).ok())
+        })
+    } else {
+        None
+    };
+    let entries = steam_catalog::apply_owned_snapshot_with_local(
+        &stored_entries(repo)?,
+        &local.local_ids,
+        &local.entries,
+        fetched.as_deref(),
+    );
     if entries.is_empty() {
         return Err(
             "Steam has not saved your owned games yet. Keep Steam signed in, then refresh the library."
@@ -315,6 +330,44 @@ pub fn refresh_owned_ids(repo: &GameRepository) -> Result<(), String> {
         );
     }
     save_library(repo, &entries)
+}
+
+fn saved_account_identity(account: &str) -> Result<steam_account::SteamAccount, String> {
+    const LIMIT: u64 = 8 * 1024 * 1024;
+    if let Some(support) = steam_support_dir() {
+        let login_path = support.join("config/loginusers.vdf");
+        if let Ok(metadata) = fs::symlink_metadata(&login_path) {
+            if metadata.is_file() && !metadata.file_type().is_symlink() {
+                if metadata.len() > LIMIT {
+                    return Err("Steam login file was too large".into());
+                }
+                let mut login = String::new();
+                fs::File::open(&login_path)
+                    .map_err(|_| "Steam has not saved a local login yet")?
+                    .take(LIMIT + 1)
+                    .read_to_string(&mut login)
+                    .map_err(|_| "Steam has not saved a local login yet")?;
+                if login.len() as u64 > LIMIT {
+                    return Err("Steam login file was too large".into());
+                }
+                let recent =
+                    most_recent_account(&login).ok_or("Steam has not saved a local login yet")?;
+                if !recent.name.eq_ignore_ascii_case(account) {
+                    return Err("Steam is signed in as a different account. Sign in again.".into());
+                }
+                return Ok(recent);
+            }
+        }
+    }
+    if let Some(identity) =
+        super::steam_native::session::saved_identity(&session_dir(&app_data_dir()))
+    {
+        if identity.name.eq_ignore_ascii_case(account) {
+            return Ok(identity);
+        }
+        return Err("Steam is signed in as a different account. Sign in again.".into());
+    }
+    Err("Sign in with Steam before refreshing the library".into())
 }
 
 /// Fill an empty owned catalog from the signed-in prefix without failing Library reads.
@@ -457,15 +510,32 @@ pub(crate) fn capture_client_session() -> Result<bool, String> {
 }
 
 fn local_vdf_stamp(prefix: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let stamp = |path: &Path| {
+        let meta = fs::symlink_metadata(path).ok()?;
+        (!meta.file_type().is_symlink() && meta.is_file())
+            .then(|| Some((meta.len(), meta.modified().ok()?)))
+            .flatten()
+    };
+    if let Some(active) = super::steam_native::agent_host::profile_user(prefix) {
+        let active_path = prefix
+            .join("drive_c/users")
+            .join(active)
+            .join("AppData/Local/Steam/local.vdf");
+        if let Some(found) = stamp(&active_path) {
+            return Some(found);
+        }
+    }
     let users = fs::read_dir(prefix.join("drive_c/users")).ok()?;
-    users.flatten().take(16).find_map(|entry| {
-        let meta = entry
-            .path()
-            .join("AppData/Local/Steam/local.vdf")
-            .metadata()
-            .ok()?;
-        Some((meta.len(), meta.modified().ok()?))
-    })
+    let mut names: Vec<PathBuf> = users
+        .flatten()
+        .take(16)
+        .filter(|entry| entry.file_name() != "Public")
+        .map(|entry| entry.path())
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .find_map(|dir| stamp(&dir.join("AppData/Local/Steam/local.vdf")))
 }
 
 pub(crate) fn saved_client_waiting() -> bool {
@@ -953,10 +1023,11 @@ fn play_library_paths(repo: &GameRepository) -> Vec<String> {
 }
 
 fn play_library_paths_from(extra: &[String]) -> Vec<String> {
+    let merged = super::install_locations::merge_library_paths(extra);
     super::steam_native::installed::library_paths(
         dirs::home_dir().as_deref(),
         crate::utils::steam_paths::detect_steam_root().as_deref(),
-        extra,
+        &merged,
     )
 }
 
@@ -1283,11 +1354,21 @@ pub(crate) fn stop_steam_runtime(wine: &Path, prefix: &Path) {
     reap_prefix_processes(prefix);
 }
 
+fn resolve_wineserver(wine: &Path) -> Option<PathBuf> {
+    let parent = wine.parent()?;
+    let beside = parent.join("wineserver");
+    if beside.is_file() {
+        return Some(beside);
+    }
+    let bundled = parent.parent()?.join("bin/wineserver");
+    bundled.is_file().then_some(bundled)
+}
+
 fn stop_steam_wineserver(wine: &Path, prefix: &Path) {
-    let Some(server) = wine.parent().map(|bin| bin.join("wineserver")) else {
+    let Some(server) = resolve_wineserver(wine) else {
         return;
     };
-    if !server.is_file() || !prefix.is_dir() {
+    if !prefix.is_dir() {
         return;
     }
     let cancel = AtomicBool::new(false);
@@ -2331,6 +2412,32 @@ c/tmp/orbit-steam-prefix-other
         let paths = vec![apps.join("common").to_string_lossy().into_owned()];
         let ids = installed_app_ids(&[], &paths);
         assert!(ids.contains("447040"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_vdf_stamp_prefers_active_wine_profile_user() {
+        let root = std::env::temp_dir().join(format!("orbit-vdf-stamp-{}", uuid::Uuid::new_v4()));
+        for name in ["aaa_other", "crossover"] {
+            let dir = root
+                .join("drive_c/users")
+                .join(name)
+                .join("AppData/Local/Steam");
+            std::fs::create_dir_all(&dir).unwrap();
+            let body = if name == "crossover" {
+                "active-user-token"
+            } else {
+                "old"
+            };
+            std::fs::write(dir.join("local.vdf"), body).unwrap();
+        }
+        std::fs::write(
+            root.join("user.reg"),
+            "\"APPDATA\"=\"C:\\\\users\\\\crossover\\\\AppData\\\\Roaming\"\n",
+        )
+        .unwrap();
+        let (len, _) = local_vdf_stamp(&root).unwrap();
+        assert_eq!(len, "active-user-token".len() as u64);
         let _ = std::fs::remove_dir_all(root);
     }
 }

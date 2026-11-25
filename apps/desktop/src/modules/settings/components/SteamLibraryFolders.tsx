@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { scanSteamInstallations } from '@/lib/tauri'
+import { addInstallLocation, scanSteamInstallations } from '@/lib/tauri'
 import { useState } from 'react'
-import { FolderOpen, HardDrive, Plus, RefreshCw, X } from 'lucide-react'
+import { FolderOpen, FolderPlus, HardDrive, Plus, RefreshCw, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
 import { useLibraryPaths } from '@/hooks/useLibraryPaths'
+import { errorText, INSTALL_LOCATIONS_KEY } from '@/lib/installLocations'
 import {
   LIBRARY_CARD,
   LIBRARY_CARD_DESC,
@@ -35,12 +36,40 @@ export function SteamLibraryFolders() {
   })
   const library = useLibraryPaths({ onAdded: () => scan.mutateAsync() })
   const [path, setPath] = useState('')
+  const [creatingLocation, setCreatingLocation] = useState(false)
+  const [locationStatus, setLocationStatus] = useState('')
+  const [locationError, setLocationError] = useState('')
   const { paths } = library
-  const busy = library.saving || scan.isPending || !library.loaded
+  const busy = library.saving || scan.isPending || creatingLocation || !library.loaded
   const add = async (value: string) => {
+    setLocationStatus('')
+    setLocationError('')
     if (await library.add(value)) setPath('')
   }
-  const browse = () => library.browse('Choose an existing Steam library folder')
+  const browse = () => {
+    setLocationStatus('')
+    setLocationError('')
+    return library.browse('Choose an existing Steam library folder')
+  }
+  const createDownloadLocation = async () => {
+    if (!library.failedPath) return
+    setCreatingLocation(true)
+    setLocationStatus('')
+    setLocationError('')
+    try {
+      const added = await addInstallLocation(library.failedPath)
+      library.clearFailed()
+      setPath('')
+      setLocationStatus(
+        `Created ${added.label} (${added.path ?? library.failedPath}) and enabled downloads there.`,
+      )
+      await client.invalidateQueries({ queryKey: INSTALL_LOCATIONS_KEY })
+    } catch (caught) {
+      setLocationError(errorText(caught))
+    } finally {
+      setCreatingLocation(false)
+    }
+  }
   return (
     <section className={LIBRARY_CARD} aria-labelledby="steam-library-folders-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -50,7 +79,8 @@ export function SteamLibraryFolders() {
           </h3>
           <p className={LIBRARY_CARD_DESC}>
             Orbit finds games already installed in these folders. Pick a Steam library or
-            its steamapps/common folder. New downloads keep their current location.
+            its steamapps/common folder. Use Steam download locations above for new
+            downloads on an empty drive.
           </p>
         </div>
         {paths.length > 0 && (
@@ -179,9 +209,37 @@ export function SteamLibraryFolders() {
           Could not load library folder preferences.
         </p>
       )}
+      {locationStatus && (
+        <p role="status" className="m-0 text-[13px] text-emerald-300">
+          {locationStatus}
+        </p>
+      )}
       {library.error && (
+        <div className="grid gap-2">
+          <p role="alert" className="m-0 text-[13px] text-rose-300">
+            {library.error}
+          </p>
+          {library.failedPath && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Focusable
+                focusId="settings-steam-library-create-location"
+                group="settings-steam"
+                order={11 + paths.length}
+                noScale
+                disabled={busy}
+                className={QUIET_BUTTON}
+                onClick={() => void createDownloadLocation()}
+              >
+                <FolderPlus size={14} aria-hidden />
+                Create Steam folder and allow downloads here
+              </Focusable>
+            </div>
+          )}
+        </div>
+      )}
+      {locationError && (
         <p role="alert" className="m-0 text-[13px] text-rose-300">
-          {library.error}
+          {locationError}
         </p>
       )}
     </section>

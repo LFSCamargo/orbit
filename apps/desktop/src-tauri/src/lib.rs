@@ -28,6 +28,7 @@ pub struct AppState {
     pub sessions: Arc<SessionManager>,
     pub steam_login: Mutex<steam_login::SteamLoginSession>,
     pub steam_catalog_job: Arc<std::sync::atomic::AtomicBool>,
+    pub steam_library_sync: Arc<services::steam_background_sync::SteamSyncControl>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,6 +60,7 @@ pub fn run() {
             sessions,
             steam_login: Mutex::new(steam_login::SteamLoginSession::new()),
             steam_catalog_job: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            steam_library_sync: Arc::new(services::steam_background_sync::SteamSyncControl::new()),
         })
         .invoke_handler(tauri::generate_handler![
             commands::runtimes::windows_compatibility,
@@ -160,6 +162,7 @@ pub fn run() {
             commands::uninstall::uninstall_steam_game,
             commands::storage::get_storage_overview,
             commands::storage::remove_component,
+            commands::storage::remove_storage_item,
             commands::steam_windows::play_steam_windows_game,
             commands::importers::scan_steam_library,
             commands::importers::scan_astris_folder,
@@ -199,6 +202,7 @@ pub fn run() {
                             eprintln!("Steam sign-in window could not be closed: {err}");
                         }
                     }
+                    state.steam_library_sync.cancel();
                     // Nothing of Orbit's keeps running after it quits, except
                     // the Steam a still-running game depends on.
                     let keep = state.sessions.active_steam_prefix();

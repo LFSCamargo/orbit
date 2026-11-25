@@ -195,7 +195,7 @@ pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEn
             date_added: String::new(),
             last_played_at: item.last_played_at.clone(),
             total_playtime_seconds: item.playtime_seconds.max(0),
-            install_size_bytes: None,
+            install_size_bytes: item.install_size_bytes,
             achievements: vec![],
         };
         entries.insert(

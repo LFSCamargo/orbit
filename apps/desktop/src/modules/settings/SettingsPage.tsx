@@ -15,6 +15,7 @@ import {
   LibrarySettings,
   SwitchContentCard,
 } from '@/modules/settings/components/LibrarySettings'
+import { SteamDownloadLocations } from '@/modules/settings/components/SteamDownloadLocations'
 import { SteamLibraryFolders } from '@/modules/settings/components/SteamLibraryFolders'
 import { SteamSettings } from '@/modules/settings/components/SteamSettings'
 import { StorageSettings } from '@/modules/settings/components/storage/StorageSettings'
@@ -201,6 +202,7 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <div className="grid gap-4">
+                    <SteamDownloadLocations />
                     <SteamLibraryFolders />
                     <SwitchContentCard />
                     <LibrarySettings />

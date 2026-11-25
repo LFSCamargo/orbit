@@ -141,7 +141,7 @@ describe('install sizes', () => {
       game: { installSizeBytes: 9 },
       installations: [],
     } as unknown as LibraryEntry
-    expect(entrySizes(owned)).toEqual({ diskBytes: null, downloadBytes: null })
+    expect(entrySizes(owned)).toEqual({ diskBytes: 9, downloadBytes: null })
   })
 })
 
