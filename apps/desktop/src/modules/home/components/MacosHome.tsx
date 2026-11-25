@@ -425,7 +425,9 @@ export function MacosHome({
             data-shelf-looping={shelfLooping ? 'true' : 'false'}
             className={clsx(
               'macos-game-grid',
-              'scrollbar-none flex w-full min-w-0 gap-[22px] overflow-x-auto pb-[22px] pt-[9px]',
+              'scrollbar-none flex min-w-0 gap-[22px] overflow-x-auto pb-[22px] pt-3.5',
+              // Pad finite strips inside the scrollport so scaled focus rings never clip at the edges.
+              shelfLooping ? 'w-full' : '-mx-3.5 px-3.5',
               shelfFadeMaskClass(edgeFade),
               'max-[900px]:gap-[18px]',
             )}

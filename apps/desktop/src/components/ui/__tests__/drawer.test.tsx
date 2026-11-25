@@ -39,6 +39,7 @@ it('keeps the header and toolbar fixed while the body scrolls, with a round clos
   const onClose = renderDrawer()
   const body = screen.getByTestId('test-drawer-scroll')
   expect(body.className).toContain('overflow-auto')
+  expect(body).toHaveClass('pt-3.5')
   expect(body).toHaveTextContent('Body')
   const close = screen.getByRole('button', { name: 'Close artwork picker' })
   expect(body).not.toContainElement(close)

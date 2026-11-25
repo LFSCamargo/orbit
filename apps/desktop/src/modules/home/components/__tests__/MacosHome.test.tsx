@@ -130,6 +130,29 @@ it('leaves a short carousel unfaded and without particle fragments', () => {
   )
 })
 
+it('pads a 6-item shelf so outer focus rings are never clipped by horizontal overflow', () => {
+  const six = Array.from({ length: 6 }, (_, index) => ({
+    ...entry,
+    id: `steam:${index + 1}`,
+    steamAppId: String(index + 1),
+    game: { ...game, id: `g${index + 1}`, title: `Game ${index + 1}` },
+  }))
+  render(
+    <MacosHome
+      entries={six}
+      heroEntry={six[0]}
+      activeSession={null}
+      onPlay={vi.fn()}
+      onStop={vi.fn()}
+      onFavorite={vi.fn()}
+    />,
+  )
+  const grid = document.querySelector('.macos-game-grid')
+  expect(grid).toHaveAttribute('data-shelf-looping', 'false')
+  expect(grid).toHaveClass('overflow-x-auto', 'pt-3.5', 'px-3.5', '-mx-3.5')
+  expect(grid).not.toHaveClass('w-full')
+})
+
 it('opens details on the first card activation without launching', () => {
   const { onPlay, onStop } = renderHome()
   fireEvent.click(screen.getByRole('button', { name: `${game.title}, selected` }))

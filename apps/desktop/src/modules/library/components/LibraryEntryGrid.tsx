@@ -32,7 +32,13 @@ export function LibraryEntryGrid({
   return (
     <div
       ref={gridRef}
-      className={clsx('library-entry-grid', '[contain:layout_paint]', LIBRARY_ENTRY_GRID)}
+      className={clsx(
+        'library-entry-grid',
+        '[contain:layout]',
+        // Expand the border box so the viewport fade mask never clips outer focus rings.
+        '-m-2.5 p-2.5',
+        LIBRARY_ENTRY_GRID,
+      )}
       role="list"
       aria-label={label}
     >
