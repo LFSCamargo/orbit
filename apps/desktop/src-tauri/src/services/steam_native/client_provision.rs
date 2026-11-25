@@ -98,20 +98,48 @@ pub fn has_client_dll(prefix: &Path) -> bool {
     steam_root(prefix).join("steamclient64.dll").is_file()
 }
 
+/// Whether the container already has a complete Steam client (e.g. linked from
+/// `steam-windows`), avoiding redundant CDN fetches and working offline.
+pub fn is_client_complete(prefix: &Path) -> bool {
+    let root = steam_root(prefix);
+    let has_exe = root.join("steam.exe").is_file()
+        || root.join("steam.exe.valve").is_file()
+        || root.join("steam.exe.orbit-kept").is_file();
+    has_exe
+        && root.join("steamclient64.dll").is_file()
+        && (root.join("SteamUI.dll").is_file() || root.join("steamui.dll").is_file())
+        && root.join("libavcodec-62.dll").is_file()
+        && root.join("public/steambootstrapper_english.txt").is_file()
+        && crate::services::steam_browser::helper_exe(&root).is_some()
+}
+
 fn link_tree(source: &Path, dest: &Path) -> Result<(), String> {
     link_tree_at(source, dest, 0)
 }
 
+fn is_skippable(name: &std::ffi::OsStr) -> bool {
+    let Some(text) = name.to_str() else {
+        return false;
+    };
+    let lower = text.to_ascii_lowercase();
+    lower.starts_with('.')
+        || lower == "steam.cfg"
+        || lower == "steam.pid"
+        || lower.ends_with(".log")
+        || lower.ends_with(".mdmp")
+        || lower.ends_with(".tmp")
+        || lower.ends_with(".lock")
+}
+
 fn link_tree_at(source: &Path, dest: &Path, depth: u8) -> Result<(), String> {
-    if depth > 8 {
+    if depth > 12 {
         return Err("Steam client folder is too deep".into());
     }
     let entries = std::fs::read_dir(source).map_err(|err| err.to_string())?;
     for entry in entries.take(4096).flatten() {
         let name = entry.file_name();
-        // Cache bookkeeping (the completion marker, partial downloads) stays out
-        // of the container.
-        if name.to_str().is_some_and(|text| text.starts_with('.')) {
+        // Cache bookkeeping and mutable runtime files stay out of the container.
+        if is_skippable(&name) {
             continue;
         }
         let from = entry.path();
@@ -124,6 +152,10 @@ fn link_tree_at(source: &Path, dest: &Path, depth: u8) -> Result<(), String> {
             std::fs::create_dir_all(&to).map_err(|err| err.to_string())?;
             link_tree_at(&from, &to, depth + 1)?;
         } else if !to.exists() {
+            // Unlink broken symlinks before replacing so symlink() does not EEXIST.
+            if to.symlink_metadata().is_ok() {
+                let _ = std::fs::remove_file(&to);
+            }
             symlink_file(&from, &to)?;
         }
     }
@@ -346,6 +378,42 @@ mod tests {
         assert_eq!(std::fs::read(dest.join("steam.exe")).unwrap(), b"MZAGENT");
         assert!(dest.join("bin/SteamService.exe").is_file());
         assert!(!dest.join(".orbit-complete").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replaces_broken_symlinks_and_reports_complete_client() {
+        let root =
+            std::env::temp_dir().join(format!("orbit-provision-broken-{}", uuid::Uuid::new_v4()));
+        let shared = root.join("shared/Steam");
+        std::fs::create_dir_all(shared.join("bin/cef/cef.win64")).unwrap();
+        std::fs::create_dir_all(shared.join("public")).unwrap();
+        std::fs::write(shared.join("steam.exe"), b"MZVALVE").unwrap();
+        std::fs::write(shared.join("steamclient64.dll"), b"MZDLL").unwrap();
+        std::fs::write(shared.join("SteamUI.dll"), b"MZUI").unwrap();
+        std::fs::write(shared.join("libavcodec-62.dll"), b"MZAV").unwrap();
+        std::fs::write(shared.join("public/steambootstrapper_english.txt"), b"ok").unwrap();
+        std::fs::write(shared.join("bin/SteamService.exe"), b"MZSVC").unwrap();
+        std::fs::write(
+            shared.join("bin/cef/cef.win64/steamwebhelper.exe"),
+            b"MZCEF",
+        )
+        .unwrap();
+
+        let prefix = root.join("prefix");
+        let dest = steam_root(&prefix);
+        std::fs::create_dir_all(dest.join("bin")).unwrap();
+        std::os::unix::fs::symlink(
+            root.join("missing/SteamService.exe"),
+            dest.join("bin/SteamService.exe"),
+        )
+        .unwrap();
+
+        assert!(!is_client_complete(&prefix));
+        link_tree(&shared, &dest).unwrap();
+        assert!(dest.join("bin/SteamService.exe").is_file());
+        assert!(is_client_complete(&prefix));
         let _ = std::fs::remove_dir_all(root);
     }
 

@@ -1,17 +1,19 @@
 # Orbit Wine containers
 
-Windows games run in Orbit-owned Wine prefixes: one **base** per Wine install,
-then a cheap **per-game clone**. Graphics PE files are copied (never linked) into
-`drive_c/windows/system32`. Valve's Steam client is seeded from the signed-in
-`steam-windows` prefix and is never deleted.
+Windows games run in Orbit-owned Wine prefixes: one slim **base** per Wine install
+(`bases/<wine-key>/prefix`), then a per-game clone with read-only `drive_c/windows`
+system directories (`system32`, `syswow64`, `winsxs`, `resources`, `Microsoft.NET`,
+`globalization`) leaf-symlinked from that base. Graphics PE files are copied (never linked) into
+`drive_c/windows/system32`. Valve's Steam client binaries are leaf-symlinked from the signed-in
+`steam-windows` prefix (or shared `runtimes/steam-client` cache) and never copied into game containers.
 
-A container keeps the same client version as that seed. When its
-`package/*.installed` records differ (a container cloned from an older client),
-the client files are copied again from the seed, so `steam.exe`, its DLLs and
+A container keeps the same client version as its source. When its
+`package/*.installed` records differ (a container linked from an older client),
+the read-only client files are re-linked from `steam-windows`, so `steam.exe`, its DLLs and
 `package/` match. Without this, a newer `steam.exe` started against an older
 `steamui.dll` stops with "steamui.dll not found", since Orbit holds Steam's
 self-updater off. `config/`, `userdata/`, `steamapps/`, logs, caches and sentry
-files stay.
+files stay per-container, and disposable caches are pruned.
 
 Code: `apps/desktop/src-tauri/src/runtimes/containers/`.
 On disk: `runtimes/containers/bases/<wine-key>/` and
@@ -19,21 +21,20 @@ On disk: `runtimes/containers/bases/<wine-key>/` and
 
 ## First launch
 
-1. **Container** — clone the signed-in Steam prefix (Steam titles) or wineboot a
-   base prefix (manual `.exe`), then clone it for the game.
+1. **Container** — clone the slim per-Wine base prefix (`bases/<wine-key>/prefix`)
+   and leaf-symlink read-only `drive_c/windows` system folders.
 2. **Compatibility** — link GPTK / DXMT / DXVK DLLs into the container and set
    `WINEMSYNC` when the user chose MSync.
-3. **Steam** — Settings opens Valve's `steam.exe` in `steam-windows` only long
-   enough to save the account, then Orbit stops that Wine process. Play
-   downloads Valve's client into the shared `runtimes/steam-client` cache and
-   links it into the container. Source `steam-windows` stays in place.
-4. **Login** — the saved window login is what the in-container agent uses: a
-   client-audience token read from `config.vdf` or unwrapped from the
-   `steam-windows` `local.vdf` ConnectCache. A website or QR sign-in is not
-   used. If that login is missing, Play asks for
-   Settings → Steam. There is no resident shared Steam client.
-5. **Cloud** — clone that title's `userdata/<id>/<app>/remote` folder when it
+3. **Steam** — link Valve's `steam.exe`, DLLs, and assets from `steam-windows`
+   (or `runtimes/steam-client`) into the container using symlinks. Source `steam-windows` stays untouched.
+4. **Cloud** — clone that title's `userdata/<id>/<app>/remote` folder when it
    already exists in `steam-windows`.
+5. **Login** — sign the container's silent Steam in using the saved `client`-audience
+   token (DPAPI-wrapped per container in `local.vdf` ConnectCache), streaming live
+   startup sub-stages on Step 7. If Valve refuses the token, Orbit invalidates the
+   rejected session first (`native-session.json`, `steam-windows`, container, and
+   `steam-sync`), force-stops Steam immediately without waiting for `-shutdown`, and
+   asks for **Settings → Steam**. There is no resident shared Steam client.
 6. **Start** — launch the game executable in the container with `SteamAppId`.
 
 Downloads use SteamCMD into `runtimes/containers/games/steam-{appId}/install/`

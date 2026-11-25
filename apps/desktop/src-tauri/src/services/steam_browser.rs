@@ -46,9 +46,13 @@ pub fn prepare(steam: &Path) -> Result<PathBuf> {
     let helper = canonical.join("steamwebhelper.exe");
     let original = canonical.join(ORIGINAL_NAME);
     let staged = canonical.join("orbit-browser.tmp");
-    // The shared client cache is linked in. Copy that one helper into the
-    // container; never follow a link that points somewhere else.
+    if linked_shim_ready(&helper, &original) {
+        return Ok(original);
+    }
+    // The shared client cache or steam-windows is linked in. Materialize
+    // Orbit-owned links before writing, while rejecting any other symlink.
     materialize_cached_helper(&helper, &root)?;
+    unlink_shared_symlink(&original)?;
     for path in [&helper, &original, &staged] {
         if path
             .symlink_metadata()
@@ -79,8 +83,53 @@ pub fn prepare(steam: &Path) -> Result<PathBuf> {
     Ok(original)
 }
 
+fn read_capped_mz(path: &Path) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    fs::File::open(path)?
+        .take(32 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 32 * 1024 * 1024 || !bytes.starts_with(b"MZ") {
+        bail!("Steam's browser is invalid. Repair the official Steam installation");
+    }
+    Ok(bytes)
+}
+
+fn is_shared_orbit_source(path: &Path) -> Option<PathBuf> {
+    let target = path.canonicalize().ok()?;
+    (is_steam_client_cache(&target) || is_steam_windows_root(&target)).then_some(target)
+}
+
+/// True when `helper` and `original` are both already linked to Orbit's
+/// shimmed `steam-windows` client, avoiding an unnecessary 2 MB copy.
+fn linked_shim_ready(helper: &Path, original: &Path) -> bool {
+    let Ok(h_meta) = helper.symlink_metadata() else {
+        return false;
+    };
+    let Ok(o_meta) = original.symlink_metadata() else {
+        return false;
+    };
+    if !h_meta.file_type().is_symlink() || is_shared_orbit_source(helper).is_none() {
+        return false;
+    }
+    if o_meta.file_type().is_symlink() && is_shared_orbit_source(original).is_none() {
+        return false;
+    }
+    read_capped_mz(helper).is_ok_and(|bytes| bytes == SHIM)
+        && read_capped_mz(original).is_ok_and(|bytes| bytes != SHIM)
+}
+
+fn unlink_shared_symlink(path: &Path) -> Result<()> {
+    let Ok(meta) = path.symlink_metadata() else {
+        return Ok(());
+    };
+    if meta.file_type().is_symlink() && is_shared_orbit_source(path).is_some() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 /// Replace a `steamwebhelper.exe` symlink with the bytes it points at when that
-/// target is the container itself or Orbit's Steam client cache.
+/// target is the container itself, Orbit's `steam-client` cache, or `steam-windows`.
 fn materialize_cached_helper(path: &Path, steam_root: &Path) -> Result<()> {
     let Ok(meta) = path.symlink_metadata() else {
         return Ok(());
@@ -91,16 +140,13 @@ fn materialize_cached_helper(path: &Path, steam_root: &Path) -> Result<()> {
     let target = path
         .canonicalize()
         .context("Steam's browser link is broken")?;
-    if !target.starts_with(steam_root) && !is_steam_client_cache(&target) {
+    if !target.starts_with(steam_root)
+        && !is_steam_client_cache(&target)
+        && !is_steam_windows_root(&target)
+    {
         bail!("Steam browser paths cannot be symlinks");
     }
-    let mut bytes = Vec::new();
-    fs::File::open(&target)?
-        .take(32 * 1024 * 1024 + 1)
-        .read_to_end(&mut bytes)?;
-    if bytes.len() > 32 * 1024 * 1024 || !bytes.starts_with(b"MZ") {
-        bail!("Steam's browser is invalid. Repair the official Steam installation");
-    }
+    let bytes = read_capped_mz(&target)?;
     fs::remove_file(path)?;
     fs::write(path, &bytes)?;
     Ok(())
@@ -113,6 +159,20 @@ fn is_steam_client_cache(path: &Path) -> bool {
             && parts
                 .next()
                 .is_some_and(|next| next.as_os_str() == "steam-client")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_steam_windows_root(path: &Path) -> bool {
+    let mut parts = path.components();
+    while let Some(part) = parts.next() {
+        if part.as_os_str() == "steam-windows"
+            && parts
+                .next()
+                .is_some_and(|next| next.as_os_str() == "prefix")
         {
             return true;
         }
@@ -227,6 +287,47 @@ mod tests {
         assert_eq!(
             fs::read(cef.join("steamwebhelper-orbit-original.exe")).unwrap(),
             b"MZcached-helper"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn accepts_shimmed_helper_and_original_symlinked_from_steam_windows() {
+        let root =
+            std::env::temp_dir().join(format!("orbit-steam-browser-win-{}", uuid::Uuid::new_v4()));
+        let sw_cef =
+            root.join("steam-windows/prefix/drive_c/Program Files (x86)/Steam/bin/cef/cef.win64");
+        fs::create_dir_all(&sw_cef).unwrap();
+        fs::write(sw_cef.join("steamwebhelper.exe"), SHIM).unwrap();
+        fs::write(sw_cef.join(ORIGINAL_NAME), b"MZvalve-orig").unwrap();
+
+        let container_steam =
+            root.join("containers/games/steam-1593500/prefix/drive_c/Program Files (x86)/Steam");
+        let container_cef = container_steam.join("bin/cef/cef.win64");
+        fs::create_dir_all(&container_cef).unwrap();
+        fs::write(container_steam.join("steam.exe"), b"MZsteam").unwrap();
+        std::os::unix::fs::symlink(
+            sw_cef.join("steamwebhelper.exe"),
+            container_cef.join("steamwebhelper.exe"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(
+            sw_cef.join(ORIGINAL_NAME),
+            container_cef.join(ORIGINAL_NAME),
+        )
+        .unwrap();
+
+        prepare(&container_steam.join("steam.exe")).unwrap();
+        assert!(container_cef.join("steamwebhelper.exe").is_symlink());
+        assert!(container_cef.join(ORIGINAL_NAME).is_symlink());
+        assert_eq!(
+            fs::read(container_cef.join("steamwebhelper.exe")).unwrap(),
+            SHIM
+        );
+        assert_eq!(
+            fs::read(container_cef.join(ORIGINAL_NAME)).unwrap(),
+            b"MZvalve-orig"
         );
         fs::remove_dir_all(root).unwrap();
     }
