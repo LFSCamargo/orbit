@@ -1,1 +1,0 @@
-Orbit — Your games. One orbit. A controller-first game launcher for macOS that brings Steam, Windows games and Mac apps together.

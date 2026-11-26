@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { ReleaseView } from '@/components/download/ReleaseView'
 import { fetchReleases } from '@/lib/github'
 import { findRelease, isValidVersion } from '@/lib/releases'
+import { pageMetadata } from '@/lib/seo'
 
 export const revalidate = 120
 
@@ -17,10 +18,11 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: VersionPageProps): Promise<Metadata> {
   const { version } = await params
-  return {
+  return pageMetadata({
     title: `Download Orbit ${version}`,
     description: `Download Orbit ${version} for your Mac and read its release notes.`,
-  }
+    path: `/download/${version}`,
+  })
 }
 
 export default async function VersionPage({ params }: VersionPageProps) {

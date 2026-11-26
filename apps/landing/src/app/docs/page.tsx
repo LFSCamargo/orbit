@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { pageMetadata } from '@/lib/seo'
 import { DOCS } from '@/lib/site'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Documentation',
   description:
     'Learn what Orbit does: import your games, navigate with a controller, customize themes, manage artwork, and keep your library local.',
-}
+  path: '/docs',
+})
 
 const CONTENTS = [
   { id: 'what-is-orbit', label: 'What is Orbit?' },
