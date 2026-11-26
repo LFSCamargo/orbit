@@ -25,6 +25,13 @@ function myReactions(request: NextRequest, slug: string): Reaction[] {
   return raw.split('.').filter(isReaction)
 }
 
+function unavailable() {
+  return NextResponse.json(
+    { error: 'Stats are unavailable right now' },
+    { status: 503, headers: { 'Cache-Control': 'no-store' } },
+  )
+}
+
 function respond(stats: PostStats, mine: Reaction[]) {
   return NextResponse.json({ stats, mine }, { headers: { 'Cache-Control': 'no-store' } })
 }
@@ -54,7 +61,13 @@ export async function POST(request: NextRequest, { params }: Context) {
 
   if (body.action === 'view') {
     if (request.cookies.get(viewCookie(slug))) return respond(await readStats(slug), mine)
-    const response = respond(await recordView(slug), mine)
+    let stats: PostStats
+    try {
+      stats = await recordView(slug)
+    } catch {
+      return unavailable()
+    }
+    const response = respond(stats, mine)
     response.cookies.set(viewCookie(slug), '1', {
       maxAge: VIEW_WINDOW_SECONDS,
       httpOnly: true,
@@ -76,7 +89,13 @@ export async function POST(request: NextRequest, { params }: Context) {
     const next = body.active
       ? [...mine, reaction]
       : mine.filter((item) => item !== reaction)
-    const response = respond(await setReaction(slug, reaction, body.active), next)
+    let stats: PostStats
+    try {
+      stats = await setReaction(slug, reaction, body.active)
+    } catch {
+      return unavailable()
+    }
+    const response = respond(stats, next)
     response.cookies.set(
       reactionCookie(slug),
       REACTIONS.filter((r) => next.includes(r)).join('.'),

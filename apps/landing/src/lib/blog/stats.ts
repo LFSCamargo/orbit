@@ -46,18 +46,48 @@ export function memoryStore(): StatsStore {
   }
 }
 
+/** Longest a storage call may take before the request gives up on it. */
+const STORE_TIMEOUT_MS = 4000
+
+/** Rejects when `promise` has not settled within `ms`, so a stuck storage call
+ * can never hold a request open until the platform kills it. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+/** Every call is time-limited and failures are logged (Netlify function logs). */
+export function guardedStore(store: StatsStore, ms = STORE_TIMEOUT_MS): StatsStore {
+  const guard = <T>(promise: Promise<T>, label: string) =>
+    withTimeout(promise, ms, label).catch((error: unknown) => {
+      console.error(`Blog stats: ${label} failed:`, error)
+      throw error
+    })
+  return {
+    read: (slug) => guard(store.read(slug), `read ${slug}`),
+    write: (slug, stats) => guard(store.write(slug, stats), `write ${slug}`),
+  }
+}
+
 async function netlifyStore(): Promise<StatsStore | null> {
   try {
     const { getStore } = await import('@netlify/blobs')
-    const store = getStore({ name: 'orbit-blog-stats', consistency: 'strong' })
-    return {
+    // Default (eventual) consistency: strong consistency needs an extra edge
+    // endpoint, and on the deployed site its calls never settled.
+    const store = getStore('orbit-blog-stats')
+    return guardedStore({
       read: (slug) => store.get(`post/${slug}`, { type: 'json' }),
       write: async (slug, stats) => {
         await store.setJSON(`post/${slug}`, stats)
       },
-    }
-  } catch {
+    })
+  } catch (error) {
     // Not running on Netlify: no Blobs environment.
+    if (process.env.NETLIFY)
+      console.error('Blog stats: Netlify Blobs is unavailable:', error)
     return null
   }
 }
@@ -82,9 +112,10 @@ function serialize<T>(slug: string, task: () => Promise<T>): Promise<T> {
   return next
 }
 
+/** Current counts, or zero counts when storage cannot be read. */
 export async function readStats(slug: string, store?: StatsStore): Promise<PostStats> {
-  const target = store ?? (await defaultStore())
   try {
+    const target = store ?? (await defaultStore())
     return normalizeStats(await target.read(slug))
   } catch {
     return emptyStats()
@@ -100,7 +131,8 @@ function updateStats(
 ): Promise<PostStats> {
   return serialize(slug, async () => {
     const target = store ?? (await defaultStore())
-    const stats = await readStats(slug, target)
+    // A failed read must not be written back as zeros: let the caller fail.
+    const stats = normalizeStats(await target.read(slug))
     update(stats)
     await target.write(slug, stats)
     return stats

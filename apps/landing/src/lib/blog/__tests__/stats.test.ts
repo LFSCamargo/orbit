@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  guardedStore,
   isReaction,
   memoryStore,
   normalizeStats,
@@ -37,5 +38,29 @@ describe('blog stats', () => {
   it('only accepts known reactions', () => {
     expect(isReaction('rocket')).toBe(true)
     expect(isReaction('__proto__')).toBe(false)
+  })
+
+  it('gives up on a storage call that never settles', async () => {
+    // Regression: on Netlify every Blobs call hung until the function was killed.
+    const hanging = guardedStore(
+      { read: () => new Promise(() => {}), write: () => new Promise(() => {}) },
+      20,
+    )
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect((await readStats('post', hanging)).views).toBe(0)
+    await expect(recordView('post', hanging)).rejects.toThrow('timed out')
+    errors.mockRestore()
+  })
+
+  it('never writes zeros over the counts when a read fails', async () => {
+    const writes: unknown[] = []
+    const failing = {
+      read: () => Promise.reject(new Error('offline')),
+      write: async (_slug: string, stats: unknown) => {
+        writes.push(stats)
+      },
+    }
+    await expect(setReaction('post', 'like', true, failing)).rejects.toThrow('offline')
+    expect(writes).toEqual([])
   })
 })
