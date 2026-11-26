@@ -276,7 +276,7 @@ fn run_sync(app: &AppHandle, cancel: &AtomicBool) {
         }
     }
 
-    let mut command = steam_windows::steam_runtime_command(&host.wine, &host.prefix);
+    let mut command = steam_windows::hidden_steam_command(&host.wine, &host.prefix);
     command
         .args(headless_sync_args(&steam_exe))
         .current_dir(&root)

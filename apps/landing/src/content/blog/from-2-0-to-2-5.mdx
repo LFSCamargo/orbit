@@ -1,0 +1,139 @@
+On November 14, Orbit 1.1.0 ran its first Windows game. It was a modest start: sign in to
+Steam, download a game, and launch its `.exe` through Wine or Apple's Game Porting Toolkit.
+Eleven days and seven releases later, Orbit 2.5.0 builds its own Wine, gives every game its own
+Windows environment, turns on DLSS-class upscaling and frame generation on Apple silicon,
+streams Xbox games, and keeps Steam completely out of sight while you play.
+
+This is the story of how we got here, release by release.
+
+## Where it started: 1.1.0
+
+Orbit began as a controller-first launcher for the games already on your Mac. 1.1.0 was the
+first release that reached past them:
+
+- **Windows Steam on macOS.** Sign in with a QR code or your Steam account (the password is
+  encrypted for Steam and never stored), see your owned library, download a game one depot at
+  a time, and launch it through Wine or Game Porting Toolkit.
+- **A compatibility catalog in Settings.** Wine, DXVK, DXMT, MoltenVK and Apple's Game Porting
+  Toolkit could be installed from inside Orbit, and GPTK packages were checked against Apple's
+  published disk images.
+- **One library.** Mac games and Windows Steam games shared one grid, and a Steam game was one
+  card whether you owned it, had it installed, or both.
+
+The next day, 1.1.1 and 1.1.2 made the Steam sign-in window reliable under Wine.
+It worked, but every game still ran in a shared Wine setup that Orbit didn't control.
+
+## 2.0.0: a real home for Windows games
+
+2.0.0, on November 19, was the turning point. Instead of running games in one shared Wine,
+Orbit started giving each game its own **Orbit Wine container**: a Windows environment of its
+own, so one game's settings, saves and graphics layer never leak into another.
+
+- **First-run onboarding** sets everything up for you over an animated splash: Wine, the
+  containers, graphics layers and your Steam sign-in.
+- **Steam downloads grew up:** a download queue with live progress, pause and resume (even when
+  you go offline) and an install location per game.
+- **Game Mode.** Windows games run as their own macOS process inside an app bundle that macOS
+  recognises as a game, so Game Mode boosts the game, not Orbit.
+- **Controllers just work.** Bluetooth and USB controllers are passed straight through to
+  Windows games.
+- **Startup crash prevention** fixes known games before they launch and learns from new ones
+  that crash at start.
+- **More graphics layers:** vkd3d-proton and zink joined the catalog, and fresh installs default
+  to MSync, AVX and MetalFX.
+- **Less noise during play:** Orbit's background work pauses while a game runs, and a staged
+  launch card shows the runtime and controller in use.
+
+<Callout title="Under the hood: Orbit Wine">
+  Orbit Wine is built from CodeWeavers' CrossOver 26.3 sources, which already include
+  MSync (faster synchronisation), Metal views and the hooks D3DMetal needs. Orbit adds a
+  small patch so the graphics layer you pick always wins over Wine's own, builds in SDL so
+  controllers map to XInput, and runs every game from a bundle that macOS treats as a
+  game.
+</Callout>
+
+## 2.1.0: beyond your disk
+
+A day later, 2.1.0 brought **Xbox Cloud Gaming** into Orbit with its own fullscreen player:
+browse the catalog, sign in with a device code, save cloud games to your library, and play with
+controller input and rumble. Pause a stream from the Home menu, return to Orbit, and pick it up
+again. 2.1.0 also added five game theme presets to the Studio, collapsible library sections,
+and search that finds "Brütal Legend" when you type "Brutal Legend".
+
+## 2.2.0: getting out of the game's way
+
+2.2.0 was about performance, especially while a game is running:
+
+- Gamepad polling only runs while a controller is connected, and controller input no longer
+  re-renders the whole app on every press.
+- Spatial focus moves only touch the two controls involved, and the Home screen waits for focus
+  to settle before decoding full-size artwork.
+- While a game or cloud stream plays, Orbit polls less often, and Steam's browser processes in
+  the game's container drop to macOS background priority.
+- Steam Input is off by default for Windows games, so controller input goes straight through
+  Wine without translation stutter.
+- Cloud streams request keyframes only when they need them instead of every five seconds.
+
+## 2.4.0: DLSS and frame generation on Apple silicon
+
+2.4.0 unlocked one of the most visible upgrades so far. With Game Porting Toolkit 4, D3DMetal
+can translate **DLSS Super Resolution** to MetalFX, and games that ship DLSS Frame Generation
+get **frame generation** through MetalFX too (with Metal 4 on macOS 27 and later). Getting
+there meant staging the `nvngx` bridge exactly where D3DMetal looks for it, so games like
+God of War detect DLSS.
+
+The same release added a **frame rate limit** for D3DMetal (`D3DM_MAX_FPS`), made Capcom's RE
+Engine games (Devil May Cry 5, Resident Evil 2 and 3) start reliably on DirectX 11, and gave
+every Windows game a consistent 1920×1080 virtual desktop.
+
+## 2.5.0: lighter, quieter, always up to date
+
+2.5.0 tackles the things you shouldn't have to think about.
+
+### Much smaller game containers
+
+Each container used to carry a full copy of Windows. Now every container starts from a **slim
+base** for its Wine version, and the heavy, read-only Windows folders (`system32`,
+`syswow64`, `winsxs` and friends) are linked file by file instead of copied. What stays in
+each container is what belongs to that game: its config, saves and `steamapps`.
+
+### One Steam client for every game
+
+Valve's Steam client used to be copied into every container, roughly 1 to 1.5 GB a game. Now
+every game links the same client, while each keeps its own login state. When Steam updates,
+the links are rebuilt on the next launch.
+
+### Steam you never see
+
+The Steam client that signs a game in no longer appears in the Dock, the menu bar (no app menu,
+no tray icon) or Cmd-Tab, and it can't take focus from your game. You press Play and the game is
+the only thing on screen.
+
+### A library that keeps itself up to date
+
+Orbit refreshes your Steam library every time it starts, reads your owned games straight from
+Steam's local files, and runs a quiet background sync that picks up games you bought on your
+phone or the web. It stops the moment you press Play.
+
+### And more
+
+- **Download locations:** install games to an external SSD, or a new folder Orbit creates for
+  you, from **Settings → Library**.
+- **Storage:** every connected drive with its own breakdown, and any data Orbit created can be
+  removed from **Settings → Storage**.
+- **Launches:** live Steam sign-in steps on the launch screen, and an expired login is cleared
+  at once with a clear way to sign in again.
+- **Fixes:** the D-pad no longer skips rows of two buttons, focus rings are never cut off at
+  the edges of a screen, and the old Orbit logos are gone.
+
+## Updating
+
+Install 2.5.0 over your current Orbit; your library and games stay where they are. Containers
+made by older versions are fixed up the first time each game launches, and **Settings →
+Storage** then shows the space each game really uses.
+
+## What's next
+
+Epic Games is the next source on the list. Until then, every release is explained in the
+[changelog](/changelog), you can follow along with the [RSS feed](/blog/rss.xml), and the code
+is all on [GitHub](https://github.com/LFSCamargo/orbit).

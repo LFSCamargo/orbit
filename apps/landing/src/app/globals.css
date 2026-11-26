@@ -190,6 +190,14 @@ body {
   .ember-rise {
     animation: ember-rise var(--period, 10s) ease-out var(--delay, 0s) infinite;
   }
+  .install-dash {
+    animation: install-dash 0.9s linear infinite;
+  }
+  /* A light sweeping along the install steps' connector. */
+  .install-sweep {
+    background-size: 200% 100%;
+    animation: install-sweep 3.2s ease-in-out infinite;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     :is(
@@ -203,7 +211,9 @@ body {
       .float-soft,
       .orbit-spin,
       .orbit-spin-slow,
-      .game-marquee
+      .game-marquee,
+      .install-dash,
+      .install-sweep
     ) {
       animation: none;
     }
@@ -213,6 +223,21 @@ body {
     .orbit-btn-fire:active {
       transform: none;
     }
+  }
+}
+
+@keyframes install-dash {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+
+@keyframes install-sweep {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
   }
 }
 

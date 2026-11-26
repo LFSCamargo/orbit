@@ -335,6 +335,7 @@ slice does not yet manage. Prefer an already installed, self-contained game.
 - `prefix.rs`: creation, ownership/version marker and failed-setup cleanup.
 - `containers/`: base + per-game Wine containers, APFS clone, graphics links, Steam seed.
 - `wine_capabilities.rs`: MSync / Metal-view / D3DMetal probe for CrossOver-class Wine.
+- `hidden_client.rs`: installs `OrbitHiddenClient.dylib` (`native/hidden_client.m`) and loads it into the container's Steam client so it stays out of the Dock, the menu bar and Cmd-Tab (docs/STEAM_WINDOWS.md).
 - `process.rs`: bounded waits, sanitized child environment and capped pipe capture.
 - `wine.rs`: Wine adapter, game working directory, exit monitoring and stop.
 - `commands/runtimes.rs`: asynchronous native command boundary.

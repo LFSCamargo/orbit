@@ -6,12 +6,14 @@ const PRODUCT_LINKS = [
   { href: '/docs', label: 'Documentation' },
   { href: '/install', label: 'Install' },
   { href: '/download', label: 'All releases' },
+  { href: '/changelog', label: 'Changelog' },
+  { href: '/blog', label: 'Blog' },
 ]
 
 const PROJECT_LINKS = [
   { href: GITHUB_URL, label: 'Source code' },
-  { href: DOCS.changelog, label: 'Changelog' },
   { href: DOCS.contributing, label: 'Contributing' },
+  { href: '/blog/rss.xml', label: 'RSS feed' },
 ]
 
 export function SiteFooter() {

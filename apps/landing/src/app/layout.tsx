@@ -5,15 +5,61 @@ import './globals.css'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { SiteHeader } from '@/components/layout/SiteHeader'
 import { SpaceBackdrop } from '@/components/space/SpaceBackdrop'
+import {
+  IS_PRODUCTION_SITE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  canonicalUrl,
+} from '@/lib/seo'
+
+const DEFAULT_TITLE = 'Orbit — Every game. One orbit.'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://orbit.thelittleluiz.me'),
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
   title: {
-    default: 'Orbit — Your games. One orbit.',
+    default: DEFAULT_TITLE,
     template: '%s · Orbit',
   },
-  description:
-    'Orbit is a controller-first game launcher for macOS. Bring Steam, Windows games and Mac apps together, play Windows games through Orbit Wine, and get from the couch to playing in seconds.',
+  description: SITE_DESCRIPTION,
+  keywords: [
+    'Mac gaming',
+    'game launcher',
+    'macOS',
+    'Steam on Mac',
+    'Windows games on Mac',
+    'Wine',
+    'Game Porting Toolkit',
+    'controller',
+    'Xbox Cloud Gaming',
+  ],
+  category: 'games',
+  alternates: {
+    canonical: canonicalUrl('/'),
+    types: { 'application/rss+xml': [{ url: '/blog/rss.xml', title: 'Orbit Blog' }] },
+  },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: SITE_NAME,
+    locale: 'en_US',
+    title: DEFAULT_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: DEFAULT_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  // Deploy previews and branch deploys are never indexed.
+  robots: IS_PRODUCTION_SITE
+    ? {
+        index: true,
+        follow: true,
+        googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+      }
+    : { index: false, follow: false },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
