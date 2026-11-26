@@ -6,13 +6,18 @@ the Mac only (Windows appears only as "Windows games", which Orbit runs through 
 
 ## Routes
 
-| Route                 | Purpose                                                                                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                   | Space hero with provider logos, game cover wall, demo reel and screenshots, features, sources, themes, controller, why Orbit, download, and FAQ |
-| `/docs`               | Product manual: imports, library, controllers, sessions, artwork, themes, local data, and boundaries                                            |
-| `/install`            | Mac install steps, first launch, checksums, updates, uninstall, and source builds                                                               |
-| `/download`           | Latest stable release: primary download, all files, release notes, version picker                                                               |
-| `/download/[version]` | Same view for a specific version (e.g. `/download/0.2.0`); unknown versions return 404                                                          |
+| Route                  | Purpose                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`                    | Space hero with provider logos, game cover wall, demo reel and screenshots, features, sources, themes, controller, why Orbit, download, and FAQ  |
+| `/docs`                | Product manual: imports, library, controllers, sessions, artwork, themes, local data, and boundaries                                             |
+| `/install`             | Install hero with download CTA and animated install, three-step overview, then the detailed guide (first launch, checksums, updates, source)     |
+| `/download`            | Latest stable release: primary download, all files, release notes, version picker                                                                |
+| `/download/[version]`  | Same view for a specific version (e.g. `/download/0.2.0`); unknown versions return 404                                                           |
+| `/changelog`           | Every release from `CHANGELOG.md`, newest first, with its summary and kinds of change                                                            |
+| `/changelog/[version]` | One release explained: highlights, each change with "find in code" links, and the commits and pull requests between its tag and the previous one |
+| `/blog`                | Announcements and articles (MDX), filterable by kind, with view counts and an RSS feed at `/blog/rss.xml`                                        |
+| `/blog/[slug]`         | One post: view count, reactions and share links                                                                                                  |
+| `/api/blog/*`          | View and reaction counters (`GET` / `POST /api/blog/[slug]`, `GET /api/blog/stats`)                                                              |
 
 ## Presentation
 
@@ -56,6 +61,38 @@ opaque.
 
 The website favicon (`src/app/favicon.ico`) is the Orbit application icon, copied
 from the desktop app’s icon assets. Next.js adds its icon metadata on every route.
+
+## Navigation
+
+`components/layout/SiteNav.tsx` renders the header links from `lib/navigation.ts`: **Home**
+(Demo, Overview, Sources, Themes, Why — anchors on `/`) and **Resources** (Changelog, Documentation,
+Install, FAQ, Blog) open on hover, click or keyboard (Escape closes), then GitHub and Download.
+Below `md` a menu button shows the same groups. The dropdown and mobile panels are liquid glass, rendered in a portal on `document.body` 12 px below the header: inside the header's own `backdrop-filter` glass a translucent panel lets the page show through in Chromium. Resources-page heroes fade their glow out with a mask instead of clipping it, so there is no hard line under them.
+
+## Changelog
+
+`/changelog` reads the repository's `CHANGELOG.md` and `.github/release-notes/<version>.md`
+(`lib/changelogSource.ts`, parsed by `lib/changelog.ts`). A release page prefers its release
+notes, which explain each change in more depth, and falls back to `CHANGELOG.md`. Inline `code`
+in a change becomes a GitHub code-search link. When the version has a GitHub release, the page
+lists every commit since the previous published tag from the compare API
+(`fetchReleaseComparison` in `lib/github.ts`, revalidated hourly), grouped by Conventional Commit
+type and linked to the commit and pull request. `next.config.ts` traces both files into the
+server bundle so revalidation can read them.
+
+## Blog
+
+Posts are MDX files in `src/content/blog/<slug>.mdx`, listed with their metadata (title,
+highlighted words for the social card, description, date, kind, tags, reading time) in
+`src/content/blog/posts.ts`, newest first. `src/mdx-components.tsx` styles the elements and
+provides `<Callout>`. To publish a post, add the MDX file and its `POSTS` entry.
+
+Each read is counted once per browser every six hours (an `ov_<slug>` cookie) and each
+reaction (👍 ❤️ 🚀 🎮) once per browser (`or_<slug>`). Counts are anonymous: no account, IP or
+fingerprint is stored. On Netlify they live in the `orbit-blog-stats` Netlify Blobs store
+(`lib/blog/stats.ts`); elsewhere (local dev, tests, Vercel) in memory, so they reset with the
+server. Posts share to X, Bluesky, LinkedIn, Reddit, Hacker News and Facebook, copy their link,
+or open the system share sheet (`components/share/ShareBar.tsx`); release pages share the same way.
 
 ## Release data
 
@@ -129,13 +166,21 @@ Use these Netlify site settings:
 
 ## Metadata and social sharing
 
-The root `app/opengraph-image.png` and `app/twitter-image.png` provide the social-card
-image for every route. Next.js serves them as hashed static assets and emits the matching
-`og:image` and `twitter:image` tags. Accompanying `.alt.txt` files describe the image for
-screen readers and platforms that consume alt text.
+Every section has its own generated 1200×630 social card (`opengraph-image.tsx` and
+`twitter-image.tsx`), drawn by `src/og/card.tsx` with `next/og` in four layouts that match the
+design: **Landing Page** (`/`), **Installation** (`/install`), **Changelog** (`/changelog` and
+each `/changelog/[version]`: "Orbit vX is here." with its kinds of change) and **Blog**
+(`/blog` and each post, with its own title). `/docs` and `/download` use the same card with their
+own titles. The space background, planet horizon, wordmark and DM Sans fonts are in
+`src/og/assets/` (the background is pre-rendered as one JPEG). Cards are generated at build time.
 
-`src/app/layout.tsx` sets `metadataBase` to `https://orbit.thelittleluiz.me` so these
-images resolve to absolute URLs in production.
+`lib/seo.ts` gives each page its canonical URL plus Open Graph (`og:type`, site name, locale,
+article dates and tags) and `summary_large_image` Twitter tags, which LinkedIn, Facebook,
+Slack, Discord, iMessage, WhatsApp, Bluesky and X all read. `src/app/layout.tsx` sets
+`metadataBase` to `https://orbit.thelittleluiz.me` so images resolve to absolute URLs. The site
+also serves `/sitemap.xml`, `/robots.txt` (`/api/` disallowed), `/manifest.webmanifest`, an RSS
+feed, and JSON-LD: `SoftwareApplication` and `WebSite` on `/`, `BlogPosting` and breadcrumbs on
+posts, `TechArticle` on release pages.
 
 Netlify discovers the root config when no package-level config exists. File-based build
 settings override dashboard values, including a previously inferred
