@@ -5,7 +5,13 @@ import './globals.css'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { SiteHeader } from '@/components/layout/SiteHeader'
 import { SpaceBackdrop } from '@/components/space/SpaceBackdrop'
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/seo'
+import {
+  IS_PRODUCTION_SITE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  canonicalUrl,
+} from '@/lib/seo'
 
 const DEFAULT_TITLE = 'Orbit — Every game. One orbit.'
 
@@ -30,7 +36,7 @@ export const metadata: Metadata = {
   ],
   category: 'games',
   alternates: {
-    canonical: '/',
+    canonical: canonicalUrl('/'),
     types: { 'application/rss+xml': [{ url: '/blog/rss.xml', title: 'Orbit Blog' }] },
   },
   openGraph: {
@@ -46,11 +52,14 @@ export const metadata: Metadata = {
     title: DEFAULT_TITLE,
     description: SITE_DESCRIPTION,
   },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
-  },
+  // Deploy previews and branch deploys are never indexed.
+  robots: IS_PRODUCTION_SITE
+    ? {
+        index: true,
+        follow: true,
+        googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+      }
+    : { index: false, follow: false },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

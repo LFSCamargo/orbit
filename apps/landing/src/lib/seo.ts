@@ -1,11 +1,25 @@
 import type { Metadata } from 'next'
+import { PRODUCTION_URL, resolveSiteUrl } from './siteUrl'
 
-export const SITE_URL = 'https://orbit.thelittleluiz.me'
+/** Where this deployment is served (a preview's own URL, or production). */
+// `process.env.ORBIT_SITE_URL` is written out so Next inlines the value
+// next.config.ts resolved at build; pages regenerated later keep it.
+export const SITE_URL = resolveSiteUrl({
+  ...process.env,
+  ORBIT_SITE_URL: process.env.ORBIT_SITE_URL,
+})
+/** Only the production deployment may be indexed. */
+export const IS_PRODUCTION_SITE = SITE_URL === PRODUCTION_URL
 export const SITE_NAME = 'Orbit'
 export const SITE_DESCRIPTION =
   'Orbit is a controller-first game launcher for macOS. Bring Steam, Windows games and Mac apps together, play Windows games through Orbit Wine, and get from the couch to playing in seconds.'
 
-/** Absolute URL for a site path. */
+/** The production URL for a site path, for canonical links and the sitemap. */
+export function canonicalUrl(path = '/'): string {
+  return new URL(path, PRODUCTION_URL).toString()
+}
+
+/** Absolute URL for a site path on this deployment. */
 export function absoluteUrl(path = '/'): string {
   return new URL(path, SITE_URL).toString()
 }
@@ -37,7 +51,7 @@ export function pageMetadata({
   return {
     title,
     description,
-    alternates: { canonical: path },
+    alternates: { canonical: canonicalUrl(path) },
     openGraph: {
       type,
       url: path,
