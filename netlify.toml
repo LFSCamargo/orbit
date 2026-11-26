@@ -2,3 +2,8 @@
   base = "."
   command = "yarn nx run landing:build"
   publish = "apps/landing/.next"
+  # The site also reads CHANGELOG.md and .github/release-notes/ (the /changelog
+  # pages), which live outside apps/landing. Netlify skips a build when nothing
+  # under the package changed, so a release commit never reached the site; build
+  # whenever any of these change. Exit 0 skips the build, 1 runs it.
+  ignore = "git diff --quiet ${CACHED_COMMIT_REF:-HEAD^} ${COMMIT_REF:-HEAD} -- apps/landing CHANGELOG.md .github/release-notes package.json yarn.lock netlify.toml"
