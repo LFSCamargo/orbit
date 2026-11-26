@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import '@fontsource-variable/dm-sans'
 import './globals.css'
+import { ScrollReset } from '@/components/layout/ScrollReset'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { SiteHeader } from '@/components/layout/SiteHeader'
 import { SpaceBackdrop } from '@/components/space/SpaceBackdrop'
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 -z-10">
           <SpaceBackdrop embers={false} />
         </div>
+        <ScrollReset />
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <SiteFooter />
