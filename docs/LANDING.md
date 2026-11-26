@@ -176,8 +176,7 @@ own titles. The space background, planet horizon, wordmark and DM Sans fonts are
 
 `lib/seo.ts` gives each page its canonical URL plus Open Graph (`og:type`, site name, locale,
 article dates and tags) and `summary_large_image` Twitter tags, which LinkedIn, Facebook,
-Slack, Discord, iMessage, WhatsApp, Bluesky and X all read. `src/app/layout.tsx` sets
-`metadataBase` to `https://orbit.thelittleluiz.me` so images resolve to absolute URLs. The site
+Slack, Discord, iMessage, WhatsApp, Bluesky and X all read. `src/app/layout.tsx` sets `metadataBase` to the address of the deployment serving the page (`lib/siteUrl.ts`, resolved at build from Netlify's `CONTEXT` / `DEPLOY_PRIME_URL` or Vercel's `VERCEL_ENV` / `VERCEL_URL`), so `og:image` and `twitter:image` always point at images that exist on that deployment. Deploy previews are `noindex` and disallowed in `robots.txt`; canonical links and the sitemap always use `https://orbit.thelittleluiz.me`. The site
 also serves `/sitemap.xml`, `/robots.txt` (`/api/` disallowed), `/manifest.webmanifest`, an RSS
 feed, and JSON-LD: `SoftwareApplication` and `WebSite` on `/`, `BlogPosting` and breadcrumbs on
 posts, `TechArticle` on release pages.
