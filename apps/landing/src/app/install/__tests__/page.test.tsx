@@ -16,12 +16,31 @@ describe('InstallPage', () => {
 
     render(await InstallPage())
 
-    const link = screen.getByRole('link', { name: /Download for Mac/ })
+    const [link] = screen.getAllByRole('link', { name: /Download for Mac/ })
     expect(link).toHaveAttribute(
       'href',
       'https://github.com/LFSCamargo/orbit/releases/download/v2.2.0/Orbit-2.2.0-aarch64.dmg',
     )
     expect(link).toHaveTextContent('v2.2.0 · Apple Silicon · 12.0 MB')
-    expect(screen.getByText('Orbit-2.2.0-aarch64.dmg')).toBeInTheDocument()
+    expect(screen.getAllByText('Orbit-2.2.0-aarch64.dmg').length).toBeGreaterThan(0)
+  })
+
+  it('opens with a dedicated hero and the three install steps', async () => {
+    const [release] = parseReleases([githubRelease('2.2.0')])
+    vi.mocked(fetchLatestRelease).mockResolvedValue(release)
+
+    render(await InstallPage())
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Get Orbit runningin minutes.',
+    )
+    expect(screen.getByText('Installation · v2.2.0')).toBeInTheDocument()
+    for (const step of ['Download', 'Drag to Applications', 'Launch and play']) {
+      expect(screen.getByRole('heading', { level: 3, name: step })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('link', { name: 'All releases' })).toHaveAttribute(
+      'href',
+      '/download',
+    )
   })
 })
