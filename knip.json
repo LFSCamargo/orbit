@@ -11,7 +11,8 @@
       "project": ["src/**/*.{ts,tsx,css}", "e2e/**/*.ts"]
     },
     "apps/landing": {
-      "project": ["src/**/*.{ts,tsx,css}"]
+      "entry": ["src/content/blog/*.mdx"],
+      "project": ["src/**/*.{ts,tsx,css,mdx}"]
     }
   }
 }
