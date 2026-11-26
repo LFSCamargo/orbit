@@ -49,8 +49,22 @@ Play prefers the newest installed Orbit Wine that passes the probe in
 `runtimes/wine_capabilities.rs` (MSync plus the D3DMetal hook in `ntdll.so`).
 
 The compiled distribution is not committed. It ships as a GitHub release of the
-Orbit repository (`orbit-wine-v<version>`), built and published by the
-`Orbit Wine` workflow; `package.sh <built version dir> <out dir>` makes the
-archive, the sources tarball (LGPL) and `orbit-wine.json` that onboarding
-reads. See docs/CONTAINERS.md#distribution. GPTK DMGs stay user-imported; they
-are not redistributed.
+Orbit repository (`orbit-wine-v<version>`), built and published from a Mac
+(there is no CI). `package.sh <built version dir> <out dir>` makes the archive,
+the sources tarball (LGPL) and `orbit-wine.json` that onboarding reads. Publish
+it as a draft first, so Orbit never reads a manifest whose archive is still
+uploading, and never mark it latest:
+
+```bash
+VERSION="$(node -p "require('./scripts/wine/sources.json').crossover.version")"
+scripts/wine/build.sh
+scripts/wine/package.sh "$HOME/Library/Application Support/Orbit/runtimes/components/orbit-wine/$VERSION" release/orbit-wine
+gh release create "orbit-wine-v$VERSION" --draft --latest=false \
+  --title "Orbit Wine $VERSION" \
+  --notes "Orbit Wine $VERSION, built from CodeWeavers' CrossOver sources with Orbit's patches (scripts/wine). LGPL-2.1-or-later: the matching sources are attached." \
+  release/orbit-wine/*
+gh release edit "orbit-wine-v$VERSION" --draft=false --latest=false
+```
+
+See docs/CONTAINERS.md#distribution. GPTK DMGs stay user-imported; they are not
+redistributed.

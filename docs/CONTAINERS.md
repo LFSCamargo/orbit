@@ -77,9 +77,9 @@ Wine's prefix update writes through them. GPTK packages remain user-imported.
 ### Distribution
 
 Orbit Wine is published as GitHub releases of this repository, tagged
-`orbit-wine-v<version>` and never marked latest. The `Orbit Wine` workflow
-(`.github/workflows/orbit-wine.yml`, run by hand) builds it with
-`scripts/wine/build.sh` and packages it with `scripts/wine/package.sh`:
+`orbit-wine-v<version>` and never marked latest. It is built locally on a Mac
+with `scripts/wine/build.sh`, packaged with `scripts/wine/package.sh` and published with
+`gh release` (see `scripts/wine/README.md`):
 `orbit-wine-<version>.tar.zst` (`<version>/Orbit Wine.app`), the matching
 sources and patches (LGPL), and `orbit-wine.json` (version, url, size, SHA-256,
 sources). Onboarding's Setup installs it (`runtimes/orbit_wine.rs`): it reads

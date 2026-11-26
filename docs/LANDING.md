@@ -96,8 +96,8 @@ or open the system share sheet (`components/share/ShareBar.tsx`); release pages 
 
 ## Release data
 
-Releases come from the GitHub Releases API for `LFSCamargo/orbit`, so publishing a release
-through [the release workflow](../.github/workflows/release.yml) is all it takes to list it.
+Releases come from the GitHub Releases API for `LFSCamargo/orbit`, so publishing a GitHub
+release (built locally, see RUNNING.md "Publishing a release") is all it takes to list it.
 
 - `src/lib/github.ts` fetches `/repos/LFSCamargo/orbit/releases?per_page=100` with
   `next: { revalidate: 120 }` and exposes `fetchLatestRelease()` as the shared source of

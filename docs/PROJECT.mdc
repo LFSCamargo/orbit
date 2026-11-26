@@ -198,13 +198,11 @@ Playwright config: `apps/desktop/playwright.config.ts`. Specs live in `apps/desk
 
 ## CI (planned)
 
-GitHub Actions workflows:
+There are no GitHub Actions workflows: GitHub's macOS runners are paid, so releases
+(Orbit and Orbit Wine) are built and published locally (see RUNNING.md, "Publishing a
+release"). The landing site deploys on Netlify.
 
-| Workflow | Trigger | Purpose |
-| -------- | ------- | ------- |
-| [release.yml](../.github/workflows/release.yml) | Push tag `v*` | Build macOS `.dmg` and publish GitHub Release |
-
-Future CI should mirror local gates:
+Future CI, if added, should mirror local gates:
 
 1. `yarn run format:check`
 2. `yarn knip`

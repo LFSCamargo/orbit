@@ -119,16 +119,24 @@ release/0.1.0/
 
 The release script must run on **macOS** with Xcode CLT, Node.js, Yarn, and Rust installed. The `release/` folder is gitignored.
 
-### GitHub Releases (CI)
+### Publishing a release
 
-Push a semver tag to trigger [`.github/workflows/release.yml`](../.github/workflows/release.yml):
+Releases are built and published from a Mac (there is no CI: GitHub's macOS runners are paid).
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git checkout main && git pull
+yarn monopipeline release 2.6.0 --summary "Short release summary"
+# Fill in CHANGELOG.md and .github/release-notes/2.6.0.md, then:
+git commit -am "chore(release): prepare v2.6.0"   # git add the new release-notes file first
+git push origin main
+git tag -a v2.6.0 -m "Orbit 2.6.0" && git push origin v2.6.0
+yarn release:macos
+gh release create v2.6.0 --verify-tag --title "Orbit 2.6.0" --latest \
+  --notes-file .github/release-notes/2.6.0.md release/2.6.0/*
 ```
 
-The workflow syncs the version from the tag, builds on GitHub's `macos-14` runner, and publishes `.dmg`, `.app.tar.gz`, and checksums to the GitHub Releases tab.
+The landing site lists the release within two minutes (GitHub Releases API), and Netlify
+redeploys `/changelog` because the release commit changes `CHANGELOG.md`.
 
 ---
 
