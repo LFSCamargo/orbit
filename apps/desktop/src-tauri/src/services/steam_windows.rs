@@ -1133,6 +1133,15 @@ pub(crate) fn steam_runtime_command(wine: &Path, prefix: &Path) -> Command {
     command
 }
 
+/// `steam_runtime_command` for the container's Steam client: Steam runs without
+/// a Dock icon, app menu, Cmd-Tab entry or menu bar icon (`runtimes::hidden_client`).
+/// Never for the game or the sign-in window.
+pub(crate) fn hidden_steam_command(wine: &Path, prefix: &Path) -> Command {
+    let mut command = steam_runtime_command(wine, prefix);
+    runtimes::hidden_client::apply(&mut command);
+    command
+}
+
 fn steam_wine_root() -> PathBuf {
     session_dir(&app_data_dir()).join("wine-11.21")
 }

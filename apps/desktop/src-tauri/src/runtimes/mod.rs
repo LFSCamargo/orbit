@@ -6,6 +6,7 @@ pub mod controllers;
 pub mod detection;
 pub mod game_bundle;
 pub mod gptk_local;
+pub mod hidden_client;
 pub mod homebrew;
 pub mod layer;
 pub mod manager;

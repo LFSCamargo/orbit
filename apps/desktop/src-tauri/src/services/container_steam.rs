@@ -8,9 +8,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::steam_windows::{
-    shutdown_argv, steam_exe_in, steam_runtime_command, stop_steam_runtime,
-};
+use super::steam_windows::{hidden_steam_command, shutdown_argv, steam_exe_in, stop_steam_runtime};
 use crate::utils::{steam_account, steam_vdf};
 
 const READY_TIMEOUT: Duration = Duration::from_secs(180);
@@ -262,7 +260,7 @@ fn start_silent_client<F: FnMut(&str)>(
         if super::steam_browser::helper_dir(&root).is_some() {
             super::steam_browser::prepare(&steam).map_err(|err| format!("{err:#}"))?;
         }
-        let mut command = steam_runtime_command(&host.wine, &host.prefix);
+        let mut command = hidden_steam_command(&host.wine, &host.prefix);
         command
             .args(super::steam_play::silent_client_args(&steam))
             .current_dir(&root)
@@ -385,7 +383,7 @@ pub fn shutdown(host: &SteamHost) {
     }
     let steam = steam_exe_in(&host.prefix);
     if steam.is_file() && host.wine.is_file() {
-        let mut command = steam_runtime_command(&host.wine, &host.prefix);
+        let mut command = hidden_steam_command(&host.wine, &host.prefix);
         command
             .args(shutdown_argv(&steam))
             .stdin(Stdio::null())
@@ -705,7 +703,7 @@ pub(crate) fn hide_tray(host: &SteamHost, cancel: &AtomicBool) {
     if cancel.load(Ordering::Relaxed) {
         return;
     }
-    let mut command = steam_runtime_command(&host.wine, &host.prefix);
+    let mut command = hidden_steam_command(&host.wine, &host.prefix);
     command
         .arg("reg")
         .arg("add")
@@ -746,7 +744,7 @@ pub(crate) fn enable_auto_login(
     if !steam_account::valid_account_name(account) {
         return Err("Sign in with Steam before playing this game".into());
     }
-    let mut command = steam_runtime_command(&host.wine, &host.prefix);
+    let mut command = hidden_steam_command(&host.wine, &host.prefix);
     command
         .args([
             "reg",

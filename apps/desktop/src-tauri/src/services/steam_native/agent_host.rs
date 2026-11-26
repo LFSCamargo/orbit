@@ -15,7 +15,7 @@ use serde::Serialize;
 
 use super::session::AgentCredentials;
 use crate::runtimes::containers::steam::steam_root;
-use crate::services::steam_windows::steam_runtime_command;
+use crate::services::steam_windows::hidden_steam_command;
 
 const AGENT: &[u8] = include_bytes!("../../../assets/orbit-steam-agent.exe");
 /// The container's Steam folder as Wine maps it, for paths handed to the agent.
@@ -213,7 +213,7 @@ pub fn ensure_running(
     let session_file = write_private(&control.join("session.json"), &request)?;
 
     let control_win = format!(r"{STEAM_DIR_WIN}\{CONTROL_REL}");
-    let mut command = steam_runtime_command(wine, prefix);
+    let mut command = hidden_steam_command(wine, prefix);
     command
         .arg(format!(r"{STEAM_DIR_WIN}\steam.exe"))
         .env(
@@ -335,7 +335,7 @@ pub fn seed_saved_login_with_cancel(
     })
     .map_err(|_| SEED_FAILED.to_string())?;
     let session = write_private(&control.join("session.json"), &request)?;
-    let mut command = steam_runtime_command(wine, prefix);
+    let mut command = hidden_steam_command(wine, prefix);
     command
         .arg(&exe)
         .env(
@@ -377,7 +377,7 @@ pub fn unwrap_saved_token(wine: &Path, prefix: &Path, account: &str) -> Option<S
     let out = control.join("token");
     let _ = std::fs::remove_file(&out);
     write_private(&out, b"").ok()?;
-    let mut command = steam_runtime_command(wine, prefix);
+    let mut command = hidden_steam_command(wine, prefix);
     command
         .arg(&exe)
         .env("ORBIT_AGENT_UNWRAP", &local_win)
