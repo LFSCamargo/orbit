@@ -20,6 +20,36 @@ yarn monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-25
+
+Lighter game containers, a hidden Steam client, and a self-updating library
+
+### Added
+
+- The Windows Steam client that signs a game in now runs hidden: it never appears in the Dock, the menu bar (no app menu or tray icon) or Cmd-Tab, and cannot take focus from the game. Orbit loads `OrbitHiddenClient.dylib` into the container's Steam processes only; games and the Settings sign-in window are unaffected.
+- Steam library sync on every launch: owned games are read from Steam's local `packageinfo.vdf` and `appinfo.vdf` (with real titles and types), and a cancellable background sync in a reusable `steam-sync` container picks up games bought on the phone or web. Play, downloads, sign-in, sign-out and quit stop it at once.
+- **Steam download locations** in Settings → Library: add an external SSD or a new folder (created on a connected drive) and pick it when installing. Library scans, play and uninstall also find games there.
+- Settings → Storage lists every connected drive with its own breakdown and summed free space, and can remove any Orbit-created data (`remove_storage_item`).
+- The launch screen shows live Steam sign-in steps (connecting, signing in, preparing Steam).
+
+### Changed
+
+- Per-game Wine containers clone a slim per-Wine base prefix and leaf-symlink its read-only `drive_c/windows` folders (`system32`, `syswow64`, `winsxs`, `resources`, `Microsoft.NET`, `globalization`) instead of copying them. Graphics DLLs are still copied per game.
+- Valve's Steam client files are leaf-symlinked from `steam-windows` (or the shared `runtimes/steam-client` cache) instead of copied into every container (about 1–1.5 GB per game). Mutable files and account data stay per container, disposable caches are pruned, and existing containers are healed on their next launch.
+- Steam catalog hydration and the background sync stand down while a game is launching or running, and Orbit no longer starts Wine at boot to decrypt cookies older than 36 hours.
+- Component versions can be removed even when selected; the selection is cleared.
+- Game details show "Space needed" for titles that are not installed.
+
+### Fixed
+
+- A refused Steam login (Access Denied, Invalid Password, Expired, Revoked) is cleared across `native-session.json`, `steam-windows`, the container and `steam-sync` before Steam is force-stopped, instead of waiting on `-shutdown`; Orbit then asks to sign in again from Settings → Steam.
+- Spatial focus scores candidates by edge gaps, so the D-pad no longer skips two-column rows between full-width buttons (for example Stop game / Back to Orbit in the quick menu).
+- Focus rings are no longer clipped by scroll containers on the Home shelf, Library grid, drawers, settings and onboarding.
+- The remaining old `orbit.svg` logos are replaced by the current app icon.
+- `SetupProgress` fields are serialized in camelCase.
+
+[2.5.0]: https://github.com/LFSCamargo/orbit/releases/tag/v2.5.0
+
 ## [2.4.0] - 2026-11-22
 
 D3DMetal DLSS & MetalFX Frame Generation, `D3DM_MAX_FPS`, and RE Engine stability
