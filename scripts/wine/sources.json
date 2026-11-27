@@ -2,6 +2,10 @@
   "name": "orbit-wine",
   "license": "LGPL-2.1-or-later",
   "description": "CrossOver-class Wine for Orbit containers. Sources are not vendored in this repository.",
+  "release": {
+    "version": "26.3.0-2",
+    "notes": "The Orbit Wine version: the CrossOver version, then Orbit's rebuild number. Bump the rebuild number whenever a patch or bundled library changes, so installed Orbits update (runtimes/orbit_wine.rs compares the numbers). 26.3.0-2: mmdevapi audio buffer (0003) and the SDL2 pad bridge."
+  },
   "crossover": {
     "vendor": "CodeWeavers",
     "sourceIndex": "https://media.codeweavers.com/pub/crossover/source/",

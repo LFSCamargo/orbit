@@ -16,7 +16,13 @@ games silently ran on wined3d. CrossOver fixes this from closed code through
 points it at the selected translation layer. Wine Mono 10.4.1 (pinned) and Gecko
 2.47.4 are bundled so prefix setup never waits on an install prompt.
 
-`sources.json` pins the tarball URL and SHA-256. Build and install locally:
+`sources.json` pins the tarball URL and SHA-256. `release.version` is the Orbit
+Wine version: the CrossOver version, then Orbit's rebuild number
+(`26.3.0-2`). Bump the rebuild number whenever a patch or a bundled library
+changes. Orbit compares the numbers (`runtimes/orbit_wine.rs`), so a rebuild
+is offered to installed Orbits and onboarding picks it over the first build;
+reusing a version would leave every existing install on the old build. Build
+and install locally:
 
 ```bash
 scripts/wine/build.sh
@@ -25,7 +31,7 @@ scripts/wine/build.sh
 It verifies the tarball, configures an x86_64 WoW64 build under Rosetta
 against a private copy of the Gcenx bundle's x86_64 libraries (so arm64
 Homebrew libraries are never linked), and installs a self-contained component
-at `runtimes/components/orbit-wine/<version>/`. Needs Xcode CLT and Homebrew
+at `runtimes/components/orbit-wine/<release.version>/`. Needs Xcode CLT and Homebrew
 `mingw-w64`, `bison`, `freetype`, and `gnutls` (headers). EGL, Wayland, FFmpeg,
 and GStreamer are not built.
 
@@ -56,7 +62,7 @@ it as a draft first, so Orbit never reads a manifest whose archive is still
 uploading, and never mark it latest:
 
 ```bash
-VERSION="$(node -p "require('./scripts/wine/sources.json').crossover.version")"
+VERSION="$(node -p "require('./scripts/wine/sources.json').release.version")"
 scripts/wine/build.sh
 scripts/wine/package.sh "$HOME/Library/Application Support/Orbit/runtimes/components/orbit-wine/$VERSION" release/orbit-wine
 gh release create "orbit-wine-v$VERSION" --draft --latest=false \
