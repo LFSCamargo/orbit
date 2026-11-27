@@ -17,7 +17,14 @@ export type DownloadTask = {
   rate?: number | null
   /** Last byte sample the rate was measured from. */
   sample?: { at: number; bytes: number }
+  /** Recent speeds (oldest first, about one per second) for the speed graph. */
+  history?: number[]
+  /** Fastest speed seen for this transfer. */
+  peak?: number
 }
+
+/** Speed samples kept per transfer: about a minute and a half. */
+const HISTORY_LIMIT = 90
 
 type DownloadStore = {
   tasks: Record<string, DownloadTask>
@@ -56,7 +63,7 @@ export const useDownloadStore = create<DownloadStore>((set) => ({
       return {
         tasks: {
           ...state.tasks,
-          [key]: { ...task, progress, ...measure(task, progress) },
+          [key]: { ...task, progress, ...track(task, measure(task, progress)) },
         },
       }
     }),
@@ -94,6 +101,19 @@ export const useDownloadStore = create<DownloadStore>((set) => ({
 
 /** Weight of the newest sample in the smoothed rate. */
 const RATE_SMOOTHING = 0.4
+
+/** Adds a measured speed to the task's history and peak. O(h), h ≤ HISTORY_LIMIT. */
+function track(
+  task: DownloadTask,
+  measured: Pick<DownloadTask, 'rate' | 'sample'>,
+): Pick<DownloadTask, 'rate' | 'sample' | 'history' | 'peak'> {
+  const rate = measured.rate
+  if (typeof rate !== 'number' || measured.sample === undefined) {
+    return { ...measured, history: task.history, peak: task.peak }
+  }
+  const history = [...(task.history ?? []), rate].slice(-HISTORY_LIMIT)
+  return { ...measured, history, peak: Math.max(task.peak ?? 0, rate) }
+}
 
 /** Rate fields after a progress update. O(1). */
 function measure(
@@ -147,6 +167,36 @@ export function downloadPercent(progress: SetupProgress | null): number | null {
   const bytes = progressBytes(progress)
   if (!bytes || bytes.total <= 0) return null
   return Math.min(100, Math.round((bytes.downloaded / bytes.total) * 100))
+}
+
+/**
+ * Precise 0-100 progress (not rounded), 100 once ready, or null while the
+ * amount of work is unknown. Use for bars so large downloads move smoothly.
+ */
+export function downloadFraction(progress: SetupProgress | null): number | null {
+  if (progress?.phase === 'Ready') return 100
+  const bytes = progressBytes(progress)
+  if (!bytes || bytes.total <= 0) return null
+  return Math.min(100, Math.max(0, (bytes.downloaded / bytes.total) * 100))
+}
+
+/** "3.4%", "100%"; one decimal while in progress so slow movement shows. */
+export function formatPercent(value: number | null): string | null {
+  if (value === null) return null
+  if (value <= 0) return '0%'
+  if (value >= 100) return '100%'
+  return `${Math.floor(value * 10) / 10}%`
+}
+
+/** "35s", "41m", "1h 12m", "2d 2h": how people say time left. */
+export function formatTimeLeft(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  if (total < 60) return `${total}s`
+  const minutes = Math.floor(total / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ${minutes % 60}m`
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }
 
 /** One-line status a screen can read out, always including a percentage when known. */

@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
+  downloadFraction,
   downloadPercent,
+  formatPercent,
+  formatTimeLeft,
   downloadStatus,
   downloadStep,
   elapsedSeconds,
@@ -275,4 +278,65 @@ it('estimates time left and formats elapsed time', () => {
   expect(formatDuration(42)).toBe('0:42')
   expect(formatDuration(725)).toBe('12:05')
   expect(formatDuration(3723)).toBe('1:02:03')
+})
+
+it('reports precise progress so a large download visibly moves', () => {
+  // Regression: whole percents left a 107 GB download still for ~1 GB at a time.
+  const progress = {
+    phase: 'Downloading' as const,
+    component: 'God of War Ragnarök',
+    downloadedBytes: 3_650_676_672,
+    totalBytes: 107_638_559_248,
+    stagedBytes: 3_727_145_118,
+    stageTotalBytes: 188_876_500_360,
+  }
+  expect(downloadFraction(progress)).toBeCloseTo(3.3916, 3)
+  expect(formatPercent(downloadFraction(progress))).toBe('3.3%')
+  // Rounds down, so a download never reads 100% before it is done.
+  expect(formatPercent(99.99)).toBe('99.9%')
+  expect(formatPercent(100)).toBe('100%')
+  expect(formatPercent(0)).toBe('0%')
+  expect(formatPercent(null)).toBeNull()
+  expect(downloadFraction({ phase: 'Ready', component: 'x', message: 'Ready' })).toBe(100)
+})
+
+it('reads time left the way people say it', () => {
+  expect(formatTimeLeft(35)).toBe('35s')
+  expect(formatTimeLeft(41 * 60 + 12)).toBe('41m')
+  expect(formatTimeLeft(72 * 60)).toBe('1h 12m')
+  expect(formatTimeLeft(50 * 3600)).toBe('2d 2h')
+})
+
+it('keeps a short speed history and the peak for each download', () => {
+  const store = useDownloadStore.getState()
+  store.start({ key: 'steam:2322010', label: 'God of War Ragnarök' })
+  for (const rate of [10, 40, 25]) {
+    useDownloadStore.getState().update('steam:2322010', {
+      phase: 'Downloading',
+      component: 'x',
+      downloadedBytes: 1,
+      totalBytes: 100,
+      bytesPerSecond: rate,
+    })
+  }
+  const tracked = useDownloadStore.getState().tasks['steam:2322010']
+  expect(tracked.history).toEqual([10, 40, 25])
+  expect(tracked.peak).toBe(40)
+  // Leaving the download step keeps the history and peak for the summary.
+  useDownloadStore.getState().update('steam:2322010', {
+    phase: 'Installing',
+    component: 'x',
+    message: 'Installing files',
+  })
+  expect(useDownloadStore.getState().tasks['steam:2322010'].peak).toBe(40)
+  for (let index = 0; index < 120; index += 1) {
+    useDownloadStore.getState().update('steam:2322010', {
+      phase: 'Downloading',
+      component: 'x',
+      downloadedBytes: 1,
+      totalBytes: 100,
+      bytesPerSecond: index,
+    })
+  }
+  expect(useDownloadStore.getState().tasks['steam:2322010'].history).toHaveLength(90)
 })

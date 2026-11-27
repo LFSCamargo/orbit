@@ -3,9 +3,10 @@ import { LiquidGlass } from '@/components/ui/liquid-glass'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { queuePosition, useDownloadQueue } from '@/hooks/useDownloadQueue'
 import {
-  downloadPercent,
+  downloadFraction,
   downloadStatus,
   downloadStep,
+  formatPercent,
   useDownloadStore,
 } from '@/lib/downloadProgress'
 import { progressLines } from '@/hooks/useDownloadToasts'
@@ -22,7 +23,8 @@ export function DetailsDownloadStatus({ entry }: { entry: LibraryEntry }) {
   const waiting = queuePosition(queue, entry.steamAppId)
   const running = task && task.progress?.phase !== 'Ready'
   if (!running && !waiting) return null
-  const percent = running ? downloadPercent(task.progress) : null
+  const fraction = running ? downloadFraction(task.progress) : null
+  const percent = formatPercent(fraction)
   const step = running ? downloadStep(task) : null
   const heading = !running
     ? 'Queued'
@@ -48,10 +50,14 @@ export function DetailsDownloadStatus({ entry }: { entry: LibraryEntry }) {
         <div className="flex items-baseline justify-between gap-3 text-[11px] leading-none">
           <span className="truncate font-semibold text-white/90">{heading}</span>
           {percent !== null && (
-            <span className="shrink-0 tabular-nums text-white/90">{percent}%</span>
+            <span className="shrink-0 tabular-nums text-white/90">{percent}</span>
           )}
         </div>
-        <ProgressBar label={`${entry.game.title} progress`} value={percent} />
+        <ProgressBar
+          label={`${entry.game.title} progress`}
+          value={fraction}
+          live={fraction !== null}
+        />
         {detail && (
           <span
             className="truncate text-[10px] tabular-nums leading-none text-white/60"

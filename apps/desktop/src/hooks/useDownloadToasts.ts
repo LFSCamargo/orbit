@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import {
-  downloadPercent,
+  downloadFraction,
   downloadStatus,
   downloadStep,
+  formatTimeLeft,
   formatTransferRate,
+  timeLeft,
   transferredOf,
   useDownloadStore,
   type DownloadTask,
@@ -31,10 +33,12 @@ export function progressLines(task: DownloadTask): {
     task.progress?.phase === 'Downloading' && task.rate
       ? formatTransferRate(task.rate)
       : null
+  const left = timeLeft(task.progress, task.rate ?? null)
+  const remaining = left === null ? null : `${formatTimeLeft(left)} left`
   if (!step) return { message: bytes ?? downloadStatus(task) }
   return {
     caption: `Step ${step.index} of ${step.count} · ${step.label}`,
-    message: [speed, bytes].filter(Boolean).join(' · ') || undefined,
+    message: [speed, bytes, remaining].filter(Boolean).join(' · ') || undefined,
   }
 }
 
@@ -58,7 +62,7 @@ export function syncDownloadToasts(previous: Snapshot, next: Snapshot) {
       id: task.key,
       title: task.label,
       ...progressLines(task),
-      value: downloadPercent(task.progress),
+      value: downloadFraction(task.progress),
     })
   }
   for (const [key, error] of Object.entries(next.failures)) {

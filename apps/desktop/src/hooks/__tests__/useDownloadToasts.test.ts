@@ -57,7 +57,7 @@ it('shows one progress toast per transfer and finishes it as success', () => {
     id: 'steam:312990',
     title: 'The Expendabros',
     caption: 'Step 5 of 7 · Downloading',
-    message: '12.3 MB/s · 64.0 MB / 128.0 MB',
+    message: '12.3 MB/s · 64.0 MB / 128.0 MB · 6s left',
     value: 50,
   })
   const done = task({ phase: 'Ready', component: 'x', message: 'Installed' })

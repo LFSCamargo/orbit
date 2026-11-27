@@ -5,6 +5,7 @@ pub mod download_queue;
 pub mod game_content;
 pub mod game_fixes;
 pub mod http;
+pub mod game_repair;
 pub mod import_artwork;
 pub mod install_locations;
 pub mod install_roots;

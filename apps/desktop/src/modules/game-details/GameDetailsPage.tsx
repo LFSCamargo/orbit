@@ -30,8 +30,7 @@ import {
   uninstallAppId as findUninstallAppId,
   selectInstallation,
 } from '@/lib/libraryEntries'
-import { isOrbitManagedDownload } from '@/lib/libraryActions'
-import { downloadSteamWindowsGame, enrichGameMetadata, revealPath } from '@/lib/tauri'
+import { enrichGameMetadata, revealPath } from '@/lib/tauri'
 import { AchievementList } from './components/AchievementList'
 import { DetailsHero } from './components/DetailsHero'
 import { DetailsPrimaryAction } from './components/DetailsPrimaryAction'
@@ -40,6 +39,7 @@ import { DetailsSettings } from './components/DetailsSettings'
 import { InstallationPicker } from './components/InstallationPicker'
 import { DetailsRunInfo } from './components/DetailsRunInfo'
 import { MetaGrid } from './components/MetaGrid'
+import { RepairAction } from './components/RepairAction'
 import { UninstallAction } from './components/UninstallAction'
 import { CloudGameActions } from '@/modules/xcloud/components/CloudGameActions'
 import { useSessionStore } from '@/stores/session.store'
@@ -162,15 +162,6 @@ export function GameDetailsPage() {
       notify.success({ title: 'Metadata refreshed', message: result.message }, { id })
     } catch (err) {
       notify.error({ title: 'Metadata refresh failed', message: errorText(err) }, { id })
-    }
-  }
-  const verify = async () => {
-    if (!entry.steamAppId) return
-    try {
-      await downloadSteamWindowsGame(entry.steamAppId)
-      notify.success({ title: 'Verification queued', message: game.title })
-    } catch (err) {
-      notify.error({ title: 'Could not verify files', message: errorText(err) })
     }
   }
   const showFolder = async () => {
@@ -408,19 +399,13 @@ export function GameDetailsPage() {
                     </span>
                   </Focusable>
                 )}
-                {isOrbitManagedDownload(installation?.path) && entry.steamAppId && (
-                  <Focusable
-                    focusId="details-verify"
-                    group="details-management"
+                {uninstallAppId && (
+                  <RepairAction
+                    appId={uninstallAppId}
+                    title={game.title}
+                    disabled={running}
                     order={3}
-                    noScale
-                    onClick={() => void verify()}
-                  >
-                    <RefreshCw size={16} />
-                    <span>
-                      Verify files<small>Re-check the Orbit-managed download</small>
-                    </span>
-                  </Focusable>
+                  />
                 )}
                 {uninstallAppId && (
                   <UninstallAction

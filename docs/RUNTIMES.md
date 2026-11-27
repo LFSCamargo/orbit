@@ -58,9 +58,10 @@ download.
   sentence with the percentage and `x / y` in decimal units; an unknown total
   shows bytes so far instead of "0 of 0". `Installing { message }` shows the
   native step.
-- `src/components/ui/progress-bar.tsx` is the styled track: a filled bar with
-  `aria-valuenow`, or a sweeping indeterminate segment when the value is
-  `null` (a pulse with Reduce Motion). `download-progress.tsx` wraps it with
+- `src/components/ui/progress-bar.tsx` is the styled track: a bar filled to the
+  exact value (`aria-valuenow` whole, `aria-valuetext` with one decimal) that
+  glides between updates, with an optional `live` sheen, or a sweeping
+  indeterminate segment when the value is `null` (a pulse with Reduce Motion). `download-progress.tsx` wraps it with
   the live-region text; `RuntimeSettings`, every component row, details and
   the downloads sidebar use it.
 - Finished tasks stay listed as completed until **Clear completed**;

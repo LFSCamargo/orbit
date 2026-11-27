@@ -500,8 +500,22 @@ export async function retrySteamCatalogMetadata(): Promise<
   return run('retry_steam_catalog_metadata')
 }
 
-export async function downloadSteamWindowsGame(appId: string): Promise<void> {
-  return run('download_steam_windows_game', { appId })
+/**
+ * Repair Installation: Steam checks every file and fetches what is missing,
+ * then the game's setup steps run again. `queued` means the download queue
+ * shows progress; `steam` means the open Steam for Mac window does it.
+ */
+export async function repairSteamGame(appId: string): Promise<'queued' | 'steam'> {
+  return run('repair_steam_game', { appId })
+}
+
+export async function getGameCompression(): Promise<CompressionStatus> {
+  return run('get_game_compression')
+}
+
+/** Compresses (or decompresses) every installed game; progress arrives as `game-compression-progress`. */
+export async function setGameCompression(enabled: boolean): Promise<CompressionStatus> {
+  return run('set_game_compression', { enabled })
 }
 
 /**

@@ -251,7 +251,7 @@ Shared components in `src/components/`:
 | --------- | ---- | ----- |
 | `Focusable` | `focus/Focusable.tsx` | Registers node in focus graph |
 | `ConfirmDialog` | `feedback/ConfirmDialog.tsx` | Delete/clear confirmations; `busyLabel` and an option slot; closes on back |
-| `ProgressBar` | `ui/progress-bar.tsx` | Determinate fill or indeterminate sweep |
+| `ProgressBar` | `ui/progress-bar.tsx` | Exact (unrounded) fill that glides between updates, optional live sheen; indeterminate sweep only when the size is unknown |
 | `UninstallDialog` | `game/UninstallDialog.tsx` | Uninstall confirm with the keep/delete saves switch |
 
 ---

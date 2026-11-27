@@ -38,3 +38,20 @@ it('fills with the fire gradient when asked', () => {
   const fill = screen.getByRole('progressbar', { name: 'Setup' }).firstElementChild
   expect(fill?.className).toContain('orbit-progress-fire')
 })
+
+it('fills to the exact amount with a live sheen', () => {
+  // Regression: whole percents and a sweeping bar read as a loader.
+  render(<ProgressBar label="Game" value={3.39} live />)
+  const bar = screen.getByRole('progressbar', { name: 'Game' })
+  expect(bar).toHaveAttribute('aria-valuenow', '3')
+  expect(bar).toHaveAttribute('aria-valuetext', '3.3%')
+  expect(bar).not.toHaveAttribute('data-indeterminate')
+  expect(screen.getByTestId('progress-sheen')).toBeTruthy()
+  const fill = screen.getByTestId('progress-sheen').parentElement
+  expect(fill).toHaveStyle({ width: '3.39%' })
+})
+
+it('shows no sheen unless asked', () => {
+  render(<ProgressBar label="Copy" value={50} />)
+  expect(screen.queryByTestId('progress-sheen')).toBeNull()
+})

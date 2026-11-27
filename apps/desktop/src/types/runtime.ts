@@ -123,6 +123,9 @@ export type SetupProgress =
       totalBytes: number
       /** Rate measured where the bytes are counted (Steam downloads report it). */
       bytesPerSecond?: number
+      /** Steam games: bytes already written to the install, of the install size. */
+      stagedBytes?: number
+      stageTotalBytes?: number
     }
   | {
       phase: 'Verifying'

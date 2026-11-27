@@ -152,6 +152,7 @@ pub fn run() {
             commands::steam_windows::download_steam_windows_game,
             commands::steam_windows::cancel_steam_windows_download,
             commands::downloads::enqueue_steam_download,
+            commands::downloads::repair_steam_game,
             commands::downloads::get_download_queue,
             commands::downloads::remove_queued_download,
             commands::downloads::start_queued_download_now,

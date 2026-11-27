@@ -94,7 +94,7 @@ pub fn parse_state(content: &str) -> ClientState {
     }
 }
 
-fn read_state(manifest: &Path) -> Option<ClientState> {
+pub(crate) fn read_state(manifest: &Path) -> Option<ClientState> {
     let meta = fs::metadata(manifest).ok()?;
     if !meta.is_file() || meta.len() > MANIFEST_LIMIT {
         return None;
@@ -377,7 +377,7 @@ pub fn run(
         return Err(err);
     }
 
-    let result = watch(app, &steamapps, app_id, key, label, &mut log);
+    let result = watch(app, &steamapps, app_id, key, label, &mut log, START_TIMEOUT);
     container_steam::shutdown(&host);
     result
 }
@@ -465,33 +465,73 @@ impl RateMeter {
 
 /// The step event for the panel, without the rate. Waiting (signed in, Steam
 /// not started yet) already counts as starting, so sign-in never lingers.
-fn step_event(step: UpdateStep, label: &str, bytes: (u64, u64)) -> Option<serde_json::Value> {
-    let message =
-        |text: &str| json!({ "phase": "Installing", "component": label, "message": text });
+/// Bytes Steam reports for the current app: downloaded of the download total,
+/// and written to disk ("staged") of the install size.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct StepBytes {
+    downloaded: u64,
+    download_total: u64,
+    staged: u64,
+    stage_total: u64,
+}
+
+/// The progress event for one update step. Every step that has real numbers
+/// carries them, so the UI shows a filled bar instead of a spinner: a resumed
+/// download starts at its saved position, the download also reports what is
+/// already written to disk, and installing files counts the bytes written.
+fn step_event(step: UpdateStep, label: &str, bytes: StepBytes) -> Option<serde_json::Value> {
+    let message = |text: &str, done: u64, total: u64| {
+        let mut event = json!({ "phase": "Installing", "component": label, "message": text });
+        if total > 0 {
+            event["downloadedBytes"] = json!(done.min(total));
+            event["totalBytes"] = json!(total);
+        }
+        event
+    };
     match step {
-        UpdateStep::Waiting | UpdateStep::Preparing => Some(message("Starting download")),
-        UpdateStep::Preallocating => Some(message("Allocating disk space")),
-        UpdateStep::Downloading => Some(json!({
-            "phase": "Downloading",
-            "component": label,
-            "downloadedBytes": bytes.0,
-            "totalBytes": bytes.1,
-        })),
+        UpdateStep::Waiting | UpdateStep::Preparing => Some(message(
+            "Starting download",
+            bytes.downloaded,
+            bytes.download_total,
+        )),
+        UpdateStep::Preallocating => Some(message(
+            "Allocating disk space",
+            bytes.downloaded,
+            bytes.download_total,
+        )),
+        UpdateStep::Downloading => {
+            let mut event = json!({
+                "phase": "Downloading",
+                "component": label,
+                "downloadedBytes": bytes.downloaded,
+                "totalBytes": bytes.download_total,
+            });
+            if bytes.stage_total > 0 {
+                event["stagedBytes"] = json!(bytes.staged.min(bytes.stage_total));
+                event["stageTotalBytes"] = json!(bytes.stage_total);
+            }
+            Some(event)
+        }
         UpdateStep::Verifying => Some(json!({ "phase": "Verifying", "component": label })),
-        UpdateStep::Committing => Some(message("Installing files")),
+        UpdateStep::Committing => {
+            Some(message("Installing files", bytes.staged, bytes.stage_total))
+        }
         UpdateStep::Installed => None,
     }
 }
 
 /// Follows the client's content log (each step, totals, failures) and the
 /// game's download folder (bytes) until Steam reports the game installed.
-fn watch(
+/// Shared by the container client and Steam for Mac, which write the same
+/// manifest and log. `start_timeout` bounds the wait before bytes move.
+pub(crate) fn watch(
     app: &AppHandle,
     steamapps: &Path,
     app_id: &str,
     key: &str,
     label: &str,
     log: &mut ContentLog,
+    start_timeout: Duration,
 ) -> Result<DownloadOutcome, String> {
     let manifest = steamapps.join(format!("appmanifest_{app_id}.acf"));
     let downloading = steamapps.join("downloading").join(app_id);
@@ -535,7 +575,22 @@ fn watch(
             total = of;
             downloaded = downloaded.max(bytes.max(state.downloaded.min(of)));
         }
-        if let Some(event) = step_event(update.step, label, (downloaded, total)) {
+        let step_bytes = if update.step == UpdateStep::Downloading {
+            StepBytes {
+                downloaded,
+                download_total: total,
+                staged: staged.max(state.staged),
+                stage_total: update.stage_total.max(state.to_stage),
+            }
+        } else {
+            StepBytes {
+                downloaded: state.downloaded,
+                download_total: state.to_download,
+                staged: state.staged,
+                stage_total: state.to_stage.max(update.stage_total),
+            }
+        };
+        if let Some(event) = step_event(update.step, label, step_bytes) {
             if event != last_event || emitted_at.elapsed() >= HEARTBEAT {
                 let mut payload = event.clone();
                 if update.step == UpdateStep::Downloading {
@@ -546,7 +601,7 @@ fn watch(
                 emitted_at = Instant::now();
             }
         }
-        if !began && started.elapsed() > START_TIMEOUT {
+        if !began && started.elapsed() > start_timeout {
             return Err(
                 "Steam did not start the download. Check that you own the game and have space, then try again."
                     .into(),
@@ -568,6 +623,39 @@ mod tests {
         assert!(!state.installed());
         assert!(text.contains("\"installdir\"\t\t\"The Expendabros\""));
         assert!(text.contains("\"appid\"\t\t\"312990\""));
+    }
+
+    #[test]
+    fn every_step_with_known_bytes_reports_them() {
+        // Regression: only the download step had numbers, so resuming,
+        // allocating and installing files showed a spinner-like bar.
+        let bytes = StepBytes {
+            downloaded: 3_650,
+            download_total: 107_638,
+            staged: 3_727,
+            stage_total: 188_876,
+        };
+        let starting = step_event(UpdateStep::Preparing, "Game", bytes).unwrap();
+        assert_eq!(starting["message"], "Starting download");
+        assert_eq!(starting["downloadedBytes"], 3_650);
+        assert_eq!(starting["totalBytes"], 107_638);
+
+        let downloading = step_event(UpdateStep::Downloading, "Game", bytes).unwrap();
+        assert_eq!(downloading["phase"], "Downloading");
+        assert_eq!(downloading["stagedBytes"], 3_727);
+        assert_eq!(downloading["stageTotalBytes"], 188_876);
+
+        let installing = step_event(UpdateStep::Committing, "Game", bytes).unwrap();
+        assert_eq!(installing["message"], "Installing files");
+        assert_eq!(installing["downloadedBytes"], 3_727);
+        assert_eq!(installing["totalBytes"], 188_876);
+
+        let fresh = step_event(UpdateStep::Waiting, "Game", StepBytes::default()).unwrap();
+        assert!(
+            fresh.get("totalBytes").is_none(),
+            "no fake zeros before Steam knows the size"
+        );
+        assert!(step_event(UpdateStep::Installed, "Game", bytes).is_none());
     }
 
     #[test]
@@ -697,12 +785,18 @@ mod tests {
 
     #[test]
     fn signed_in_but_not_started_reads_as_starting_the_download() {
-        let waiting = step_event(UpdateStep::Waiting, "Game", (0, 0)).unwrap();
+        let waiting = step_event(UpdateStep::Waiting, "Game", StepBytes::default()).unwrap();
         assert_eq!(waiting["message"], "Starting download");
         assert_eq!(step_message("login"), "Signing in to Steam");
-        let downloading = step_event(UpdateStep::Downloading, "Game", (5, 10)).unwrap();
+        let bytes = StepBytes {
+            downloaded: 5,
+            download_total: 10,
+            ..StepBytes::default()
+        };
+        let downloading = step_event(UpdateStep::Downloading, "Game", bytes).unwrap();
         assert_eq!(downloading["downloadedBytes"], 5);
-        assert!(step_event(UpdateStep::Installed, "Game", (0, 0)).is_none());
+        assert!(downloading.get("stagedBytes").is_none());
+        assert!(step_event(UpdateStep::Installed, "Game", StepBytes::default()).is_none());
     }
 
     #[test]
