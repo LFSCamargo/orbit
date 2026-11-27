@@ -5,6 +5,21 @@ export interface OrbitWineStatus {
   containerReady: boolean
 }
 
+/** One Orbit Wine build Settings can offer. */
+export interface OrbitWineVersion {
+  version: string
+  installed: boolean
+  /** The build Play uses. */
+  active: boolean
+  sizeBytes: number | null
+}
+
+export interface OrbitWineVersions {
+  versions: OrbitWineVersion[]
+  /** Why published builds are missing (offline), or null. */
+  error: string | null
+}
+
 export interface WineInstallation {
   path: string
   serverPath: string

@@ -1074,9 +1074,10 @@ pub fn installed_app_ids(
 }
 
 /// The Wine a Steam title plays with. A CrossOver-class Orbit Wine (MSync and
-/// D3DMetal hooks) wins; the sign-in Wine lacks both and runs games slowly.
+/// D3DMetal hooks) wins, the build chosen in Settings first; the sign-in Wine
+/// lacks both and runs games slowly.
 pub(crate) fn play_wine_binary(repo: &GameRepository) -> Option<PathBuf> {
-    runtimes::wine_capabilities::installed_crossover(&runtimes::root())
+    runtimes::orbit_wine_selection::play_loader(repo, &runtimes::root())
         .or_else(steam_wine_binary)
         .or_else(|| wine_executable(repo))
 }

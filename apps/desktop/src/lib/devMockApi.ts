@@ -322,7 +322,18 @@ export async function mockInvoke<T>(
     case 'orbit_wine_status':
       return null as T
     case 'install_orbit_wine':
+    case 'install_orbit_wine_version':
       throw new Error('Managed downloads require the Orbit desktop app.')
+    case 'orbit_wine_versions':
+      return {
+        versions: [
+          { version: '26.3.0-2', installed: true, active: true, sizeBytes: 471_415_963 },
+          { version: '26.3.0', installed: false, active: false, sizeBytes: 470_813_658 },
+        ],
+        error: null,
+      } as T
+    case 'select_orbit_wine':
+      return undefined as T
     case 'compatibility_catalog':
       return {
         fetchedAt: new Date().toISOString(),

@@ -27,6 +27,9 @@ vi.mock('@/lib/tauri', () => ({
   installGptkViaHomebrew: vi.fn(),
   installLocalGptkPackage: vi.fn(),
   registerComponentPath: vi.fn(),
+  getOrbitWineVersions: vi.fn().mockResolvedValue({ versions: [], error: null }),
+  selectOrbitWine: vi.fn(),
+  installOrbitWineVersion: vi.fn(),
   getCompatibilityCatalog: vi.fn().mockResolvedValue({
     fetchedAt: '2026-11-11T00:00:00Z',
     warnings: [],
@@ -190,10 +193,13 @@ it('gates managed setup behind the macOS system capability', async () => {
 it('lists component versions and saves global defaults', async () => {
   renderSettings()
   expect(
-    await screen.findByRole('combobox', { name: 'Compatibility layer version' }),
+    await screen.findByRole('combobox', { name: 'Windows games runtime version' }),
   ).toBeVisible()
   expect(
-    screen.getAllByRole('combobox', { name: 'Graphics engine version' }),
+    screen.queryByRole('combobox', { name: 'Compatibility layer version' }),
+  ).toBeNull()
+  expect(
+    await screen.findAllByRole('combobox', { name: 'Graphics engine version' }),
   ).toHaveLength(1)
   expect(screen.queryByLabelText('DirectX 11 graphics version')).not.toBeInTheDocument()
   expect(

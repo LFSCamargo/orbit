@@ -106,7 +106,11 @@ test('component rows expose a per-row install action and honest preview errors',
   await page.locator('[data-focus-id="macos-nav-settings"]').click()
   await page.getByRole('button', { name: 'Compatibility', exact: true }).click()
   await page.getByText('Compatibility components').waitFor()
-  const install = page.locator('[data-focus-id="runtime-install-wine"]')
+  const runtime = page.getByRole('combobox', { name: 'Windows games runtime version' })
+  await expect(runtime).toContainText('Orbit Wine 26.3.0-2')
+  await runtime.click()
+  await page.getByRole('option').filter({ hasText: 'Not installed' }).click()
+  const install = page.locator('[data-focus-id="runtime-install-orbit-wine"]')
   await expect(install).toBeVisible()
   await expect(install).toContainText('Install')
   await install.click()
@@ -119,9 +123,9 @@ test('component rows expose a per-row install action and honest preview errors',
       .filter({ hasText: 'Managed downloads require the Orbit desktop app' })
       .first(),
   ).toBeVisible()
-  await expect(page.locator('[data-focus-id="runtime-install-wine"]')).toContainText(
-    'Retry',
-  )
+  await expect(
+    page.locator('[data-focus-id="runtime-install-orbit-wine"]'),
+  ).toContainText('Retry')
 })
 
 test('display is fixed at 1080p and DLSS support remains available', async ({ page }) => {

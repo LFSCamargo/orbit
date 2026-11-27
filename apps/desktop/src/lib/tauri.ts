@@ -284,6 +284,29 @@ export async function orbitWineStatus(): Promise<
   return run('orbit_wine_status')
 }
 
+/** Published and installed Orbit Wine builds, and which one Play uses. */
+export async function getOrbitWineVersions(): Promise<
+  import('@/types/runtime').OrbitWineVersions
+> {
+  return run('orbit_wine_versions')
+}
+
+/** Makes an installed Orbit Wine build the one games play with. */
+export async function selectOrbitWine(version: string): Promise<void> {
+  return run('select_orbit_wine', { version })
+}
+
+/** Installs one published Orbit Wine build and makes games play with it. */
+export async function installOrbitWineVersion(
+  version: string,
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<void> {
+  if (!isTauriRuntime()) return run('install_orbit_wine_version', { version })
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('install_orbit_wine_version', { version, onProgress: channel })
+}
+
 /** Installs the newest published Orbit Wine and prepares its base container. */
 export async function installOrbitWine(
   onProgress: (progress: import('@/types/runtime').SetupProgress) => void,

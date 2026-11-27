@@ -12,6 +12,7 @@ pub mod homebrew;
 pub mod layer;
 pub mod manager;
 pub mod orbit_wine;
+pub mod orbit_wine_selection;
 pub mod prefix;
 pub mod process;
 pub mod retired_components;

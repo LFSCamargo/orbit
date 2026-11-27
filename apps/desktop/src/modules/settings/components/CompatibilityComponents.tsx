@@ -6,7 +6,6 @@ import {
   Cpu,
   Download,
   FileDown,
-  Layers,
   LoaderCircle,
   RefreshCw,
 } from 'lucide-react'
@@ -18,15 +17,20 @@ import type {
   ActiveComponents,
   CatalogComponent,
   InstalledComponent,
-  WineInstallation,
 } from '@/types/runtime'
 import { useComponentBrowseStore } from '@/stores/component-browse.store'
 import { useActiveComponents } from '../hooks/useActiveComponents'
 import { useComponentViews } from '../hooks/useComponentViews'
 import { useComponentInstall } from '../hooks/useComponentInstall'
 import { ComponentVersionPicker, type ComponentVersion } from './ComponentVersionPicker'
-import { buttonClass } from '@/components/ui/button'
 import { ComponentRowsSkeleton } from './CompatibilitySkeleton'
+import { OrbitWineRuntimeRow } from './OrbitWineRuntimeRow'
+import {
+  COMPAT_ROW,
+  COMPONENT_ICON,
+  COMPONENT_STATUS,
+  PRIMARY_BUTTON,
+} from './compatibilityRowStyles'
 
 const graphicsIds = new Set(['dxvk', 'dxmt', 'gptk'])
 
@@ -35,33 +39,16 @@ const ROW_GROUP = clsx(
   'bg-orbit-foreground/[0.035] shadow-[inset_0_1px_0_rgb(var(--orbit-foreground)/0.035)]',
 )
 
-const COMPAT_ROW = clsx(
-  'compatibility-component grid min-h-[78px] grid-cols-[34px_minmax(0,1fr)_minmax(130px,34%)] items-center gap-3.5 p-4',
-  'even:bg-orbit-foreground/[0.035] hover:bg-orbit-foreground/[0.055]',
-  'max-[700px]:grid-cols-[36px_minmax(0,1fr)]',
-  'max-[700px]:[&>button]:col-start-2 max-[700px]:[&>button]:w-full max-[700px]:[&>button]:text-left',
-)
-
-const COMPONENT_ICON =
-  'compatibility-component-icon grid size-[34px] place-items-center rounded-xl border border-orbit-border bg-orbit-foreground/[0.04] text-orbit-foreground/70'
-
 const SECONDARY_BUTTON = clsx(
   'settings-secondary-button flex items-center gap-2 whitespace-nowrap rounded-full border border-orbit-border bg-orbit-foreground/[0.06] px-3.5 py-2.5 text-xs font-semibold',
   'disabled:cursor-not-allowed disabled:opacity-40',
 )
 
-const PRIMARY_BUTTON = clsx(
-  buttonClass({ size: 'sm', className: 'settings-primary-button' }),
-  'disabled:cursor-not-allowed disabled:opacity-40',
-)
+/** Wine from the catalog: Play runs every Windows game on Orbit Wine, which
+ * the Windows games runtime row chooses, so these tracks are not offered. */
+const isCatalogWine = (id: string) => id.startsWith('wine-')
 
-export function CompatibilityComponents({
-  managed,
-  managedVersion,
-}: {
-  managedVersion: string
-  managed: WineInstallation | null
-}) {
+export function CompatibilityComponents() {
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['compatibility-catalog'],
     queryFn: () => getCompatibilityCatalog(),
@@ -84,19 +71,13 @@ export function CompatibilityComponents({
   const components = data?.components ?? []
   const groups = [
     {
-      id: 'wine',
-      label: 'Compatibility layer',
-      help: 'Choose a Wine version to view or install it.',
-      components: components.filter((item) => item.id.startsWith('wine-')),
-    },
-    {
       id: 'graphics',
       label: 'Graphics engine',
       help: 'DirectX 10 / 11 / 12 · Pick an engine and version, then install it to unlock it in Game graphics.',
       components: components.filter((item) => graphicsIds.has(item.id)),
     },
     ...components
-      .filter((item) => !item.id.startsWith('wine-') && !graphicsIds.has(item.id))
+      .filter((item) => !isCatalogWine(item.id) && !graphicsIds.has(item.id))
       .map((item) => ({
         id: item.id,
         label: item.name,
@@ -149,14 +130,13 @@ export function CompatibilityComponents({
       ))}
       {data && (
         <div className={ROW_GROUP}>
+          <OrbitWineRuntimeRow />
           {groups
             .filter((group) => group.components.length)
             .map((group) => (
               <ComponentRow
                 key={group.id}
                 {...group}
-                managed={managed}
-                managedVersion={managedVersion}
                 installedByKey={installedByKey}
                 installs={installs}
                 active={actives}
@@ -183,8 +163,6 @@ function ComponentRow({
   label,
   help,
   components,
-  managed,
-  managedVersion,
   installedByKey,
   installs,
   active,
@@ -194,8 +172,6 @@ function ComponentRow({
   label: string
   help: string
   components: CatalogComponent[]
-  managed: WineInstallation | null
-  managedVersion: string
   installedByKey: Map<string, InstalledComponent>
   installs: Installs
   active: ActiveComponents
@@ -224,15 +200,6 @@ function ComponentRow({
     }),
   )
 
-  // A managed Wine install counts as the pinned stable version.
-  const wineManagedKey = useMemo(() => {
-    if (id !== 'wine' || !managed) return null
-    return (
-      versions.find((v) => v.component.id === 'wine-stable' && v.installed)?.key ??
-      JSON.stringify(['wine-stable', managedVersion])
-    )
-  }, [id, managed, managedVersion, versions])
-
   const installedVersionOf = (version: ComponentVersion): string | undefined => {
     const exact = installedByKey.get(version.key)
     if (exact) return exact.version
@@ -255,9 +222,6 @@ function ComponentRow({
     versions.find((version) => version.key === selected) ??
     versions.find(isActive) ??
     versions.find((version) => version.installed) ??
-    (wineManagedKey
-      ? versions.find((version) => version.key === wineManagedKey)
-      : undefined) ??
     versions[0]
 
   const choose = async (key: string) => {
@@ -331,17 +295,14 @@ function ComponentRow({
   return (
     <div className={COMPAT_ROW}>
       <span className={COMPONENT_ICON} aria-hidden="true">
-        {id === 'wine' ? <Layers size={18} /> : <Cpu size={18} />}
+        <Cpu size={18} />
       </span>
       <div className="min-w-0 flex-1 space-y-2">
         <div>
           <p className="text-sm font-medium">{label}</p>
           <p className="mt-1 text-xs leading-relaxed text-orbit-muted">{help}</p>
           {current && (
-            <span
-              className="compatibility-status mt-[7px] inline-flex items-center gap-[5px] text-[11px] text-orbit-muted data-[ready=true]:text-[#86d6ab]"
-              data-ready={installed}
-            >
+            <span className={COMPONENT_STATUS} data-ready={installed}>
               {installed && <Check size={12} />}
               {installed
                 ? 'Installed · Ready'

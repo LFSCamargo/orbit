@@ -72,6 +72,106 @@ pub async fn install_orbit_wine(
     .map_err(|e| e.to_string())?
 }
 
+/// Published and installed Orbit Wine builds, and which one Play uses. Offline,
+/// the installed builds are still listed with the reason in `error`.
+#[tauri::command]
+pub async fn orbit_wine_versions(
+    app: AppHandle,
+) -> Result<runtimes::orbit_wine_selection::OrbitWineVersions, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = runtimes::root();
+        let state = app.state::<AppState>();
+        let installed = runtimes::wine_capabilities::installed_versions(&root);
+        let active = runtimes::orbit_wine_selection::play_loader(&state.repo, &root)
+            .and_then(|loader| runtimes::orbit_wine::version_of(&loader));
+        let (published, error) =
+            match runtimes::orbit_wine::published_releases(runtimes::orbit_wine::PUBLISHED_LIMIT) {
+                Ok(published) => (published, None),
+                Err(error) => (Vec::new(), Some(format!("{error:#}"))),
+            };
+        Ok(runtimes::orbit_wine_selection::OrbitWineVersions {
+            versions: runtimes::orbit_wine_selection::versions(
+                &published,
+                &installed,
+                active.as_deref(),
+            ),
+            error,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Makes an installed Orbit Wine build the one games play with.
+#[tauri::command]
+pub async fn select_orbit_wine(app: AppHandle, version: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        switch_orbit_wine(&app.state::<AppState>(), &runtimes::root(), &version)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Installs one published Orbit Wine build, prepares its base container and
+/// makes it the one games play with.
+#[tauri::command]
+pub async fn install_orbit_wine_version(
+    app: AppHandle,
+    version: String,
+    on_progress: Channel<runtimes::manager::SetupProgress>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        ensure_no_game(&state)?;
+        let root = runtimes::root();
+        let release = runtimes::orbit_wine::release_for(&version).map_err(|e| format!("{e:#}"))?;
+        runtimes::orbit_wine::install(&root, &release, |update| {
+            let _ = on_progress.send(update);
+        })
+        .map_err(|e| format!("{e:#}"))?;
+        let loader = runtimes::wine_capabilities::crossover_at(&root, &release.version)
+            .ok_or("The installed Orbit Wine could not be found")?;
+        runtimes::orbit_wine::prepare_container_at(&root, &loader, |update| {
+            let _ = on_progress.send(update);
+        })
+        .map_err(|e| format!("{e:#}"))?;
+        switch_orbit_wine(&state, &root, &release.version)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// A running game holds a wineserver of the current build; another build
+/// cannot join it.
+fn ensure_no_game(state: &AppState) -> Result<(), String> {
+    if state.sessions.get_active().is_some() || state.sessions.is_launching() {
+        return Err("Quit the running game before changing Orbit Wine".into());
+    }
+    Ok(())
+}
+
+/// Choose the build, make it the default Wine, and stop Steam clients the old
+/// build left running: a client on another build's wineserver cannot host the
+/// next game.
+fn switch_orbit_wine(
+    state: &AppState,
+    root: &std::path::Path,
+    version: &str,
+) -> Result<(), String> {
+    ensure_no_game(state)?;
+    let before = runtimes::orbit_wine_selection::play_loader(&state.repo, root);
+    let loader = runtimes::orbit_wine_selection::select(&state.repo, root, version)
+        .map_err(|e| format!("{e:#}"))?;
+    state
+        .repo
+        .set_setting("wine-runtime", &serde_json::json!(loader.to_string_lossy()))
+        .map_err(|e| e.to_string())?;
+    if before.as_deref() != Some(loader.as_path()) {
+        crate::services::steam_resident::stop_all_except(None);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn compatibility_catalog(
     force_refresh: bool,
