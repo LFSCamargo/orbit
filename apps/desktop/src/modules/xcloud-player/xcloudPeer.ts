@@ -21,7 +21,7 @@ import { keyframeDue, STALL_MS } from './keyframePolicy'
 const INPUT_INTERVAL_MS = 16
 const ICE_GATHER_TIMEOUT_MS = 3000
 /** Fixed value xbox.com's player sends with its authorization request. */
-const CONTROL_ACCESS_KEY = '4BDB3609-C1F1-4195-9B37-FEFF45DA8B8E'
+const CONTROL_ACCESS_KEY = '4BDB3609-C1F1-4195-9B37-FEFF45DA8B8E' // gitleaks:allow
 
 export interface XcloudPeerEvents {
   /** The server ended the session (e.g. the game was quit in-stream). */

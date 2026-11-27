@@ -145,6 +145,10 @@ See [`.cursor/rules/docs-sync.mdc`](.cursor/rules/docs-sync.mdc).
 4. List which gates you ran in the test plan.
 5. Link related issues if applicable.
 
+### Hooks and security
+
+`bun install` sets up Husky. `pre-commit` runs `format:check`, `typecheck` and a gitleaks scan of staged changes; `commit-msg` runs commitlint. Run `bun run security` before opening a PR.
+
 ### Commit messages
 
 Prefer [Conventional Commits](https://www.conventionalcommits.org/):

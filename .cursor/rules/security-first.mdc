@@ -22,6 +22,18 @@ launch, secret handling, and SQLite integrity. Fix violations before declaring w
 
 ---
 
+## Scanners
+
+Run `bun run security` before a PR or release (there is no CI):
+
+- `security:secrets`: gitleaks over git history with `.gitleaks.toml`; reviewed false positives are fingerprints in `.gitleaksignore`. The pre-commit hook scans staged changes.
+- `security:sast`: OpenGrep (Semgrep when OpenGrep is not installed) with `.opengrep.yml`: no `eval` / `new Function`, no `dangerouslySetInnerHTML`, no hardcoded secrets, no shell strings in JS `exec` or Rust `sh -c`.
+- `security:audit`: `bun audit`, plus `cargo audit` when installed.
+
+Keys live in `.env` (gitignored); `.env.example` lists them with placeholders. Dependencies are pinned to exact versions.
+
+---
+
 ## Filesystem & process safety
 
 - Validate and canonicalize paths before read/write/launch in Rust.

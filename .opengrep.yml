@@ -1,0 +1,53 @@
+# OpenGrep / Semgrep rules for Orbit. Run with `bun run security:sast`.
+# Mirrors .cursor/rules/security-first.mdc: no eval, no raw HTML, no secrets in
+# source, no shell strings built from values.
+rules:
+  - id: orbit-no-eval
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+    message: 'eval / new Function run arbitrary code. See .cursor/rules/security-first.mdc.'
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  - id: orbit-no-dangerously-set-inner-html
+    pattern: <$EL dangerouslySetInnerHTML={...} />
+    message: 'dangerouslySetInnerHTML renders untrusted HTML. Render text, or sanitize in Rust.'
+    languages: [typescript]
+    severity: ERROR
+    paths:
+      exclude:
+        # Reviewed: JSON-LD from JSON.stringify with every < escaped (Next.js pattern).
+        - apps/landing/src/components/seo/JsonLd.tsx
+
+  - id: orbit-no-hardcoded-secret
+    pattern-regex: "(?i)(api_key|apikey|secret|password|token)\\s*[:=]\\s*['\"][A-Za-z0-9_\\-]{24,}['\"]"
+    message: 'Possible hardcoded secret. Read it from .env (see .env.example) or the keychain.'
+    languages: [typescript, javascript, rust]
+    severity: ERROR
+    paths:
+      exclude:
+        - '**/__tests__/**'
+        - '**/*.test.ts'
+        - '**/*.test.tsx'
+        - '**/e2e/**'
+
+  - id: orbit-no-js-shell-interpolation
+    pattern-either:
+      - pattern: exec(`...${$VAR}...`, ...)
+      - pattern: execSync(`...${$VAR}...`, ...)
+    message: 'Shell string built from a value. Use execFile / spawn with an argument array.'
+    languages: [typescript, javascript]
+    severity: WARNING
+
+  - id: orbit-no-rust-shell-c
+    patterns:
+      - pattern-either:
+          - pattern: Command::new("sh").args([..., "-c", ...])
+          - pattern: Command::new("bash").args([..., "-c", ...])
+          - pattern: Command::new("zsh").args([..., "-c", ...])
+          - pattern: Command::new("sh").arg("-c")
+          - pattern: Command::new("bash").arg("-c")
+    message: 'Launching through a shell lets arguments become code. Run the program directly with an argument list.'
+    languages: [rust]
+    severity: WARNING

@@ -1,0 +1,16 @@
+title = "Orbit gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders and test fixtures, never real credentials"
+paths = [
+  '''\.env\.example$''',
+  '''(^|/)__tests__/''',
+  '''\.test\.tsx?$''',
+  '''(^|/)e2e/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)target/''',
+  '''^bun\.lock$''',
+]

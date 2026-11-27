@@ -1,0 +1,5 @@
+# Reviewed gitleaks false positives (fingerprint: commit:file:rule:line).
+# xcloudPeer.ts: fixed public constant xbox.com's own player sends, not a credential.
+# steam-agent session.rs: fake token in a unit-test fixture.
+d2b5a177cfde19d82356f15f62c86c600d1e7461:apps/desktop/src/modules/xcloud-player/xcloudPeer.ts:generic-api-key:24
+f38d65b1b9f4fa3436e5ae985682087825c81252:apps/desktop/src-tauri/helpers/steam-agent/src/session.rs:generic-api-key:85
