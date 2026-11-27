@@ -89,13 +89,45 @@ with `scripts/wine/build.sh`, packaged with `scripts/wine/package.sh` and publis
 `orbit-wine-<version>.tar.zst` (`<version>/Orbit Wine.app`), the matching
 sources and patches (LGPL), and `orbit-wine.json` (version, url, size, SHA-256,
 sources). Onboarding's Setup installs it (`runtimes/orbit_wine.rs`): it reads
-the newest release from the GitHub API, accepts only this repository's release
+the highest-versioned release from the GitHub API (versions compare by their
+numbers, so the rebuild `26.3.0-2` beats `26.3.0` whatever order GitHub lists
+them in), accepts only this repository's release
 downloads with a SHA-256 under GitHub's 2 GB asset limit, streams the archive to
 disk while hashing, unpacks it with the component store's safe extractor into
 `components/orbit-wine/<version>/`, rejects a build that fails the
 CrossOver-class probe, registers the bundle with LaunchServices, then prepares
 the base container (`containers::prepare_base`) so a game's first Play only
 clones it.
+
+Installed Orbit Wines are offered newer builds when Orbit opens
+(`useOrbitWineUpdatePrompt`, `components/runtime/OrbitWineUpdateModal.tsx`), once
+onboarding and the splash are done and no game is running. `orbit_wine_update`
+(`runtimes/orbit_wine_update.rs`) returns the highest published build when it is
+newer than the newest installed one, with its GitHub release notes (control
+characters dropped, capped at 6,000 characters, rendered as plain text by
+`lib/releaseNotes.ts`). **Download update** installs it with
+`install_orbit_wine_version` as the one `component:orbit-wine` download task and
+switches games to it. **Keep** stores the version (`skip_orbit_wine_update`,
+SQLite setting `orbit-wine-update-skipped-v1`) so that build is not offered again;
+a later build is. Back, Escape or the backdrop close the dialog until the next
+launch. The new build lands in its own version folder next to the old one, which
+stays on disk because game containers can still link files from its base
+container, and a game's container keeps its saves: Wine updates the prefix on
+its next start.
+
+Settings → Compatibility → **Windows games runtime** chooses the build
+(`runtimes/orbit_wine_selection.rs`). With no choice stored, Play follows the
+newest installed build. Choosing an older build pins it (SQLite setting
+`orbit-wine-version-v1`), so updates install beside it without taking over;
+choosing the newest clears the pin. A pin to a build that is gone falls back to
+the newest. Switching is refused while a game runs or launches, and stops the
+Steam clients the old build left resident: a client on another build's
+wineserver cannot host the next game. Installing a published build there
+prepares its base container and switches to it.
+
+A fix to Orbit's patches or bundled libraries ships as a new rebuild number in
+`scripts/wine/sources.json` (`release.version`). Re-uploading the same version
+reaches nobody: an install of an equal version is treated as already done.
 
 Orbit Wine is installed as `Orbit Wine.app` (games category) so macOS Game Mode
 boosts the game: every Wine process runs from `Contents/MacOS/wine`.

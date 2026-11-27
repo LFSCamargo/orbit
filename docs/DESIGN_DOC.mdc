@@ -42,7 +42,7 @@ login window, snapshots the owned library, downloads one Windows depot at a
 time, and plays through the compatibility runtime.
 
 Commands: `windows_compatibility`, `install_windows_compatibility`,
-`orbit_wine_status`, `install_orbit_wine` (onboarding's Orbit Wine and its base container),
+`orbit_wine_status`, `install_orbit_wine` (onboarding's Orbit Wine and its base container), `app_update_check`, `app_update_install` (the Orbit update dialog on launch: a newer signed release with its notes; installing restarts Orbit), `orbit_wine_update`, `skip_orbit_wine_update` (the Orbit Wine update dialog on launch: a newer build with its release notes, or keep the installed one), `orbit_wine_versions`, `select_orbit_wine`, `install_orbit_wine_version` (Settings' Windows games runtime: which Orbit Wine build Play uses),
 `detect_runtimes`, `register_wine_runtime`, `runtime_diagnostics`,
 `component_views`, `set_component_view`,
 `cancel_game_launch`; existing `create_game`, `update_game`, `launch_game` and

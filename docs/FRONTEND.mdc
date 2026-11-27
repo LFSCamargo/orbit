@@ -345,7 +345,7 @@ uses a single O(n) map pass instead of copying the growing groups on each item.
 
 ## Runtime controls
 
-Settings → Compatibility uses `modules/settings/components/RuntimeSettings.tsx`.
+Settings → Compatibility uses `modules/settings/components/RuntimeSettings.tsx`. Its Windows games runtime row (`OrbitWineRuntimeRow.tsx`, `hooks/useOrbitWineVersions.ts`) lists `orbit_wine_versions`, switches with `select_orbit_wine`, and installs a published build with `install_orbit_wine_version` as the one `component:orbit-wine` download task.
 Settings → Steam uses `modules/settings/components/SteamSettings.tsx` for authorization, offline mode, and file verification. Installing Steam for Windows uses the shared `steam:setup` download task so the progress bar and errors stay visible if the panel unmounts. The Install button stays until `steamwebhelper.exe` is on disk under `cef.win64`, `cef.win7x64`, or `cef.win7`, not merely `steam.exe`.
 
 Details → Settings → Refresh metadata calls `enrich_game_metadata`, which fetches Steam store copy for the known AppID first, then TheGamesDB. Importer stubs such as leftover shortcut install notes are replaced or cleared; catalog overlay never fills an empty field with those stubs.

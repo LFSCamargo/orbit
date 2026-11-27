@@ -75,7 +75,7 @@ bun run security            # gitleaks + OpenGrep/Semgrep + bun audit (cargo aud
 
 Bun is the package manager and script runner (`bun.lock`, `bunfig.toml` pins exact versions). Always use `bun run <script>`: a bare `bun test` or `bun build` starts Bun's own runner or bundler instead of the Nx target. Every dependency is pinned to an exact version (no `^` or `~`). Install scripts run only for `trustedDependencies` in the root `package.json`.
 
-Husky hooks run on commit: `pre-commit` runs format:check, typecheck and a gitleaks scan of staged changes; `commit-msg` runs commitlint (Conventional Commits). There is no CI: run `bun run security` before a PR or release. Reviewed false positives go in `.gitleaksignore` (fingerprints) and in `.opengrep.yml` path excludes, each with a reason.
+Husky hooks run on commit: `pre-commit` runs format:check, typecheck and a gitleaks scan of staged changes; `commit-msg` runs commitlint (Conventional Commits). CI only releases: CircleCI (`.circleci/config.yml`) builds, signs and publishes a pushed `v<version>` tag on its macOS runners; nothing else runs there, so run the gates above and `bun run security` before a PR or release. Reviewed false positives go in `.gitleaksignore` (fingerprints) and in `.opengrep.yml` path excludes, each with a reason.
 
 ## Out of scope
 

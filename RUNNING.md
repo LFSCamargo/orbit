@@ -121,19 +121,60 @@ The release script must run on **macOS** with Xcode CLT, Node.js, Bun, and Rust 
 
 ### Publishing a release
 
-Releases are built and published from a Mac (there is no CI: GitHub's macOS runners are paid).
+Pushing a release tag publishes the release on CircleCI's macOS runners
+(`.circleci/config.yml`); `bun run release:macos -- --publish` does the same from a Mac.
+People install Orbit once from the DMG; after that, Orbit offers each new release in an
+update dialog when it opens (Tauri updater). Updates are signed with Orbit's updater key, and
+installed Orbits only accept an update signed with it.
+
+Once per machine, create the key (no password) and commit the public key it writes to
+`apps/desktop/src-tauri/tauri.conf.json`:
+
+```bash
+bun run release:macos -- --init-key   # ~/.tauri/orbit.key and orbit.key.pub
+```
+
+Back up `~/.tauri/orbit.key` somewhere safe (a password manager or an encrypted drive). It
+has no password, so the file is the only protection: anyone who has it can sign an update
+installed Orbits accept. Without it no installed Orbit can be updated again; a new key means
+everyone reinstalls from the DMG.
+
+Each release:
 
 ```bash
 git checkout main && git pull
-bun run monopipeline release 2.6.0 --summary "Short release summary"
-# Fill in CHANGELOG.md and .github/release-notes/2.6.0.md, then:
-git commit -am "chore(release): prepare v2.6.0"   # git add the new release-notes file first
+bun run monopipeline release 2.6.1 --summary "Short release summary"
+# Fill in CHANGELOG.md and .github/release-notes/2.6.1.md (the update dialog shows it), then:
+git commit -am "chore(release): prepare v2.6.1"   # git add the new release-notes file first
 git push origin main
-git tag -a v2.6.0 -m "Orbit 2.6.0" && git push origin v2.6.0
-bun run release:macos
-gh release create v2.6.0 --verify-tag --title "Orbit 2.6.0" --latest \
-  --notes-file .github/release-notes/2.6.0.md release/2.6.0/*
+git tag -a v2.6.1 -m "Orbit 2.6.1" && git push origin v2.6.1   # CircleCI publishes it
 ```
+
+To publish from a Mac instead (CircleCI down or out of minutes), run
+`bun run release:macos -- --publish` after pushing the tag.
+
+`--publish` builds and signs the release, verifies the update's signature against the
+public key in `tauri.conf.json`, writes `latest.json`, uploads everything to a draft
+release `v2.6.1`, then publishes it as latest. Installed Orbits read
+`releases/latest/download/latest.json`, so Orbit Wine releases are never marked latest.
+Without `--publish` the script only builds into `release/<version>/`.
+
+#### CircleCI setup (once)
+
+1. Sign in to CircleCI with GitHub and set up this repository (it reads
+   `.circleci/config.yml`).
+2. Organization Settings → Contexts → create `orbit-release`, restricted to your security
+   group, with two variables:
+   - `TAURI_SIGNING_PRIVATE_KEY`: the contents of `~/.tauri/orbit.key`
+     (`pbcopy < ~/.tauri/orbit.key`).
+   - `GH_TOKEN`: a fine-grained GitHub token for this repository with **Contents: read and
+     write** (creating releases needs it).
+3. Push a release tag. The job uses the `m4pro.medium` Mac (200 credits a minute; the free
+   plan's 30,000 macOS credits are about 150 minutes a month) and keeps the release files
+   as job artifacts.
+
+Context variables are not passed to builds of forked pull requests, and the workflow only
+runs for `v<version>` tags.
 
 The landing site lists the release within two minutes (GitHub Releases API), and Netlify
 redeploys `/changelog` because the release commit changes `CHANGELOG.md`.
