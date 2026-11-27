@@ -161,3 +161,16 @@ agent types. `services/steam_native/` reads the saved Windows login, plans
 SteamCMD downloads, and maps Steam Cloud files into the container. Passwords
 never enter that crate. Depot HTTP download (replacing SteamCMD at runtime) is
 the next executor behind the same `DepotPlan`.
+## Audio in games
+
+Wine's shared-mode audio buffer is 3 periods (30 ms). Under Rosetta a game's
+audio thread often misses a 10 ms deadline, the buffer runs dry, and every
+game crackled and distorted. Orbit Wine's `mmdevapi`
+(`scripts/wine/patches/0003-mmdevapi-orbit-audio-buffer.patch`) raises the
+smallest shared-mode buffer to `ORBIT_AUDIO_BUFFER_MS` (clamped to 10..500;
+unset keeps Wine's), and every container process gets 60
+(`runtimes/audio.rs`, about 30 ms more latency). A game's own value wins. To
+patch an installed Orbit Wine without a full build, rebuild
+`dlls/mmdevapi/{x86_64,i386}-windows/mmdevapi.dll` in the build tree and copy
+them into `Contents/lib/wine/` (then re-sign the bundle).
+

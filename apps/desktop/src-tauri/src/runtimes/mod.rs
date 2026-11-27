@@ -1,4 +1,5 @@
 //! Execution engines are independent of library providers and UI components.
+pub mod audio;
 pub mod catalog;
 pub mod components;
 pub mod containers;

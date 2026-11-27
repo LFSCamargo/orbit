@@ -1,0 +1,39 @@
+--- a/dlls/mmdevapi/client.c	2026-11-27 01:03:19
++++ b/dlls/mmdevapi/client.c	2026-11-27 01:03:19
+@@ -125,6 +125,27 @@
+     return params.result;
+ }
+ 
++/* Orbit: games under Rosetta often miss a 10 ms audio deadline, and Wine's
++ * shared-mode buffer of 3 periods then runs dry and crackles. ORBIT_AUDIO_BUFFER_MS
++ * (set by Orbit per container) raises the smallest shared-mode buffer;
++ * unset keeps Wine's. Clamped to 10..500 ms. Read once. */
++static REFERENCE_TIME orbit_min_shared_duration(void)
++{
++    static LONG cached = -1;
++    WCHAR value[16];
++    LONG ms = InterlockedCompareExchange(&cached, -1, -1);
++
++    if (ms < 0) {
++        DWORD len = GetEnvironmentVariableW(L"ORBIT_AUDIO_BUFFER_MS", value, ARRAY_SIZE(value));
++        ms = (len && len < ARRAY_SIZE(value)) ? wcstol(value, NULL, 10) : 0;
++        if (ms < 0) ms = 0;
++        if (ms > 500) ms = 500;
++        if (ms && ms < 10) ms = 10;
++        InterlockedExchange(&cached, ms);
++    }
++    return (REFERENCE_TIME)ms * 10000;
++}
++
+ static HRESULT adjust_timing(struct audio_client *client, const BOOLEAN force_def_period,
+                              REFERENCE_TIME *duration, REFERENCE_TIME *period,
+                              const AUDCLNT_SHAREMODE mode, const DWORD flags,
+@@ -147,6 +168,8 @@
+             return AUDCLNT_E_INVALID_DEVICE_PERIOD;
+         if (*duration < 3 * *period)
+             *duration = 3 * *period;
++        if (*duration < orbit_min_shared_duration())
++            *duration = orbit_min_shared_duration();
+     } else {
+         const WAVEFORMATEXTENSIBLE *fmtex = (WAVEFORMATEXTENSIBLE *)fmt;
+         if (fmtex->Format.wFormatTag == WAVE_FORMAT_EXTENSIBLE &&

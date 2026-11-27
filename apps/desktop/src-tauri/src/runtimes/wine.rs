@@ -130,8 +130,8 @@ impl WineAdapter {
         for (key, value) in super::wine_capabilities::container_sync_env(Path::new(&runtime.path)) {
             profile.environment.insert(key.into(), value.into());
         }
-        // Controller mappings for winebus' SDL; a game's own value wins.
-        for (key, value) in super::controllers::container_controller_env() {
+        // Audio gate (`audio.rs`); a game's own value wins.
+        for (key, value) in super::audio::container_audio_env() {
             profile
                 .environment
                 .entry(key.into())
