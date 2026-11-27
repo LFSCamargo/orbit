@@ -1,0 +1,7 @@
+{
+  "_comment": "A throwaway updater key (deleted after signing) signed `data`; no secret is kept.",
+  "data": "Orbit updater fixture\n",
+  "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE1N0Q3MzcxRTA4ODZEQ0EKUldUS2JZamdjWE45RllBa0x5anR1R2J6S1RPRExaNFMwbXN6VTgrR1V3UTdjTDZpLzc2Z01mdFcK",
+  "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUS2JZamdjWE45RmVsaERFU094eE9vbzc2YmZLTmhKcktOUkhIVm5VT2RFOWxiM05QeVJ3TmJJU0oxbGpZbkNUcEdKZXp6bDRQVExXUlhJditDeXZFTUcvQXBYSTlCckFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1ODEyOTY1CWZpbGU6ZGF0YS50eHQKWXFnNlBvc3k1RkNXMDI4MnZoSTRyODcxdS95NWVtK0t5WmhpWmtmbC9HN1lIeXlZZyt4ZTFuSHdISnBWWHdWNlJVTjhrSFN2ZFpZOWM0SzIrNGo4Q1E9PQo=",
+  "otherPubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY0MDEyMDdDMzUxNzkzNjEKUldSaGt4YzFmQ0FCOUY1b2lPYUYrd0FUajJKazZmSldad3A5Uis0TXZQOWdPSzNTeTNVS1BySnAK"
+}

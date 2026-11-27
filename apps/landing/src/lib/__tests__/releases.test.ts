@@ -37,6 +37,9 @@ describe('classifyAsset', () => {
       'Orbit-0.3.0-linux-x64.tar.gz',
       'orbit-wine-26.3.0.tar.zst',
       'notes.txt',
+      // In-app update files (scripts/release-macos.sh): not downloads.
+      'Orbit-2.6.1-aarch64.app.tar.gz.sig',
+      'latest.json',
     ]) {
       expect(classifyAsset(name)).toBeNull()
     }
