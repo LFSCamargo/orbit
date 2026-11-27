@@ -154,6 +154,47 @@ To check what a Wine passes through, run it in a throwaway prefix with
 `WINEXINPUT` device per controller. `SDL support not compiled in!` means the
 build drops controllers.
 
+**XInput-only USB pads and 2.4 GHz dongles** (8BitDo Ultimate 2C receiver
+`2DC8:310A`, EasySMX and other third-party Xbox 360 pads) have only a vendor
+interface (class `0xFF`/`0x5D`/`0x01`), no HID one, so IOHID and SDL never
+see them. Containers get no USB access. Orbit reads such a pad natively
+(`platform/macos/xinput_usb.rs`) and keeps it while a Windows game plays; the
+game gets it through the **pad bridge**: Orbit writes the pad into a 64-byte
+shared file (`runtimes/controllers/pad-0`, named to Wine as
+`ORBIT_PAD_BRIDGE` by `runtimes/controllers.rs`; layout in
+`platform/macos/pad_bridge.rs`), and Orbit Wine's SDL
+(`scripts/wine/build-sdl2.sh`, `scripts/wine/patches/sdl2`, no libusb) shows
+winebus an SDL virtual Xbox 360 gamepad (`045E:028E`) while the file says
+connected, so the game sees `WINEXINPUT\...&IG_00` as for a Bluetooth pad.
+Orbit connects it only while a game plays, so a resident Steam between games
+sees no pad; Guide stays Orbit's Home and is not passed on; the game's rumble
+comes back through the file and Orbit sends it to the pad from its own writer
+thread (latest speeds win), so a rumble change never delays the next input
+read. For the whole local session Orbit holds a latency-critical activity
+(`platform/macos/app_nap.rs`), also while the pad is missing, so App Nap never
+throttles the minimized app or its reconnect scan, and the reader thread runs
+at the user-interactive QoS. A USB scan runs once per second without a pad and
+every 100 ms, for the rest of the session, once a game has had the pad. A read
+error shorter than 100 ms keeps the held input (a quiet pad reports only
+changes); a longer one releases it to neutral. An ordinary read timeout
+preserves held input. Orbit skips menu-state decoding during play. A failed
+read is retried for up to a second (only an unplug or another owner ends it at
+once), and a pad that drops out mid-game stays connected to the game, neutral,
+until reconnection or session exit. SDL reopens the file
+every second until it exists. `build-sdl2.sh --install` puts this SDL into an
+installed Orbit Wine (the replaced copy stays as `libSDL2-2.0.0.dylib.gcenx`).
+A libusb SDL inside Wine was tried and removed: it fought Orbit and the
+container's Steam for the one interface owner, and that Steam's Steam Input
+opened Big Picture. A virtual HID device would need Apple's restricted
+`com.apple.developer.hid.virtual.device` entitlement (an ad-hoc signed process
+holding it is killed at launch). A macOS game, or Steam for Mac, reads USB pads
+itself: Orbit lends the interface for one (`lend_to_game`) until it ends.
+
+Orbit's helper Steams, the background library sync (`steam-sync`) and the
+sign-in client (`steam-windows`), start with `WINEDLLOVERRIDES=winebus.sys=d`
+(`steam_windows::steam_runtime_command`, `steam_login`): they have no game to
+give a pad to, and their Steam Input opened Big Picture on the Guide button.
+
 ## Native Steam client
 
 `crates/orbit-steam` holds session, product, owned-library, depot, cloud, and

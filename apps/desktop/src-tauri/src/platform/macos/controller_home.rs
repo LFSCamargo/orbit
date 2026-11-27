@@ -2,7 +2,9 @@ use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use gilrs::{Axis, Button, EventType, Gilrs};
+use std::collections::HashMap;
+
+use gilrs::{Axis, Button, EventType, GamepadId, Gilrs};
 use objc2_app_kit::NSApplicationDidBecomeActiveNotification;
 use objc2_foundation::{NSNotificationCenter, NSOperationQueue};
 use objc2_game_controller::{
@@ -11,6 +13,8 @@ use objc2_game_controller::{
 };
 use parking_lot::Mutex;
 use tauri::{AppHandle, Emitter};
+
+use super::native_pads::PadState;
 
 static APP: OnceLock<Arc<AppHandle>> = OnceLock::new();
 static LAST_HOME_PRESS: Mutex<Option<Instant>> = Mutex::new(None);
@@ -28,6 +32,7 @@ struct StickScrollPayload {
 /// Capture the controller Home / Guide button and bring Orbit to the front instead of
 /// Apple Games, Steam, or other system handlers.
 pub fn start_controller_home(app: AppHandle) {
+    super::xinput_usb::start(app.clone());
     let app = Arc::new(app);
     let _ = APP.set(app.clone());
 
@@ -59,11 +64,19 @@ fn start_gilrs_background_listener() {
 
         let mut mode_pressed = false;
         let mut last_poll = Instant::now();
+        // Last state sent to the WebView per pad (`native_pads`).
+        let mut sent: HashMap<GamepadId, (String, PadState)> = HashMap::new();
 
         loop {
             while let Some(event) = gilrs.next_event() {
-                if matches!(event.event, EventType::ButtonPressed(Button::Mode, _)) {
-                    dispatch_home_press();
+                match event.event {
+                    EventType::ButtonPressed(Button::Mode, _) => dispatch_home_press(),
+                    EventType::Disconnected => {
+                        if let (Some(app), Some((id, _))) = (APP.get(), sent.remove(&event.id)) {
+                            super::native_pads::emit(app, &id, None);
+                        }
+                    }
+                    _ => {}
                 }
             }
 
@@ -83,6 +96,10 @@ fn start_gilrs_background_listener() {
             // The game owns the sticks; Orbit only listens for Home meanwhile.
             if !crate::launching::game_activity::running() {
                 dispatch_stick_scroll(&gilrs, dt_ms.min(32.0));
+                send_pads(&gilrs, &mut sent);
+            } else if !sent.is_empty() {
+                // Sent again in full when Orbit is back in front.
+                sent.clear();
             }
 
             thread::sleep(crate::launching::game_activity::controller_poll_interval());
@@ -90,7 +107,26 @@ fn start_gilrs_background_listener() {
     });
 }
 
-fn dispatch_home_press() {
+/// Sends every connected HID pad whose state changed. O(pads × buttons).
+fn send_pads(gilrs: &Gilrs, sent: &mut HashMap<GamepadId, (String, PadState)>) {
+    let Some(app) = APP.get() else {
+        return;
+    };
+    for (gamepad_id, gamepad) in gilrs.gamepads() {
+        let state = super::native_pads::gilrs_state(&gamepad);
+        if sent
+            .get(&gamepad_id)
+            .is_some_and(|(_, last)| *last == state)
+        {
+            continue;
+        }
+        let id = super::native_pads::gilrs_id(&gamepad);
+        super::native_pads::emit(app, &id, Some(state.clone()));
+        sent.insert(gamepad_id, (id, state));
+    }
+}
+
+pub(super) fn dispatch_home_press() {
     let Some(app) = APP.get() else {
         return;
     };
@@ -127,6 +163,16 @@ fn dispatch_stick_scroll(gilrs: &Gilrs, dt_ms: f32) {
     }
 
     if let Some(payload) = stick_scroll(delta_x, delta_y, dt_ms) {
+        let _ = app.emit("controller-stick-scroll", payload);
+    }
+}
+
+/// Scrolls the page for a right-stick position from another reader (Y up).
+pub(super) fn emit_stick_scroll(x: f32, y: f32, dt_ms: f32) {
+    let Some(app) = APP.get() else {
+        return;
+    };
+    if let Some(payload) = stick_scroll(x, y, dt_ms) {
         let _ = app.emit("controller-stick-scroll", payload);
     }
 }

@@ -6,6 +6,7 @@ import {
   type ControllerFamily,
   type MappedButtons,
 } from './ControllerMapping'
+import { listPads } from './nativePads'
 import { INITIAL_REPEAT_MS, REPEAT_MS, StickNavigator } from './stickNavigator'
 
 export type GamepadEventHandler = (
@@ -173,7 +174,7 @@ export class GamepadManager {
   }
 
   private refreshConnected() {
-    const pads = navigator.getGamepads?.() ?? []
+    const pads = listPads()
     this.setConnected(pads.find((entry) => entry)?.id ?? null)
   }
 
@@ -224,7 +225,7 @@ export class GamepadManager {
   private tick = () => {
     this.rafId = null
     if (!this.shouldPoll()) return
-    const pads = navigator.getGamepads?.() ?? []
+    const pads = listPads()
     const now = performance.now()
     const dt = this.lastTickAt > 0 ? Math.min(now - this.lastTickAt, 32) : 16
     this.lastTickAt = now

@@ -23,7 +23,9 @@ const LOGIN_FLAGS: [&str; 6] = [
     "-no-cef-sandbox",
     "-noverifyfiles",
 ];
-const LOGIN_DLLS: &str = "winemenubuilder.exe=d";
+/// No menu entries, and no controllers: the sign-in Steam would claim an
+/// XInput USB pad and open Big Picture on its Guide button.
+const LOGIN_DLLS: &str = "winemenubuilder.exe=d;winebus.sys=d";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

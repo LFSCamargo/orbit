@@ -7,4 +7,6 @@ pub mod macos {
 
     pub fn start_controller_home(_app: AppHandle) {}
     pub fn refresh_controller_home_bindings() {}
+    pub fn lend_xinput_pads() {}
+    pub fn take_back_xinput_pads() {}
 }

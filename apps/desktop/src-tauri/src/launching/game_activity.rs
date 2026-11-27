@@ -27,6 +27,12 @@ pub fn set_cloud_streaming(streaming: bool) {
     CLOUD_STREAMING.store(streaming, Ordering::SeqCst);
 }
 
+/// A local game process is playing (not a cloud stream, which reads the pad
+/// through Orbit's own WebView).
+pub fn local_session() -> bool {
+    RUNNING.load(Ordering::SeqCst)
+}
+
 pub fn running() -> bool {
     RUNNING.load(Ordering::SeqCst) || CLOUD_STREAMING.load(Ordering::SeqCst)
 }

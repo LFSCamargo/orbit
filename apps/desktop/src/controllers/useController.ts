@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event'
 import type { ControllerAction, ControllerFamily } from './ControllerMapping'
 import { focusManager } from './FocusManager'
 import { gamepadManager } from './GamepadManager'
+import { applyNativeGamepad, type NativeGamepadPayload } from './nativePads'
 import { backTarget, focusRestoreId, screenEntryFocusId } from '@/lib/navigation'
 import { applyPageScroll } from '@/lib/pageScroll'
 import { showOrbitWindow, isTauriRuntime } from '@/lib/tauri'
@@ -228,6 +229,11 @@ export function useControllerNavigation() {
         },
       ).then(keep)
     }
+
+    // XInput USB pads macOS has no driver for, read by Orbit itself.
+    void listen<NativeGamepadPayload>('native-gamepad', (event) => {
+      applyNativeGamepad(event.payload)
+    }).then(keep)
 
     void listen<{ wasFocused: boolean }>('controller-home-pressed', (event) => {
       markControllerActivity()

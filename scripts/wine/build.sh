@@ -124,6 +124,8 @@ rm -rf "$DEST.part"
 mkdir -p "$CONTENTS/MacOS"
 cp -a "$WORK/install/lib" "$WORK/install/share" "$CONTENTS/"
 cp -a "$WORK/deps/lib/." "$CONTENTS/lib/"
+# SDL2 with Orbit's pad bridge, so pads Orbit reads natively reach games.
+bash "$ROOT/scripts/wine/build-sdl2.sh" --into "$CONTENTS/lib"
 cp -p "$UNIX_DIR/wine" "$CONTENTS/MacOS/wine"
 cp -p "$WORK/install/bin/wineserver" "$CONTENTS/MacOS/wineserver"
 ln -s ../lib/wine/x86_64-unix/ntdll.so "$CONTENTS/MacOS/ntdll.so"

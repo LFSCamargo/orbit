@@ -6,6 +6,7 @@
 // `chat`. Signalling (SDP and ICE) goes through Rust, which holds the tokens.
 
 import type { XcloudIceCandidate } from '@/types/xcloud'
+import { listPads } from '@/controllers/nativePads'
 import { frameFromGamepad, sameFrame } from './gamepadFrame'
 import {
   clientMetadataPacket,
@@ -129,7 +130,8 @@ export function createXcloudPeer(
   }
 
   const inputTick = () => {
-    const pad = navigator.getGamepads?.().find((entry) => entry?.connected) ?? null
+    // Includes the XInput USB pads only Orbit can read (controllers/nativePads).
+    const pad = listPads().find((entry) => entry?.connected) ?? null
     const raw = pad && !paused ? frameFromGamepad(pad, 0) : NEUTRAL_FRAME
     events.onFrame?.(raw)
     // Home (guide) belongs to Orbit's menu, never to the game.

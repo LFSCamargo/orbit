@@ -1,0 +1,257 @@
+diff -ruN a/src/joystick/SDL_joystick.c b/src/joystick/SDL_joystick.c
+--- a/src/joystick/SDL_joystick.c	2026-11-27 00:43:53
++++ b/src/joystick/SDL_joystick.c	2026-11-27 00:44:40
+@@ -1635,6 +1635,10 @@
+     SDL_UnlockJoysticks();
+ }
+ 
++/* Orbit pad bridge (SDL_orbitbridge.c). */
++extern void SDL_OrbitBridgeUpdate(void);
++extern void SDL_OrbitBridgeQuit(void);
++
+ void SDL_JoystickQuit(void)
+ {
+     int i;
+@@ -1649,6 +1653,8 @@
+         SDL_JoystickClose(SDL_joysticks);
+     }
+ 
++    SDL_OrbitBridgeQuit();
++
+     /* Quit drivers in reverse order to avoid breaking dependencies between drivers */
+     for (i = SDL_arraysize(SDL_joystick_drivers) - 1; i >= 0; --i) {
+         SDL_joystick_drivers[i]->Quit();
+@@ -2221,6 +2227,8 @@
+     for (i = 0; i < SDL_arraysize(SDL_joystick_drivers); ++i) {
+         SDL_joystick_drivers[i]->Detect();
+     }
++
++    SDL_OrbitBridgeUpdate();
+ 
+     SDL_UnlockJoysticks();
+ }
+diff -ruN a/src/joystick/SDL_orbitbridge.c b/src/joystick/SDL_orbitbridge.c
+--- a/src/joystick/SDL_orbitbridge.c	1969-12-31 21:00:00
++++ b/src/joystick/SDL_orbitbridge.c	2026-11-27 01:02:14
+@@ -0,0 +1,221 @@
++/*
++  Orbit pad bridge: a controller Orbit reads natively on macOS (XInput-only USB
++  pads and 2.4 GHz dongles, which have no HID interface) reaches winebus as an
++  SDL virtual Xbox 360 gamepad, so Wine never touches USB.
++
++  Orbit writes the pad into a 64-byte file named by ORBIT_PAD_BRIDGE (layout
++  below, little endian, seqlock: seq is odd while Orbit writes). SDL attaches
++  the virtual pad while "connected" is set, detaches it otherwise, and writes
++  rumble back for Orbit to send to the pad.
++
++    0  u32 magic 'ORBP'      4  u32 version (1)
++    8  u32 seq               12 u32 connected
++    16 u32 buttons (bit = SDL_GameControllerButton)
++    20 s16 axes[6] (SDL_GameControllerAxis order, Y down, triggers -32768
++       released to 32767 pulled, as SDL's virtual pads take them)
++    32 u16 rumble low        34 u16 rumble high (written here)
++*/
++#include "../SDL_internal.h"
++
++#if defined(__MACOSX__) && defined(SDL_JOYSTICK_VIRTUAL)
++
++#include "SDL_joystick.h"
++#include "SDL_gamecontroller.h"
++#include "SDL_timer.h"
++
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++#define ORBIT_PAD_MAGIC 0x5042524Fu
++#define ORBIT_PAD_VERSION 1u
++#define ORBIT_PAD_SIZE 64
++#define ORBIT_PAD_REOPEN_MS 1000
++#define ORBIT_PAD_BUTTONS 15
++/* Guide stays Orbit's (Home). SDL numbers a virtual pad's buttons by their
++   order in this mask, so Guide's absence shifts the ones after it. */
++#define ORBIT_PAD_BUTTON_MASK (((1u << ORBIT_PAD_BUTTONS) - 1) & ~(1u << SDL_CONTROLLER_BUTTON_GUIDE))
++
++typedef struct
++{
++    Uint32 magic;
++    Uint32 version;
++    Uint32 seq;
++    Uint32 connected;
++    Uint32 buttons;
++    Sint16 axes[6];
++    Uint16 rumble_low;
++    Uint16 rumble_high;
++} OrbitPad;
++
++static volatile OrbitPad *orbit_pad = NULL;
++static SDL_JoystickID orbit_instance = -1;
++static Uint32 orbit_next_open = 0;
++
++static void Orbit_Open(void)
++{
++    const char *path = SDL_getenv("ORBIT_PAD_BRIDGE");
++    struct stat info;
++    void *map;
++    int fd;
++
++    if (!path || !*path) {
++        return;
++    }
++    fd = open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC);
++    if (fd < 0) {
++        return;
++    }
++    if (fstat(fd, &info) < 0 || !S_ISREG(info.st_mode) || info.st_size < ORBIT_PAD_SIZE) {
++        close(fd);
++        return;
++    }
++    map = mmap(NULL, ORBIT_PAD_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
++    close(fd);
++    if (map == MAP_FAILED) {
++        return;
++    }
++    if (((volatile OrbitPad *)map)->magic != ORBIT_PAD_MAGIC ||
++        ((volatile OrbitPad *)map)->version != ORBIT_PAD_VERSION) {
++        munmap(map, ORBIT_PAD_SIZE);
++        return;
++    }
++    orbit_pad = (volatile OrbitPad *)map;
++}
++
++/* A consistent copy of Orbit's last write; SDL_FALSE while Orbit is writing. */
++static SDL_bool Orbit_Read(OrbitPad *out)
++{
++    int attempt;
++    for (attempt = 0; attempt < 4; ++attempt) {
++        Uint32 before = __atomic_load_n(&orbit_pad->seq, __ATOMIC_ACQUIRE);
++        if (before & 1) {
++            continue;
++        }
++        out->connected = orbit_pad->connected;
++        out->buttons = orbit_pad->buttons;
++        SDL_memcpy(out->axes, (const void *)orbit_pad->axes, sizeof(out->axes));
++        __atomic_thread_fence(__ATOMIC_ACQUIRE);
++        if (__atomic_load_n(&orbit_pad->seq, __ATOMIC_RELAXED) == before) {
++            return SDL_TRUE;
++        }
++    }
++    return SDL_FALSE;
++}
++
++static void SDLCALL Orbit_Update(void *userdata)
++{
++    SDL_Joystick *joystick = SDL_JoystickFromInstanceID(orbit_instance);
++    OrbitPad pad;
++    int i, index;
++
++    (void)userdata;
++    if (!joystick || !orbit_pad || !Orbit_Read(&pad)) {
++        return;
++    }
++    for (i = 0, index = 0; i < ORBIT_PAD_BUTTONS; ++i) {
++        if (ORBIT_PAD_BUTTON_MASK & (1u << i)) {
++            SDL_JoystickSetVirtualButton(joystick, index++, (pad.buttons >> i) & 1);
++        }
++    }
++    for (i = 0; i < 6; ++i) {
++        SDL_JoystickSetVirtualAxis(joystick, i, pad.axes[i]);
++    }
++}
++
++static int SDLCALL Orbit_Rumble(void *userdata, Uint16 low, Uint16 high)
++{
++    (void)userdata;
++    if (!orbit_pad) {
++        return SDL_Unsupported();
++    }
++    __atomic_store_n(&orbit_pad->rumble_low, low, __ATOMIC_RELEASE);
++    __atomic_store_n(&orbit_pad->rumble_high, high, __ATOMIC_RELEASE);
++    return 0;
++}
++
++static void Orbit_Attach(void)
++{
++    SDL_VirtualJoystickDesc desc;
++    int index;
++
++    SDL_zero(desc);
++    desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
++    desc.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
++    desc.naxes = 6;
++    desc.nbuttons = ORBIT_PAD_BUTTONS - 1;
++    desc.vendor_id = 0x045e;  /* Xbox 360 Controller: games' XInput prompts */
++    desc.product_id = 0x028e;
++    desc.button_mask = ORBIT_PAD_BUTTON_MASK;
++    desc.axis_mask = (1u << 6) - 1;
++    desc.name = "Xbox 360 Controller";
++    desc.Update = Orbit_Update;
++    desc.Rumble = Orbit_Rumble;
++    index = SDL_JoystickAttachVirtualEx(&desc);
++    if (index >= 0) {
++        orbit_instance = SDL_JoystickGetDeviceInstanceID(index);
++    }
++}
++
++static void Orbit_Detach(void)
++{
++    int i, count = SDL_NumJoysticks();
++    for (i = 0; i < count; ++i) {
++        if (SDL_JoystickGetDeviceInstanceID(i) == orbit_instance) {
++            SDL_JoystickDetachVirtual(i);
++            break;
++        }
++    }
++    orbit_instance = -1;
++    if (orbit_pad) {
++        Orbit_Rumble(NULL, 0, 0);
++    }
++}
++
++/* Called from SDL_JoystickUpdate with the joystick lock held. O(joysticks)
++   only when the pad comes or goes. */
++void SDL_OrbitBridgeUpdate(void)
++{
++    OrbitPad pad;
++    SDL_bool connected;
++
++    if (!orbit_pad) {
++        Uint32 now = SDL_GetTicks();
++        if (!SDL_TICKS_PASSED(now, orbit_next_open)) {
++            return;
++        }
++        orbit_next_open = now + ORBIT_PAD_REOPEN_MS;
++        Orbit_Open();
++        if (!orbit_pad) {
++            return;
++        }
++    }
++    if (!Orbit_Read(&pad)) {
++        return;
++    }
++    connected = pad.connected ? SDL_TRUE : SDL_FALSE;
++    if (connected && orbit_instance < 0) {
++        Orbit_Attach();
++    } else if (!connected && orbit_instance >= 0) {
++        Orbit_Detach();
++    }
++}
++
++/* Before the virtual driver quits (it detaches every virtual joystick). */
++void SDL_OrbitBridgeQuit(void)
++{
++    orbit_instance = -1;
++    if (orbit_pad) {
++        munmap((void *)orbit_pad, ORBIT_PAD_SIZE);
++        orbit_pad = NULL;
++    }
++    orbit_next_open = 0;
++}
++
++#else
++
++void SDL_OrbitBridgeUpdate(void) {}
++void SDL_OrbitBridgeQuit(void) {}
++
++#endif

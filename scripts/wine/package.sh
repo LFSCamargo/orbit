@@ -29,7 +29,7 @@ mkdir -p "$OUT"
 COPYFILE_DISABLE=1 tar -C "$(dirname "$BUILT")" --uid 0 --gid 0 \
   --no-mac-metadata --no-xattrs --no-acls -cf - "$VERSION" |
   zstd -19 -T0 -q -o "$OUT/$ARCHIVE" --force
-COPYFILE_DISABLE=1 tar -C "$ROOT/scripts/wine" --no-mac-metadata -czf "$OUT/$SOURCES" sources.json patches README.md build.sh Info.plist
+COPYFILE_DISABLE=1 tar -C "$ROOT/scripts/wine" --no-mac-metadata -czf "$OUT/$SOURCES" sources.json patches README.md build.sh build-sdl2.sh Info.plist
 
 SIZE="$(stat -f %z "$OUT/$ARCHIVE")"
 SHA256="$(shasum -a 256 "$OUT/$ARCHIVE" | cut -d' ' -f1)"

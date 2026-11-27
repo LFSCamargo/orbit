@@ -22,9 +22,26 @@ const MAPPINGS: &str = concat!(
 
 pub const CONFIG_VAR: &str = "SDL_GAMECONTROLLERCONFIG";
 
+/// Turns off Wine's HID driver for a prefix. Orbit's helper Steams (library
+/// sync, sign-in) have no game to give a pad to, and their Steam Input opens
+/// Big Picture on the Guide button.
+pub const NO_CONTROLLERS_DLL: &str = "winebus.sys=d";
+
+/// The file Orbit Wine's SDL reads a pad from that Orbit reads natively
+/// (`platform/macos/pad_bridge.rs`, `scripts/wine/patches/sdl2`): XInput-only
+/// USB pads and 2.4 GHz dongles, which Wine never gets USB access to.
+pub const BRIDGE_VAR: &str = "ORBIT_PAD_BRIDGE";
+
+pub fn pad_bridge_path() -> std::path::PathBuf {
+    super::root().join("controllers").join("pad-0")
+}
+
 /// The controller variables for a container process.
-pub fn container_controller_env() -> [(&'static str, &'static str); 1] {
-    [(CONFIG_VAR, MAPPINGS)]
+pub fn container_controller_env() -> [(&'static str, String); 2] {
+    [
+        (CONFIG_VAR, MAPPINGS.to_string()),
+        (BRIDGE_VAR, pad_bridge_path().to_string_lossy().into_owned()),
+    ]
 }
 
 #[cfg(test)]
@@ -44,6 +61,21 @@ mod tests {
             .find(|(key, _)| *key == CONFIG_VAR)
             .and_then(|(_, value)| value);
         assert_eq!(value, Some(std::ffi::OsStr::new(MAPPINGS)));
+    }
+
+    #[test]
+    fn container_wine_commands_name_the_pad_bridge() {
+        // Regression: the 2.4 GHz 8BitDo Ultimate 2C dongle never reached
+        // games; Wine's SDL now reads it from Orbit through this file.
+        let cmd = super::super::process::command(
+            std::path::Path::new("/opt/wine/bin/wine"),
+            std::path::Path::new("/tmp/prefix"),
+        );
+        let value = cmd
+            .get_envs()
+            .find(|(key, _)| *key == BRIDGE_VAR)
+            .and_then(|(_, value)| value);
+        assert_eq!(value, Some(pad_bridge_path().as_os_str()));
     }
 
     #[test]

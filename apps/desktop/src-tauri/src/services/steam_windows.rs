@@ -1136,8 +1136,18 @@ pub(crate) fn steam_runtime_command(wine: &Path, prefix: &Path) -> Command {
         .env("LC_ALL", "en_US.UTF-8")
         .env("WINEPREFIX", prefix)
         .env("WINEDEBUG", "-all")
-        .envs(runtimes::wine_capabilities::container_sync_env(wine))
-        .envs(runtimes::controllers::container_controller_env());
+        .envs(runtimes::wine_capabilities::container_sync_env(wine));
+    if is_helper_prefix(prefix, &helper_prefixes()) {
+        command.env(
+            "WINEDLLOVERRIDES",
+            runtimes::controllers::NO_CONTROLLERS_DLL,
+        );
+    } else {
+        // Games Steam starts inherit these.
+        command
+            .envs(runtimes::controllers::container_controller_env())
+            .envs(runtimes::audio::container_audio_env());
+    }
     command
 }
 
@@ -2033,6 +2043,32 @@ fn wine_executable(repo: &GameRepository) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn helper_steams_never_see_controllers() {
+        // Regression: the library-sync Steam's Steam Input took the
+        // controller and its Guide button opened Big Picture.
+        let sync = PathBuf::from("/Orbit/runtimes/containers/steam-sync/prefix");
+        let game = PathBuf::from("/Orbit/runtimes/containers/games/steam-1/prefix");
+        assert!(is_helper_prefix(&sync, std::slice::from_ref(&sync)));
+        assert!(!is_helper_prefix(&game, &[sync]));
+        let env = |command: &Command, key: &str| {
+            command
+                .get_envs()
+                .find(|(name, _)| *name == key)
+                .and_then(|(_, value)| value.map(|value| value.to_string_lossy().into_owned()))
+        };
+        let wine = Path::new("/opt/wine/bin/wine");
+        let helper = steam_runtime_command(wine, &helper_prefixes()[1]);
+        assert_eq!(
+            env(&helper, "WINEDLLOVERRIDES").as_deref(),
+            Some(runtimes::controllers::NO_CONTROLLERS_DLL)
+        );
+        assert_eq!(env(&helper, runtimes::controllers::CONFIG_VAR), None);
+        let player = steam_runtime_command(wine, &game);
+        assert_eq!(env(&player, "WINEDLLOVERRIDES"), None);
+        assert!(env(&player, runtimes::controllers::CONFIG_VAR).is_some());
+    }
 
     #[test]
     fn a_saved_session_restores_a_missing_account() {

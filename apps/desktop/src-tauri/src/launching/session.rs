@@ -196,6 +196,8 @@ impl SessionManager {
                 }
             }
             _ => {
+                // A macOS game (or Steam for Mac) reads USB pads itself.
+                crate::platform::macos::lend_xinput_pads();
                 *last_step.lock() = "spawn".to_string();
                 emit_launch_progress(app, &game.id, "spawn", Some(&game.title));
                 launch_game(game, &ctx).map(|_| None)
@@ -204,6 +206,7 @@ impl SessionManager {
         let mut runtime = match result {
             Ok(runtime) => runtime,
             Err(error) => {
+                crate::platform::macos::take_back_xinput_pads();
                 let message = format!("{error:#}");
                 emit_launch_failed(
                     app,
@@ -220,6 +223,7 @@ impl SessionManager {
             }
         };
         if runtime.is_some() && self.cancel.load(Ordering::SeqCst) {
+            crate::platform::macos::take_back_xinput_pads();
             if let Some(handle) = runtime.as_mut() {
                 handle.stop()?;
             }
@@ -475,6 +479,10 @@ fn defer_minimize_orbit(app: AppHandle, session_id: String) {
 
 fn after_session(app: &AppHandle, steam_host: Option<&SteamHost>) {
     super::game_activity::set_running(false);
+    crate::platform::macos::take_back_xinput_pads();
+    // A macOS game no longer needs Orbit's hidden Steam for Mac.
+    crate::services::steam_mac_client::set_playing(false);
+    std::thread::spawn(crate::services::steam_mac_client::release_if_unused);
     if let Some(prefix) = steam_host.map(|host| host.prefix.clone()) {
         // The resident client outlives the session at normal priority.
         std::thread::spawn(move || {

@@ -71,6 +71,7 @@ objc2 = "0.6"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 objc2-game-controller = "0.3.2"
+rusb = { version = "0.9", features = ["vendored"] }
 
 
 # Image preparation runs in a worker but must remain responsive in local development.

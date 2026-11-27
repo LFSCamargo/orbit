@@ -137,6 +137,10 @@ impl WineAdapter {
                 .entry(key.into())
                 .or_insert_with(|| value.into());
         }
+        // Controller mappings for winebus' SDL; a game's own value wins.
+        for (key, value) in super::controllers::container_controller_env() {
+            profile.environment.entry(key.into()).or_insert(value);
+        }
         if let Some(dll_path) = dll_path {
             if !containerized {
                 // Wine searches its own builtins before WINEDLLPATH. Layer both the
