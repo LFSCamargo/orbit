@@ -55,7 +55,8 @@ export function Planet() {
     <div
       ref={ref}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 overflow-hidden"
+      // Phones get the sky and the copy only; the planet is for the desktop web.
+      className="pointer-events-none absolute inset-0 overflow-hidden max-md:hidden"
     >
       {/* Atmosphere: a wide warm haze centred on the horizon. */}
       <div

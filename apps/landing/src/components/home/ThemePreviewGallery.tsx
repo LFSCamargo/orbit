@@ -38,7 +38,8 @@ export function ThemePreviewGallery() {
       <div
         aria-label="Theme previews"
         role="group"
-        className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+        // Phones swipe one row, the next card peeking in; wider screens grid.
+        className="-mx-6 mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-5"
       >
         {PREVIEWS.map((preview) => (
           <button
@@ -48,7 +49,7 @@ export function ThemePreviewGallery() {
             aria-pressed={preview.id === active.id}
             onClick={() => setActiveId(preview.id)}
             className={cn(
-              'overflow-hidden rounded-2xl border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orbit-focus focus-visible:ring-offset-4 focus-visible:ring-offset-black',
+              'w-[62%] shrink-0 snap-start overflow-hidden rounded-2xl border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orbit-focus focus-visible:ring-offset-4 focus-visible:ring-offset-black sm:w-auto',
               preview.id === active.id
                 ? 'border-orbit-accent bg-orbit-accent/10'
                 : 'border-white/10 bg-white/[0.03] hover:border-white/35 hover:bg-white/[0.06]',
