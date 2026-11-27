@@ -114,6 +114,7 @@ src-tauri/src/
     steam_catalog.rs       # Owned-game titles, store copy, requirements, ProtonDB tier
     steam_windows.rs       # Windows Steam prefix, snapshot, download, play; install waits for steam.exe and emits steam:setup progress
     download_queue.rs      # FIFO Steam download queue: one worker, pause/resume, waits offline, saved in settings
+    game_patches.rs        # Title-specific launch patches (God of War Ragnarök: Rosetta AVX, outdated CPU-bypass exe restored)
     game_fixes.rs          # Known-game fixes before launch; RE Engine DirectX 11 stability (TargetPlatform, Capability, UseVendorExtention=Disable) and crash fallback
     install_locations.rs   # This Mac or picked folders ("Orbit Games" Steam libraries), per-game choice
     network_monitor.rs     # Interface byte counters once a second, Steam reachability probe, network-stats event
@@ -374,3 +375,5 @@ only the managed browser PID(s), positions within the webview's screen origin, a
 validates native frames between 640×360 and 840×520. It returns `placed: false` until
 the native window exists; macOS Accessibility/Automation denial is an explicit error.
 Cancel attempts bounded native shutdown and dismisses the UI even if cleanup fails; failures become notifications.
+
+The optional `shaderCachePercent` field of `game-launch-progress` reports the percentage of selected cache bytes read during the graphics step.

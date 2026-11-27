@@ -392,3 +392,5 @@ Scan installed games action retries discovery for already-saved folders.
 `useLaunchProgress` restores the launch failure banner on `game-session-ended` with a nonzero exit code and `process-exited` reason, even after `game-session-started` cleared it. It preserves an existing detailed failure, ignores exits from another game while a launch banner is active, and cleans up listeners that resolve after unmount.
 
 SteamQrModal keeps its host mounted while opening, uses useSteamLoginPlacement for bounded native placement, traps Orbit controller focus, and waits for native cancellation before closing. The browser is ready only when placement succeeds. The host is a native-window placeholder, not embedded Steam HTML.
+
+The launch card and toast use `shaderCachePercent` when present and stage progress otherwise.

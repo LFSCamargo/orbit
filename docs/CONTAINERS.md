@@ -35,7 +35,13 @@ On disk: `runtimes/containers/bases/<wine-key>/` and
    rejected session first (`native-session.json`, `steam-windows`, container, and
    `steam-sync`), force-stops Steam immediately without waiting for `-shutdown`, and
    asks for **Settings → Steam**. There is no resident shared Steam client.
-6. **Start** — launch the game executable in the container with `SteamAppId`.
+6. **Install script** — run the game's own `installscript.vdf` "Run Process" steps
+   (for example God of War Ragnarök's PlayStation PC SDK Runtime) once per
+   container, as Steam does before a first launch (`services/steam_install_script.rs`).
+   Only `.exe`/`.bat`/`.cmd`/`.msi` files inside the install folder run; finished
+   steps are recorded in `install-scripts.json` beside the prefix and output goes to
+   `install-scripts.log`. A failed step is retried next launch and never blocks it.
+7. **Start** — launch the game executable in the container with `SteamAppId`.
 
 Downloads use SteamCMD into `runtimes/containers/games/steam-{appId}/install/`
 only when Orbit's SteamCMD config already has a saved login. Installed games

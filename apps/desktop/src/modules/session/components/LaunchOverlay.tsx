@@ -91,7 +91,7 @@ export function LaunchOverlay() {
       : undefined
   const caption = launchCaption(launch)
   // Same step math as the launch toast, so both read the same percent.
-  const percent = launchStepPercent(launch.step)
+  const percent = launch.shaderCachePercent ?? launchStepPercent(launch.step)
   const controllerText = controllerLabel(controller.data)
   const chips = [
     ...runtimeChips(game, Boolean(steamWindowsAppId)),
@@ -207,7 +207,11 @@ export function LaunchOverlay() {
             <div className="flex items-center gap-4">
               <div
                 role="progressbar"
-                aria-label={`${title} launch progress`}
+                aria-label={
+                  launch.shaderCachePercent != null
+                    ? 'Shader cache warmup'
+                    : `${title} launch progress`
+                }
                 aria-valuenow={percent}
                 aria-valuemin={0}
                 aria-valuemax={100}

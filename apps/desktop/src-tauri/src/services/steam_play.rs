@@ -164,11 +164,39 @@ pub fn start_title(
         .map(Path::new)
         .ok_or("Sign in with Steam before playing this game")?;
     prefix::accept_shared(prefix, prefix).map_err(|err| err.to_string())?;
+    // Title-specific patches (environment, executable) before the launch is
+    // prepared, so the first run of a fresh download already has them.
+    let mut profile = profile.clone();
+    super::game_patches::apply_environment(app_id, &mut profile.environment);
+    if let Some(dir) = Path::new(&profile.executable).parent() {
+        super::game_patches::apply_files(app_id, dir);
+    }
+    let profile = &profile;
     let prepared = WineAdapter
         .prepare(profile, game_id, &crate::runtimes::root(), cancel, progress)
         .map_err(|err| format!("{err:#}"))?;
+    // Steam runs a game's installscript.vdf before its first launch; Orbit
+    // starts the EXE directly, so the pending steps run here. Play from the
+    // library (`launching::session`) and `launch_owned` both come through here.
+    if let Some(install_dir) =
+        super::steam_install_script::install_dir_of(Path::new(&profile.executable))
+    {
+        super::steam_install_script::run_pending(
+            Path::new(&profile.runtime_path),
+            prefix,
+            &install_dir,
+            cancel,
+            progress,
+        );
+    }
     if let Some(dir) = Path::new(&profile.executable).parent() {
         super::game_fixes::apply(app_id, dir);
+    }
+    // Every title: the shaders earlier runs compiled are in memory, with a
+    // progress bar in Orbit, before the game process exists.
+    super::shader_cache::prepare_for_menu(Path::new(&profile.executable), cancel, progress);
+    if cancel.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err("Launch cancelled".into());
     }
     progress("spawn");
     prepared

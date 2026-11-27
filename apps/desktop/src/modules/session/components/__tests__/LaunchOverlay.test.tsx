@@ -236,3 +236,24 @@ it('shows the payload title and Steam art for a synthetic Steam for Windows laun
   expect(screen.getByText('Could not start')).toBeInTheDocument()
   expect(screen.queryByText('Your game')).not.toBeInTheDocument()
 })
+
+it('shows measured shader-cache progress before spawn', async () => {
+  useLaunchStore.setState({
+    launch: {
+      gameId: 'g1',
+      step: 'graphics',
+      message: 'Warming shader cache',
+      index: 8,
+      total: 11,
+      failed: false,
+      shaderCachePercent: 37,
+    },
+  })
+  render(wrap(<LaunchOverlay />))
+  expect(
+    screen
+      .getByRole('progressbar', { name: /shader cache/i })
+      .getAttribute('aria-valuenow'),
+  ).toBe('37')
+  await screen.findByText('Full controller support')
+})

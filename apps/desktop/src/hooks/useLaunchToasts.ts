@@ -47,7 +47,7 @@ export function syncLaunchToast(
       next.message && next.message !== LAUNCH_STEPS[index].label
         ? next.message
         : undefined,
-    value: launchStepPercent(next.step),
+    value: next.shaderCachePercent ?? launchStepPercent(next.step),
   })
 }
 

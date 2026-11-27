@@ -32,6 +32,8 @@ pub mod theme_artwork;
 pub mod steam_background_sync;
 pub mod steam_browser;
 pub mod steam_catalog;
+pub mod game_patches;
+pub mod shader_cache;
 pub mod steam_catalog_sync;
 pub mod steam_client;
 pub mod steam_client_download;
@@ -64,6 +66,7 @@ pub mod steam_helper_priority;
 pub mod steam_library_paths;
 pub mod steam_native;
 pub mod steam_play;
+pub mod steam_install_script;
 pub mod steam_play_config;
 pub mod steam_resident;
 

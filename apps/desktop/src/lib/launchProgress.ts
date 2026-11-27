@@ -18,6 +18,7 @@ export type LaunchProgress = {
   message: string
   index: number
   total: number
+  shaderCachePercent?: number
   failed: boolean
   /** Display title; set when `gameId` is a synthetic `steam-windows:` handle. */
   title?: string | null

@@ -151,7 +151,7 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 
 | Command | Args | Returns | Notes |
 | ------- | ---- | ------- | ----- |
-| `launch_game` | `gameId` | `GameSession` | Spawns process via `launching/`. Emits `game-launch-progress` through Wine/Steam Windows startup stages so the overlay can show which step failed. |
+| `launch_game` | `gameId` | `GameSession` | Spawns process via `launching/`. Emits `game-launch-progress` through Wine/Steam Windows startup stages so the overlay can show which step failed. Every container title warms existing shader caches before spawn and reports byte-based cache progress in the graphics stage. |
 | `stop_game` | `sessionId` | `GameSession` | User-initiated stop |
 | `get_active_session` | — | `GameSession \| null` | |
 | `set_window_fullscreen` | `fullscreen` | `void` | |

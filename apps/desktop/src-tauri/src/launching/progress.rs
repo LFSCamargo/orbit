@@ -25,6 +25,8 @@ pub struct LaunchProgress {
     pub index: u8,
     pub total: u8,
     pub failed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shader_cache_percent: Option<u8>,
     /// Game title so the overlay can show the correct name even when the
     /// launch id is a synthetic handle (`steam-windows:{appId}`) that does not
     /// match a library game id.
@@ -65,7 +67,13 @@ pub fn launch_progress(
     title: Option<&str>,
 ) -> LaunchProgress {
     let index = wine_step_index(step);
+    let shader_cache_percent = detail
+        .filter(|_| step == "graphics" && !failed)
+        .and_then(|s| s.strip_prefix("shader-cache:"))
+        .and_then(|s| s.parse::<u8>().ok())
+        .filter(|&percent| percent <= 100);
     let message = match detail.filter(|text| !text.trim().is_empty()) {
+        Some(_) if shader_cache_percent.is_some() => "Warming shader cache".into(),
         Some(text) => text.to_string(),
         None if failed => "Launch failed".to_string(),
         None => wine_step_message(step).to_string(),
@@ -77,6 +85,7 @@ pub fn launch_progress(
         index,
         total: WINE_LAUNCH_STEPS.len() as u8,
         failed,
+        shader_cache_percent,
         title: title.map(str::to_string),
     }
 }
