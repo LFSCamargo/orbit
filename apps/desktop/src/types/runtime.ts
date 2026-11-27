@@ -14,6 +14,17 @@ export interface OrbitWineVersion {
   sizeBytes: number | null
 }
 
+/** A newer Orbit Wine build to offer when Orbit opens. */
+export interface OrbitWineUpdate {
+  version: string
+  installedVersion: string
+  sizeBytes: number
+  /** Markdown release notes from GitHub: untrusted, render as text only. */
+  notes: string
+  publishedAt: string | null
+  releaseUrl: string | null
+}
+
 export interface OrbitWineVersions {
   versions: OrbitWineVersion[]
   /** Why published builds are missing (offline), or null. */

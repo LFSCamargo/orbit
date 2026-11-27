@@ -71,6 +71,8 @@ pub fn run() {
             commands::runtimes::update_compatibility_settings,
             commands::runtimes::install_windows_compatibility,
             commands::runtimes::orbit_wine_status,
+            commands::runtimes::orbit_wine_update,
+            commands::runtimes::skip_orbit_wine_update,
             commands::runtimes::orbit_wine_versions,
             commands::runtimes::select_orbit_wine,
             commands::runtimes::install_orbit_wine_version,

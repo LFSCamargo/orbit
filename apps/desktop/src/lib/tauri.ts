@@ -284,6 +284,18 @@ export async function orbitWineStatus(): Promise<
   return run('orbit_wine_status')
 }
 
+/** A newer Orbit Wine build to offer, with its release notes, or null. */
+export async function orbitWineUpdate(): Promise<
+  import('@/types/runtime').OrbitWineUpdate | null
+> {
+  return run('orbit_wine_update')
+}
+
+/** Keep the installed Orbit Wine: `version` is not offered again. */
+export async function skipOrbitWineUpdate(version: string): Promise<void> {
+  return run('skip_orbit_wine_update', { version })
+}
+
 /** Published and installed Orbit Wine builds, and which one Play uses. */
 export async function getOrbitWineVersions(): Promise<
   import('@/types/runtime').OrbitWineVersions

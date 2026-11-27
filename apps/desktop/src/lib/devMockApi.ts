@@ -320,6 +320,7 @@ export async function mockInvoke<T>(
     case 'install_windows_compatibility':
       throw new Error('Managed downloads require the Orbit desktop app.')
     case 'orbit_wine_status':
+    case 'orbit_wine_update':
       return null as T
     case 'install_orbit_wine':
     case 'install_orbit_wine_version':
@@ -333,6 +334,7 @@ export async function mockInvoke<T>(
         error: null,
       } as T
     case 'select_orbit_wine':
+    case 'skip_orbit_wine_update':
       return undefined as T
     case 'compatibility_catalog':
       return {

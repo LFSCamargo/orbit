@@ -44,6 +44,28 @@ pub async fn orbit_wine_status() -> Result<Option<runtimes::orbit_wine::OrbitWin
         .map_err(|e| e.to_string())
 }
 
+/// A newer Orbit Wine build to offer, with its release notes, if any. `None`
+/// too when Orbit Wine is not installed (onboarding installs it) or the
+/// person chose to keep their build over this one.
+#[tauri::command]
+pub async fn orbit_wine_update(
+    app: AppHandle,
+) -> Result<Option<runtimes::orbit_wine_update::OrbitWineUpdate>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        runtimes::orbit_wine_update::check(&app.state::<AppState>().repo, &runtimes::root())
+            .map_err(|e| format!("{e:#}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keep the installed Orbit Wine: `version` is not offered again.
+#[tauri::command]
+pub fn skip_orbit_wine_update(app: AppHandle, version: String) -> Result<(), String> {
+    runtimes::orbit_wine_update::skip(&app.state::<AppState>().repo, &version)
+        .map_err(|e| format!("{e:#}"))
+}
+
 /// Installs the newest published Orbit Wine and prepares its base container,
 /// then makes it the default Wine.
 #[tauri::command]
