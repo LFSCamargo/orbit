@@ -24,6 +24,18 @@ export const POST_KIND_LABELS: Record<PostKind, string> = {
 
 export const POSTS: PostMeta[] = [
   {
+    slug: 'orbit-2-6-compressed-games-and-controllers',
+    title: 'Orbit 2.6: compressed games and controllers that keep up',
+    highlight: 'compressed games',
+    description:
+      'APFS compression gives you back disk space without changing how games run, 2.4 GHz receivers work in games, input lag and dropouts are down, shaders load before you play, and Mac versions come first.',
+    date: '2026-11-27',
+    kind: 'announcement',
+    author: 'The Orbit team',
+    tags: ['Release', 'Storage', 'Controllers', 'Steam'],
+    readingMinutes: 6,
+  },
+  {
     slug: 'from-2-0-to-2-5',
     title: 'From 2.0 to 2.5: how Windows games came home to the Mac',
     highlight: 'came home to the Mac',

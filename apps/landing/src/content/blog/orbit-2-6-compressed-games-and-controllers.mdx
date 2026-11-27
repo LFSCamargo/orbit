@@ -1,0 +1,129 @@
+Orbit 2.6.0 is out. It's a release about the things you notice while you play: how much
+space your games take, how quickly a controller responds, and how long you wait before the
+first menu. It also changes where some of your games come from: when Steam has a Mac version,
+Orbit now installs that one.
+
+Here's what's new.
+
+## Compress your games with APFS
+
+Windows games are big, and a Mac's internal SSD isn't. 2.6.0 adds **Compress games** at the
+top of **Settings → Storage**. Turn it on and Orbit stores every installed Steam game with
+**APFS transparent compression**, the same compression macOS uses for its own system files.
+
+The important word is _transparent_. Nothing about the game changes from the outside: the
+game, Wine and Steam read every file exactly as before, and macOS decompresses the data on the
+fly as it's read. There's no archive to unpack and no launcher step in between. You just get
+the free space back.
+
+<Callout title="How Orbit compresses a file safely">
+  Each file is compressed with LZFSE through Apple's own `libcompression`, so no
+  third-party codec ships with Orbit. Nothing is changed in place: Orbit writes the
+  compressed copy next to the original, reads it back through the kernel, compares it byte
+  for byte with the original, and only then swaps it in, keeping its permissions, dates
+  and extended attributes. If anything looks off (a hard link, a file that changed
+  meanwhile, or savings under 5%), the file is left alone.
+</Callout>
+
+A few details that make it hands-off:
+
+- **It runs in the background.** A toast shows how many games are done and how much space has
+  been saved so far. A game that is running or downloading is skipped and compressed when it's
+  free.
+- **Updates keep working.** Before Steam updates a compressed game, Orbit decompresses it, lets
+  Steam patch plain files, and compresses it again afterwards. New downloads are compressed as
+  soon as they finish.
+- **It's limited to your games.** Compression only touches installed Steam game folders,
+  never your saves, your Steam sign-in or Orbit's own data, and only on APFS drives.
+- **It's reversible.** Turn the switch off and Orbit decompresses every game again. It stops
+  before your drive falls below 2 GB of free space.
+
+How much you save depends on the game. Data that is already compressed (most video and many
+asset packs) barely shrinks, so Orbit skips it; executables, libraries and plain data files
+usually shrink a lot.
+
+## Controllers that keep up
+
+Controllers got the most work in this release.
+
+### 2.4 GHz receivers and XInput pads now work
+
+Some controllers only speak Xbox 360's wired protocol over USB, with no standard gamepad
+interface: the **8BitDo Ultimate 2C 2.4 GHz receiver** and many third-party Xbox 360 pads.
+macOS has no driver for them, so before 2.6.0 they didn't show up in Orbit or in your games.
+
+Orbit now reads them itself. They drive Orbit's menus like any other controller, and when a
+Windows game starts, Orbit hands the pad to the game as an Xbox 360 controller, **rumble
+included**. The Guide button stays Orbit's Home button, so you can always get back.
+
+### Less input lag, shorter dropouts
+
+We also went after the moments where a controller felt slow or dropped out mid-game:
+
+- **Rumble no longer delays input.** Games like God of War Ragnarök change rumble almost every
+  frame. Rumble is now sent on its own thread, so a rumble change never holds up the next stick
+  or button reading.
+- **Orbit stays awake while you play.** Orbit is minimised during a game, and macOS was putting
+  it to sleep (App Nap) when a pad briefly disconnected, so finding it again took seconds. Now
+  it stays responsive for the whole session and looks for a dropped pad every 100 ms.
+- **A short USB hiccup keeps what you're holding.** Before, any brief USB error released the
+  sticks and triggers, so a held aim or sprint was lost until you moved again.
+- **Steam no longer slows your game down.** A previous change put the game's own Steam client
+  at background priority. The game talks to that process every frame, so it's back to normal
+  priority; only Steam's built-in browser stays in the background.
+- **Steam's helpers leave your controller alone.** The Steam clients Orbit uses for sign-in and
+  library sync start with no controller access, so they can't take your pad or open Big
+  Picture when you press Guide.
+
+<Callout title="Tip: give your receiver some room">
+  2.4 GHz receivers compete with every other wireless receiver nearby. If a controller
+  still drops out, put its receiver on a short USB extension cable, away from keyboard and
+  mouse receivers and USB 3 hubs.
+</Callout>
+
+## Games that start ready
+
+Before a game opens, Orbit now loads the shaders earlier runs already compiled, with a
+progress bar right in the launch screen. When the game asks for them, they're already in
+memory, so its first menu is smoother. This works for every Windows game, and **Cancel** still
+stops the launch.
+
+One honest limit: Orbit can't compile a game's shaders for it, because only the game knows
+which ones it needs. On a game's very first run it still compiles them itself, and the launch
+screen tells you so.
+
+Some games also need setup that Steam would normally do on first launch. Orbit now runs a
+game's own install steps before its first start; without them God of War Ragnarök stopped with
+"PlayStation PC SDK Runtime is missing". Ragnarök also always gets the CPU features it needs
+under Rosetta, and defaults to a 60 FPS cap you can change.
+
+## Mac versions first
+
+When Steam ships a macOS build of a game, Orbit now lists the game as a Mac game, shows the
+Mac download size, and installs that build through **Steam for Mac** instead of running the
+Windows version in a container. Orbit starts Steam for Mac completely hidden (no Dock icon,
+Cmd-Tab entry or menu bar) and closes it again when nothing needs it, so it never keeps
+hold of a controller your Windows game needs.
+
+## And more
+
+- **Repair Installation.** On a game's details page, Steam checks every file, fetches what's
+  missing or changed, and the game's setup steps run again.
+- **Downloads that show where they are.** Each step reports real numbers (downloaded, written
+  to disk, time left), with a speed graph and a progress bar that moves smoothly between
+  updates.
+- **Cleaner audio.** Windows games get a deeper audio buffer, which ends the crackling and
+  distortion some games had under Rosetta.
+
+## Updating
+
+Download Orbit 2.6.0 from the [download page](/download) and drag it over your current
+Orbit. Your library, games, settings and Steam sign-in stay where they are. Compression is
+off until you turn it on in **Settings → Storage**.
+
+If you're on a 16 GB Mac and a demanding game like Ragnarök makes the whole system stutter,
+macOS is running out of memory and using swap: lowering the game's texture quality helps
+most.
+
+Every change is in the [2.6.0 changelog](/changelog), and the code is on
+[GitHub](https://github.com/LFSCamargo/orbit).
