@@ -31,6 +31,9 @@ pub struct QueuedDownload {
     pub cover_url: Option<String>,
     #[serde(default)]
     pub paused: bool,
+    /// Repair Installation: Steam validates the installed files.
+    #[serde(default)]
+    pub repair: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -310,6 +313,8 @@ fn run_worker(app: &AppHandle) {
     loop {
         let next = QUEUE.lock().take_next();
         let Some(item) = next else {
+            // Steam for Mac stays only while a macOS download or game needs it.
+            crate::services::steam_mac_client::release_if_unused();
             WORKER.store(false, Ordering::SeqCst);
             // An enqueue may have landed between the take and the store.
             if QUEUE.lock().has_runnable()
@@ -331,26 +336,41 @@ fn run_worker(app: &AppHandle) {
 fn run_one(app: &AppHandle, item: &QueuedDownload) -> Option<DownloadOutcome> {
     let state = app.state::<AppState>();
     let key = format!("steam:{}", item.app_id);
-    // Orbit runs one Steam client at a time; starting the download's client
-    // would stop the one a running game needs.
+    // A macOS build comes from Steam for Mac, which a running Windows game
+    // does not use. Orbit runs one container Steam client at a time; starting
+    // the download's client would stop the one a running game needs.
+    let native = crate::services::steam_mac_download::wants_native(&state.repo, &item.app_id);
     let busy = state.sessions.get_active().is_some() || state.sessions.is_launching();
-    let result = if busy {
+    let result = if busy && !native {
         Err("Close your game first. Downloads use Steam, which the game is using now.".into())
     } else {
-        state.steam_library_sync.cancel();
-        steam_windows::download(app, &state.repo, &item.app_id, &item.title)
+        if !native {
+            state.steam_library_sync.cancel();
+        }
+        crate::services::install_upkeep::before_download(app, item);
+        let result = steam_windows::download(app, &state.repo, &item.app_id, &item.title, native);
+        if !matches!(result, Ok(DownloadOutcome::Completed)) {
+            crate::services::install_upkeep::after_download(app, item, false, native);
+        }
+        result
     };
     match result {
         Ok(DownloadOutcome::Completed) => {
             if let Some(bytes) = steam_windows::last_download_total() {
                 record_download_size(&state.repo, &item.app_id, bytes);
             }
-            if let Err(error) = steam_windows::register_download(&state.repo, &item.app_id) {
+            let registered = if native {
+                crate::services::steam_mac_download::register(&state.repo, &item.app_id)
+            } else {
+                steam_windows::register_download(&state.repo, &item.app_id)
+            };
+            if let Err(error) = registered {
                 eprintln!(
                     "[orbit] could not register download {}: {error}",
                     item.app_id
                 );
             }
+            crate::services::install_upkeep::after_download(app, item, true, native);
             crate::services::storage::invalidate();
             crate::services::install_roots::forget_measurements();
             let _ = app.emit("steam-library-updated", ());
@@ -392,6 +412,7 @@ mod tests {
             title: format!("Game {app_id}"),
             cover_url: None,
             paused: false,
+            repair: false,
         }
     }
 
