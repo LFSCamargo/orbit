@@ -2,6 +2,7 @@ pub mod artwork;
 pub mod artwork_search;
 pub mod bundled_themes;
 pub mod download_queue;
+pub mod game_compression;
 pub mod game_content;
 pub mod game_fixes;
 pub mod http;

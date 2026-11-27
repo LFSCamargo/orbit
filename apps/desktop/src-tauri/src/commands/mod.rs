@@ -1,4 +1,5 @@
 pub mod artwork;
+pub mod compression;
 pub mod dialog;
 pub mod downloads;
 pub mod game_content;

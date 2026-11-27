@@ -19,6 +19,7 @@ import type {
   UninstallReport,
 } from '@/types/downloads'
 import type { StorageOverview } from '@/types/storage'
+import type { CompressionStatus } from '@/types/compression'
 import type { InstallSize } from '@/types/library'
 async function run<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauriRuntime()) {

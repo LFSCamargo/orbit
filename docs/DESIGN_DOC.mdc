@@ -180,6 +180,9 @@ All frontend I/O goes through `src/lib/tauri.ts` → `invoke()`. In browser dev 
 | `get_storage_overview` | `refresh` | `StorageOverview` | Cached scan of Orbit's data folder, every library game's real folder, and all connected drives under `/Volumes` with per-drive breakdown and summed total/free space |
 | `get_install_sizes` | `entryId`, `refresh` | `InstallSize[]` | Disk usage of each installed copy measured from its real game folder; saved to the game row |
 | `remove_component` | `id`, `version` | `void` | Removes any installed component version; clears active selection if pinned |
+| `get_game_compression` | — | `CompressionStatus` | Whether game compression is on and the compress/decompress job's progress |
+| `set_game_compression` | `enabled` | `CompressionStatus` | Saves the switch and starts compressing (or decompressing) every installed game; progress on `game-compression-progress` |
+| `repair_steam_game` | `appId` | `'queued' \| 'steam'` | Steam validates every file of an installed game, then its install scripts run again |
 | `remove_storage_item` | `paths` | `number` | Deletes Orbit-created files or folders strictly inside Orbit's data directory; returns freed bytes |
 
 ### Importers

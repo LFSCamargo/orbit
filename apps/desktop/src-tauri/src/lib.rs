@@ -164,6 +164,8 @@ pub fn run() {
             commands::downloads::remove_install_location,
             commands::uninstall::uninstall_steam_game,
             commands::storage::get_storage_overview,
+            commands::compression::get_game_compression,
+            commands::compression::set_game_compression,
             commands::storage::remove_component,
             commands::storage::remove_storage_item,
             commands::steam_windows::play_steam_windows_game,

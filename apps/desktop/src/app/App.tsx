@@ -18,6 +18,7 @@ import { useLaunchProgress } from '@/hooks/useLaunchProgress'
 import { LaunchOverlay } from '@/modules/session/components/LaunchOverlay'
 import { useSteamDownloadEvents } from '@/hooks/useSteamDownloadEvents'
 import { useDownloadToasts } from '@/hooks/useDownloadToasts'
+import { useCompressionEvents } from '@/hooks/useCompressionEvents'
 import { useLaunchToasts } from '@/hooks/useLaunchToasts'
 import { OrbitToaster } from '@/components/feedback/OrbitToaster'
 import { XcloudPlayer } from '@/modules/xcloud-player/XcloudPlayer'
@@ -52,6 +53,7 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   useLaunchProgress()
   useSteamDownloadEvents()
   useDownloadToasts()
+  useCompressionEvents()
   useLaunchToasts()
   useSteamLibraryEvents()
   useSteamClientEvents()

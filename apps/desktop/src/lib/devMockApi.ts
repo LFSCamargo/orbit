@@ -861,6 +861,23 @@ export async function mockInvoke<T>(
       return { online: true, downloadRate: 0, uploadRate: 0 } as T
     case 'uninstall_steam_game':
       return { removedBytes: 0, keptPrefix: false } as T
+    case 'repair_steam_game':
+      return 'queued' as T
+    case 'get_game_compression':
+    case 'set_game_compression':
+      return {
+        enabled: args?.enabled === true,
+        running: false,
+        compressing: args?.enabled === true,
+        gamesDone: 0,
+        gamesTotal: 0,
+        currentTitle: null,
+        bytesDone: 0,
+        bytesTotal: 0,
+        savedBytes: 0,
+        skippedGames: 0,
+        error: null,
+      } as T
     case 'get_storage_overview':
       return mockStorageOverview() as T
     case 'get_install_sizes': {

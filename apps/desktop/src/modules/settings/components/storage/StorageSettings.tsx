@@ -8,6 +8,7 @@ import { formatBytes, formatRelativeDate } from '@/lib/format'
 import { removeComponent, removeStorageItem, revealPath } from '@/lib/tauri'
 import { notify } from '@/lib/toast'
 import type { StorageItem } from '@/types/storage'
+import { GameCompressionSetting } from './GameCompressionSetting'
 import { LargestInstalls } from './LargestInstalls'
 import { StorageDistribution } from './StorageDistribution'
 import { StorageItemsTable } from './StorageItemsTable'
@@ -105,6 +106,7 @@ export function StorageSettings() {
             : String(overview.error)}
         </p>
       )}
+      <GameCompressionSetting />
       {!data && !overview.error && <StorageSkeleton />}
       {data && (
         <>
