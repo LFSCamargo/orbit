@@ -247,7 +247,7 @@ The frontend (`MacosShell.tsx`) sets `data-fullscreen` from the UI store and add
 ## Testing
 
 ```bash
-yarn run test:rust
+bun run test:rust
 # or
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
@@ -313,7 +313,7 @@ and fit within 480×320 without upscaling. JPEG heroes and transparent PNG logos
 are atomically cached. Production work is O(source pixels) once per changed
 image, then O(1) metadata checks per cached slot; the batch has exactly 16 slots.
 
-Optimize the complete packaged artwork from the repository root with `yarn optimize:themes`. It stages display-sized logos and wallpapers with `orbit-images`, generates GPU previews, then encodes WebP variants with `cwebp`. The application does not depend on this build-time encoder.
+Optimize the complete packaged artwork from the repository root with `bun run optimize:themes`. It stages display-sized logos and wallpapers with `orbit-images`, generates GPU previews, then encodes WebP variants with `cwebp`. The application does not depend on this build-time encoder.
 
 
 Theme artwork downloads are optimized and cached on a blocking worker. Custom

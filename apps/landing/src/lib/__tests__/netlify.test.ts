@@ -26,7 +26,7 @@ function buildSettings() {
 
 it('runs the existing landing Nx project rather than its npm package name', () => {
   const { command } = buildSettings()
-  const target = /^yarn nx run ([^: ]+):build$/.exec(command ?? '')
+  const target = /^bunx nx run ([^: ]+):build$/.exec(command ?? '')
   expect(target).not.toBeNull()
   expect(target?.[1]).toBe(landing.nx.name)
 })

@@ -27,5 +27,5 @@ if [[ -n "$file_path" ]] && [[ ! "$file_path" =~ src-tauri/ ]]; then
   exit 0
 fi
 
-yarn run test:rust || exit 2
+bun run test:rust || exit 2
 exit 0

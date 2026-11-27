@@ -1,4 +1,4 @@
-.yarn/releases
+bun.lock
 .playwright-mcp
 apps/desktop/src-tauri/gen
 .claude/settings.local.json

@@ -66,9 +66,9 @@ Read key changed files when the diff stat alone is ambiguous.
 
 ## Test plan
 
-- [ ] `yarn run typecheck`
-- [ ] `yarn run test:rust` (if `src-tauri/` touched)
-- [ ] `yarn run test:e2e` (if UI/navigation/themes touched)
+- [ ] `bun run typecheck`
+- [ ] `bun run test:rust` (if `src-tauri/` touched)
+- [ ] `bun run test:e2e` (if UI/navigation/themes touched)
 - [ ] Manual: controller navigation / launch flow (if applicable)
 
 ## Screenshots / recordings

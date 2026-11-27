@@ -73,7 +73,7 @@ Desktop preparation uses a Rust GPU worker with CPU fallback and disk caching.
 Packaged previews are available immediately without starting native preparation.
 A shimmer appears while preparation or decoding is pending. Reduced Motion uses
 a static placeholder. Full-resolution originals remain available for the shell
-wallpaper. After refreshing bundled artwork, run `yarn optimize:themes` to regenerate the display images and compact WebP previews. `bundle:themes` runs this step automatically.
+wallpaper. After refreshing bundled artwork, run `bun run optimize:themes` to regenerate the display images and compact WebP previews. `bundle:themes` runs this step automatically.
 
 Display logos are cropped to their visible alpha bounds and fit within 1024×512.
 Bundled wallpapers use high-quality WebP and retain their source resolution up to

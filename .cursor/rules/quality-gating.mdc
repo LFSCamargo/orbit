@@ -15,16 +15,16 @@ task complete and before committing.
    Gates run through Nx from the repo root (`nx run-many` caches unchanged projects).
 2. **Complexity (o1-check)** Per `.cursor/rules/o1-check.mdc` — avoid nested loops,
    unbounded queries, and oversized functions in production paths.
-3. **Format** `yarn run format:check` (Prettier + `prettier-plugin-tailwindcss`). No drift.
-   **Unused code** `yarn run knip` (`knip.json`): no unused files, exports, or dependencies. Unexport a
+3. **Format** `bun run format:check` (Prettier + `prettier-plugin-tailwindcss`). No drift.
+   **Unused code** `bun run knip` (`knip.json`): no unused files, exports, or dependencies. Unexport a
    symbol only used in its own file; delete dead code instead of ignoring it.
-4. **Typecheck** `yarn run typecheck` (desktop + landing). Zero type errors.
-5. **Rust tests** `yarn run test:rust` when touching `apps/desktop/src-tauri/`. All unit tests pass.
-6. **Unit tests** `yarn run test:unit` when touching `src/lib/`, pure helpers, landing code, or
+4. **Typecheck** `bun run typecheck` (desktop + landing). Zero type errors.
+5. **Rust tests** `bun run test:rust` when touching `apps/desktop/src-tauri/`. All unit tests pass.
+6. **Unit tests** `bun run test:unit` when touching `src/lib/`, pure helpers, landing code, or
    Vitest coverage. All Vitest tests pass.
-7. **E2E** `yarn run test:e2e` when changing desktop navigation, themes, imports, or critical UI flows.
-8. **Build** `yarn run build`. Desktop Vite build and landing Next.js build succeed.
-9. **Tauri build** `yarn run tauri:build` before release changes (Rust compile + bundle).
+7. **E2E** `bun run test:e2e` when changing desktop navigation, themes, imports, or critical UI flows.
+8. **Build** `bun run build`. Desktop Vite build and landing Next.js build succeed.
+9. **Tauri build** `bun run tauri:build` before release changes (Rust compile + bundle).
 10. **Docs sync** `docs/` updated per `.cursor/rules/docs-sync.mdc`.
 
 ## Rules

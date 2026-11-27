@@ -8,7 +8,7 @@ Do not finish work that skipped a required check. Do not commit or push unless t
 
 Orbit is a controller-first desktop game launcher for macOS (Apple Silicon first), built with Tauri 2, React, TypeScript, and SQLite. Rust owns all I/O (filesystem, process launch, SQLite, importers); the frontend only invokes typed Tauri commands through `src/lib/tauri.ts`. Source of truth: [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc).
 
-The repo is an Nx monorepo on Yarn 1 workspaces. Run all commands from the root; root scripts delegate to Nx.
+The repo is an Nx monorepo on bun run workspaces. Run all commands from the root; root scripts delegate to Nx.
 
 | App            | Nx project | Role                                                                                                 |
 | -------------- | ---------- | ---------------------------------------------------------------------------------------------------- |
@@ -56,21 +56,26 @@ Docs-only edits skip tests when runtime behavior did not change. Still scan for 
 ## Commands
 
 ```bash
-yarn install
-yarn dev                 # desktop frontend only, mock Tauri API
-yarn tauri:dev           # full desktop app
-yarn dev:landing         # landing site on :3000
-yarn format:check
-yarn knip                # unused files, exports and dependencies (knip.json)
-yarn typecheck           # both apps
-yarn test:unit           # Vitest, both apps
-yarn test:rust           # apps/desktop/src-tauri changes
-yarn test:e2e            # desktop navigation, themes, imports, UI flows
-yarn build               # desktop + landing
-yarn nx run <app>:<target>  # one app, e.g. landing:build
-yarn tauri:build         # release changes
-yarn check:skills        # agent skill copies match .cursor/skills
+bun install
+bun run dev                 # desktop frontend only, mock Tauri API
+bun run tauri:dev           # full desktop app
+bun run dev:landing         # landing site on :3000
+bun run format:check
+bun run knip                # unused files, exports and dependencies (knip.json)
+bun run typecheck           # both apps
+bun run test:unit           # Vitest, both apps
+bun run test:rust           # apps/desktop/src-tauri changes
+bun run test:e2e            # desktop navigation, themes, imports, UI flows
+bun run build               # desktop + landing
+bunx nx run <app>:<target>  # one app, e.g. landing:build
+bun run tauri:build         # release changes
+bun run check:skills        # agent skill copies match .cursor/skills
+bun run security            # gitleaks + OpenGrep/Semgrep + bun audit (cargo audit when installed)
 ```
+
+Bun is the package manager and script runner (`bun.lock`, `bunfig.toml` pins exact versions). Always use `bun run <script>`: a bare `bun test` or `bun build` starts Bun's own runner or bundler instead of the Nx target. Every dependency is pinned to an exact version (no `^` or `~`). Install scripts run only for `trustedDependencies` in the root `package.json`.
+
+Husky hooks run on commit: `pre-commit` runs format:check, typecheck and a gitleaks scan of staged changes; `commit-msg` runs commitlint (Conventional Commits). There is no CI: run `bun run security` before a PR or release. Reviewed false positives go in `.gitleaksignore` (fingerprints) and in `.opengrep.yml` path excludes, each with a reason.
 
 ## Out of scope
 

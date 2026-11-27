@@ -6,19 +6,19 @@ How to run Orbit locally, test changes, and troubleshoot common issues. For arch
 
 ## Prerequisites
 
-| Tool          | Version           | Notes                                     |
-| ------------- | ----------------- | ----------------------------------------- |
-| **macOS**     | 12+               | Primary target; Apple Silicon recommended |
-| **Node.js**   | 22+               | Required for frontend tooling             |
-| **Yarn**      | 1.x or compatible | Package manager                           |
-| **Rust**      | stable            | Install via [rustup](https://rustup.rs)   |
-| **Xcode CLT** | Latest            | `xcode-select --install`                  |
+| Tool          | Version                               | Notes                                     |
+| ------------- | ------------------------------------- | ----------------------------------------- |
+| **macOS**     | 12+                                   | Primary target; Apple Silicon recommended |
+| **Node.js**   | 22+                                   | Required for frontend tooling             |
+| **Bun**       | 1.4+ (`brew install oven-sh/bun/bun`) | Package manager                           |
+| **Rust**      | stable                                | Install via [rustup](https://rustup.rs)   |
+| **Xcode CLT** | Latest                                | `xcode-select --install`                  |
 
 Optional for E2E:
 
-| Tool                | Notes                                            |
-| ------------------- | ------------------------------------------------ |
-| Playwright browsers | Installed automatically on first `yarn test:e2e` |
+| Tool                | Notes                                               |
+| ------------------- | --------------------------------------------------- |
+| Playwright browsers | Installed automatically on first `bun run test:e2e` |
 
 ---
 
@@ -27,8 +27,8 @@ Optional for E2E:
 ```bash
 git clone <repo-url> orbit
 cd orbit
-yarn install
-yarn tauri:dev
+bun install
+bun run tauri:dev
 ```
 
 The first `tauri:dev` run compiles Rust dependencies and may take several minutes.
@@ -45,7 +45,7 @@ The repo is an Nx monorepo: the desktop app is `apps/desktop` and the landing si
 Runs the Tauri shell with hot reload on the Vite dev server and the real SQLite backend:
 
 ```bash
-yarn tauri:dev
+bun run tauri:dev
 ```
 
 | Detail        | Value                                                   |
@@ -61,17 +61,17 @@ Use this mode when working on importers, launch, SQLite, native dialogs, or wind
 Runs Vite with a mock Tauri API — no Rust compile, no real filesystem access:
 
 ```bash
-yarn dev
+bun run dev
 ```
 
 Open `http://localhost:1420`. Mock data comes from `apps/desktop/src/lib/devMockApi.ts`.
 
-Use this mode for UI, themes, controller focus, and layout work. Switch to `yarn tauri:dev` before merging anything that touches Tauri commands or importers.
+Use this mode for UI, themes, controller focus, and layout work. Switch to `bun run tauri:dev` before merging anything that touches Tauri commands or importers.
 
 ### Landing site
 
 ```bash
-yarn dev:landing
+bun run dev:landing
 ```
 
 Opens the Next.js site on `http://localhost:3000`. Download pages read live data from the
@@ -85,7 +85,7 @@ unauthenticated rate limit. See [docs/LANDING.md](docs/LANDING.md) for routes an
 ### Quick build
 
 ```bash
-yarn tauri:build
+bun run tauri:build
 ```
 
 Produces a macOS `.app` bundle under `apps/desktop/src-tauri/target/release/bundle/macos/` and a `.dmg` installer. The DMG skips Finder icon layout because macOS blocks that AppleScript unless the terminal is allowed to control Finder. The app and the Applications link are still in the image.
@@ -95,7 +95,7 @@ Produces a macOS `.app` bundle under `apps/desktop/src-tauri/target/release/bund
 Collects versioned artifacts and checksums into `release/<version>/`:
 
 ```bash
-yarn release:macos
+bun run release:macos
 ```
 
 | Flag               | Description                                                    |
@@ -104,8 +104,8 @@ yarn release:macos
 | `--arch universal` | Universal binary (Apple Silicon + Intel)                       |
 | `--arch aarch64`   | Apple Silicon only                                             |
 | `--arch x86_64`    | Intel only                                                     |
-| `--skip-tests`     | Skip `yarn test:rust`                                          |
-| `--skip-typecheck` | Skip `yarn typecheck`                                          |
+| `--skip-tests`     | Skip `bun run test:rust`                                       |
+| `--skip-typecheck` | Skip `bun run typecheck`                                       |
 | `--install`        | Mount the produced DMG and copy `Orbit.app` to `/Applications` |
 
 **Output** (example for v0.1.0 on Apple Silicon):
@@ -117,7 +117,7 @@ release/0.1.0/
   SHA256SUMS.txt
 ```
 
-The release script must run on **macOS** with Xcode CLT, Node.js, Yarn, and Rust installed. The `release/` folder is gitignored.
+The release script must run on **macOS** with Xcode CLT, Node.js, Bun, and Rust installed. The `release/` folder is gitignored.
 
 ### Publishing a release
 
@@ -125,12 +125,12 @@ Releases are built and published from a Mac (there is no CI: GitHub's macOS runn
 
 ```bash
 git checkout main && git pull
-yarn monopipeline release 2.6.0 --summary "Short release summary"
+bun run monopipeline release 2.6.0 --summary "Short release summary"
 # Fill in CHANGELOG.md and .github/release-notes/2.6.0.md, then:
 git commit -am "chore(release): prepare v2.6.0"   # git add the new release-notes file first
 git push origin main
 git tag -a v2.6.0 -m "Orbit 2.6.0" && git push origin v2.6.0
-yarn release:macos
+bun run release:macos
 gh release create v2.6.0 --verify-tag --title "Orbit 2.6.0" --latest \
   --notes-file .github/release-notes/2.6.0.md release/2.6.0/*
 ```
@@ -147,14 +147,14 @@ redeploys `/changelog` because the release commit changes `CHANGELOG.md`.
 Required when changing pure helpers under `apps/desktop/src/lib/`, theme tokens, library filter/sort logic, or the landing site (`apps/landing/src/`):
 
 ```bash
-yarn test:unit
+bun run test:unit
 ```
 
 Watch mode while iterating:
 
 ```bash
-yarn workspace @orbit/desktop test:unit:watch
-yarn workspace @orbit/landing test:unit:watch
+bun run --cwd apps/desktop test:unit:watch
+bun run --cwd apps/landing test:unit:watch
 ```
 
 ### Rust unit tests
@@ -162,7 +162,7 @@ yarn workspace @orbit/landing test:unit:watch
 Required when changing `apps/desktop/src-tauri/`:
 
 ```bash
-yarn test:rust
+bun run test:rust
 ```
 
 ### Playwright E2E
@@ -170,13 +170,13 @@ yarn test:rust
 Runs against a production preview server with the mock API (`devMockApi.ts`):
 
 ```bash
-yarn test:e2e
+bun run test:e2e
 ```
 
 Interactive UI mode:
 
 ```bash
-yarn test:e2e:ui
+bun run test:e2e:ui
 ```
 
 E2E specs (in `apps/desktop/e2e/`):
@@ -189,16 +189,16 @@ E2E specs (in `apps/desktop/e2e/`):
 | `e2e/game-details.spec.ts`        | Game details controls and achievements                                      |
 | `e2e/session-and-library.spec.ts` | Session quick menu, Steam library folders, compact header logo              |
 
-`yarn test:e2e` builds the desktop app first (Nx `dependsOn`), then serves it with `vite preview`, so the specs always exercise current code.
+`bun run test:e2e` builds the desktop app first (Nx `dependsOn`), then serves it with `vite preview`, so the specs always exercise current code.
 
 Run E2E after changes to navigation, themes, controller focus, or screen layouts.
 
 ### Typecheck and format
 
 ```bash
-yarn typecheck
-yarn knip
-yarn format:check    # or yarn format to fix
+bun run typecheck
+bun run knip
+bun run format:check    # or bun run format to fix
 ```
 
 ---
@@ -235,7 +235,7 @@ Orbit has no required `.env` file. Optional settings are configured in the app:
 | Auto-enrich new imports | Settings UI | Runs after scan for newly inserted game IDs (default on) |
 | Theme id                | Settings UI | Active built-in or custom theme                          |
 
-In browser dev (`yarn dev`), theme id can also be set via `localStorage`:
+In browser dev (`bun run dev`), theme id can also be set via `localStorage`:
 
 ```javascript
 localStorage.setItem('orbit.themeId', 'god-of-war') // any built-in or custom theme id
@@ -265,13 +265,13 @@ Optional `RAWG_API_KEY` in Settings still powers artwork search in Edit Properti
 Run before opening a PR (see [CONTRIBUTING.md](CONTRIBUTING.md)):
 
 ```bash
-yarn run format:check
-yarn knip
-yarn run typecheck
-yarn run test:unit      # when src/lib/, landing, or unit-tested helpers changed
-yarn run test:rust      # when apps/desktop/src-tauri/ changed
-yarn run build
-yarn run test:e2e       # when desktop UI/navigation/themes changed
+bun run format:check
+bun run knip
+bun run typecheck
+bun run test:unit      # when src/lib/, landing, or unit-tested helpers changed
+bun run test:rust      # when apps/desktop/src-tauri/ changed
+bun run build
+bun run test:e2e       # when desktop UI/navigation/themes changed
 ```
 
 Cursor hooks in `.cursor/hooks.json` run `typecheck` and `test:rust` after agent edits.
@@ -282,21 +282,21 @@ Full gate list: [`.cursor/rules/quality-gating.mdc`](.cursor/rules/quality-gatin
 
 ## Troubleshooting
 
-**`yarn tauri:dev` fails on Rust compile**
+**`bun run tauri:dev` fails on Rust compile**
 
 - Ensure Rust is installed: `rustc --version`
 - Update toolchain: `rustup update stable`
 - Clean and retry: `cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml`
-- After moving the repo or pulling the monorepo layout, a build error like `failed to read plugin permissions … No such file` means cached build-script output points at the old path. Clean the Tauri crates: `cd apps/desktop/src-tauri && cargo clean -p tauri -p tauri-plugin-dialog -p tauri-plugin-opener -p orbit` (add `--release --target aarch64-apple-darwin` for release builds), or run `yarn clean` for a full reset.
+- After moving the repo or pulling the monorepo layout, a build error like `failed to read plugin permissions … No such file` means cached build-script output points at the old path. Clean the Tauri crates: `cd apps/desktop/src-tauri && cargo clean -p tauri -p tauri-plugin-dialog -p tauri-plugin-opener -p orbit` (add `--release --target aarch64-apple-darwin` for release builds), or run `bun run clean` for a full reset.
 
 **Disk usage grew while developing**
 
 Rust incremental builds accumulate under `apps/desktop/src-tauri/target/` (often **5–15 GB**). This is normal for Tauri projects.
 
 ```bash
-yarn clean:report   # show what is using space
-yarn clean          # cargo clean + remove dist/test/release artifacts (~11 GB typical)
-yarn clean:deep     # also prune global yarn + cargo caches (optional)
+bun run clean:report   # show what is using space
+bun run clean          # cargo clean + remove dist/test/release artifacts (~11 GB typical)
+bun run clean:deep     # also prune global Bun + cargo caches (optional)
 ```
 
 Orbit app data lives in `~/Library/Application Support/Orbit/` (SQLite, artwork,
@@ -308,11 +308,11 @@ See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 **Blank window or Vite connection refused**
 
 - Confirm port `1420` is free (configured in `apps/desktop/vite.config.ts` and `apps/desktop/src-tauri/tauri.conf.json`)
-- Kill stale Vite processes and restart `yarn tauri:dev`
+- Kill stale Vite processes and restart `bun run tauri:dev`
 
 **Frontend works in browser but not in Tauri**
 
-- You may be relying on mock API behavior. Test with `yarn tauri:dev` before merging.
+- You may be relying on mock API behavior. Test with `bun run tauri:dev` before merging.
 - Check the Tauri devtools console for invoke errors.
 
 **Steam / Astris import finds nothing**
@@ -327,9 +327,9 @@ See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 
 **Playwright E2E fails locally**
 
-- E2E uses `yarn preview` on port `4173`. Ensure nothing else occupies that port.
-- Run `yarn build` first if preview assets are stale.
-- Use `yarn test:e2e:ui` to debug failing selectors interactively.
+- E2E uses `bun run preview` on port `4173`. Ensure nothing else occupies that port.
+- Run `bun run build` first if preview assets are stale.
+- Use `bun run test:e2e:ui` to debug failing selectors interactively.
 
 **Database looks corrupted**
 
@@ -340,19 +340,19 @@ See `.cursor/skills/dev-storage-cleanup/SKILL.md` for the full cleanup workflow.
 ## Quick reference
 
 ```bash
-yarn install              # Install dependencies
-yarn tauri:dev            # Full desktop dev (recommended)
-yarn dev                  # Frontend-only with mocks
-yarn dev:landing          # Landing site (Next.js) on :3000
-yarn build                # Desktop + landing production builds (Nx)
-yarn tauri:build          # Release .app bundle
-yarn release:macos        # Package .app + .dmg to release/<version>/
-yarn typecheck            # TypeScript
-yarn test:unit            # Vitest unit tests
-yarn test:rust            # Rust unit tests
-yarn test:e2e             # Playwright E2E
-yarn format               # Prettier write
-yarn format:check         # Prettier check
-yarn knip                 # Unused files, exports, and dependencies
-yarn metadata:fetch -- …  # Standalone metadata + artwork cache CLI
+bun install              # Install dependencies
+bun run tauri:dev            # Full desktop dev (recommended)
+bun run dev                  # Frontend-only with mocks
+bun run dev:landing          # Landing site (Next.js) on :3000
+bun run build                # Desktop + landing production builds (Nx)
+bun run tauri:build          # Release .app bundle
+bun run release:macos        # Package .app + .dmg to release/<version>/
+bun run typecheck            # TypeScript
+bun run test:unit            # Vitest unit tests
+bun run test:rust            # Rust unit tests
+bun run test:e2e             # Playwright E2E
+bun run format               # Prettier write
+bun run format:check         # Prettier check
+bun run knip                 # Unused files, exports, and dependencies
+bun run metadata:fetch -- …  # Standalone metadata + artwork cache CLI
 ```

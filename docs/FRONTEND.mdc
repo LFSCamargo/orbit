@@ -270,8 +270,8 @@ Keyboard equivalents handled in the same hook.
 ### E2E (Playwright)
 
 ```bash
-yarn dev          # or yarn tauri:dev
-yarn test:e2e
+bun run dev          # or bun run tauri:dev
+bun run test:e2e
 ```
 
 Home artwork, contrast, and route regressions live in `e2e/home-backdrop.spec.ts` and `e2e/macos-theme.spec.ts`.
@@ -279,7 +279,7 @@ Home artwork, contrast, and route regressions live in `e2e/home-backdrop.spec.ts
 ### Typecheck
 
 ```bash
-yarn run typecheck
+bun run typecheck
 ```
 
 Add Playwright coverage for new screens and controller flows. Bug fixes should include a regression spec when feasible.
@@ -288,9 +288,9 @@ Add Playwright coverage for new screens and controller flows. Bug fixes should i
 
 | Command | Purpose |
 | ------- | ------- |
-| `yarn tauri:dev` | Full desktop app |
-| `yarn dev` | Frontend only + mock API (faster UI iteration) |
-| `yarn test:e2e:ui` | Debug Playwright interactively |
+| `bun run tauri:dev` | Full desktop app |
+| `bun run dev` | Frontend only + mock API (faster UI iteration) |
+| `bun run test:e2e:ui` | Debug Playwright interactively |
 
 Browser dev sets theme via `localStorage.setItem('orbit.themeId', 'orbit')` in E2E boot helper.
 

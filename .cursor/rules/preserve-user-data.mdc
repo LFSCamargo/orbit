@@ -30,7 +30,7 @@ SQLite keys that must survive restarts: `steam-windows-account-v1`,
   `kernel32.dll` / `system.reg` looks incomplete
 - Clear the Steam account or owned catalog except on **Sign out**
 - Point tests at `app_data_dir()`; use temp dirs or in-memory SQLite
-- Treat `yarn release:macos --install` as permission to reset user data
+- Treat `bun run release:macos --install` as permission to reset user data
 
 ## Code
 

@@ -127,11 +127,11 @@ updating `classifyAsset` and its tests.
 ## Develop
 
 ```bash
-yarn dev:landing                         # http://localhost:3000
-yarn nx run landing:build                # production build
-yarn workspace @orbit/landing start      # serve the build
-yarn nx run landing:test:unit            # Vitest
-yarn nx run landing:typecheck            # next typegen + tsc
+bun run dev:landing                         # http://localhost:3000
+bunx nx run landing:build                # production build
+bun run --cwd apps/landing start      # serve the build
+bunx nx run landing:test:unit            # Vitest
+bunx nx run landing:typecheck            # next typegen + tsc
 ```
 
 ## Deploy (Vercel)
@@ -140,7 +140,7 @@ Create a Vercel project from this repository with:
 
 - **Framework preset:** Next.js
 - **Root directory:** `apps/landing`
-- **Install command:** default (Vercel detects Yarn workspaces and installs from the repo root)
+- **Install command:** default (Vercel detects bun run workspaces and installs from the repo root)
 - **Build command:** default (`next build`)
 - **Environment:** optional `GITHUB_TOKEN`
 
@@ -150,15 +150,15 @@ immediately.
 ## Deploy (Netlify)
 
 The root `netlify.toml` keeps builds at the workspace root and publishes only the
-landing app. It overrides the dashboard build command with `yarn nx run landing:build`.
-The Nx project is named `landing`; `@orbit/landing` is the Yarn package name and is
+landing app. It overrides the dashboard build command with `bunx nx run landing:build`.
+The Nx project is named `landing`; `@orbit/landing` is the bun run package name and is
 not a valid Nx project target.
 
 Use these Netlify site settings:
 
 - **Base directory:** repository root (`.`).
 - **Package directory:** `apps/landing` (set in the Netlify dashboard).
-- **Build command:** `yarn nx run landing:build` (owned by `netlify.toml`).
+- **Build command:** `bunx nx run landing:build` (owned by `netlify.toml`).
 - **Publish directory:** `apps/landing/.next` (relative to the repository root).
 - **Runtime:** Netlify’s automatically detected Next.js adapter. Keep SSR and ISR enabled;
   this app does not use a static export.

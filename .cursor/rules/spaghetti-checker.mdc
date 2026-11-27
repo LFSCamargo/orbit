@@ -12,7 +12,7 @@ readability, reviewability, and testability.
 
 ## Monorepo `apps/`
 
-Orbit is an Nx + Yarn workspaces monorepo. Each app owns its code; nothing imports across apps.
+Orbit is an Nx + bun run workspaces monorepo. Each app owns its code; nothing imports across apps.
 
 ```
 apps/
@@ -134,9 +134,9 @@ group, importer, service concern, or adapter.
 ## Tests
 
 - **Rust:** unit tests in the same module (`#[cfg(test)]`) or `src-tauri/tests/`.
-  Run `yarn run test:rust`.
-- **E2E:** Playwright in `apps/desktop/e2e/*.spec.ts`. Run `yarn run test:e2e` for UI/navigation changes.
-- **Landing:** Vitest in `apps/landing/src/**/__tests__/`. Run `yarn run test:unit`.
+  Run `bun run test:rust`.
+- **E2E:** Playwright in `apps/desktop/e2e/*.spec.ts`. Run `bun run test:e2e` for UI/navigation changes.
+- **Landing:** Vitest in `apps/landing/src/**/__tests__/`. Run `bun run test:unit`.
 - Prefer adding E2E coverage for new screens and controller flows.
 
 ---
@@ -147,5 +147,5 @@ When creating or editing under `apps/*/src/` or `apps/desktop/src-tauri/src/`:
 
 1. **Match layout** — use the canonical folder tree above.
 2. **Split before merge** — new screen → `modules/`; new command group → `commands/`; new importer → `importers/`.
-3. **Run gates** — `yarn run typecheck`, `yarn run test:rust` (Rust), `yarn run test:e2e` (UI).
+3. **Run gates** — `bun run typecheck`, `bun run test:rust` (Rust), `bun run test:e2e` (UI).
 4. **Update docs** — README architecture section or `docs/THEMES.md` if structure or theme contract changed.

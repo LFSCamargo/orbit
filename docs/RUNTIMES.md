@@ -407,7 +407,7 @@ Managed compatibility remains macOS-only.
 
 ## Verification
 
-`yarn test:rust` covers fake subprocess fixtures explicitly as deterministic unit
+`bun run test:rust` covers fake subprocess fixtures explicitly as deterministic unit
 coverage, not actual Wine compatibility. Cases include detection and missing server,
 PE/path validation, environment restrictions, argv boundaries, setup failure/retry,
 version mismatch, lifecycle exit status, and cancellation timeouts. Frontend tests

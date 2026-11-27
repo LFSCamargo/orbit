@@ -58,6 +58,6 @@ When editing `apps/desktop/src-tauri/src/commands/`, `importers/`, `launching/`,
 
 1. **Validate inputs** — paths, IDs, and importer payloads at the Rust boundary.
 2. **Parameterized SQL** — no string-built queries.
-3. **Run gates** — `yarn run test:rust` and `yarn run typecheck`.
+3. **Run gates** — `bun run test:rust` and `bun run typecheck`.
 4. **No secrets in diff** — scan for API keys and tokens before commit.
 5. **Update docs** — README or importer docs if launch/import contract changes.

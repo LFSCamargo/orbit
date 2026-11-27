@@ -13,20 +13,20 @@ Source of truth: `.cursor/rules/quality-gating.mdc`, [docs/PROJECT.mdc](../../do
 
 ## Quick reference — local commands
 
-| Gate           | Command                 |
-| -------------- | ----------------------- |
-| Format         | `yarn run format:check` |
-| Typecheck      | `yarn run typecheck`    |
-| Rust tests     | `yarn run test:rust`    |
-| E2E            | `yarn run test:e2e`     |
-| Frontend build | `yarn run build`        |
-| Release build  | `yarn run tauri:build`  |
+| Gate           | Command                |
+| -------------- | ---------------------- |
+| Format         | `bun run format:check` |
+| Typecheck      | `bun run typecheck`    |
+| Rust tests     | `bun run test:rust`    |
+| E2E            | `bun run test:e2e`     |
+| Frontend build | `bun run build`        |
+| Release build  | `bun run tauri:build`  |
 
 ## Workflow
 
 ```
 - [ ] Step 1: Identify failing gate(s)
-- [ ] Step 2: Sync deps (`yarn install`)
+- [ ] Step 2: Sync deps (`bun install`)
 - [ ] Step 3: Run matching gate — capture full output
 - [ ] Step 4: Classify failure (straightforward vs needs user input)
 - [ ] Step 5: Fix or ask user
@@ -39,15 +39,15 @@ Source of truth: `.cursor/rules/quality-gating.mdc`, [docs/PROJECT.mdc](../../do
 Run **only** the failing gate first. After it passes, run subsequent gates:
 
 ```bash
-yarn run format:check
-yarn run typecheck
-yarn run test:rust
-yarn run build
-yarn run test:e2e
+bun run format:check
+bun run typecheck
+bun run test:rust
+bun run build
+bun run test:e2e
 ```
 
-For Rust-only changes, you can narrow to `yarn run test:rust` first.
-For UI/theme/controller changes, include `yarn run test:e2e`.
+For Rust-only changes, you can narrow to `bun run test:rust` first.
+For UI/theme/controller changes, include `bun run test:e2e`.
 
 ### Classify failures
 
@@ -61,7 +61,7 @@ For UI/theme/controller changes, include `yarn run test:e2e`.
 
 | Gate       | Fix approach                                                            | Rule reference    |
 | ---------- | ----------------------------------------------------------------------- | ----------------- |
-| Format     | Run `yarn run format` or fix Prettier issues                            | quality-gating    |
+| Format     | Run `bun run format` or fix Prettier issues                             | quality-gating    |
 | Typecheck  | Fix types at source; no `@ts-ignore`                                    | quality-gating    |
 | Rust tests | Fix logic in `src-tauri/`; add regression test                          | test-driven       |
 | E2E        | Fix selectors/flows; update Playwright spec if UI changed intentionally | test-driven       |

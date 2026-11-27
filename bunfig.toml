@@ -1,0 +1,4 @@
+# Bun settings. See https://bun.sh/docs/runtime/bunfig
+[install]
+# Pin every added dependency to an exact version (no ^ or ~ ranges).
+exact = true

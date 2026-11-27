@@ -139,10 +139,10 @@ export default async function InstallPage() {
 
           <InstallSection id="source" title="Build from source">
             <p>
-              You need a Mac with Xcode Command Line Tools, Node.js 22+, Yarn 4 and Rust
+              You need a Mac with Xcode Command Line Tools, Node.js 22+, Bun and Rust
               stable.
             </p>
-            <CodeBlock>{`git clone ${GITHUB_URL}.git\ncd orbit\nyarn install\nyarn tauri:dev    # development mode\nyarn release:macos --install  # build Orbit.app and copy it to Applications`}</CodeBlock>
+            <CodeBlock>{`git clone ${GITHUB_URL}.git\ncd orbit\nbun install\nbun run tauri:dev    # development mode\nbun run release:macos --install  # build Orbit.app and copy it to Applications`}</CodeBlock>
             <p>
               See <a href={DOCS.running}>RUNNING.md</a> for development modes and
               troubleshooting, or <Link href="/download">browse every release</Link>.

@@ -24,8 +24,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 function usage(exitCode = 1) {
   console.log(`Usage:
-  yarn monopipeline bump <patch|minor|major|version>
-  yarn monopipeline release <patch|minor|major|version> [options]
+  bun run monopipeline bump <patch|minor|major|version>
+  bun run monopipeline release <patch|minor|major|version> [options]
 
 Commands:
   bump      Sync version across package.json, tauri.conf.json, and Cargo.toml
@@ -40,9 +40,9 @@ Options (release):
   --dry-run               Print planned changes without writing files
 
 Examples:
-  yarn monopipeline bump patch
-  yarn monopipeline release minor --summary "Theme polish and importer fixes"
-  yarn monopipeline release 0.2.0 --date 2026-08-01
+  bun run monopipeline bump patch
+  bun run monopipeline release minor --summary "Theme polish and importer fixes"
+  bun run monopipeline release 0.2.0 --date 2026-08-01
 `)
   process.exit(exitCode)
 }

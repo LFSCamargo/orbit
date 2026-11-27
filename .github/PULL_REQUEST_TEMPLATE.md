@@ -8,13 +8,13 @@
 
 ## Test plan
 
-- [ ] `yarn run format:check`
-- [ ] `yarn knip`
-- [ ] `yarn run typecheck`
-- [ ] `yarn run test:unit`
-- [ ] `yarn run test:rust` (if `apps/desktop/src-tauri/` touched)
-- [ ] `yarn run build`
-- [ ] `yarn run test:e2e` (if UI/navigation/themes touched)
+- [ ] `bun run format:check`
+- [ ] `bun run knip`
+- [ ] `bun run typecheck`
+- [ ] `bun run test:unit`
+- [ ] `bun run test:rust` (if `apps/desktop/src-tauri/` touched)
+- [ ] `bun run build`
+- [ ] `bun run test:e2e` (if UI/navigation/themes touched)
 - [ ] Manual: controller navigation / launch flow (if applicable)
 
 ## Screenshots / recordings

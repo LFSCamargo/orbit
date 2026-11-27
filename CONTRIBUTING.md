@@ -13,8 +13,8 @@ For day-to-day commands and troubleshooting, see [RUNNING.md](RUNNING.md). For a
 3. Run the app locally:
 
    ```bash
-   yarn install
-   yarn tauri:dev
+   bun install
+   bun run tauri:dev
    ```
 
 4. Create a branch from `main`:
@@ -58,12 +58,12 @@ See [docs/DESIGN_DOC.mdc](docs/DESIGN_DOC.mdc) for the full product boundary.
 
 ### Pick the right dev mode
 
-| Change type                     | Dev command                                           |
-| ------------------------------- | ----------------------------------------------------- |
-| Rust, SQLite, importers, launch | `yarn tauri:dev`                                      |
-| React UI, themes, focus system  | `yarn dev` for speed, then `yarn tauri:dev` before PR |
-| E2E specs                       | `yarn test:e2e` (uses preview + mock API)             |
-| Landing site                    | `yarn dev:landing`                                    |
+| Change type                     | Dev command                                                 |
+| ------------------------------- | ----------------------------------------------------------- |
+| Rust, SQLite, importers, launch | `bun run tauri:dev`                                         |
+| React UI, themes, focus system  | `bun run dev` for speed, then `bun run tauri:dev` before PR |
+| E2E specs                       | `bun run test:e2e` (uses preview + mock API)                |
+| Landing site                    | `bun run dev:landing`                                       |
 
 ### Code organization
 
@@ -84,12 +84,12 @@ Guidelines:
 
 ### Tests
 
-| Layer     | When required                          | Command          |
-| --------- | -------------------------------------- | ---------------- |
-| Rust      | Any `apps/desktop/src-tauri/` change   | `yarn test:rust` |
-| Unit      | Helpers, landing code                  | `yarn test:unit` |
-| E2E       | Navigation, themes, focus, new screens | `yarn test:e2e`  |
-| Typecheck | All TS/TSX changes                     | `yarn typecheck` |
+| Layer     | When required                          | Command             |
+| --------- | -------------------------------------- | ------------------- |
+| Rust      | Any `apps/desktop/src-tauri/` change   | `bun run test:rust` |
+| Unit      | Helpers, landing code                  | `bun run test:unit` |
+| E2E       | Navigation, themes, focus, new screens | `bun run test:e2e`  |
+| Typecheck | All TS/TSX changes                     | `bun run typecheck` |
 
 Bug fixes should include a regression test when practical. See [`.cursor/rules/test-driven.mdc`](.cursor/rules/test-driven.mdc).
 
@@ -100,13 +100,13 @@ Bug fixes should include a regression test when practical. See [`.cursor/rules/t
 All gates must pass before a PR is ready for review:
 
 ```bash
-yarn run format:check
-yarn knip
-yarn run typecheck
-yarn run test:unit
-yarn run test:rust      # if apps/desktop/src-tauri/ touched
-yarn run build
-yarn run test:e2e       # if UI/navigation/themes touched
+bun run format:check
+bun run knip
+bun run typecheck
+bun run test:unit
+bun run test:rust      # if apps/desktop/src-tauri/ touched
+bun run build
+bun run test:e2e       # if UI/navigation/themes touched
 ```
 
 Do not:

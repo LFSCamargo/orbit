@@ -33,13 +33,28 @@
     "check:skills": "bash scripts/sync-agent-skills.sh --check",
     "clean:report": "node scripts/cleanup-dev-storage.mjs",
     "clean": "node scripts/cleanup-dev-storage.mjs --clean",
-    "clean:deep": "node scripts/cleanup-dev-storage.mjs --deep"
+    "clean:deep": "node scripts/cleanup-dev-storage.mjs --deep",
+    "security": "bash scripts/security-scan.sh all",
+    "security:secrets": "bash scripts/security-scan.sh secrets",
+    "security:sast": "bash scripts/security-scan.sh sast",
+    "security:audit": "bash scripts/security-scan.sh audit",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "knip": "^6.47.0",
-    "nx": "^24.0.5",
-    "prettier": "^3.9.6",
-    "prettier-plugin-tailwindcss": "^0.8.1"
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
+    "husky": "9.1.7",
+    "knip": "6.48.0",
+    "nx": "24.0.7",
+    "prettier": "3.10.1",
+    "prettier-plugin-tailwindcss": "0.8.1"
   },
-  "packageManager": "yarn@4.18.1"
+  "packageManager": "bun@1.4.5",
+  "trustedDependencies": [
+    "nx"
+  ],
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.4.5"
+  }
 }

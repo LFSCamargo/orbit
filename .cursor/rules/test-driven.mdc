@@ -21,15 +21,15 @@ Desktop paths are relative to `apps/desktop/`.
 
 - **Rust (`src-tauri/`)** `#[cfg(test)]` modules and `cargo test`. Cover filename parsing,
   path utilities, importer detection, repository queries, and migration logic.
-  Run: `yarn run test:rust`.
+  Run: `bun run test:rust`.
 - **Frontend (React)** Playwright E2E in `e2e/` for screens, controller navigation, themes,
-  imports, and critical user flows. Run: `yarn run test:e2e`.
+  imports, and critical user flows. Run: `bun run test:e2e`.
 - **Pure TS helpers (`src/lib/`, themes, module libs)** Vitest + Testing Library unit tests
-  under `src/**/__tests__/` or colocated `*.test.ts(x)`. Run: `yarn run test:unit`
-  (watch: `yarn workspace @orbit/desktop test:unit:watch`).
+  under `src/**/__tests__/` or colocated `*.test.ts(x)`. Run: `bun run test:unit`
+  (watch: `bun run --cwd apps/desktop test:unit:watch`).
 - **Landing (`apps/landing/`)** Vitest + Testing Library under `src/**/__tests__/` for release
   parsing, formatting, and interactive components. Use fixtures — never hit the GitHub API in tests.
-  Run: `yarn run test:unit`.
+  Run: `bun run test:unit`.
 
 ## Coverage expectations
 

@@ -27,5 +27,5 @@ if [[ -n "$file_path" ]] && [[ ! "$file_path" =~ \.(tsx?|jsx?)$ ]] && [[ ! "$fil
   exit 0
 fi
 
-yarn run typecheck || exit 2
+bun run typecheck || exit 2
 exit 0

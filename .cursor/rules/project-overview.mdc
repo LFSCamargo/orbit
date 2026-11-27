@@ -11,7 +11,7 @@ and Apple TV — a modern alternative to Pegasus Frontend.
 
 Source of truth: [docs/DESIGN_DOC.mdc](../../docs/DESIGN_DOC.mdc).
 
-## Apps (Nx monorepo, Yarn workspaces)
+## Apps (Nx monorepo, bun run workspaces)
 
 - `apps/desktop` — the Tauri desktop launcher (React + Vite frontend, Rust backend).
 - `apps/landing` — Next.js landing site on Vercel: product overview, install guide, and

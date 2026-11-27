@@ -10,7 +10,7 @@
       "!{projectRoot}/e2e/**/*"
     ],
     "rust": ["{projectRoot}/src-tauri/**/*", "!{projectRoot}/src-tauri/target/**/*"],
-    "sharedGlobals": ["{workspaceRoot}/package.json", "{workspaceRoot}/yarn.lock"]
+    "sharedGlobals": ["{workspaceRoot}/package.json", "{workspaceRoot}/bun.lock"]
   },
   "targetDefaults": {
     "build": {

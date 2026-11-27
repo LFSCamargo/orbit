@@ -18,8 +18,8 @@ Build macOS release binaries with Tauri and copy artifacts to release/<version>/
 
 Options:
   --arch <aarch64|x86_64|universal|native>  Rust target (default: native)
-  --skip-tests                              Skip yarn test:rust
-  --skip-typecheck                          Skip yarn typecheck
+  --skip-tests                              Skip bun run test:rust
+  --skip-typecheck                          Skip bun run typecheck
   --install                                 Mount the produced DMG and copy Orbit.app to /Applications
   -h, --help                                Show this help
 
@@ -71,8 +71,8 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-if ! command -v yarn >/dev/null 2>&1; then
-  echo "error: yarn is required." >&2
+if ! command -v bun >/dev/null 2>&1; then
+  echo "error: bun is required." >&2
   exit 1
 fi
 
@@ -166,20 +166,20 @@ echo
 
 if [[ "$SKIP_TYPECHECK" != true ]]; then
   echo "==> Typecheck"
-  yarn run typecheck
+  bun run typecheck
   echo
 fi
 
 if [[ "$SKIP_TESTS" != true ]]; then
   echo "==> Rust tests"
-  yarn run test:rust
+  bun run test:rust
   echo
 fi
 
 echo "==> Tauri build"
 # CI=true makes Tauri skip the Finder layout script. On macOS 27 that script
 # fails with AppleEvent -1743 (not allowed to control Finder) and aborts the DMG.
-CI=true yarn workspace @orbit/desktop tauri build --target "$TARGET"
+CI=true bun run --cwd apps/desktop tauri build --target "$TARGET"
 echo
 
 mkdir -p "$OUT_DIR"

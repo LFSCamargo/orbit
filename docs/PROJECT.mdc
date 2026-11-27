@@ -4,7 +4,7 @@ alwaysApply: true
 
 # Project & Tooling
 
-**Nx** monorepo on **Yarn 1 workspaces** with two apps:
+**Nx** monorepo on **bun run workspaces** with two apps:
 
 - `apps/desktop` (`@orbit/desktop`, Nx project `desktop`) — the **Tauri 2** launcher. TypeScript frontend + Rust backend.
 - `apps/landing` (`@orbit/landing`, Nx project `landing`) — the **Next.js** landing site with install guide and versioned downloads. See [LANDING.md](LANDING.md).
@@ -67,8 +67,8 @@ orbit/
   package.json             # Workspaces + root scripts (delegate to Nx)
 ```
 
-Each app's `package.json` scripts are its Nx targets (`yarn nx run desktop:test:rust`,
-`yarn nx run landing:build`, …). `yarn nx show projects` lists them.
+Each app's `package.json` scripts are its Nx targets (`bunx nx run desktop:test:rust`,
+`bunx nx run landing:build`, …). `bunx nx show projects` lists them.
 
 ---
 
@@ -76,7 +76,7 @@ Each app's `package.json` scripts are its Nx targets (`yarn nx run desktop:test:
 
 - macOS 12+
 - Node.js 22+
-- Yarn 1.x or compatible
+- Bun 1.4+ (pinned by `packageManager`; `brew install oven-sh/bun/bun`)
 - Rust stable (`rustup`)
 - Xcode Command Line Tools
 
@@ -103,15 +103,15 @@ Root scripts (run from the repo root):
 | `test:rust` | `nx run desktop:test:rust` | Rust unit tests |
 | `test:unit` | `nx run-many -t test:unit` | Vitest for both apps |
 | `test:e2e` | `nx run desktop:test:e2e` | Desktop Playwright E2E (builds desktop first) |
-| `test:e2e:ui` | `yarn workspace @orbit/desktop test:e2e:ui` | Playwright UI mode |
+| `test:e2e:ui` | `bun run --cwd apps/desktop test:e2e:ui` | Playwright UI mode |
 | `sync:skills` | `bash scripts/sync-agent-skills.sh` | Copy `.cursor/skills` to `.claude/skills` and `.opencode/skills` |
 | `check:skills` | `bash scripts/sync-agent-skills.sh --check` | Fail if agent skill copies drifted |
 
 Typical dev loop:
 
 ```bash
-yarn install
-yarn tauri:dev
+bun install
+bun run tauri:dev
 ```
 
 ---
@@ -143,13 +143,13 @@ Agents must not delete this folder. See [`.cursor/rules/preserve-user-data.mdc`]
 Defined in `.cursor/rules/quality-gating.mdc`. Live Application Support data is protected by `.cursor/rules/preserve-user-data.mdc`. Run before declaring work done:
 
 ```bash
-yarn run format:check
-yarn knip
-yarn run typecheck
-yarn run test:unit      # when src/lib/, landing, or unit-tested helpers changed
-yarn run test:rust      # when apps/desktop/src-tauri/ changed
-yarn run build
-yarn run test:e2e       # when desktop UI/navigation/themes changed
+bun run format:check
+bun run knip
+bun run typecheck
+bun run test:unit      # when src/lib/, landing, or unit-tested helpers changed
+bun run test:rust      # when apps/desktop/src-tauri/ changed
+bun run build
+bun run test:e2e       # when desktop UI/navigation/themes changed
 ```
 
 Nx caches `build`, `typecheck`, `test:unit`, and `test:rust`, so unchanged apps are skipped.
@@ -179,8 +179,8 @@ Rules:
 Each app has its own `vitest.config.ts` (`@` → that app's `src`) and `src/test/setup.ts`.
 
 ```bash
-yarn test:unit                                  # both apps
-yarn workspace @orbit/desktop test:unit:watch   # watch one app
+bun run test:unit                                  # both apps
+bun run --cwd apps/desktop test:unit:watch   # watch one app
 ```
 
 Prefer Vitest for pure helpers under `src/lib/`, theme tokens, and module filter/sort logic.
@@ -192,7 +192,7 @@ Playwright config: `apps/desktop/playwright.config.ts`. Specs live in `apps/desk
 
 - Boots with `localStorage orbit.themeId = orbit` for deterministic home layout.
 - Tests hero scrim, glass dashboard, controller focus, theme shells, library navigation.
-- Run against Vite dev server (`yarn dev`) with mock API, or full Tauri build for integration smoke.
+- Run against Vite dev server (`bun run dev`) with mock API, or full Tauri build for integration smoke.
 
 ---
 
@@ -204,29 +204,29 @@ release"). The landing site deploys on Netlify.
 
 Future CI, if added, should mirror local gates:
 
-1. `yarn run format:check`
-2. `yarn knip`
-3. `yarn run typecheck`
-4. `yarn run test:unit`
-5. `yarn run test:rust`
-6. `yarn run build`
-7. `yarn run test:e2e` (optional job with Playwright)
+1. `bun run format:check`
+2. `bun run knip`
+3. `bun run typecheck`
+4. `bun run test:unit`
+5. `bun run test:rust`
+6. `bun run build`
+7. `bun run test:e2e` (optional job with Playwright)
 
 ---
 
 ## Common commands
 
 ```bash
-yarn install
-yarn tauri:dev                    # desktop dev
-yarn dev                          # frontend-only with mocks
-yarn dev:landing                  # landing site
-yarn run typecheck
-yarn run test:unit
-yarn run test:rust
-yarn run test:e2e
-yarn run tauri:build              # release bundle
-yarn run format                   # fix formatting
+bun install
+bun run tauri:dev                    # desktop dev
+bun run dev                          # frontend-only with mocks
+bun run dev:landing                  # landing site
+bun run typecheck
+bun run test:unit
+bun run test:rust
+bun run test:e2e
+bun run tauri:build              # release bundle
+bun run format                   # fix formatting
 ```
 
 The desktop native directory also contains `helpers/steam-browser/`: source, unit

@@ -122,7 +122,7 @@ Every screen works with a controller (Xbox, PlayStation, or Nintendo layout), ke
 
 ## Monorepo & Quick start
 
-Orbit is an **Nx monorepo** on Yarn workspaces with two apps:
+Orbit is an **Nx monorepo** on bun run workspaces with two apps:
 
 | App                            | What it is                                                   |
 | ------------------------------ | ------------------------------------------------------------ |
@@ -130,22 +130,22 @@ Orbit is an **Nx monorepo** on Yarn workspaces with two apps:
 | [`apps/landing`](apps/landing) | Next.js marketing site, install guide, and release downloads |
 
 ```bash
-yarn install
-yarn tauri:dev        # full desktop app (Rust + React)
-yarn dev              # desktop frontend only (mock Tauri API)
-yarn dev:landing      # landing site on http://localhost:3000
+bun install
+bun run tauri:dev        # full desktop app (Rust + React)
+bun run dev              # desktop frontend only (mock Tauri API)
+bun run dev:landing      # landing site on http://localhost:3000
 ```
 
 ### Quality checks
 
 ```bash
-yarn format:check     # Prettier
-yarn knip             # unused files, exports, and dependencies
-yarn typecheck        # TypeScript (desktop + landing)
-yarn test:unit        # Vitest (desktop + landing)
-yarn test:rust        # Cargo workspace tests
-yarn test:e2e         # Playwright E2E specs
-yarn build            # production build (desktop + landing)
+bun run format:check     # Prettier
+bun run knip             # unused files, exports, and dependencies
+bun run typecheck        # TypeScript (desktop + landing)
+bun run test:unit        # Vitest (desktop + landing)
+bun run test:rust        # Cargo workspace tests
+bun run test:e2e         # Playwright E2E specs
+bun run build            # production build (desktop + landing)
 ```
 
 ### Building a release
@@ -153,15 +153,15 @@ yarn build            # production build (desktop + landing)
 Package macOS release artifacts (`.dmg`, `.app.tar.gz`, `SHA256SUMS.txt`) into `release/<version>/`:
 
 ```bash
-yarn release:macos                     # native arch (Apple Silicon or Intel)
-yarn release:macos -- --arch universal
-yarn release:macos -- --arch aarch64 --skip-tests
+bun run release:macos                     # native arch (Apple Silicon or Intel)
+bun run release:macos -- --arch universal
+bun run release:macos -- --arch aarch64 --skip-tests
 ```
 
 Scaffold a version bump, `CHANGELOG.md` entry, and `.github/release-notes/<version>.md`:
 
 ```bash
-yarn monopipeline release minor --summary "Release summary"
+bun run monopipeline release minor --summary "Release summary"
 ```
 
 Full setup, app data paths, and troubleshooting: **[RUNNING.md](RUNNING.md)**.

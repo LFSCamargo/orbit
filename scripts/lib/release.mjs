@@ -143,9 +143,9 @@ Verify downloads with \`SHA256SUMS.txt\`.
 \`\`\`bash
 git clone https://github.com/${githubRepo}.git
 cd orbit
-yarn install
-yarn tauri:dev
-yarn release:macos
+bun install
+bun run tauri:dev
+bun run release:macos
 \`\`\`
 
 See [RUNNING.md](https://github.com/${githubRepo}/blob/main/RUNNING.md) and [docs/THEMES.md](https://github.com/${githubRepo}/blob/main/docs/THEMES.md).

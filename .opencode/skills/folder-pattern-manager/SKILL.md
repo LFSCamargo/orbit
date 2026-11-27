@@ -40,4 +40,4 @@ Move only the reported files.
 - Tauri command group → `src-tauri/src/commands/`. Importer → `importers/`. Service → `services/`. `lib.rs` stays wiring only.
 - Landing UI → `apps/landing/src/components/<area>/`, one component per file. Helpers → `src/lib/`.
 
-Update imports in the same change. Update the folder tree in the matching doc when a directory is added or renamed. Run `yarn typecheck` for each app whose imports moved. Do not move tests away from the module they cover.
+Update imports in the same change. Update the folder tree in the matching doc when a directory is added or renamed. Run `bun run typecheck` for each app whose imports moved. Do not move tests away from the module they cover.

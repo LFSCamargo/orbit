@@ -6,7 +6,7 @@ Follow @AGENTS.md.
 
 The repo is an Nx monorepo: `apps/desktop` (Tauri) and `apps/landing` (Next.js). Run commands from the root.
 
-Before you finish a code change: write tests first (bug fixes need a regression); keep one context per file; review complexity and security (paths, launch, SQL, secrets); never wipe `~/Library/Application Support/Orbit/` or `steam-windows`; run `yarn format:check`, `yarn knip`, `yarn typecheck`, and the matching `yarn test:unit`, `yarn test:rust`, `yarn test:e2e`, and `yarn build`; keep `docs/` in sync. See `.cursor/rules/preserve-user-data.mdc`.
+Before you finish a code change: write tests first (bug fixes need a regression); keep one context per file; review complexity and security (paths, launch, SQL, secrets); never wipe `~/Library/Application Support/Orbit/` or `steam-windows`; run `bun run format:check`, `bun run knip`, `bun run typecheck`, and the matching `bun run test:unit`, `bun run test:rust`, `bun run test:e2e`, and `bun run build`; keep `docs/` in sync. See `.cursor/rules/preserve-user-data.mdc`.
 
 ## Committing
 

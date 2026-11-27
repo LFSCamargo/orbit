@@ -4,7 +4,7 @@
  * Usage:
  *   node scripts/cleanup-dev-storage.mjs          # report only
  *   node scripts/cleanup-dev-storage.mjs --clean    # safe project cleanup
- *   node scripts/cleanup-dev-storage.mjs --deep     # + yarn cache + cargo cache prune
+ *   node scripts/cleanup-dev-storage.mjs --deep     # + bun run cache + cargo cache prune
  */
 
 import { execSync } from 'node:child_process'
@@ -92,7 +92,7 @@ const appSupportPaths = [
 const globalPaths = [
   join(homedir(), '.cargo/registry'),
   join(homedir(), '.cargo/git'),
-  join(homedir(), 'Library/Caches/Yarn'),
+  join(homedir(), '.bun/install/cache'),
   join(homedir(), 'Library/Caches/ms-playwright'),
 ]
 
@@ -128,8 +128,8 @@ for (const path of globalPaths) {
 }
 
 if (!clean) {
-  console.log('\nRun `yarn clean` to remove Rust target + build/test artifacts.')
-  console.log('Run `yarn clean:deep` to also prune global yarn/cargo caches.')
+  console.log('\nRun `bun run clean` to remove Rust target + build/test artifacts.')
+  console.log('Run `bun run clean:deep` to also prune global Bun/cargo caches.')
   process.exit(0)
 }
 
@@ -159,9 +159,9 @@ for (const path of projectPaths) {
 if (deep) {
   console.log('\nDeep cleanup (global caches)…')
   try {
-    run('yarn cache clean')
+    run('bun pm cache rm')
   } catch {
-    console.warn('  yarn cache clean failed (continuing)')
+    console.warn('  bun pm cache rm failed (continuing)')
   }
   try {
     run('cargo cache -a')
@@ -171,5 +171,5 @@ if (deep) {
 }
 
 console.log(
-  '\nDone. Next `yarn tauri:dev` / `yarn tauri:build` will do a full Rust rebuild.',
+  '\nDone. Next `bun run tauri:dev` / `bun run tauri:build` will do a full Rust rebuild.',
 )
