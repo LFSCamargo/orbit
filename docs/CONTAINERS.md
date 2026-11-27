@@ -154,16 +154,6 @@ controller shows up once.
 `runtimes/wine_capabilities.rs` reports `controllers` when `winebus.so` has the
 SDL backend, and Play prefers such an Orbit Wine over a newer one without it.
 
-Known limit: a receiver that reports a vendor HID page instead of a gamepad
-(for example the 8BitDo Ultimate 2 2.4 GHz receiver, `2DC8:6013`, usage page
-`0xFFA0`) is not a controller to macOS, its GameController framework, or SDL
-2.32, so no Wine setting can pass it to a game. Bluetooth works for that pad.
-
-To check what a Wine passes through, run it in a throwaway prefix with
-`WINEDEBUG=+hid,+plugplay` and look for `sdl_add_device ... is_gamepad 1` and a
-`WINEXINPUT` device per controller. `SDL support not compiled in!` means the
-build drops controllers.
-
 **XInput-only USB pads and 2.4 GHz dongles** (8BitDo Ultimate 2C receiver
 `2DC8:310A`, EasySMX and other third-party Xbox 360 pads) have only a vendor
 interface (class `0xFF`/`0x5D`/`0x01`), no HID one, so IOHID and SDL never
@@ -205,13 +195,16 @@ sign-in client (`steam-windows`), start with `WINEDLLOVERRIDES=winebus.sys=d`
 (`steam_windows::steam_runtime_command`, `steam_login`): they have no game to
 give a pad to, and their Steam Input opened Big Picture on the Guide button.
 
-## Native Steam client
+Known limit: a receiver that reports a vendor HID page instead of a gamepad
+(for example the 8BitDo Ultimate 2 2.4 GHz receiver, `2DC8:6013`, usage page
+`0xFFA0`) is not a controller to macOS, its GameController framework, or SDL
+2.32, so no Wine setting can pass it to a game. Bluetooth works for that pad.
 
-`crates/orbit-steam` holds session, product, owned-library, depot, cloud, and
-agent types. `services/steam_native/` reads the saved Windows login, plans
-SteamCMD downloads, and maps Steam Cloud files into the container. Passwords
-never enter that crate. Depot HTTP download (replacing SteamCMD at runtime) is
-the next executor behind the same `DepotPlan`.
+To check what a Wine passes through, run it in a throwaway prefix with
+`WINEDEBUG=+hid,+plugplay` and look for `sdl_add_device ... is_gamepad 1` and a
+`WINEXINPUT` device per controller. `SDL support not compiled in!` means the
+build drops controllers.
+
 ## Audio in games
 
 Wine's shared-mode audio buffer is 3 periods (30 ms). Under Rosetta a game's
@@ -225,3 +218,10 @@ patch an installed Orbit Wine without a full build, rebuild
 `dlls/mmdevapi/{x86_64,i386}-windows/mmdevapi.dll` in the build tree and copy
 them into `Contents/lib/wine/` (then re-sign the bundle).
 
+## Native Steam client
+
+`crates/orbit-steam` holds session, product, owned-library, depot, cloud, and
+agent types. `services/steam_native/` reads the saved Windows login, plans
+SteamCMD downloads, and maps Steam Cloud files into the container. Passwords
+never enter that crate. Depot HTTP download (replacing SteamCMD at runtime) is
+the next executor behind the same `DepotPlan`.
