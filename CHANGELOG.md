@@ -7,18 +7,50 @@ Release notes for GitHub Releases also live in [`.github/release-notes/`](.githu
 Scaffold a new release (bump version + CHANGELOG + GitHub release notes):
 
 ```bash
-yarn monopipeline release patch --summary "Short release summary"
-yarn monopipeline release minor
-yarn monopipeline release 0.2.0 --date 2026-08-01
+bun run monopipeline release patch --summary "Short release summary"
+bun run monopipeline release minor
+bun run monopipeline release 0.2.0 --date 2026-08-01
 ```
 
 Bump version only:
 
 ```bash
-yarn monopipeline bump patch
+bun run monopipeline bump patch
 ```
 
 ## [Unreleased]
+
+## [2.6.0] - 2026-11-27
+
+Controllers that keep up, native macOS downloads, and games that start ready
+
+### Added
+
+- XInput-only USB pads and 2.4 GHz dongles (8BitDo Ultimate 2C receiver, third-party Xbox 360 pads) work in Orbit's menus and in Windows games. Orbit reads them with libusb and hands them to Orbit Wine's SDL through a shared-file pad bridge, as a virtual Xbox 360 gamepad with rumble. Every pad Orbit reads natively (HID pads through gilrs too) drives the menus as `native-gamepad`.
+- Owned games with a macOS build download that build through Steam for Mac, which Orbit starts fully hidden (no Dock icon, Cmd-Tab entry or menu bar) and quits when no macOS download or game needs it.
+- Shader cache warmup before every container game starts: the caches earlier runs left (D3DMetal per executable, then Orbit Wine's Metal cache, up to 2 GiB) load with measured progress in the launch overlay. A title with no cache yet says the game compiles its shaders on its first start.
+- **Repair Installation** on game details: Steam checks every file and fetches what is missing or changed, then the game's install scripts run again.
+- **Compress games** in Settings → Storage: APFS transparent compression (LZFSE) for every installed Steam game, verified byte for byte before it replaces a file; turning it off decompresses them.
+- A game's `installscript.vdf` "Run Process" steps run once per container before its first launch (God of War Ragnarök's PlayStation PC SDK runtime).
+- God of War Ragnarök always gets Rosetta AVX, a 60 FPS D3DMetal cap by default, and its original executable back from an outdated CPU-bypass build.
+- A local security gate: `bun run security` (gitleaks, OpenGrep or Semgrep, dependency audits) and a staged secret scan on every commit.
+
+### Changed
+
+- Steam downloads report every step with real numbers (downloaded, written to disk, time left); the Downloads row shows a step track, a speed graph and an exact progress bar.
+- Container games get a 60 ms Wine audio buffer (`ORBIT_AUDIO_BUFFER_MS`) instead of 30 ms, which ran dry under Rosetta.
+- Orbit's helper Steams (sign-in and library sync) start without Wine's controller driver, so their Steam Input cannot take the pad or open Big Picture.
+- Bun replaces Yarn as the package manager and script runner; every dependency is pinned to an exact version, and commits are checked by Husky and commitlint.
+
+### Fixed
+
+- Controller input lag during play: rumble is written on its own thread, so a rumble change never delays the next read; a USB hiccup under 100 ms keeps held sticks and triggers.
+- Controller dropouts lasting seconds: Orbit stays out of App Nap for the whole session and rescans a missing pad every 100 ms until the game ends.
+- `steam.exe` stays at normal priority during play (only Steam's browser helpers are throttled); at background priority it stalled the game's Steamworks calls.
+- An idle Steam for Mac no longer holds USB controllers a Windows game needs.
+- Crackling and distorted audio in container games.
+
+[2.6.0]: https://github.com/LFSCamargo/orbit/releases/tag/v2.6.0
 
 ## [2.5.0] - 2026-11-25
 
