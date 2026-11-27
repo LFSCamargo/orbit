@@ -120,12 +120,16 @@ cannot round-trip, or one over 256 KB, is left alone.
 
 While a container game plays, `services/steam_helper_priority.rs` moves that
 container's `steamwebhelper` processes (Steam's Chromium, matched by
-`WINEPREFIX=` in their environment) to macOS background priority
-(`setpriority(PRIO_DARWIN_PROCESS, PRIO_DARWIN_BG)`: efficiency cores,
-throttled I/O). Under Wine and Rosetta the helper wakes on saves,
-achievements and cloud sync, which games trigger as a new area loads, and its
-bursts dropped frames there. `steam.exe` (the game's Steamworks peer) and the
-wineserver keep their priority. The session monitor sweeps 2 s and 10 s after
+`WINEPREFIX=` in their environment and by the executable name
+`steamwebhelper.exe` or `steamwebhelper-orbit-original.exe`) to macOS
+background priority (`setpriority(PRIO_DARWIN_PROCESS, PRIO_DARWIN_BG)`:
+efficiency cores, throttled I/O). Under Wine and Rosetta the helper wakes on
+saves, achievements and cloud sync, and its bursts dropped frames.
+`steam.exe` (the game's Steamworks peer, called through `steam_api64.dll`
+every frame) and the wineserver keep their priority: `steam.exe` at
+background priority stalled those calls and controller input lagged. The
+hidden-client library also covers the renamed original browser helper so it
+cannot claim a second Dock entry. The session monitor sweeps 2 s and 10 s after
 start, then once a minute for a restarted helper; the session's end restores
 normal priority for the resident client.
 

@@ -2,32 +2,39 @@
 //!
 //! Valve's Windows client runs `steamwebhelper.exe` (Chromium) beside the
 //! game, under Wine and Rosetta. It wakes on saves, achievements and cloud
-//! sync, which games trigger as a new area loads, and its bursts took CPU from
-//! the game at exactly those moments. While a session runs, only the helper is
-//! moved to macOS background priority (efficiency cores, throttled I/O).
-//! `steam.exe`, which the game calls through `steam_api64.dll`, and the
-//! wineserver keep their priority, so the game never waits on a throttled
-//! process. The helper is never stopped: Steam would restart it.
+//! sync, and its bursts took CPU from the game. While a session runs, only the
+//! helpers move to macOS background priority (efficiency cores, throttled I/O).
+//! `steam.exe` is the game's Steamworks peer: the game calls it through
+//! `steam_api64.dll` every frame (callbacks, Steam Input, overlay), so it and
+//! the wineserver keep their priority and the game never waits on a throttled
+//! process. Session cleanup returns the helpers to normal.
 use std::path::Path;
 
-/// The helper processes of exactly this prefix in a `ps axeww -o pid=,command=`
+/// The browser helpers of exactly this prefix in a `ps axeww -o pid=,command=`
 /// listing (the environment carries `WINEPREFIX=`). O(lines).
-pub fn helper_pids(listing: &str, prefix: &Path) -> Vec<u32> {
-    let helpers: String = listing
-        .lines()
-        .filter(|line| line.to_ascii_lowercase().contains("steamwebhelper"))
-        .flat_map(|line| [line, "\n"])
-        .collect();
-    super::container_steam::orphan_pids(&helpers, prefix)
+fn helper_pids(listing: &str, prefix: &Path, argv0: impl Fn(i32) -> Option<String>) -> Vec<u32> {
+    super::container_steam::orphan_pids(listing, prefix)
+        .into_iter()
+        .filter(|&pid| {
+            let name = i32::try_from(pid)
+                .ok()
+                .and_then(&argv0)
+                .and_then(|arg| crate::runtimes::windows_process::exe_name(&arg));
+            matches!(
+                name.as_deref(),
+                Some("steamwebhelper.exe" | "steamwebhelper-orbit-original.exe")
+            )
+        })
+        .collect()
 }
 
 /// Background priority on (during play) or off (after it) for this prefix's
-/// helpers. Best effort: a helper that exited or is not ours is skipped.
+/// browser helpers. Best effort: a process that exited or is not ours is skipped.
 pub fn set_background(prefix: &Path, background: bool) {
     let Some(listing) = process_listing() else {
         return;
     };
-    for pid in helper_pids(&listing, prefix) {
+    for pid in helper_pids(&listing, prefix, crate::platform::macos::game_focus::argv0) {
         set_process_background(pid, background);
     }
 }
@@ -77,8 +84,25 @@ mod tests {
             "  105 C:\\Steam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe WINEPREFIX=/c/games/steam-550/prefix\n",
             "  106 C:\\Steam\\bin\\cef\\cef.win7x64\\SteamWebHelper-orbit-original.exe WINEPREFIX=/c/games/steam-1593500/prefix\n",
         );
-        // The game, Steam itself and the wineserver keep their priority.
-        assert_eq!(helper_pids(listing, prefix), vec![102, 106]);
+        // A game mentioning the helper in its arguments keeps its priority.
+        let listing = format!(
+            "{listing}  107 C:\\Games\\GoWR.exe --helper=steamwebhelper.exe WINEPREFIX={}\n",
+            prefix.display()
+        );
+        let selected = helper_pids(&listing, prefix, |pid| {
+            Some(
+                match pid {
+                    101 => r"C:\Steam\steam.exe",
+                    102 => r"C:\Program Files (x86)\Steam\steamwebhelper.exe",
+                    106 => r"C:\Steam\SteamWebHelper-orbit-original.exe",
+                    _ => r"C:\Games\GoWR.exe",
+                }
+                .to_owned(),
+            )
+        });
+        // Regression: steam.exe at background priority stalled the game's
+        // Steamworks calls, and controller input lagged during play.
+        assert_eq!(selected, vec![102, 106], "steam.exe keeps its priority");
     }
 
     #[test]
