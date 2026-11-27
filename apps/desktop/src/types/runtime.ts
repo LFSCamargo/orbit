@@ -14,6 +14,15 @@ export interface OrbitWineVersion {
   sizeBytes: number | null
 }
 
+/** A newer Orbit release to offer when Orbit opens. */
+export interface AppUpdate {
+  version: string
+  currentVersion: string
+  /** Markdown release notes: untrusted, render as text only. */
+  notes: string
+  publishedAt: string | null
+}
+
 /** A newer Orbit Wine build to offer when Orbit opens. */
 export interface OrbitWineUpdate {
   version: string

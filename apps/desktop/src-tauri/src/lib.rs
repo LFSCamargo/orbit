@@ -46,6 +46,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
             services::install_locations::restore(&app.state::<AppState>().repo);
@@ -65,6 +66,8 @@ pub fn run() {
             steam_library_sync: Arc::new(services::steam_background_sync::SteamSyncControl::new()),
         })
         .invoke_handler(tauri::generate_handler![
+            commands::app_update::app_update_check,
+            commands::app_update::app_update_install,
             commands::runtimes::windows_compatibility,
             commands::runtimes::compatibility_catalog,
             commands::runtimes::compatibility_settings,

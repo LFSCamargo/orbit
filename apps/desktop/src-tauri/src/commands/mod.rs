@@ -1,3 +1,4 @@
+pub mod app_update;
 pub mod artwork;
 pub mod compression;
 pub mod dialog;
