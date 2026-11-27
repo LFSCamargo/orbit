@@ -656,7 +656,7 @@ fn install_windows_steam_inner(app: &AppHandle) -> Result<(), String> {
             None,
         );
         setup_child = Some(
-            steam_runtime_command(&wine, &prefix)
+            hidden_steam_command(&wine, &prefix)
                 .arg(&setup)
                 .arg("/S")
                 .stdin(Stdio::null())
@@ -695,7 +695,7 @@ fn install_windows_steam_inner(app: &AppHandle) -> Result<(), String> {
             stop_steam_wineserver(&wine, &prefix);
         }
         updater = Some(
-            steam_runtime_command(&wine, &prefix)
+            hidden_steam_command(&wine, &prefix)
                 .arg(steam_exe_in(&prefix))
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
@@ -773,11 +773,14 @@ pub(crate) fn stop_outcome() -> Option<DownloadOutcome> {
     }
 }
 
+/// Downloads one owned game: its macOS build through Steam for Mac when
+/// `native`, otherwise the Windows build through the game container's client.
 pub fn download(
     app: &AppHandle,
     repo: &GameRepository,
     app_id: &str,
     label: &str,
+    native: bool,
 ) -> Result<DownloadOutcome, String> {
     if !valid_app_id(app_id) {
         return Err("Steam app id must be a number".into());
@@ -794,7 +797,7 @@ pub fn download(
     let key = format!("steam:{app_id}");
     // A pause or cancel during container start-up surfaces as an error from
     // the launch path; report it as the stop it was.
-    let result = prepare_and_run_download(app, repo, app_id, &key, label)
+    let result = prepare_and_run_download(app, repo, app_id, &key, label, native)
         .or_else(|error| stop_outcome().ok_or(error));
     DOWNLOAD_ACTIVE.store(false, Ordering::SeqCst);
     DOWNLOAD_STOP.store(STOP_NONE, Ordering::SeqCst);
@@ -802,14 +805,16 @@ pub fn download(
 }
 
 /// Downloads with the container's signed-in Windows Steam client (one login
-/// for sign-in, Play and downloads). SteamCMD is no longer used: it needs a
-/// separate login the Windows client's DPAPI-wrapped token cannot provide.
+/// for sign-in, Play and downloads), or with Steam for Mac and its own login
+/// for a native build. SteamCMD is no longer used: it needs a separate login
+/// the Windows client's DPAPI-wrapped token cannot provide.
 fn prepare_and_run_download(
     app: &AppHandle,
     repo: &GameRepository,
     app_id: &str,
     key: &str,
     label: &str,
+    native: bool,
 ) -> Result<DownloadOutcome, String> {
     emit_game_progress(
         app,
@@ -817,9 +822,12 @@ fn prepare_and_run_download(
         label,
         json!({ "phase": "Installing", "component": label, "message": "Preparing" }),
     );
-    stored_account(repo)?.ok_or("Sign in to Steam in Settings → Steam, then try again.")?;
-    let outcome =
-        super::steam_client_download::run(app, repo, app_id, key, label, &DOWNLOAD_CANCEL)?;
+    let outcome = if native {
+        super::steam_mac_download::run(app, app_id, key, label)?
+    } else {
+        stored_account(repo)?.ok_or("Sign in to Steam in Settings → Steam, then try again.")?;
+        super::steam_client_download::run(app, repo, app_id, key, label, &DOWNLOAD_CANCEL)?
+    };
     if outcome == DownloadOutcome::Completed {
         let _ = app.emit(
             "steam-download-progress",
@@ -1133,9 +1141,24 @@ pub(crate) fn steam_runtime_command(wine: &Path, prefix: &Path) -> Command {
     command
 }
 
-/// `steam_runtime_command` for the container's Steam client: Steam runs without
-/// a Dock icon, app menu, Cmd-Tab entry or menu bar icon (`runtimes::hidden_client`).
-/// Never for the game or the sign-in window.
+/// Prefixes whose Steam only signs in or syncs the library, never a game.
+fn helper_prefixes() -> [PathBuf; 2] {
+    [
+        steam_prefix(),
+        super::steam_background_sync::sync_prefix(&runtimes::root()),
+    ]
+}
+
+fn is_helper_prefix(prefix: &Path, helpers: &[PathBuf]) -> bool {
+    helpers.iter().any(|helper| helper == prefix)
+}
+
+/// The one entry for every Windows Steam client Orbit starts (container
+/// clients, the setup installer, the updater, `-shutdown`, background sync):
+/// Steam runs without a Dock icon, app menu, Cmd-Tab entry or menu bar icon
+/// (`runtimes::hidden_client`). Never for the game or the sign-in window,
+/// which has to show its QR code. Steam for Mac has its own entry,
+/// `steam_mac_client`.
 pub(crate) fn hidden_steam_command(wine: &Path, prefix: &Path) -> Command {
     let mut command = steam_runtime_command(wine, prefix);
     runtimes::hidden_client::apply(&mut command);
@@ -1324,7 +1347,7 @@ pub(crate) fn request_steam_shutdown(wine: &Path, prefix: &Path) {
     if !super::container_steam::client_running(prefix) {
         return;
     }
-    let mut command = steam_runtime_command(wine, prefix);
+    let mut command = hidden_steam_command(wine, prefix);
     command.args(shutdown_argv(&steam));
     if let Some(dir) = steam.parent() {
         command.current_dir(dir);

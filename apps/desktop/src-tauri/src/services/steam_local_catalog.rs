@@ -108,6 +108,9 @@ pub fn discover(account: &SteamAccount, roots: &[PathBuf]) -> LocalSteamSnapshot
                 if existing.install_size_bytes.is_none() {
                     existing.install_size_bytes = entry.install_size_bytes;
                 }
+                if existing.mac_build.is_none() {
+                    existing.mac_build = entry.mac_build;
+                }
             } else if entries_by_id.len() < MAX_ENTRIES {
                 entries_by_id.insert(app_id, entry);
             }
@@ -196,14 +199,20 @@ fn read_package_games(root: &Path) -> Vec<SteamCatalogEntry> {
             .name
             .filter(|name| !steam_catalog::is_placeholder_title(name, &app_id))
             .unwrap_or_else(|| steam_catalog::placeholder_title(&app_id));
-        let install_size_bytes = summary
-            .required_bytes
-            .and_then(|bytes| i64::try_from(bytes).ok());
+        // Orbit installs the macOS build when Steam has one, so that is the
+        // space it needs.
+        let install_size_bytes = if summary.has_mac_build {
+            summary.mac_required_bytes.or(summary.required_bytes)
+        } else {
+            summary.required_bytes
+        }
+        .and_then(|bytes| i64::try_from(bytes).ok());
         games.push(SteamCatalogEntry {
             app_id,
             title,
             app_type: Some(app_type),
             install_size_bytes,
+            mac_build: Some(summary.has_mac_build),
             ..SteamCatalogEntry::default()
         });
         if games.len() >= MAX_ENTRIES {

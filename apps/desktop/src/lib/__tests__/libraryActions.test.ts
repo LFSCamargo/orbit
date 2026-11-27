@@ -96,6 +96,19 @@ describe('detailsPrimaryAction', () => {
     ).toBe('sign-in')
   })
 
+  it('installs a macOS build without the Windows Steam sign-in', () => {
+    const native = entry({ game: { ...entry().game, platform: 'macos' } })
+    expect(
+      detailsPrimaryAction({
+        entry: native,
+        running: false,
+        launching: false,
+        cancelling: false,
+        signedIn: false,
+      }),
+    ).toMatchObject({ kind: 'install', label: 'Install' })
+  })
+
   it('plays a signed-in Windows install without waiting for silent Steam', () => {
     const wine = entry({
       installations: [

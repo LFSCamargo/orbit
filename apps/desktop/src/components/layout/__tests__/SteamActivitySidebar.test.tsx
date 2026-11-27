@@ -202,7 +202,9 @@ it('shows cover, bytes and a live bar for the active download, with pause', asyn
   renderSidebar()
   const bar = screen.getByRole('progressbar', { name: 'Dota 2 progress' })
   expect(bar).toHaveAttribute('aria-valuenow', '25')
-  expect(screen.getByText('5/7 · Downloading · 25.0 MB / 100.0 MB')).toBeTruthy()
+  expect(screen.getByText('Downloading')).toBeTruthy()
+  expect(screen.getByText(/25\.0 MB of 100\.0 MB/)).toBeTruthy()
+  expect(screen.getByRole('list', { name: 'Step 5 of 7: Downloading' })).toBeTruthy()
   fireEvent.click(await screen.findByRole('button', { name: 'Pause Dota 2' }))
   expect(pauseActiveDownload).toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Cancel Dota 2' }))
@@ -235,7 +237,7 @@ it('shows the step as soon as sign-in ends, with speed, elapsed and time left', 
   renderSidebar()
   expect(screen.getByText('5.0 MB/s')).toBeTruthy()
   expect(screen.getByTestId('download-timing').textContent).toBe(
-    'Elapsed 1:05 · 0:15 left',
+    '15s left · Elapsed 1:05',
   )
   await act(async () => {
     vi.advanceTimersByTime(2_000)
@@ -248,7 +250,10 @@ it('shows the step as soon as sign-in ends, with speed, elapsed and time left', 
       message: 'Starting download',
     })
   })
-  expect(screen.getByText('3/7 · Starting download')).toBeTruthy()
+  expect(screen.getByText('Starting download')).toBeTruthy()
+  expect(
+    screen.getByRole('list', { name: 'Step 3 of 7: Starting download' }),
+  ).toBeTruthy()
   vi.useRealTimers()
 })
 

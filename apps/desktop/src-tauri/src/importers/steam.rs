@@ -24,6 +24,11 @@ impl SteamImporter {
     pub fn steam_root(&self) -> Option<&PathBuf> {
         self.steam_root.as_ref()
     }
+
+    /// The macOS library row for one `appmanifest_<id>.acf` in `steamapps`.
+    pub fn import_manifest(content: &str, steamapps: &Path) -> Option<ImportedGame> {
+        parse_appmanifest(content, steamapps)
+    }
 }
 
 #[async_trait]

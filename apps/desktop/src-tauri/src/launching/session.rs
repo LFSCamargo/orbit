@@ -99,6 +99,9 @@ impl SessionManager {
         let result = match &game.launch_config {
             crate::models::LaunchConfiguration::Wine { profile } => {
                 emit_launch_progress(app, &game.id, "resolve", Some(&game.title));
+                // Orbit's idle Steam for Mac holds USB controllers (2.4 GHz
+                // XInput dongles); the Windows game must get them.
+                crate::services::steam_mac_client::release_if_unused();
                 let steam_windows =
                     game.provider == GameProvider::Steam && game.platform == GamePlatform::Windows;
                 {

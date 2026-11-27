@@ -35,7 +35,7 @@ mod tests {
     }
 }
 
-fn steam_install_url(app_id: &str) -> Result<String, String> {
+pub(crate) fn steam_install_url(app_id: &str) -> Result<String, String> {
     let id = app_id.parse::<u32>().map_err(|_| "Invalid Steam App ID")?;
     if id == 0 || id.to_string() != app_id {
         return Err("Invalid Steam App ID".into());
@@ -50,8 +50,9 @@ fn advertises_mac_build(response: &Value, app_id: &str) -> bool {
         && entry["data"]["platforms"]["mac"].as_bool() == Some(true)
 }
 
-pub async fn install(app_id: &str) -> Result<(), String> {
-    let url = steam_install_url(app_id)?;
+/// Whether the Steam store lists a macOS build of this game.
+pub async fn has_mac_build(app_id: &str) -> Result<bool, String> {
+    steam_install_url(app_id)?;
     let response: Value = crate::services::http::orbit_client()?
         .get("https://store.steampowered.com/api/appdetails")
         .query(&[("appids", app_id)])
@@ -63,7 +64,12 @@ pub async fn install(app_id: &str) -> Result<(), String> {
         .json()
         .await
         .map_err(|_| "Steam Store returned an invalid response")?;
-    if !advertises_mac_build(&response, app_id) {
+    Ok(advertises_mac_build(&response, app_id))
+}
+
+pub async fn install(app_id: &str) -> Result<(), String> {
+    let url = steam_install_url(app_id)?;
+    if !has_mac_build(app_id).await? {
         return Err(
             "Steam does not list a Mac build for this game. Install the Windows version in Settings → Steam."
                 .into(),
@@ -76,19 +82,7 @@ pub fn open_library() -> Result<(), String> {
     open("steam://nav/games")
 }
 
+/// These handoffs exist to show Steam, so they are the visible launch.
 fn open(url: &str) -> Result<(), String> {
-    if !cfg!(target_os = "macos") {
-        return Err("Steam handoff is available on macOS".into());
-    }
-    std::process::Command::new("open")
-        .args(["-b", "com.valvesoftware.steam", url])
-        .status()
-        .map_err(|_| "Could not open Steam".to_string())
-        .and_then(|status| {
-            if status.success() {
-                Ok(())
-            } else {
-                Err("Could not open Steam. Make sure Steam is installed.".into())
-            }
-        })
+    super::steam_mac_client::open_visible(url)
 }

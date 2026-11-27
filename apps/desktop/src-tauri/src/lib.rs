@@ -51,6 +51,8 @@ pub fn run() {
             services::install_locations::restore(&app.state::<AppState>().repo);
             services::game_fixes::restore(&app.state::<AppState>().repo);
             services::download_queue::restore(&app.state::<AppState>().repo);
+            // A hidden Steam for Mac left from an earlier run holds controllers.
+            std::thread::spawn(services::steam_mac_client::release_if_unused);
             services::network_monitor::start(app.handle().clone());
             Ok(())
         })

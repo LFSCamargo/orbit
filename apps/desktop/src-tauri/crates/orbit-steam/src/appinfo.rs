@@ -18,6 +18,10 @@ pub struct AppSummary {
     pub name: Option<String>,
     pub app_type: Option<String>,
     pub required_bytes: Option<u64>,
+    /// Bytes of the depots a Mac install downloads: macOS and shared depots.
+    pub mac_required_bytes: Option<u64>,
+    /// At least one non-DLC depot is built for macOS.
+    pub has_mac_build: bool,
 }
 
 /// `appinfo/config/installdir` for each wanted app id found in the file.
@@ -87,10 +91,11 @@ fn scan_apps(
         else {
             break;
         };
-        if wanted.contains(&app_id) && body + APP_PREAMBLE < next {
-            if visit(&reader, app_id, body + APP_PREAMBLE, next) {
-                break;
-            }
+        if wanted.contains(&app_id)
+            && body + APP_PREAMBLE < next
+            && visit(&reader, app_id, body + APP_PREAMBLE, next)
+        {
+            break;
         }
         at = next;
     }
@@ -137,20 +142,15 @@ impl Reader<'_> {
         let mut accum = SummaryAccum::default();
         self.walk_summary(start, end, &mut path, &mut accum)?;
         let mut found = accum.summary;
-        let required: u64 = accum
-            .depots
-            .into_iter()
-            .filter(|depot| {
-                !depot.is_dlc
-                    && depot
-                        .oslist
-                        .as_deref()
-                        .is_none_or(|os| os.is_empty() || os.contains("windows"))
-            })
-            .fold(0u64, |total, depot| total.saturating_add(depot.maxsize));
-        if required > 0 {
-            found.required_bytes = Some(required);
-        }
+        found.required_bytes = depot_bytes(&accum.depots, "windows");
+        found.mac_required_bytes = depot_bytes(&accum.depots, "macos");
+        found.has_mac_build = accum.depots.iter().any(|depot| {
+            !depot.is_dlc
+                && depot
+                    .oslist
+                    .as_deref()
+                    .is_some_and(|os| os.contains("macos"))
+        });
         (found.name.is_some() || found.app_type.is_some()).then_some(found)
     }
 
@@ -267,16 +267,13 @@ impl Reader<'_> {
                         }
                     } else if accum.in_depot {
                         if let Some(depot) = accum.depots.last_mut() {
-                            if path.len() == 3 && key.eq_ignore_ascii_case("maxsize") {
-                                if let Ok(bytes) = value.trim().parse::<u64>() {
-                                    depot.maxsize = bytes;
-                                }
-                            } else if path.len() == 5
-                                && depot.maxsize == 0
-                                && path[3].eq_ignore_ascii_case("manifests")
-                                && path[4].eq_ignore_ascii_case("public")
-                                && key.eq_ignore_ascii_case("size")
-                            {
+                            let size = (path.len() == 3 && key.eq_ignore_ascii_case("maxsize"))
+                                || (path.len() == 5
+                                    && depot.maxsize == 0
+                                    && path[3].eq_ignore_ascii_case("manifests")
+                                    && path[4].eq_ignore_ascii_case("public")
+                                    && key.eq_ignore_ascii_case("size"));
+                            if size {
                                 if let Ok(bytes) = value.trim().parse::<u64>() {
                                     depot.maxsize = bytes;
                                 }
@@ -287,6 +284,11 @@ impl Reader<'_> {
                                 && key.eq_ignore_ascii_case("oslist")
                             {
                                 depot.oslist = Some(value.trim().to_ascii_lowercase());
+                            } else if path.len() == 4
+                                && path[3].eq_ignore_ascii_case("config")
+                                && key.eq_ignore_ascii_case("osarch")
+                            {
+                                depot.osarch = Some(value.trim().to_string());
                             }
                         }
                     }
@@ -321,6 +323,24 @@ impl Reader<'_> {
     }
 }
 
+/// Sum of the non-DLC depots one platform installs: its own and the shared
+/// ones (no `oslist`). 32-bit-only depots are left out; Steam skips them on
+/// a 64-bit Mac or PC. O(depots).
+fn depot_bytes(depots: &[DepotAccum], os: &str) -> Option<u64> {
+    let total = depots
+        .iter()
+        .filter(|depot| {
+            !depot.is_dlc
+                && depot.osarch.as_deref() != Some("32")
+                && depot
+                    .oslist
+                    .as_deref()
+                    .is_none_or(|list| list.is_empty() || list.contains(os))
+        })
+        .fold(0u64, |total, depot| total.saturating_add(depot.maxsize));
+    (total > 0).then_some(total)
+}
+
 #[derive(Default)]
 struct SummaryAccum {
     summary: AppSummary,
@@ -332,6 +352,7 @@ struct SummaryAccum {
 struct DepotAccum {
     maxsize: u64,
     oslist: Option<String>,
+    osarch: Option<String>,
     is_dlc: bool,
 }
 
@@ -470,7 +491,7 @@ mod tests {
             Some(&AppSummary {
                 name: Some("God of War Ragnarök".into()),
                 app_type: Some("game".into()),
-                required_bytes: None,
+                ..AppSummary::default()
             })
         );
         assert_eq!(
@@ -478,9 +499,80 @@ mod tests {
             Some(&AppSummary {
                 name: Some("Deluxe Upgrade".into()),
                 app_type: Some("dlc".into()),
-                required_bytes: None,
+                ..AppSummary::default()
             })
         );
         assert!(!found.contains_key(&999));
+    }
+    /// A v28 file (inline keys): one app with Windows, macOS, shared, 32-bit
+    /// and DLC depots.
+    fn depot_file() -> Vec<u8> {
+        fn key(kv: &mut Vec<u8>, kind: u8, name: &str) {
+            kv.push(kind);
+            kv.extend(name.as_bytes());
+            kv.push(0);
+        }
+        fn text(kv: &mut Vec<u8>, name: &str, value: &str) {
+            key(kv, 0x01, name);
+            kv.extend(value.as_bytes());
+            kv.push(0);
+        }
+        fn depot(
+            kv: &mut Vec<u8>,
+            id: &str,
+            os: Option<&str>,
+            arch: Option<&str>,
+            size: &str,
+            dlc: bool,
+        ) {
+            key(kv, 0x00, id);
+            text(kv, "maxsize", size);
+            if dlc {
+                text(kv, "dlcappid", "9");
+            }
+            key(kv, 0x00, "config");
+            if let Some(os) = os {
+                text(kv, "oslist", os);
+            }
+            if let Some(arch) = arch {
+                text(kv, "osarch", arch);
+            }
+            kv.push(0x08);
+            kv.push(0x08);
+        }
+        let mut kv = Vec::new();
+        key(&mut kv, 0x00, "appinfo");
+        key(&mut kv, 0x00, "common");
+        text(&mut kv, "name", "Cyberpunk 2077");
+        text(&mut kv, "type", "Game");
+        kv.push(0x08);
+        key(&mut kv, 0x00, "depots");
+        depot(&mut kv, "1", Some("windows"), None, "70000", false);
+        depot(&mut kv, "2", Some("macos"), None, "90000", false);
+        depot(&mut kv, "3", None, None, "5", false);
+        depot(&mut kv, "4", Some("macos"), Some("32"), "1000", false);
+        depot(&mut kv, "5", Some("macos"), None, "777", true);
+        kv.push(0x08);
+        kv.push(0x08);
+        kv.push(0x08);
+        let mut body = vec![0u8; APP_PREAMBLE];
+        body.extend(kv);
+        let mut file = MAGIC_V28.to_le_bytes().to_vec();
+        file.extend(1u32.to_le_bytes());
+        file.extend(1_091_500u32.to_le_bytes());
+        file.extend((body.len() as u32).to_le_bytes());
+        file.extend(body);
+        file.extend(0u32.to_le_bytes());
+        file
+    }
+
+    #[test]
+    fn mac_and_windows_sizes_count_only_their_own_and_shared_depots() {
+        let found = app_summaries(&depot_file(), &HashSet::from([1_091_500]));
+        let summary = found.get(&1_091_500).unwrap();
+        assert_eq!(summary.name.as_deref(), Some("Cyberpunk 2077"));
+        assert_eq!(summary.required_bytes, Some(70_005));
+        assert_eq!(summary.mac_required_bytes, Some(90_005));
+        assert!(summary.has_mac_build);
     }
 }

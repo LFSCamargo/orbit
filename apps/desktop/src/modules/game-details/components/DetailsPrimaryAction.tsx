@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Play, Square } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { InstallLocationDialog } from '@/components/game/InstallLocationDialog'
+import {
+  InstallLocationDialog,
+  type InstallRequest,
+} from '@/components/game/InstallLocationDialog'
 import { useDownloadStore } from '@/lib/downloadProgress'
 import { queuePosition, useDownloadQueue } from '@/hooks/useDownloadQueue'
 import { detailsPrimaryAction } from '@/lib/libraryActions'
@@ -31,9 +34,7 @@ export function DetailsPrimaryAction({
   const setScreen = useUiStore((state) => state.setScreen)
   const setSettingsTab = useUiStore((state) => state.setSettingsTab)
   const [cancelling, setCancelling] = useState(false)
-  const [installing, setInstalling] = useState<{ appId: string; title: string } | null>(
-    null,
-  )
+  const [installing, setInstalling] = useState<InstallRequest | null>(null)
   const tasks = useDownloadStore((state) => state.tasks)
   const queue = useDownloadQueue()
   const action = detailsPrimaryAction({
@@ -78,7 +79,11 @@ export function DetailsPrimaryAction({
       return
     }
     if (action.kind === 'install' && entry.steamAppId) {
-      setInstalling({ appId: entry.steamAppId, title: entry.game.title })
+      setInstalling({
+        appId: entry.steamAppId,
+        title: entry.game.title,
+        native: entry.game.platform === 'macos',
+      })
       return
     }
     if (action.kind === 'sign-in') {

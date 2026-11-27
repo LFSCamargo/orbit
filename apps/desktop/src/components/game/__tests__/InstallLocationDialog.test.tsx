@@ -146,3 +146,23 @@ it('creates and selects a typed folder path on a new SSD', async () => {
   const created = await screen.findByRole('radio', { name: /Fast Drive · Orbit/ })
   await waitFor(() => expect(created).toHaveAttribute('aria-checked', 'true'))
 })
+
+it('queues a macOS build for Steam for Mac without asking for a folder', async () => {
+  vi.mocked(enqueueSteamDownload).mockResolvedValue(undefined)
+  const onClose = vi.fn()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <InstallLocationDialog
+        game={{ appId: '1091500', title: 'Cyberpunk 2077', native: true }}
+        onClose={onClose}
+      />
+    </QueryClientProvider>,
+  )
+  expect(screen.getByText(/Steam for Mac downloads it/)).toBeInTheDocument()
+  expect(screen.queryByRole('radio')).toBeNull()
+  expect(listInstallLocations).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Install' }))
+  expect(enqueueSteamDownload).toHaveBeenCalledWith('1091500', undefined)
+  expect(onClose).toHaveBeenCalled()
+})

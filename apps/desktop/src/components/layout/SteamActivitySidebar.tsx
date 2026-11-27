@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDownToLine, Download, Layers, RotateCw, X } from 'lucide-react'
 import { Focusable } from '@/components/focus/Focusable'
-import { InstallLocationDialog } from '@/components/game/InstallLocationDialog'
+import {
+  InstallLocationDialog,
+  type InstallRequest,
+} from '@/components/game/InstallLocationDialog'
 import { Drawer, DrawerReveal } from '@/components/ui/drawer'
 import { useDownloadQueue } from '@/hooks/useDownloadQueue'
 import { useNetworkStats } from '@/hooks/useNetworkStats'
@@ -43,9 +46,7 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
   const clear = useDownloadStore((state) => state.clear)
   const clearCompleted = useDownloadStore((state) => state.clearCompleted)
   const network = useNetworkStats()
-  const [installing, setInstalling] = useState<{ appId: string; title: string } | null>(
-    null,
-  )
+  const [installing, setInstalling] = useState<InstallRequest | null>(null)
 
   const active = selectActive(tasks)
   const completed = selectCompleted(tasks)
@@ -229,7 +230,12 @@ export function SteamActivitySidebar({ onClose }: { onClose: () => void }) {
                     queued={appId !== null && queuedIds.has(appId)}
                     onInstall={
                       appId
-                        ? () => setInstalling({ appId, title: entry.game.title })
+                        ? () =>
+                            setInstalling({
+                              appId,
+                              title: entry.game.title,
+                              native: entry.game.platform === 'macos',
+                            })
                         : undefined
                     }
                     onOpen={() => {

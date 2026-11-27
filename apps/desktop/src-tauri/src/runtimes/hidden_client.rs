@@ -1,4 +1,5 @@
-//! Keep the Windows Steam client that signs a game in out of sight on macOS.
+//! Keep every Steam client Orbit starts out of sight on macOS: the Windows
+//! client that signs a game in, and Steam for Mac (`services::steam_mac_client`).
 //!
 //! Wine's Mac driver makes every Wine process with a window a regular app: a
 //! Dock icon, an app menu and a Cmd-Tab entry, and Steam's tray icon in the
@@ -135,7 +136,27 @@ mod tests {
             u32::from_be_bytes(LIBRARY[offset..offset + 4].try_into().unwrap()) == 0x0100_0007
         });
         assert!(has_x86_64);
-        let marker = b"steamwebhelper.exe";
+        for marker in [
+            b"steamwebhelper.exe".as_slice(),
+            b"steamwebhelper-orbit-original.exe",
+        ] {
+            assert!(LIBRARY.windows(marker.len()).any(|window| window == marker));
+        }
+    }
+
+    /// Regression: Steam for Mac kept its Dock icon, Cmd-Tab entry and menu
+    /// bar during downloads. The library must cover its client and load into
+    /// an arm64 process.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_embedded_library_hides_steam_for_mac_on_apple_silicon() {
+        let arch_count = u32::from_be_bytes(LIBRARY[4..8].try_into().unwrap()) as usize;
+        let has_arm64 = (0..arch_count).any(|index| {
+            let offset = 8 + index * 20;
+            u32::from_be_bytes(LIBRARY[offset..offset + 4].try_into().unwrap()) == 0x0100_000c
+        });
+        assert!(has_arm64);
+        let marker = b"steam_osx";
         assert!(LIBRARY.windows(marker.len()).any(|window| window == marker));
     }
 }

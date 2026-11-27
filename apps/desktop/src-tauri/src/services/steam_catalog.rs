@@ -53,6 +53,11 @@ pub struct SteamCatalogEntry {
     /// `None` until the store has been asked.
     #[serde(default)]
     pub controller_support: Option<String>,
+    /// Steam ships a macOS build (a macOS depot, or the store's
+    /// `platforms.mac`). Orbit then downloads that build, not the Windows one,
+    /// and `install_size_bytes` is the macOS size. `None` until known.
+    #[serde(default)]
+    pub mac_build: Option<bool>,
 }
 
 impl SteamCatalogEntry {
@@ -308,7 +313,13 @@ fn merge_additive(
             if saved.app_type.is_none() {
                 saved.app_type = candidate.app_type.clone();
             }
-            if saved.install_size_bytes.is_none() {
+            // A local appinfo read knows which build installs here, so its
+            // size replaces one saved before the platform was known.
+            if candidate.mac_build.is_some() {
+                saved.mac_build = candidate.mac_build;
+                saved.install_size_bytes =
+                    candidate.install_size_bytes.or(saved.install_size_bytes);
+            } else if saved.install_size_bytes.is_none() {
                 saved.install_size_bytes = candidate.install_size_bytes;
             }
             if candidate.playtime_seconds > saved.playtime_seconds {
@@ -359,6 +370,7 @@ pub fn merge_api_snapshot(
                     .clone()
                     .or(entry.controller_support);
                 entry.install_size_bytes = entry.install_size_bytes.or(saved.install_size_bytes);
+                entry.mac_build = entry.mac_build.or(saved.mac_build);
                 entry.playtime_seconds = entry.playtime_seconds.max(saved.playtime_seconds);
                 entry.last_played_at = crate::utils::steam_playtime::later_stamp(
                     entry.last_played_at,
@@ -406,6 +418,7 @@ struct StorePayload {
     recommended: Option<String>,
     app_type: Option<String>,
     controller_support: String,
+    mac_build: Option<bool>,
 }
 
 /// `full` / `partial` from the store; anything else (absent) is `none`.
@@ -445,6 +458,11 @@ pub fn apply_store_details(entry: &mut SteamCatalogEntry, value: &Value) -> bool
         entry.controller_support = Some(payload.controller_support);
         changed = true;
     }
+    // The local depot list is more exact than the store flag; fill only gaps.
+    if entry.mac_build.is_none() && payload.mac_build.is_some() {
+        entry.mac_build = payload.mac_build;
+        changed = true;
+    }
     changed
 }
 
@@ -481,6 +499,10 @@ fn parse_store_payload(app_id: &str, value: &Value) -> Option<StorePayload> {
             .and_then(Value::as_str)
             .and_then(steam_app_types::clean),
         controller_support: controller_support_of(data),
+        mac_build: data
+            .get("platforms")
+            .and_then(|platforms| platforms.get("mac"))
+            .and_then(Value::as_bool),
     })
 }
 
@@ -793,6 +815,7 @@ fn parse_stored_item(item: Value) -> Option<SteamCatalogEntry> {
                     .last_played_at
                     .filter(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).is_ok()),
                 app_type: parsed.app_type.as_deref().and_then(steam_app_types::clean),
+                mac_build: parsed.mac_build,
                 app_id,
             })
         }
@@ -1381,5 +1404,45 @@ mod tests {
         let arc = merged.iter().find(|e| e.app_id == "1808500").unwrap();
         assert_eq!(arc.title, "ARC Raiders");
         assert_eq!(arc.app_type.as_deref(), Some("game"));
+    }
+
+    #[test]
+    fn store_details_record_a_mac_build_without_overriding_the_depot_list() {
+        let mut entry = SteamCatalogEntry::from_app_id("1091500").unwrap();
+        let value = json!({ "1091500": { "success": true, "data": {
+            "name": "Cyberpunk 2077", "type": "game", "platforms": { "mac": true, "windows": true }
+        }}});
+        assert!(apply_store_details(&mut entry, &value));
+        assert_eq!(entry.mac_build, Some(true));
+        let mut known = SteamCatalogEntry {
+            mac_build: Some(false),
+            ..SteamCatalogEntry::from_app_id("1091500").unwrap()
+        };
+        apply_store_details(&mut known, &value);
+        assert_eq!(known.mac_build, Some(false));
+    }
+
+    #[test]
+    fn a_local_scan_replaces_the_windows_size_with_the_mac_build_size() {
+        let saved = vec![SteamCatalogEntry {
+            title: "Cyberpunk 2077".into(),
+            install_size_bytes: Some(70_000),
+            ..SteamCatalogEntry::from_app_id("1091500").unwrap()
+        }];
+        let local = vec![SteamCatalogEntry {
+            title: "Cyberpunk 2077".into(),
+            install_size_bytes: Some(90_000),
+            mac_build: Some(true),
+            ..SteamCatalogEntry::from_app_id("1091500").unwrap()
+        }];
+        let merged = apply_owned_snapshot_with_local(&saved, &[], &local, None);
+        assert_eq!(merged[0].install_size_bytes, Some(90_000));
+        assert_eq!(merged[0].mac_build, Some(true));
+        let refreshed = merge_api_snapshot(
+            &merged,
+            vec![SteamCatalogEntry::from_app_id("1091500").unwrap()],
+        );
+        assert_eq!(refreshed[0].mac_build, Some(true));
+        assert_eq!(refreshed[0].install_size_bytes, Some(90_000));
     }
 }

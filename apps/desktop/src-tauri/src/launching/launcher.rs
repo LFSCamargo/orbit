@@ -158,6 +158,20 @@ pub fn launch_configuration(
             open_url(url)?;
         }
         LaunchConfiguration::Steam { app_id } => {
+            // Steam for Mac starts fully hidden; only the game shows. It is
+            // quit again when the session ends (`steam_mac_client`).
+            #[cfg(target_os = "macos")]
+            {
+                crate::services::steam_mac_client::set_playing(true);
+                let opened = crate::services::steam_mac_client::open_url(&format!(
+                    "steam://rungameid/{app_id}"
+                ));
+                if let Err(error) = opened {
+                    crate::services::steam_mac_client::set_playing(false);
+                    bail!(error);
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
             open_url(&format!("steam://rungameid/{app_id}"))?;
         }
         LaunchConfiguration::CustomCommand {

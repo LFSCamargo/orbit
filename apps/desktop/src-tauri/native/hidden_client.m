@@ -1,5 +1,6 @@
-// Loaded by Orbit (DYLD_INSERT_LIBRARIES) into the Wine processes of the
-// Windows Steam client that signs a game in. Wine's Mac driver turns a process
+// Loaded by Orbit (DYLD_INSERT_LIBRARIES) into every Steam client Orbit
+// starts: the Wine processes of the Windows Steam client that signs a game in,
+// and Steam for Mac (`steam_osx`) when it downloads a macOS build. Wine's Mac driver turns a process
 // into a regular app (Dock icon, app menu, Cmd-Tab entry) the first time one of
 // its windows is ordered in, and asks every other Wine app, the game included,
 // to yield focus to it. Steam only has to run, never to be seen, so:
@@ -9,6 +10,10 @@
 // - Status items (Wine's tray icons in the menu bar) stay hidden in every
 //   process that loads this library; explorer.exe hosts Steam's tray icon.
 //
+// - Steam for Mac is a regular app in its Info.plist, so it is switched to an
+//   accessory app (no Dock icon, no Cmd-Tab entry, no menu bar) as it
+//   launches, and TransformProcessType cannot bring it back.
+//
 // The game is never started with this library, so it behaves as before.
 
 #import <AppKit/AppKit.h>
@@ -16,11 +21,13 @@
 #include <mach-o/dyld.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 
 static const char *const kHiddenExecutables[] = {
     "steam.exe",
     "steamwebhelper.exe",
+    "steamwebhelper-orbit-original.exe",
     "steamservice.exe",
     "steamerrorreporter.exe",
     "steamerrorreporter64.exe",
@@ -28,8 +35,16 @@ static const char *const kHiddenExecutables[] = {
     "gameoverlayui.exe",
     "gameoverlayui64.exe",
     "orbit-steam-agent.exe",
+    "SteamSetup.exe",
+    "steam_osx",
+    "steamwebhelper",
     NULL,
 };
+
+// Steam for Mac's main process. Its Chromium helpers ("Steam Helper",
+// "Steam Helper (GPU)", ...) are already UI elements.
+static const char *const kMacClient = "steam_osx";
+static const char *const kMacHelperPrefix = "Steam Helper";
 
 // Wine sets the program name to the Windows executable while the process
 // starts, before it creates any window. O(n) over a short fixed list.
@@ -41,7 +56,13 @@ static BOOL orbit_is_hidden_process(void)
     {
         if (strcasecmp(name, kHiddenExecutables[i]) == 0) return YES;
     }
-    return NO;
+    return strncmp(name, kMacHelperPrefix, strlen(kMacHelperPrefix)) == 0;
+}
+
+static BOOL orbit_is_mac_client(void)
+{
+    const char *name = getprogname();
+    return name && strcmp(name, kMacClient) == 0;
 }
 
 static IMP orbit_replace(Class cls, SEL selector, id block)
@@ -80,6 +101,35 @@ static void orbit_hook_wine_controller(void)
             ((void (*)(id, SEL, BOOL))original_try_activate)(self, sel_registerName("tryToActivateIgnoringOtherApps:"), ignore);
         });
 }
+
+// Steam for Mac starts as a regular app (its Info.plist has no LSUIElement);
+// as soon as AppKit has launched it, it becomes an accessory app.
+static void orbit_force_accessory(void)
+{
+    NSApplication *app = [NSApplication sharedApplication];
+    if (!app || !original_set_policy) return;
+    ((BOOL (*)(id, SEL, NSApplicationActivationPolicy))original_set_policy)(
+        app, @selector(setActivationPolicy:), NSApplicationActivationPolicyAccessory);
+}
+
+// Carbon's way to become a foreground app; Steam's client must not use it.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+static OSStatus orbit_transform_process_type(const ProcessSerialNumber *psn,
+                                             ProcessApplicationTransformState state)
+{
+    if (state == kProcessTransformToForegroundApplication && orbit_is_hidden_process()) return noErr;
+    return TransformProcessType(psn, state);
+}
+
+__attribute__((used)) static const struct
+{
+    const void *replacement;
+    const void *replacee;
+} orbit_interposers[] __attribute__((section("__DATA,__interpose"))) = {
+    {(const void *)orbit_transform_process_type, (const void *)TransformProcessType},
+};
+#pragma clang diagnostic pop
 
 static void orbit_image_added(const struct mach_header *header, intptr_t slide)
 {
@@ -122,5 +172,25 @@ __attribute__((constructor)) static void orbit_hidden_client_init(void)
             });
 
         _dyld_register_func_for_add_image(orbit_image_added);
+
+        if (orbit_is_mac_client())
+        {
+            NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+            for (NSNotificationName name in @[ NSApplicationWillFinishLaunchingNotification,
+                                               NSApplicationDidFinishLaunchingNotification ])
+            {
+                [center addObserverForName:name
+                                    object:nil
+                                     queue:nil
+                                usingBlock:^(NSNotification *note) {
+                                    orbit_force_accessory();
+                                    // Steam re-launches itself while it starts, so the library stays
+                                    // in the environment until AppKit has launched the final client.
+                                    // After that, games Steam starts must not inherit it.
+                                    if ([note.name isEqualToString:NSApplicationDidFinishLaunchingNotification])
+                                        unsetenv("DYLD_INSERT_LIBRARIES");
+                                }];
+            }
+        }
     }
 }

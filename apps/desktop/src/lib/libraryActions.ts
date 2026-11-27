@@ -68,7 +68,9 @@ export function detailsPrimaryAction(input: {
     }
   }
   if (input.entry.owned && input.entry.steamAppId) {
-    if (!input.signedIn) return { kind: 'sign-in', label: 'Sign in to Steam' }
+    // A macOS build downloads through Steam for Mac and its own login.
+    const native = input.entry.game.platform === 'macos'
+    if (!input.signedIn && !native) return { kind: 'sign-in', label: 'Sign in to Steam' }
     return { kind: 'install', label: 'Install' }
   }
   if (input.entry.game.launchConfig.type === 'wine') {

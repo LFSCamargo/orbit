@@ -48,6 +48,8 @@ pub mod steam_session;
 pub mod steam_windows;
 
 pub mod hero_lighting;
+pub mod steam_mac_client;
+pub mod steam_mac_download;
 
 pub mod glass_material;
 

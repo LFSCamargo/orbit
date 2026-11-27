@@ -176,7 +176,12 @@ pub fn merge(games: Vec<Game>, catalog: Vec<SteamCatalogEntry>) -> Vec<LibraryEn
             sort_title: item.title.to_lowercase(),
             description: item.description,
             provider: GameProvider::Steam,
-            platform: GamePlatform::Windows,
+            // Not installed yet: the platform Orbit will download.
+            platform: if item.mac_build == Some(true) {
+                GamePlatform::Macos
+            } else {
+                GamePlatform::Windows
+            },
             source_id: Some(item.app_id.clone()),
             launch_config: LaunchConfiguration::Steam {
                 app_id: item.app_id.clone(),
@@ -504,6 +509,22 @@ mod tests {
         assert_eq!(install.launch_type, "open-url");
         assert_eq!(install.size_bytes, None);
     }
+    #[test]
+    fn an_uninstalled_title_with_a_mac_build_is_listed_as_macos() {
+        let native = SteamCatalogEntry {
+            mac_build: Some(true),
+            install_size_bytes: Some(90_000),
+            ..SteamCatalogEntry::from_app_id("1091500").unwrap()
+        };
+        let windows = SteamCatalogEntry::from_app_id("1593500").unwrap();
+        let entries = merge(vec![], vec![native, windows]);
+        let native = entries.iter().find(|e| e.id == "steam:1091500").unwrap();
+        assert_eq!(native.game.platform, GamePlatform::Macos);
+        assert_eq!(native.game.install_size_bytes, Some(90_000));
+        let windows = entries.iter().find(|e| e.id == "steam:1593500").unwrap();
+        assert_eq!(windows.game.platform, GamePlatform::Windows);
+    }
+
     #[test]
     fn one_title_keeps_both_installations_and_owned_catalog() {
         let local = vec![

@@ -23,7 +23,10 @@ import {
 import { focusManager } from '@/controllers/FocusManager'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { Focusable } from '@/components/focus/Focusable'
-import { InstallLocationDialog } from '@/components/game/InstallLocationDialog'
+import {
+  InstallLocationDialog,
+  type InstallRequest,
+} from '@/components/game/InstallLocationDialog'
 import { selectInstallation } from '@/lib/libraryEntries'
 import { CarouselArtwork } from './CarouselArtwork'
 import { LiquidGlass } from '@/components/ui/liquid-glass'
@@ -86,9 +89,10 @@ export function MacosHome({
   // Regression: "Jump back in" on a game that is not on this Mac ended in
   // "Game not found". Such a game installs (Steam) or opens its details.
   const notInstalled = !running && selectInstallation(heroEntry)?.available !== true
-  const [installing, setInstalling] = useState<{ appId: string; title: string } | null>(
-    null,
-  )
+  // A macOS build installs through Steam for Mac, without Orbit's Steam sign-in.
+  const native = heroGame.platform === 'macos'
+  const canInstall = Boolean(heroEntry.steamAppId) && (steamReady || native)
+  const [installing, setInstalling] = useState<InstallRequest | null>(null)
   const visible = useMemo(() => entries.filter((entry) => !entry.game.hidden), [entries])
   const tiles = useMemo(
     () => shelfEntries.filter((entry) => !entry.game.hidden).slice(0, 12),
@@ -189,10 +193,11 @@ export function MacosHome({
                   onClick={() => {
                     if (running) onStop()
                     else if (notInstalled) {
-                      if (heroEntry.steamAppId && steamReady)
+                      if (heroEntry.steamAppId && canInstall)
                         setInstalling({
                           appId: heroEntry.steamAppId,
                           title: heroGame.title,
+                          native,
                         })
                       else details(heroEntry.id)
                     } else if (steamBlocked) {
@@ -216,7 +221,7 @@ export function MacosHome({
                   {running
                     ? 'Stop game'
                     : notInstalled
-                      ? heroEntry.steamAppId && steamReady
+                      ? canInstall
                         ? 'Install'
                         : 'View details'
                       : steamBlocked

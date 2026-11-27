@@ -28,23 +28,33 @@ const GROUP = 'install-location'
 
 export { initialLocation, spaceCaption }
 
+/** A Steam title about to join the download queue. */
+export type InstallRequest = {
+  appId: string
+  title: string
+  /** Steam ships a macOS build: Steam for Mac downloads it into its own library. */
+  native?: boolean
+}
+
 /**
  * Asks where to install a Steam game before it joins the download queue:
  * This Mac or any folder the person adds (an external drive, for example).
+ * A game with a macOS build has no folder to pick: Steam for Mac keeps it.
  */
 export function InstallLocationDialog({
   game,
   onClose,
 }: {
-  game: { appId: string; title: string } | null
+  game: InstallRequest | null
   onClose: () => void
 }) {
   const open = game !== null
+  const native = game?.native === true
   const client = useQueryClient()
   const locations = useQuery({
     queryKey: INSTALL_LOCATIONS_KEY,
     queryFn: listInstallLocations,
-    enabled: open,
+    enabled: open && !native,
   })
   const [selected, setSelected] = useState('this-mac')
   const [busy, setBusy] = useState(false)
@@ -113,7 +123,7 @@ export function InstallLocationDialog({
     const key = `steam:${game.appId}`
     useDownloadStore.getState().start({ key, label: game.title })
     onClose()
-    void enqueueSteamDownload(game.appId, selected)
+    void enqueueSteamDownload(game.appId, native ? undefined : selected)
       .then(() => refresh())
       .catch((error: unknown) => useDownloadStore.getState().fail(key, errorText(error)))
   }
@@ -146,13 +156,15 @@ export function InstallLocationDialog({
           >
             <h2 className="font-display text-2xl font-semibold">Install {game.title}</h2>
             <p className="mt-2 leading-relaxed text-orbit-muted">
-              Choose where to keep the game’s files. Other drives work too: add a folder
-              on one.
+              {native
+                ? 'Steam has a macOS build of this game, so Orbit installs that one. Steam for Mac downloads it into its own library. If Steam is open, confirm the install there.'
+                : 'Choose where to keep the game’s files. Other drives work too: add a folder on one.'}
             </p>
             <div
-              className="mt-5 grid gap-2"
+              className={clsx('mt-5 grid gap-2', native && 'hidden')}
               role="radiogroup"
               aria-label="Install location"
+              aria-hidden={native || undefined}
             >
               {list.map((location, index) => {
                 const checked = location.id === selected
@@ -272,7 +284,7 @@ export function InstallLocationDialog({
                 focusId="install-location-confirm"
                 group={GROUP}
                 order={list.length + 4}
-                disabled={busy || !choice?.available}
+                disabled={busy || (!native && !choice?.available)}
                 onClick={install}
                 className="rounded-full bg-orbit-accent px-5 py-3 font-semibold text-white disabled:opacity-45"
               >
