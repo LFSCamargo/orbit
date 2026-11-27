@@ -32,6 +32,9 @@ vi.mock('@/lib/tauri', () => ({
   installGptkViaHomebrew: vi.fn(),
   installLocalGptkPackage: vi.fn(),
   registerComponentPath: vi.fn(),
+  getOrbitWineVersions: vi.fn().mockResolvedValue({ versions: [], error: null }),
+  selectOrbitWine: vi.fn(),
+  installOrbitWineVersion: vi.fn(),
 }))
 vi.mock('@/lib/dialog', () => ({ open: vi.fn() }))
 
@@ -92,7 +95,7 @@ function renderRows() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <CompatibilityComponents managed={null} managedVersion="11.0.1" />
+      <CompatibilityComponents />
     </QueryClientProvider>,
   )
 }

@@ -46,6 +46,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             platform::macos::start_controller_home(app.handle().clone());
             services::install_locations::restore(&app.state::<AppState>().repo);
@@ -65,12 +66,19 @@ pub fn run() {
             steam_library_sync: Arc::new(services::steam_background_sync::SteamSyncControl::new()),
         })
         .invoke_handler(tauri::generate_handler![
+            commands::app_update::app_update_check,
+            commands::app_update::app_update_install,
             commands::runtimes::windows_compatibility,
             commands::runtimes::compatibility_catalog,
             commands::runtimes::compatibility_settings,
             commands::runtimes::update_compatibility_settings,
             commands::runtimes::install_windows_compatibility,
             commands::runtimes::orbit_wine_status,
+            commands::runtimes::orbit_wine_update,
+            commands::runtimes::skip_orbit_wine_update,
+            commands::runtimes::orbit_wine_versions,
+            commands::runtimes::select_orbit_wine,
+            commands::runtimes::install_orbit_wine_version,
             commands::runtimes::install_orbit_wine,
             commands::runtimes::install_component,
             commands::runtimes::component_status,

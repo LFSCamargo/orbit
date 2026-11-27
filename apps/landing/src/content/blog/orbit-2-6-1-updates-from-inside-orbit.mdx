@@ -1,0 +1,77 @@
+Orbit 2.6.1 is out, and it's the last Orbit you'll need to download from the website. From
+now on, new versions come to you: Orbit tells you when one is ready, shows you what changed,
+and updates itself with one button.
+
+It also finishes what 2.6.0 started. Two of its biggest fixes, the end of crackling audio
+and 2.4 GHz controllers in Windows games, needed a new build of Orbit Wine to reach you.
+That build is here, and Orbit now asks before it installs it.
+
+## Updates from inside Orbit
+
+When a new version is out, Orbit shows it right after it opens: the version you have, the
+one that's available, and its release notes. Choose **Update and restart** and Orbit
+downloads the update with a progress bar, installs it and opens again. Choose **Later** and
+it asks next time you open Orbit. Nothing is ever installed without you saying so.
+
+A few things it takes care of for you:
+
+- **It never interrupts a game.** Orbit doesn't ask while you're playing, and an update can't
+  start while a game is running.
+- **Everything stays where it is.** Your library, games, saves, settings and Steam sign-in
+  live outside the app, so an update never touches them.
+- **It only installs real Orbit releases.** Every update is signed when it's published, and
+  Orbit checks that signature before it installs anything.
+
+<Callout title="How Orbit knows an update is genuine">
+  Each release is signed with a private key that only the Orbit release process has. The
+  matching public key is built into Orbit itself. Before installing, Orbit checks the
+  download against that public key; if a single byte was changed, or the update was signed
+  with any other key, Orbit refuses it. The release pipeline also checks every signature
+  against the built-in key before it publishes, so a release Orbit would reject never goes
+  out.
+</Callout>
+
+This is the one time you need to update the old way: download 2.6.1 from the
+[download page](/download) and drag it over your current Orbit. After that, Orbit takes it
+from here.
+
+## No more crackling
+
+In 2.6.0 we gave Windows games a deeper audio buffer. Under Rosetta, a game's audio thread
+sometimes misses its 10 ms deadline; Wine only kept 30 ms of sound queued, so the buffer
+ran dry and the game crackled and distorted. Orbit now asks for 60 ms, enough to ride out a
+missed deadline at a latency you won't notice.
+
+There was a catch: Wine only honours that setting with a small patch we added to Orbit Wine,
+and the Orbit Wine most people had installed didn't include it yet. **Orbit Wine 26.3.0-2**
+does, together with the controller bridge that lets 2.4 GHz receivers and XInput USB pads
+like the 8BitDo Ultimate 2C reach your Windows games.
+
+When you open Orbit 2.6.1, it offers the new build with its own release notes. Choose
+**Download update** and it installs in the background; your games switch to it as soon as
+it's ready, and every game keeps its saves. Prefer to stay where you are? Choose
+**Keep 26.3.0** and Orbit won't ask about that build again.
+
+## Choose your Orbit Wine
+
+**Settings → Compatibility** has a new **Windows games runtime** row. It lists every Orbit
+Wine build, the ones you have and the ones you can download, and the one your games use
+right now.
+
+- **Pick an installed build** and your games use it from their next launch.
+- **Pick a newer build** and **Install** downloads it, prepares it and switches to it.
+- **Leave it alone** and your games always use the newest build you have, so updates just
+  apply.
+
+If you choose an older build, Orbit keeps using it even when a newer one arrives, until you
+pick again. The old **Compatibility layer** row is gone: games never actually used the Wine
+versions it listed.
+
+## Updating
+
+Download Orbit 2.6.1 from the [download page](/download) and drag it over your current Orbit.
+Open it, accept the Orbit Wine update, and you're set: the next version will show up inside
+Orbit.
+
+Every change is in the [2.6.1 changelog](/changelog), and the code is on
+[GitHub](https://github.com/LFSCamargo/orbit).

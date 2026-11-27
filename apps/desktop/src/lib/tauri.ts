@@ -284,6 +284,59 @@ export async function orbitWineStatus(): Promise<
   return run('orbit_wine_status')
 }
 
+/** A newer Orbit release, with its release notes, or null. */
+export async function appUpdateCheck(): Promise<
+  import('@/types/runtime').AppUpdate | null
+> {
+  return run('app_update_check')
+}
+
+/** Downloads, verifies and installs Orbit `version`, then restarts Orbit. */
+export async function appUpdateInstall(
+  version: string,
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<void> {
+  if (!isTauriRuntime()) return run('app_update_install', { version })
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('app_update_install', { version, onProgress: channel })
+}
+
+/** A newer Orbit Wine build to offer, with its release notes, or null. */
+export async function orbitWineUpdate(): Promise<
+  import('@/types/runtime').OrbitWineUpdate | null
+> {
+  return run('orbit_wine_update')
+}
+
+/** Keep the installed Orbit Wine: `version` is not offered again. */
+export async function skipOrbitWineUpdate(version: string): Promise<void> {
+  return run('skip_orbit_wine_update', { version })
+}
+
+/** Published and installed Orbit Wine builds, and which one Play uses. */
+export async function getOrbitWineVersions(): Promise<
+  import('@/types/runtime').OrbitWineVersions
+> {
+  return run('orbit_wine_versions')
+}
+
+/** Makes an installed Orbit Wine build the one games play with. */
+export async function selectOrbitWine(version: string): Promise<void> {
+  return run('select_orbit_wine', { version })
+}
+
+/** Installs one published Orbit Wine build and makes games play with it. */
+export async function installOrbitWineVersion(
+  version: string,
+  onProgress: (progress: import('@/types/runtime').SetupProgress) => void,
+): Promise<void> {
+  if (!isTauriRuntime()) return run('install_orbit_wine_version', { version })
+  const channel = new Channel<import('@/types/runtime').SetupProgress>()
+  channel.onmessage = onProgress
+  return run('install_orbit_wine_version', { version, onProgress: channel })
+}
+
 /** Installs the newest published Orbit Wine and prepares its base container. */
 export async function installOrbitWine(
   onProgress: (progress: import('@/types/runtime').SetupProgress) => void,

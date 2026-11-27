@@ -67,7 +67,7 @@ pub fn installed_crossover(runtimes_root: &Path) -> Option<PathBuf> {
         .map(|entry| entry.path())
         .filter(|path| !path.is_symlink())
         .collect();
-    versions.sort_by_key(|path| std::cmp::Reverse(version_key(path)));
+    versions.sort_by_key(|path| std::cmp::Reverse(path_version_key(path)));
     let mut first_without_controllers = None;
     for wine in versions
         .into_iter()
@@ -86,10 +86,59 @@ pub fn installed_crossover(runtimes_root: &Path) -> Option<PathBuf> {
     first_without_controllers
 }
 
-fn version_key(path: &Path) -> Vec<u32> {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or_default()
+/// A plain version folder name: no separators, no traversal, not hidden.
+pub fn is_version_name(version: &str) -> bool {
+    !version.is_empty()
+        && version.len() <= 64
+        && !version.starts_with('.')
+        && version
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b'_')
+}
+
+/// The loader of the installed Orbit Wine `version` when it passes the
+/// CrossOver-class probe. Unsafe folder names and symlinks are refused.
+pub fn crossover_at(runtimes_root: &Path, version: &str) -> Option<PathBuf> {
+    if !is_version_name(version) {
+        return None;
+    }
+    let dir = runtimes_root.join(ORBIT_WINE_DIR).join(version);
+    if dir.is_symlink() {
+        return None;
+    }
+    [dir.join(BUNDLED_LOADER), dir.join("bin/wine")]
+        .into_iter()
+        .filter(|wine| wine.is_file())
+        .find(|wine| inspect(wine).is_ok_and(|caps| caps.crossover_class()))
+}
+
+/// Installed Orbit Wine versions that pass the probe, highest first. O(v) probes.
+pub fn installed_versions(runtimes_root: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(runtimes_root.join(ORBIT_WINE_DIR)) else {
+        return Vec::new();
+    };
+    let mut versions: Vec<String> = entries
+        .flatten()
+        .take(32)
+        .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
+        .filter(|version| crossover_at(runtimes_root, version).is_some())
+        .collect();
+    versions.sort_by_key(|version| std::cmp::Reverse(version_key(version)));
+    versions
+}
+
+fn path_version_key(path: &Path) -> Vec<u32> {
+    version_key(
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default(),
+    )
+}
+
+/// Orders Orbit Wine versions by their numbers: a rebuild `26.3.0-2` sorts
+/// after `26.3.0` and before `26.3.1`.
+pub fn version_key(version: &str) -> Vec<u32> {
+    version
         .split(|c: char| !c.is_ascii_digit())
         .filter_map(|part| part.parse().ok())
         .collect()
@@ -265,6 +314,39 @@ mod tests {
             installed_crossover(&root).map(|wine| wine.canonicalize().unwrap()),
             Some(with_sdl.canonicalize().unwrap())
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn play_prefers_an_orbit_wine_rebuild_over_its_first_build() {
+        // Regression: 26.3.0-2 carries the audio buffer patch; Play kept
+        // the crackling 26.3.0 when both were installed.
+        let root = std::env::temp_dir().join(format!("orbit-cx-rebuild-{}", uuid::Uuid::new_v4()));
+        fake_wine(
+            &root,
+            "26.3.0",
+            b"CX_APPLEGPTK_LIBD3DSHARED_PATH libd3dshared",
+        );
+        let rebuild = fake_wine(
+            &root,
+            "26.3.0-2",
+            b"CX_APPLEGPTK_LIBD3DSHARED_PATH libd3dshared",
+        );
+        fake_wine(
+            &root,
+            "26.2.9",
+            b"CX_APPLEGPTK_LIBD3DSHARED_PATH libd3dshared",
+        );
+        assert_eq!(
+            installed_crossover(&root).map(|wine| wine.canonicalize().unwrap()),
+            Some(rebuild.canonicalize().unwrap())
+        );
+        assert!(version_key("26.3.0-2") > version_key("26.3.0"));
+        assert_eq!(installed_versions(&root), ["26.3.0-2", "26.3.0", "26.2.9"]);
+        assert!(crossover_at(&root, "26.3.0").is_some());
+        assert!(crossover_at(&root, "../26.3.0").is_none());
+        assert!(crossover_at(&root, "27.0.0").is_none());
+        assert!(version_key("26.3.1") > version_key("26.3.0-9"));
         let _ = fs::remove_dir_all(root);
     }
 

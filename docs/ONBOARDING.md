@@ -37,7 +37,7 @@ The shell behind is `inert` and `aria-hidden` while onboarding shows, so pointer
 
 Rows are the real macOS stack, from the component catalog and what is installed, each with a checkbox and a badge:
 
-- **Orbit Wine** (Required, cannot be unchecked): Orbit's CrossOver-class Wine and its base game container, through `useOrbitWineSetup` (`install_orbit_wine`, one download task `component:orbit-wine`). It downloads the newest `orbit-wine-v*` release from the Orbit GitHub repository (see [CONTAINERS.md](CONTAINERS.md#distribution)), prepares the container new games are cloned from, and makes it the default Wine. The row reads Installed once Orbit Wine is installed and that container is ready (`orbit_wine_status`).
+- **Orbit Wine** (Required, cannot be unchecked): Orbit's CrossOver-class Wine and its base game container, through `useOrbitWineSetup` (`install_orbit_wine`, one download task `component:orbit-wine`). It downloads the highest-versioned `orbit-wine-v*` release from the Orbit GitHub repository (see [CONTAINERS.md](CONTAINERS.md#distribution)), prepares the container new games are cloned from, and makes it the default Wine. The row reads Installed once Orbit Wine is installed and that container is ready (`orbit_wine_status`).
 - **Game Porting Toolkit** (Recommended, orange; "Apple license required"): newest downloadable catalog build; a prerelease only when that is all there is.
 - **DXMT** (Latest).
 - **DXVK + MoltenVK** (Optional, unchecked by default): one row, two installs; MoltenVK is skipped when already installed.
@@ -80,6 +80,7 @@ A phase fails only when every scan in it did; both of the first two failing is t
 
 - `useStartupScan`: when `scanOnStartup`, the same three scans quietly; failures are ignored.
 - `useRuntimeAutoUpdate`: when `autoUpdateRuntimes`, `lib/runtimeUpdates.ts` picks installed catalog components with a newer release (newest-first catalog order; prereleases only for a prerelease install; Homebrew, Apple-download and hand-registered installs are left alone; never the pinned `wine-stable` or `zink`) and queues them one at a time through the downloads queue.
+- `useOrbitWineUpdatePrompt`: after onboarding and the splash, with no game running, asks `orbit_wine_update` once per launch and shows the Orbit Wine update dialog (see [CONTAINERS.md](CONTAINERS.md#distribution)). Orbit Wine is never updated without asking.
 
 ## Xbox Cloud Gaming window
 

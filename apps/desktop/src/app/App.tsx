@@ -31,6 +31,10 @@ import { OnboardingFlow } from '@/modules/onboarding/OnboardingFlow'
 import { useOnboardingVisible } from '@/modules/onboarding/lib/onboardingVisibility'
 import { useSplashActive } from './splash/useSplashHold'
 import { appLayerHidden } from './appLayer'
+import { AppUpdateModal } from '@/components/runtime/AppUpdateModal'
+import { OrbitWineUpdateModal } from '@/components/runtime/OrbitWineUpdateModal'
+import { useAppUpdatePrompt } from './startup/useAppUpdatePrompt'
+import { useOrbitWineUpdatePrompt } from './startup/useOrbitWineUpdatePrompt'
 import { useRuntimeAutoUpdate } from './startup/useRuntimeAutoUpdate'
 import { useStartupScan } from './startup/useStartupScan'
 import { useSteamStartupSync } from './startup/useSteamStartupSync'
@@ -60,6 +64,8 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
   useStartupScan()
   useSteamStartupSync()
   useRuntimeAutoUpdate()
+  const appUpdate = useAppUpdatePrompt()
+  const wineUpdate = useOrbitWineUpdatePrompt(!appUpdate.settled)
 
   // On a first run, onboarding (in #root) rises above the splash, which stays
   // behind it, blurred, until onboarding finishes (index.html).
@@ -120,6 +126,20 @@ export function App({ onMounted }: { onMounted?: () => void } = {}) {
       </div>
       {onboarding && <OnboardingFlow />}
       <HomeMenuModal family={family} />
+      <AppUpdateModal
+        update={appUpdate.update}
+        busy={appUpdate.busy}
+        task={appUpdate.task}
+        error={appUpdate.error}
+        onUpdate={() => void appUpdate.install()}
+        onLater={appUpdate.later}
+      />
+      <OrbitWineUpdateModal
+        update={wineUpdate.update}
+        onAccept={wineUpdate.accept}
+        onKeep={wineUpdate.keep}
+        onLater={wineUpdate.later}
+      />
       <LaunchOverlay />
       <OrbitToaster />
       <XcloudPlayer />

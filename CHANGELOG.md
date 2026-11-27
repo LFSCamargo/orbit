@@ -20,6 +20,30 @@ bun run monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-11-27
+
+Updates from inside Orbit, and a choice of Orbit Wine
+
+### Added
+
+- Orbit updates itself: when a newer release is out, Orbit shows its release notes on launch. **Update and restart** downloads it with progress, verifies its signature against the updater public key in `tauri.conf.json` (Tauri updater), installs it and restarts; **Later** asks next launch. It is refused while a game runs.
+- **Windows games runtime** in Settings → Compatibility: choose the Orbit Wine build games play with, or install another published build. With no choice stored, Play follows the newest installed build; choosing an older one pins it.
+- An Orbit Wine update dialog on launch with the build's release notes: **Download update** installs it and switches games to it, **Keep** stays on the installed build and is not asked again for that version.
+- Signed releases: `scripts/release-macos.sh` signs the update archive with `~/.tauri/orbit.key`, verifies it against the public key before anything is written, writes `latest.json`, and `--publish` uploads the release as latest. A pushed `v<version>` tag publishes it on CircleCI's macOS runners.
+
+### Changed
+
+- Orbit Wine 26.3.0-2 is a rebuild of 26.3.0 with Orbit's audio buffer patch and the SDL2 pad bridge. Orbit Wine versions compare by number (a rebuild beats its first build), so onboarding installs and Play uses the highest build whatever order GitHub lists releases in.
+- Orbit Wine is never updated without asking; other runtime components still update on their own when "Update runtimes automatically" is on.
+- Settings no longer shows the Compatibility layer row: games never used the catalog Wine versions it chose.
+
+### Fixed
+
+- Crackling and distorted audio in container games for installs on the published Orbit Wine 26.3.0: 2.6.0 set a deeper audio buffer, but only Orbit Wine 26.3.0-2 reads it.
+- 2.4 GHz receivers and XInput-only USB pads in Windows games: the pad bridge they need ships in Orbit Wine 26.3.0-2's SDL2.
+
+[2.6.1]: https://github.com/LFSCamargo/orbit/releases/tag/v2.6.1
+
 ## [2.6.0] - 2026-11-27
 
 Controllers that keep up, native macOS downloads, and games that start ready

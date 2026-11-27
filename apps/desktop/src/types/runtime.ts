@@ -5,6 +5,41 @@ export interface OrbitWineStatus {
   containerReady: boolean
 }
 
+/** One Orbit Wine build Settings can offer. */
+export interface OrbitWineVersion {
+  version: string
+  installed: boolean
+  /** The build Play uses. */
+  active: boolean
+  sizeBytes: number | null
+}
+
+/** A newer Orbit release to offer when Orbit opens. */
+export interface AppUpdate {
+  version: string
+  currentVersion: string
+  /** Markdown release notes: untrusted, render as text only. */
+  notes: string
+  publishedAt: string | null
+}
+
+/** A newer Orbit Wine build to offer when Orbit opens. */
+export interface OrbitWineUpdate {
+  version: string
+  installedVersion: string
+  sizeBytes: number
+  /** Markdown release notes from GitHub: untrusted, render as text only. */
+  notes: string
+  publishedAt: string | null
+  releaseUrl: string | null
+}
+
+export interface OrbitWineVersions {
+  versions: OrbitWineVersion[]
+  /** Why published builds are missing (offline), or null. */
+  error: string | null
+}
+
 export interface WineInstallation {
   path: string
   serverPath: string

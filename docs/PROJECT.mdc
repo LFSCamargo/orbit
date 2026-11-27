@@ -198,9 +198,12 @@ Playwright config: `apps/desktop/playwright.config.ts`. Specs live in `apps/desk
 
 ## CI (planned)
 
-There are no GitHub Actions workflows: GitHub's macOS runners are paid, so releases
-(Orbit and Orbit Wine) are built and published locally (see RUNNING.md, "Publishing a
-release"). The landing site deploys on Netlify.
+There are no GitHub Actions workflows (GitHub's macOS runners are paid). CircleCI
+(`.circleci/config.yml`) runs only Orbit releases: a pushed `v<version>` tag runs
+`scripts/release-macos.sh --publish` on an `m4pro.medium` Mac with the `orbit-release`
+context (updater key and GitHub token). Its free plan's macOS minutes (~150 a month) cover
+releases, not every commit. Orbit Wine is still built and published from a Mac (see
+RUNNING.md, "Publishing a release"). The landing site deploys on Netlify.
 
 Future CI, if added, should mirror local gates:
 

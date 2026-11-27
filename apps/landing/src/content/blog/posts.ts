@@ -24,6 +24,18 @@ export const POST_KIND_LABELS: Record<PostKind, string> = {
 
 export const POSTS: PostMeta[] = [
   {
+    slug: 'orbit-2-6-1-updates-from-inside-orbit',
+    title: 'Orbit 2.6.1: updates from inside Orbit',
+    highlight: 'updates from inside Orbit',
+    description:
+      'The last Orbit you download from the website: new versions now arrive inside the app, signed and verified. Plus Orbit Wine 26.3.0-2, which ends the crackling, and a choice of Orbit Wine in Settings.',
+    date: '2026-11-27',
+    kind: 'announcement',
+    author: 'The Orbit team',
+    tags: ['Release', 'Updates', 'Wine', 'Audio'],
+    readingMinutes: 4,
+  },
+  {
     slug: 'orbit-2-6-compressed-games-and-controllers',
     title: 'Orbit 2.6: compressed games and controllers that keep up',
     highlight: 'compressed games',

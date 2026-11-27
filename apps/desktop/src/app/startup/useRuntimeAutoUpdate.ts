@@ -6,7 +6,8 @@ import { usePreferencesStore } from '@/stores/preferences.store'
 
 /** Once per launch, after onboarding: when "Update runtimes automatically" is
  * on, queue newer releases of installed components. They install one at a
- * time through the downloads queue, so progress shows in the sidebar.
+ * time through the downloads queue, so progress shows in the sidebar. Orbit
+ * Wine asks first instead (`useOrbitWineUpdatePrompt`).
  */
 export function useRuntimeAutoUpdate() {
   const { installCatalogComponent } = useComponentInstall()

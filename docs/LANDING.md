@@ -115,7 +115,8 @@ release (built locally, see RUNNING.md "Publishing a release") is all it takes t
 - Release notes are rendered from markdown with `react-markdown` (raw HTML is never rendered).
 
 Asset names come from `scripts/release-macos.sh` (`Orbit-<version>-<arch>.dmg`,
-`Orbit-<version>-<arch>.app.tar.gz`, `SHA256SUMS.txt`). Renaming artifacts there requires
+`Orbit-<version>-<arch>.app.tar.gz`, `SHA256SUMS.txt`). The in-app update files on the
+same release (`*.app.tar.gz.sig`, `latest.json`) are not downloads and are ignored. Renaming artifacts there requires
 updating `classifyAsset` and its tests.
 
 ## Environment

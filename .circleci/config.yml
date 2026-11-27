@@ -1,0 +1,81 @@
+# Orbit releases on CircleCI's macOS runners.
+#
+# Only a pushed release tag (v<version>) runs here: the job builds Orbit, signs
+# the in-app update, verifies the signature against tauri.conf.json and
+# publishes the GitHub release as latest (scripts/release-macos.sh --publish).
+# Commits are not built: the free plan's macOS minutes (~150 a month) cover
+# releases, so the local gates in AGENTS.md run before tagging.
+#
+# Needs the "orbit-release" context (Organization Settings > Contexts):
+#   TAURI_SIGNING_PRIVATE_KEY  contents of ~/.tauri/orbit.key
+#   GH_TOKEN                   GitHub token allowed to write releases on this repo
+version: 2.1
+
+executors:
+  mac:
+    macos:
+      xcode: '26.4.0'
+    resource_class: m4pro.medium
+    environment:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      # Match the Mac releases are built on (bun.lock and packageManager pin Bun).
+      RUST_VERSION: '1.99.1'
+      BUN_VERSION: '1.4.5'
+
+jobs:
+  release:
+    executor: mac
+    steps:
+      - checkout
+      - run:
+          name: Toolchains
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+              sh -s -- -y --profile minimal --default-toolchain "$RUST_VERSION"
+            curl -fsSL https://bun.sh/install | bash -s "bun-v$BUN_VERSION"
+            echo 'export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> "$BASH_ENV"
+            command -v gh >/dev/null || brew install gh
+            command -v node >/dev/null || brew install node
+      - run:
+          name: Versions
+          command: rustc --version && bun --version && node --version && gh --version | head -1
+      - restore_cache:
+          keys:
+            - cargo-v1-{{ checksum "apps/desktop/src-tauri/Cargo.lock" }}
+            - cargo-v1-
+      - restore_cache:
+          keys:
+            - bun-v1-{{ checksum "bun.lock" }}
+            - bun-v1-
+      - run:
+          name: Install dependencies
+          command: bun install --frozen-lockfile
+      - run:
+          name: Release
+          no_output_timeout: 40m
+          # Rust tests run locally before tagging; the minutes go to the build.
+          command: scripts/release-macos.sh --publish --skip-tests
+      - save_cache:
+          key: cargo-v1-{{ checksum "apps/desktop/src-tauri/Cargo.lock" }}
+          paths:
+            - ~/.cargo/registry
+            - ~/.cargo/git
+      - save_cache:
+          key: bun-v1-{{ checksum "bun.lock" }}
+          paths:
+            - ~/.bun/install/cache
+      - store_artifacts:
+          path: release
+          destination: release
+
+workflows:
+  release:
+    jobs:
+      - release:
+          context: orbit-release
+          filters:
+            # Orbit Wine tags (orbit-wine-v…) do not match.
+            tags:
+              only: /^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
+            branches:
+              ignore: /.*/

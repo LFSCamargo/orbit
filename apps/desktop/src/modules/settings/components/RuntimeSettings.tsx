@@ -125,12 +125,7 @@ export function RuntimeSettings() {
 
               {setup.busy && task && <DownloadProgress task={task} />}
 
-              {status && (
-                <CompatibilityComponents
-                  managed={status.managed}
-                  managedVersion={status.package.version}
-                />
-              )}
+              {status && <CompatibilityComponents />}
             </div>
 
             <CollapsiblePanel

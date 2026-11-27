@@ -39,7 +39,7 @@ Product scope and command contract: [docs/DESIGN_DOC.mdc](DESIGN_DOC.mdc).
 - chrono (timestamps)
 - anyhow (error context)
 
-Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog` (legacy; file pickers use custom command), `tauri-plugin-process`.
+Plugins: `tauri-plugin-opener`, `tauri-plugin-dialog` (legacy; file pickers use custom command), `tauri-plugin-updater` (Orbit's own updates, driven from Rust by `commands/app_update.rs`; see RUNNING.md, "Publishing a release").
 
 ## Module pattern
 

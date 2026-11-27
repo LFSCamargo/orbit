@@ -8,7 +8,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SOURCES="$ROOT/scripts/wine/sources.json"
-VERSION="$(node -p "require('$SOURCES').crossover.version")"
+# The Orbit Wine version (CrossOver version plus Orbit's rebuild number)
+# names the component folder; the CrossOver version names the source tarball.
+VERSION="$(node -p "require('$SOURCES').release.version")"
+CROSSOVER_VERSION="$(node -p "require('$SOURCES').crossover.version")"
+if [[ "$VERSION" != "$CROSSOVER_VERSION" && "$VERSION" != "$CROSSOVER_VERSION"-* ]]; then
+  echo "release.version $VERSION is not a build of CrossOver $CROSSOVER_VERSION" >&2
+  exit 2
+fi
 SHA256="$(node -p "require('$SOURCES').crossover.sha256")"
 URL="$(node -p "require('$SOURCES').crossover.url")"
 MONO_VERSION="$(node -p "require('$SOURCES').mono.version")"
@@ -34,7 +41,7 @@ if [[ ! -f "$DEPS_FROM/libSDL2-2.0.0.dylib" ]]; then
 fi
 
 mkdir -p "$WORK/src" "$WORK/deps/include" "$WORK/deps/lib" "$WORK/build"
-TARBALL="$WORK/crossover-sources-$VERSION.tar.gz"
+TARBALL="$WORK/crossover-sources-$CROSSOVER_VERSION.tar.gz"
 if [[ ! -f "$TARBALL" ]]; then
   curl -fL --proto '=https' -o "$TARBALL.part" "$URL"
   mv "$TARBALL.part" "$TARBALL"

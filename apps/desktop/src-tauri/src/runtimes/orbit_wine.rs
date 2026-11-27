@@ -10,6 +10,7 @@
 
 use super::components;
 use super::manager::SetupProgress;
+use super::wine_capabilities::version_key;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,6 +30,13 @@ const MAX_ARCHIVE_BYTES: u64 = 2_147_483_648;
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubRelease {
     pub tag_name: String,
+    /// Release notes (Markdown, untrusted).
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub published_at: Option<String>,
+    #[serde(default)]
+    pub html_url: Option<String>,
     #[serde(default)]
     pub draft: bool,
     #[serde(default)]
@@ -64,22 +72,48 @@ pub struct OrbitWineStatus {
     pub container_ready: bool,
 }
 
-/// The newest published Orbit Wine release's manifest URL: stable, not a
-/// draft, tagged `orbit-wine-v…`, with the manifest attached. GitHub lists
-/// releases newest first.
-pub fn manifest_url(releases: &[GitHubRelease]) -> Option<String> {
-    releases
+/// Published Orbit Wine manifest URLs, highest version first: stable, not a
+/// draft, tagged `orbit-wine-v…`, with the manifest attached. Versions are
+/// compared, not GitHub's creation order, so a rebuild (`26.3.0-2`) wins
+/// over an older build uploaded after it. Ties keep GitHub's order.
+pub fn manifest_urls(releases: &[GitHubRelease]) -> Vec<String> {
+    ranked(releases).into_iter().map(|(_, url)| url).collect()
+}
+
+/// Published Orbit Wine releases with their manifest URL, highest version
+/// first (see `manifest_urls`). O(r log r).
+pub fn ranked(releases: &[GitHubRelease]) -> Vec<(&GitHubRelease, String)> {
+    let mut found: Vec<(Vec<u32>, &GitHubRelease, String)> = releases
         .iter()
-        .filter(|release| {
-            !release.draft && !release.prerelease && release.tag_name.starts_with(TAG_PREFIX)
-        })
-        .find_map(|release| {
-            release
+        .filter(|release| !release.draft && !release.prerelease)
+        .filter_map(|release| {
+            let version = release.tag_name.strip_prefix(TAG_PREFIX)?;
+            let asset = release
                 .assets
                 .iter()
-                .find(|asset| asset.name == MANIFEST_ASSET)
-                .map(|asset| asset.browser_download_url.clone())
+                .find(|asset| asset.name == MANIFEST_ASSET)?;
+            Some((
+                version_key(version),
+                release,
+                asset.browser_download_url.clone(),
+            ))
         })
+        .collect();
+    found.sort_by(|a, b| b.0.cmp(&a.0));
+    found
+        .into_iter()
+        .map(|(_, release, url)| (release, url))
+        .collect()
+}
+
+/// The highest published Orbit Wine release's manifest URL.
+pub fn manifest_url(releases: &[GitHubRelease]) -> Option<String> {
+    manifest_urls(releases).into_iter().next()
+}
+
+/// Whether `release` is newer than the installed Orbit Wine `installed`.
+pub fn is_update(installed: &str, release: &str) -> bool {
+    version_key(release) > version_key(installed)
 }
 
 /// Only this repository's release downloads, a real SHA-256, a version that is
@@ -95,13 +129,7 @@ pub fn validate(release: &OrbitWineRelease) -> Result<()> {
     if release.sha256.len() != 64 || !release.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
         bail!("The Orbit Wine release has no valid SHA-256");
     }
-    let safe_version = !release.version.is_empty()
-        && release
-            .version
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b'_')
-        && !release.version.starts_with('.');
-    if !safe_version {
+    if !super::wine_capabilities::is_version_name(&release.version) {
         bail!("The Orbit Wine release has an invalid version");
     }
     if release.size == 0 || release.size > MAX_ARCHIVE_BYTES {
@@ -125,7 +153,7 @@ pub fn version_of(loader: &Path) -> Option<String> {
     None
 }
 
-fn client(read_timeout: Duration) -> Result<reqwest::blocking::Client> {
+pub(super) fn client(read_timeout: Duration) -> Result<reqwest::blocking::Client> {
     reqwest::blocking::Client::builder()
         .user_agent(concat!("Orbit/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
@@ -136,10 +164,8 @@ fn client(read_timeout: Duration) -> Result<reqwest::blocking::Client> {
         .context("Orbit could not prepare its download connection. Retry the install")
 }
 
-/// The newest Orbit Wine release, read from the repository's releases.
-pub fn latest_release() -> Result<OrbitWineRelease> {
-    let client = client(Duration::from_secs(30))?;
-    let releases: Vec<GitHubRelease> = client
+pub(super) fn github_releases(client: &reqwest::blocking::Client) -> Result<Vec<GitHubRelease>> {
+    client
         .get(format!(
             "https://api.github.com/repos/{REPOSITORY}/releases?per_page=50"
         ))
@@ -150,9 +176,13 @@ pub fn latest_release() -> Result<OrbitWineRelease> {
             "Orbit could not reach GitHub to find Orbit Wine. Check your connection and retry",
         )?
         .json()
-        .context("GitHub answered with releases Orbit could not read")?;
-    let url = manifest_url(&releases)
-        .context("Orbit Wine has not been published yet. Try again later")?;
+        .context("GitHub answered with releases Orbit could not read")
+}
+
+pub(super) fn fetch_manifest(
+    client: &reqwest::blocking::Client,
+    url: &str,
+) -> Result<OrbitWineRelease> {
     let release: OrbitWineRelease = client
         .get(url)
         .send()
@@ -163,6 +193,47 @@ pub fn latest_release() -> Result<OrbitWineRelease> {
     validate(&release)?;
     Ok(release)
 }
+
+/// The newest Orbit Wine release, read from the repository's releases.
+pub fn latest_release() -> Result<OrbitWineRelease> {
+    let client = client(Duration::from_secs(30))?;
+    let url = manifest_url(&github_releases(&client)?)
+        .context("Orbit Wine has not been published yet. Try again later")?;
+    fetch_manifest(&client, &url)
+}
+
+/// The highest `limit` published releases, highest first. One request per
+/// manifest, so `limit` stays small. A release whose manifest cannot be read
+/// or fails validation is skipped.
+pub fn published_releases(limit: usize) -> Result<Vec<OrbitWineRelease>> {
+    let client = client(Duration::from_secs(30))?;
+    let urls = manifest_urls(&github_releases(&client)?);
+    let mut releases = Vec::new();
+    let mut first_error = None;
+    for url in urls.iter().take(limit) {
+        match fetch_manifest(&client, url) {
+            Ok(release) => releases.push(release),
+            Err(error) => {
+                first_error.get_or_insert(error);
+            }
+        }
+    }
+    match first_error {
+        Some(error) if releases.is_empty() => Err(error),
+        _ => Ok(releases),
+    }
+}
+
+/// The published release of one Orbit Wine version.
+pub fn release_for(version: &str) -> Result<OrbitWineRelease> {
+    published_releases(PUBLISHED_LIMIT)?
+        .into_iter()
+        .find(|release| release.version == version)
+        .with_context(|| format!("Orbit Wine {version} is not published"))
+}
+
+/// How many published builds Settings offers.
+pub const PUBLISHED_LIMIT: usize = 8;
 
 /// The installed Orbit Wine Play would use, and whether its base container is
 /// ready, or `None` when there is none.
@@ -194,12 +265,12 @@ where
     }
     validate(release)?;
     let name = format!("Orbit Wine {}", release.version);
-    if let Some(existing) = status(root).filter(|s| s.version == release.version) {
+    if super::wine_capabilities::crossover_at(root, &release.version).is_some() {
         progress(SetupProgress::Ready {
             component: name,
             message: "Already installed".into(),
         });
-        return Ok(existing);
+        return status(root).context("Orbit Wine is installed but Orbit could not read it");
     }
     let _guard = components::INSTALL_LOCK
         .lock()
@@ -341,13 +412,25 @@ fn register_bundle(app: &Path) {
 
 /// Prepares Orbit Wine's base container (the prefix new game containers are
 /// cloned from), so a game's first Play does not wait for it.
-pub fn prepare_container<F>(root: &Path, mut progress: F) -> Result<OrbitWineStatus>
+pub fn prepare_container<F>(root: &Path, progress: F) -> Result<OrbitWineStatus>
 where
     F: FnMut(SetupProgress),
 {
     let loader = super::wine_capabilities::installed_crossover(root)
         .context("Install Orbit Wine before preparing its container")?;
-    let runtime = super::detection::probe(&loader)?;
+    prepare_container_at(root, &loader, progress)
+}
+
+/// Prepares the base container of one installed Orbit Wine loader.
+pub fn prepare_container_at<F>(
+    root: &Path,
+    loader: &Path,
+    mut progress: F,
+) -> Result<OrbitWineStatus>
+where
+    F: FnMut(SetupProgress),
+{
+    let runtime = super::detection::probe(loader)?;
     let name = "Orbit Wine container".to_string();
     progress(SetupProgress::Installing {
         component: name.clone(),
@@ -369,6 +452,9 @@ mod tests {
     fn release(tag: &str, assets: &[&str]) -> GitHubRelease {
         GitHubRelease {
             tag_name: tag.into(),
+            body: None,
+            published_at: None,
+            html_url: None,
             draft: false,
             prerelease: false,
             assets: assets
@@ -422,6 +508,61 @@ mod tests {
             )
         );
         assert_eq!(manifest_url(&[release("v1.2.0", &["Orbit.dmg"])]), None);
+    }
+
+    #[test]
+    fn picks_the_highest_orbit_wine_version_whatever_the_listing_order() {
+        // Regression: the audio and controller fixes shipped as a rebuild of
+        // CrossOver 26.3.0. GitHub lists releases by creation date, so an
+        // older build re-uploaded later must not win over the rebuild.
+        let releases = [
+            release("orbit-wine-v26.3.0", &[MANIFEST_ASSET]),
+            release("orbit-wine-v26.3.0-2", &[MANIFEST_ASSET]),
+            release("orbit-wine-v26.2.0", &[MANIFEST_ASSET]),
+        ];
+        assert_eq!(
+            manifest_url(&releases).as_deref(),
+            Some(
+                format!(
+                    "https://github.com/{REPOSITORY}/releases/download/orbit-wine-v26.3.0-2/{MANIFEST_ASSET}"
+                )
+                .as_str()
+            )
+        );
+    }
+
+    #[test]
+    fn lists_published_manifests_highest_version_first() {
+        let releases = [
+            release("orbit-wine-v26.3.0", &[MANIFEST_ASSET]),
+            release("orbit-wine-v26.3.0-2", &[MANIFEST_ASSET]),
+            release("orbit-wine-v26.2.0", &[MANIFEST_ASSET]),
+            release("orbit-wine-v26.4.0", &["notes.txt"]),
+        ];
+        let tags: Vec<String> = manifest_urls(&releases)
+            .into_iter()
+            .map(|url| url.split('/').rev().nth(1).unwrap().to_string())
+            .collect();
+        assert_eq!(
+            tags,
+            [
+                "orbit-wine-v26.3.0-2",
+                "orbit-wine-v26.3.0",
+                "orbit-wine-v26.2.0"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_rebuild_of_the_same_crossover_is_an_update() {
+        // Regression: 26.3.0 users never got the patched build, because
+        // install() treats an equal version as already installed.
+        assert!(is_update("26.3.0", "26.3.0-2"));
+        assert!(is_update("26.3.0-2", "26.3.0-3"));
+        assert!(is_update("26.3.0-2", "26.4.0"));
+        assert!(!is_update("26.3.0-2", "26.3.0-2"));
+        assert!(!is_update("26.3.0-2", "26.3.0"));
+        assert!(!is_update("26.4.0", "26.3.0-2"));
     }
 
     #[test]

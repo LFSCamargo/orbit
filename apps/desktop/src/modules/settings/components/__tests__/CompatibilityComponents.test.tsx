@@ -16,6 +16,9 @@ vi.mock('@/lib/tauri', () => ({
   installGptkViaHomebrew: vi.fn(),
   installLocalGptkPackage: vi.fn(),
   registerComponentPath: vi.fn(),
+  getOrbitWineVersions: vi.fn().mockResolvedValue({ versions: [], error: null }),
+  selectOrbitWine: vi.fn(),
+  installOrbitWineVersion: vi.fn(),
 }))
 vi.mock('@/lib/dialog', () => ({ open: vi.fn() }))
 
@@ -24,19 +27,19 @@ const catalog = {
   warnings: [],
   components: [
     {
-      id: 'wine-stable',
-      name: 'Wine Stable',
-      technology: 'Wine',
+      id: 'dxmt',
+      name: 'DirectX 11 graphics',
+      technology: 'DXMT',
       sourceUrl: 'https://github.com',
-      distribution: 'Official Gcenx builds',
+      distribution: 'Official 3Shain builds',
       downloadable: true,
       versions: [
         {
-          version: '11.0_1',
+          version: 'v0.80',
           prerelease: false,
           asset: {
-            name: 'wine-stable-11.0_1-osx64.tar.xz',
-            url: 'https://example.com/wine.tar.xz',
+            name: 'dxmt-v0.80.tar.gz',
+            url: 'https://example.com/dxmt.tar.gz',
             size: 100,
             sha256: 'abc',
           },
@@ -52,7 +55,7 @@ function renderRows() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <CompatibilityComponents managed={null} managedVersion="11.0.1" />
+      <CompatibilityComponents />
     </QueryClientProvider>,
   )
 }
@@ -70,7 +73,7 @@ it('shows a percentage progress bar while a component downloads', async () => {
   vi.mocked(installComponent).mockImplementation((_spec, onProgress) => {
     onProgress({
       phase: 'Downloading',
-      component: 'wine-stable 11.0_1',
+      component: 'dxmt v0.80',
       downloadedBytes: 50,
       totalBytes: 100,
     })
@@ -83,10 +86,33 @@ it('shows a percentage progress bar while a component downloads', async () => {
   fireEvent.click(screen.getByRole('button', { name: /Install/ }))
   expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
   expect(
-    await screen.findByText('Downloading wine-stable 11.0_1 · 50% · 50 B / 100 B'),
+    await screen.findByText('Downloading dxmt v0.80 · 50% · 50 B / 100 B'),
   ).toBeVisible()
   settle()
   await waitFor(() => expect(installComponent).toHaveBeenCalledTimes(1))
+})
+
+it('offers Orbit Wine in place of the catalog Wine tracks', async () => {
+  vi.mocked(getCompatibilityCatalog).mockResolvedValue({
+    ...catalog,
+    components: [
+      ...catalog.components,
+      {
+        ...catalog.components[0],
+        id: 'wine-stable',
+        name: 'Wine Stable',
+        technology: 'Wine',
+      },
+    ],
+  } as never)
+  renderRows()
+  expect(
+    await screen.findByRole('combobox', { name: 'Windows games runtime version' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('combobox', { name: 'Compatibility layer version' }),
+  ).toBeNull()
+  expect(screen.queryByRole('combobox', { name: 'Wine Stable version' })).toBeNull()
 })
 
 it('does not offer a GameHub component import', async () => {
@@ -97,14 +123,12 @@ it('does not offer a GameHub component import', async () => {
 
 it('surfaces the extraction failure with a retry affordance', async () => {
   vi.mocked(installComponent).mockRejectedValue(
-    new Error(
-      'The downloaded Wine package has no wine or wine64 binary under a bin/ directory.',
-    ),
+    new Error('The downloaded DXMT package has no x86_64 DLLs.'),
   )
   renderRows()
   expect(await screen.findByText(/Not installed/)).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: /Install/ }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('no wine or wine64 binary')
+  expect(await screen.findByRole('alert')).toHaveTextContent('no x86_64 DLLs')
   const retry = await screen.findByRole('button', { name: /Retry/ })
   expect(retry).toBeEnabled()
 })
