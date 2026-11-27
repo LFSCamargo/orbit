@@ -7,7 +7,7 @@ resolver = "2"
 
 [package]
 name = "orbit"
-version = "2.6.0"
+version = "2.6.1"
 description = "Orbit — controller-first game launcher"
 authors = ["Orbit"]
 edition = "2021"
