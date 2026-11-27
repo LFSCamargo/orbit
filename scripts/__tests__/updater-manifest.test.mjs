@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { releaseAssetUrl, updaterManifest } from '../lib/updater.mjs'
+import { inAppNotes, releaseAssetUrl, updaterManifest } from '../lib/updater.mjs'
 
 const base = {
   version: '2.6.1',
@@ -40,4 +40,28 @@ test('an unsigned or malformed release is refused', () => {
   assert.throws(() => updaterManifest({ ...base, version: 'v2.6.1' }), /Invalid version/)
   assert.throws(() => updaterManifest({ ...base, pubDate: 'soon' }), /Invalid date/)
   assert.throws(() => releaseAssetUrl('2.6.1', '../evil.tar.gz'), /Invalid asset name/)
+})
+
+test('the in-app notes leave out what only fits the release page', () => {
+  const notes = [
+    'Orbit **2.6.1** — Updates from inside Orbit',
+    '',
+    '## Highlights',
+    '',
+    '- Update from inside Orbit.',
+    '',
+    '## Install or update',
+    '',
+    '1. Download the DMG.',
+    '',
+    '## Full changelog',
+    '',
+    '[CHANGELOG.md](https://example.com)',
+  ].join('\n')
+  assert.equal(
+    inAppNotes(notes),
+    'Orbit **2.6.1** — Updates from inside Orbit\n\n## Highlights\n\n- Update from inside Orbit.',
+  )
+  assert.equal(inAppNotes('Just notes'), 'Just notes')
+  assert.equal(updaterManifest({ ...base, notes }).notes, inAppNotes(notes))
 })

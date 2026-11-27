@@ -22,6 +22,17 @@ export function releaseAssetUrl(version, file, repository = REPOSITORY) {
   return `https://github.com/${repository}/releases/download/v${version}/${file}`
 }
 
+// Sections of a GitHub release note that only make sense on the release page.
+const PAGE_ONLY = /^##\s+(install|build from source|full changelog)\b/im
+
+/** Release notes for the in-app update dialog: everything before the
+ * install, build and changelog sections, which only fit the release page. */
+export function inAppNotes(markdown) {
+  const text = String(markdown ?? '')
+  const match = PAGE_ONLY.exec(text)
+  return (match ? text.slice(0, match.index) : text).trim()
+}
+
 /**
  * The manifest for one signed `.app.tar.gz`. `arch` is the build's label
  * (aarch64, x86_64 or universal); a universal build serves both Mac kinds.
@@ -36,7 +47,7 @@ export function updaterManifest({ version, notes, pubDate, arch, archive, signat
   const url = releaseAssetUrl(version, archive)
   return {
     version,
-    notes: String(notes ?? '').trim(),
+    notes: inAppNotes(notes),
     pub_date: date.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     platforms: Object.fromEntries(
       platforms.map((platform) => [platform, { signature: sig, url }]),
