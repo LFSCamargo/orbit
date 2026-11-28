@@ -25,7 +25,7 @@ export const POST_KIND_LABELS: Record<PostKind, string> = {
 export const POSTS: PostMeta[] = [
   {
     slug: 'orbit-2-6-1-updates-from-inside-orbit',
-    title: 'Orbit 2.6.1: updates from inside Orbit',
+    title: 'Orbit 2.6.2: updates from inside Orbit',
     highlight: 'updates from inside Orbit',
     description:
       'The last Orbit you download from the website: new versions now arrive inside the app, signed and verified. Plus Orbit Wine 26.3.0-2, which ends the crackling, and a choice of Orbit Wine in Settings.',

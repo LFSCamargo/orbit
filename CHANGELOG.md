@@ -20,6 +20,14 @@ bun run monopipeline bump patch
 
 ## [Unreleased]
 
+## [2.6.2] - 2026-11-27
+
+2.6.1, rebuilt so it opens on every Mac
+
+### Fixed
+
+- Orbit 2.6.1 as published (built on CircleCI) could not open, whether downloaded or installed as an in-app update: it linked Homebrew's `liblzma` from the build machine instead of carrying its own. `liblzma` is now always built into the app (`LZMA_API_STATIC` in `apps/desktop/src-tauri/.cargo/config.toml`), and `scripts/release-macos.sh` refuses a build that links any library outside macOS (`scripts/check-linkage.mjs`). 2.6.2 has every 2.6.1 change.
+
 ## [2.6.1] - 2026-11-27
 
 Updates from inside Orbit, and a choice of Orbit Wine

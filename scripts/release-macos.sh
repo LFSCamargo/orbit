@@ -323,6 +323,10 @@ if [[ -z "$APP_SRC" || ! -d "$APP_SRC" ]]; then
 fi
 
 APP_BASENAME="$(basename "$APP_SRC" .app)"
+
+echo "==> Linked libraries"
+node "$ROOT/scripts/check-linkage.mjs" "$APP_SRC/Contents/MacOS/$APP_BASENAME"
+
 APP_ARCHIVE="$OUT_DIR/${APP_BASENAME}-${VERSION}-${LABEL}.app.tar.gz"
 UPDATER_ARCHIVE="$BUNDLE_DIR/macos/$APP_BASENAME.app.tar.gz"
 
