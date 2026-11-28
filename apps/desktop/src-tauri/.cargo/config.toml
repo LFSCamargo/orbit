@@ -1,0 +1,6 @@
+# Every C library Orbit needs is built into the app: the Macs it runs on have
+# no Homebrew. lzma-sys (xz2) otherwise links the system liblzma whenever
+# pkg-config finds one, as on CircleCI's Mac images, and 2.6.1 built there
+# could not start. scripts/release-macos.sh checks the result (check-linkage).
+[env]
+LZMA_API_STATIC = "1"
