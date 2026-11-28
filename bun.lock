@@ -16,7 +16,7 @@
     },
     "apps/desktop": {
       "name": "@orbit/desktop",
-      "version": "2.6.1",
+      "version": "2.6.2",
       "dependencies": {
         "@radix-ui/react-collapsible": "1.2.1",
         "@radix-ui/react-select": "2.4.1",
