@@ -153,7 +153,8 @@ git tag -a v2.6.1 -m "Orbit 2.6.1" && git push origin v2.6.1   # CircleCI publis
 To publish from a Mac instead (CircleCI down or out of minutes), run
 `bun run release:macos -- --publish` after pushing the tag.
 
-`--publish` builds and signs the release, verifies the update's signature against the
+The script refuses a build that links a library outside macOS (`scripts/check-linkage.mjs`):
+the Macs Orbit runs on have no Homebrew. `--publish` builds and signs the release, verifies the update's signature against the
 public key in `tauri.conf.json`, writes `latest.json`, uploads everything to a draft
 release `v2.6.1`, then publishes it as latest. Installed Orbits read
 `releases/latest/download/latest.json`, so Orbit Wine releases are never marked latest.

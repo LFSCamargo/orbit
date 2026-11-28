@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["cwebp"],
+  "ignoreBinaries": ["cwebp", "otool"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.mjs", "scripts/__tests__/*.test.mjs"],
